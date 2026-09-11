@@ -1,0 +1,38 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Testing / tooling caches
+.pytest_cache/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Proofload run stores. The default store root is ./proofload-runs.
+proofload-runs/
+
+# Session notes: a symlink into the vault. No trailing slash, or the symlink gets through.
+notes
+
+# Agent tooling
+.claude/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
