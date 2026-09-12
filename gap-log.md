@@ -190,3 +190,37 @@ CN-2 (Colab).
 - **Ask:** a public listing endpoint, or an enumeration by someone with hub
   access. **Owed before the pre-registration freezes** (§4 stage 4), since KC9
   rests on it.
+
+---
+
+## PG-16 · The audit field is arm-dependent, so the verdict state is too
+
+- **Date:** 2026-09-11
+- **Scope note:** this is an internal design gap, not an upstream one. It gets a
+  PG number because the log has one sequence.
+- **Needed:** a records value that TG-M3 can compare exactly against
+  `expected_final_state` for `passed` (§2.3), and that the D control's arm
+  transform leaves alone, so N14's field-by-field bundle diff still sees only
+  `prompt` and `seq_start` change.
+- **Available:** TG-ADR-36 defines the audit field as the `seq` of the last
+  successful transition, and TG-ADR-35 makes `seq_start` an argument that N14
+  varies by arm. So the audit field of a completed record differs between the
+  `dL+hH` control and the plain `dL` arm by exactly `H − dL`. Measured in
+  TG-M1's oracle: `test_e5_seq_start_is_an_argument_not_a_scenario_field`
+  asserts every other record field is equal across two `seq_start`s and that the
+  audit field moves by the offset.
+- **Workaround not taken:** quietly dropping the audit field from
+  `records_bytes`, or quietly making it relative to `seq_start`. Either would
+  have hidden the choice inside TG-M1's oracle, two modules before the module
+  that has to live with it.
+- **Ask:** TG-M3's Session A picks one, and the pick goes in the spec before the
+  verifier is frozen:
+  1. `expected_final_state` is computed per arm from that arm's `seq_start`, and
+     N14's list of fields the D control may change gains it; or
+  2. the verdict compares records excluding the audit field, and §2.3 says so;
+     or
+  3. the audit field records the call index within the episode rather than the
+     `seq`, which costs TG-ADR-36 its wording.
+
+  Not blocking TG-M1 or TG-M2: the engine's behaviour is the same under all
+  three, and only the verdict's comparison changes.

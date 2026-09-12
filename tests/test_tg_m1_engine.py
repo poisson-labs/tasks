@@ -52,6 +52,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import inspect
 import json
 import os
 import pathlib
@@ -102,17 +103,33 @@ DENY_NAMES = DENY + (
 # independent source and not the offline encoder's own output read back.  No test
 # in this file touches the network.
 PINNED_TOKEN_COUNTS = (
-    ("submit", 1), ("review", 1), ("sample", 1), ("measure", 1),
-    ("invoice", 1), ("payment", 1), ("salary", 1),
-    ("lookup", 1), ("fetch", 1), ("region", 1), ("volume", 1),
-    ("ok", 1), ("no_such_tool", 3), ("back", 1), ("best", 1),
-    ("submit_review_invoice", 3), ("lookup_region", 2),
-    ("requires the token returned by submit_review_invoice", 8),
-    ("returns the region field of the named catalogue item", 9),
-    ("requires the entry code stated in the request for a invoice record", 12),
-    ("able-account-active-address", 4),
-    (" access-action-added-adjust", 4),
-    ("000001 ok           00000000000000000000000000000000", 17),
+    ('submit', 1),
+    ('review', 1),
+    ('sample', 1),
+    ('measure', 1),
+    ('invoice', 1),
+    ('payment', 1),
+    ('salary', 1),
+    ('lookup', 1),
+    ('fetch', 1),
+    ('region', 1),
+    ('volume', 1),
+    ('ok', 1),
+    ('no_such_tool', 4),
+    ('back', 1),
+    ('best', 1),
+    ('user-right-pass-product', 4),
+    ('case-good-high-file', 4),
+    ('3183630de2a110fb56814e2b8b4a506d', 19),
+    ('647970288705b44cbdd0699c2c5a0ea4', 18),
+    ('submit_review_invoice', 3),
+    ('lookup_region', 2),
+    ('requires the token returned by submit_review_invoice', 8),
+    ('returns the region field of the named catalogue item', 9),
+    ('requires the entry code stated in the request for a invoice record', 12),
+    ('able-account-active-address', 4),
+    (' access-action-added-adjust', 4),
+    ('000001 ok           00000000000000000000000000000000', 16),
 )
 
 TABLE = json.loads(TABLE_PATH.read_text())
@@ -162,7 +179,7 @@ def obs_seq(observation: str) -> int:
     return int(obs_fields(observation)[0])
 
 
-def records_bytes(state) -> bytes:
+def records_bytes(state, audit: bool = True) -> bytes:
     """A canonical rendering of the records alone, for E4's and E7's byte equality.
 
     Built from the public fields only, so it is independent of whatever `mutations`
@@ -171,7 +188,8 @@ def records_bytes(state) -> bytes:
     """
     rows = []
     for (cls, rid), rec in sorted(state.records.items()):
-        rows.append(f"{cls}|{rid}|{rec.stage}|{rec.token}|{rec.audit}")
+        tail = f"|{rec.audit}" if audit else ""
+        rows.append(f"{cls}|{rid}|{rec.stage}|{rec.token}{tail}")
     return "\n".join(rows).encode("ascii")
 
 
@@ -236,31 +254,39 @@ def a_valid_read(scenario):
                                   "page_key": TABLE["page_keys"][0]})
 
 
-def rejected_calls(scenario, cls, rid, entry_code):
-    """One call per rejection reason, over a record standing at stage 1.
+def rejected_calls(scenario, at_stage_1, at_stage_0):
+    """One call per rejection reason, over two records the caller has positioned.
 
-    The caller must hold that record at stage 1: `bad_token` needs a call whose
-    stage precondition passes so that the token is what is rejected, and
-    `not_ready` needs one whose precondition fails.
+    Two are needed, not one.  `bad_token` needs a call whose stage precondition
+    passes so that the token is what is rejected, which takes a record standing at
+    stage 1; `bad_entry` needs a stage-1 tool whose precondition passes, which
+    takes a record still at stage 0; and `not_ready` needs one whose precondition
+    fails.
 
     Precedence, which the spec leaves open and the oracle therefore fixes: the
     stage precondition is decided before the argument.  A stage-3 tool aimed at a
     record standing at stage 1 is `not_ready` whatever token it carries, because
     no token could have been right for it (TG-ADR-36).
     """
-    stage1 = stage_tool(TABLE["stage_names"][0], cls)
-    stage2 = stage_tool(TABLE["stage_names"][1], cls)
-    stage3 = stage_tool(TABLE["stage_names"][2], cls)
+    cls1, rid1 = at_stage_1
+    cls0, rid0 = at_stage_0
+    entry0 = scenario.records[at_stage_0]
+    entry1 = scenario.records[at_stage_1]
     reader = all_read_tools()[0]
     good_item = scenario.visible_items[0]
     return [
-        ("no_such_tool", ("submit_not_a_tool_at_all", {"record_id": rid, "entry_code": entry_code})),
-        ("no_such_rec", (stage1, {"record_id": record_id(["able", "able", "able", "able"]),
-                                  "entry_code": entry_code})),
-        ("bad_args", (stage2, {"record_id": rid})),
-        ("bad_entry", (stage1, {"record_id": rid, "entry_code": "not" + entry_code})),
-        ("bad_token", (stage2, {"record_id": rid, "chain_token": "f" * 32})),
-        ("not_ready", (stage3, {"record_id": rid, "chain_token": "f" * 32})),
+        ("no_such_tool", ("submit_not_a_tool_at_all",
+                          {"record_id": rid1, "entry_code": entry1})),
+        ("no_such_rec", (stage_tool(TABLE["stage_names"][0], cls0),
+                         {"record_id": record_id(["able", "able", "able", "able"]),
+                          "entry_code": entry0})),
+        ("bad_args", (stage_tool(TABLE["stage_names"][1], cls1), {"record_id": rid1})),
+        ("bad_entry", (stage_tool(TABLE["stage_names"][0], cls0),
+                       {"record_id": rid0, "entry_code": "not" + entry0})),
+        ("bad_token", (stage_tool(TABLE["stage_names"][1], cls1),
+                       {"record_id": rid1, "chain_token": "f" * 32})),
+        ("not_ready", (stage_tool(TABLE["stage_names"][2], cls1),
+                       {"record_id": rid1, "chain_token": "f" * 32})),
         ("no_such_item", (reader, {"item_code": "no-such-item-code",
                                    "page_key": TABLE["page_keys"][0]})),
         ("no_such_page", (reader, {"item_code": good_item, "page_key": "e" * 32})),
@@ -406,28 +432,57 @@ def test_e1_engine_source_has_no_impurity():
     """
     import task_generator.engine as engine
 
+    # Never reached at all: a clock, a random source, the environment, the network.
     FORBIDDEN_MODULES = {
-        "time", "datetime", "random", "secrets", "os", "io", "socket", "ssl",
-        "pathlib", "shutil", "tempfile", "urllib", "http", "requests", "subprocess",
-        "uuid", "sysconfig", "platform",
+        "time", "datetime", "random", "secrets", "os", "socket", "ssl",
+        "urllib", "http", "requests", "subprocess", "uuid", "platform", "getpass",
     }
-    FORBIDDEN_CALLS = {"open", "input", "eval", "exec", "compile", "__import__", "globals"}
+    # Reached only where the table is read, which is EngineSpec.load and nowhere
+    # else: finding 11 says the table is loaded into EngineSpec once, so a blanket
+    # ban would make the loader unwritable. `apply` must not touch these, and must
+    # not call the loader either.
+    FILESYSTEM_MODULES = {"pathlib", "io", "shutil", "tempfile", "importlib"}
+    FORBIDDEN_CALLS = {"input", "eval", "exec", "compile", "__import__", "globals", "vars"}
+    LOADER = "load"
 
     tree = ast.parse(pathlib.Path(engine.__file__).read_text())
-    bad_imports, bad_calls = [], []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name.split(".")[0] in FORBIDDEN_MODULES:
-                    bad_imports.append(alias.name)
-        elif isinstance(node, ast.ImportFrom):
-            if node.module and node.module.split(".")[0] in FORBIDDEN_MODULES:
-                bad_imports.append(node.module)
-        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-            if node.func.id in FORBIDDEN_CALLS:
-                bad_calls.append(node.func.id)
-    assert bad_imports == [], f"engine.py imports an impure module: {bad_imports}"
-    assert bad_calls == [], f"engine.py calls an impure builtin: {bad_calls}"
+    functions = {n.name: n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
+    assert "apply" in functions, "engine.py defines no apply"
+
+    def imported(node):
+        for n in ast.walk(node):
+            if isinstance(n, ast.Import):
+                for alias in n.names:
+                    yield alias.name.split(".")[0]
+            elif isinstance(n, ast.ImportFrom) and n.module:
+                yield n.module.split(".")[0]
+
+    def called(node):
+        for n in ast.walk(node):
+            if isinstance(n, ast.Call):
+                if isinstance(n.func, ast.Name):
+                    yield n.func.id
+                elif isinstance(n.func, ast.Attribute):
+                    yield n.func.attr
+
+    module_imports = set(imported(tree))
+    assert module_imports & FORBIDDEN_MODULES == set(), \
+        f"engine.py reaches a clock, an RNG, the environment or the network: " \
+        f"{sorted(module_imports & FORBIDDEN_MODULES)}"
+    assert not (set(called(tree)) & FORBIDDEN_CALLS), \
+        f"engine.py calls an impure builtin: {sorted(set(called(tree)) & FORBIDDEN_CALLS)}"
+
+    # the filesystem is reachable from the module, but never from apply
+    apply_names = set(called(functions["apply"])) | set(imported(functions["apply"]))
+    assert not (apply_names & FILESYSTEM_MODULES), \
+        f"apply imports a filesystem module: {sorted(apply_names & FILESYSTEM_MODULES)}"
+    assert "open" not in apply_names, "apply calls open()"
+    assert LOADER not in apply_names, "apply calls the spec loader, so it reads a file"
+    for helper, node in sorted(functions.items()):
+        if helper in ("apply", LOADER) or helper.startswith("__"):
+            continue
+        if helper in set(called(functions["apply"])):
+            assert "open" not in set(called(node)), f"apply reaches open() through {helper}"
 
 # --------------------------------------------------------------------------
 # E2 Fixed observation size
@@ -439,13 +494,12 @@ def test_e2_every_status_code_renders_l_obs_bytes():
     from task_generator.engine import apply, init_state
 
     scenario = make_scenario(shared_id=False)
-    cls, rid = a_record(scenario)
-    entry = scenario.records[(cls, rid)]
+    at1, at0 = sorted(scenario.records)[:2]
     state = init_state(scenario, 1)
     seen = {}
-    at_stage_1, ok_obs = advance(state, scenario, cls, rid, 1)
+    at_stage_1, ok_obs = advance(state, scenario, *at1, 1)
     seen["ok"] = ok_obs[0]
-    for expected, call in rejected_calls(scenario, cls, rid, entry):
+    for expected, call in rejected_calls(scenario, at1, at0):
         _, obs = apply(at_stage_1, call)
         assert obs_status(obs) == expected, (call, obs)
         seen[expected] = obs
@@ -555,6 +609,28 @@ def test_e3_chain_requires_the_previous_stage_token():
                                {"record_id": rid, "entry_code": entry}))
     assert obs_status(obs) == "not_ready", obs
     assert records_bytes(again) == records_bytes(state)
+
+    # The precondition in full, and in both directions: with the record standing
+    # at stage 3, *every* stage tool except stage 4's is refused, whatever token
+    # it carries -- the record's own current token included.  Testing only the
+    # rewind leaves the skip-ahead open, and a skip-ahead would reach the goal
+    # stage in fewer calls than the level, which is exactly what G5 forbids.
+    for offset, name in enumerate(TABLE["stage_names"]):
+        if offset == 3:
+            continue
+        if offset == 0:
+            # stage 1's tool takes the entry code, so a chain token there is a
+            # schema failure and would test the wrong clause
+            candidates = (("the prompt's entry code", {"entry_code": entry}),
+                          ("a wrong entry code", {"entry_code": "not" + entry}))
+        else:
+            candidates = (("the record's current token", {"chain_token": good}),
+                          ("a wrong token", {"chain_token": "f" * 32}))
+        for label, arg in candidates:
+            skipped, obs = apply(state, (stage_tool(name, cls), {"record_id": rid, **arg}))
+            assert obs_status(obs) == "not_ready", (offset, label, obs)
+            assert records_bytes(skipped) == records_bytes(state), (offset, label)
+            assert mutations(state, skipped) == [], (offset, label)
 
 
 def test_e3_tokens_depend_on_the_key():
@@ -699,11 +775,10 @@ def test_e5_counter_is_the_only_error_effect():
     from task_generator.engine import apply, init_state
 
     scenario = make_scenario()
-    cls, rid = a_record(scenario)
-    entry = scenario.records[(cls, rid)]
+    at1, at0 = sorted(scenario.records)[:2]
     state = init_state(scenario, 7)
-    state, _ = advance(state, scenario, cls, rid, 1)
-    for _, call in rejected_calls(scenario, cls, rid, entry):
+    state, _ = advance(state, scenario, *at1, 1)
+    for _, call in rejected_calls(scenario, at1, at0):
         after, obs = apply(state, call)
         assert obs_status(obs) != "ok", call
         assert records_bytes(after) == records_bytes(state)
@@ -732,11 +807,16 @@ def test_e5_seq_start_is_an_argument_not_a_scenario_field():
                      a_valid_read(scenario)):
             state, obs = apply(state, call)
             out.append(obs)
-        return out, records_bytes(state)
+        return out, records_bytes(state, audit=False), state.records[(cls, rid)].audit
 
-    a_obs, a_rec = run(1)
-    b_obs, b_rec = run(500)
+    (a_obs, a_rec, a_audit), (b_obs, b_rec, b_audit) = run(1), run(500)
+    # every record field but the audit is untouched by seq_start
     assert a_rec == b_rec
+    # and the audit field, being a seq, moves with seq_start by exactly the offset.
+    # TG-M3 inherits this: expected_final_state is arm-dependent through seq_start,
+    # or the verdict excludes the audit field. See the spec's open question and
+    # gap-log entry PG-16.
+    assert b_audit - a_audit == 499
     for x, y in zip(a_obs, b_obs):
         assert obs_fields(x)[1:] == obs_fields(y)[1:]
         assert obs_seq(y) - obs_seq(x) == 499
@@ -767,7 +847,10 @@ def test_e5_replay_numbers_in_list_order():
     _, forward = replay(scenario, calls, 1)
     _, backward = replay(scenario, list(reversed(calls)), 1)
     assert [obs_seq(o) for o in backward] == [1, 2, 3]
-    assert obs_status(forward[0]) != obs_status(backward[0])
+    # position 0 holds a different call in each list, so its payload differs; the
+    # rejected call sits at index 1 in both and is numbered 2 in both
+    assert obs_fields(forward[0])[2] != obs_fields(backward[0])[2]
+    assert obs_status(forward[1]) == obs_status(backward[1]) == "no_such_tool"
 
 # --------------------------------------------------------------------------
 # E6 Closed vocabulary
@@ -817,13 +900,12 @@ def test_e6_observation_fields_decode_to_table_values():
     values = {v for row in TABLE["catalogue_values"].values() for v in row.values()}
     scenario = make_scenario()
     cls, rid = a_record(scenario)
-    other_cls, other_rid = sorted(scenario.records)[1]
+    at1, at0 = sorted(scenario.records)[1], sorted(scenario.records)[2]
     state = init_state(scenario, 1)
     state, ok = advance(state, scenario, cls, rid, 8)
-    state, _ = advance(state, scenario, other_cls, other_rid, 1)
+    state, _ = advance(state, scenario, *at1, 1)
     observations = list(ok)
-    for _, call in rejected_calls(scenario, other_cls, other_rid,
-                                  scenario.records[(other_cls, other_rid)]):
+    for _, call in rejected_calls(scenario, at1, at0):
         _, obs = apply(state, call)
         observations.append(obs)
     state, red = apply(state, a_valid_read(scenario))
@@ -1148,6 +1230,7 @@ def test_p1_module_exports_are_exactly_the_named_surface():
         public = {
             name for name, value in vars(module).items()
             if not name.startswith("_")
+            and not inspect.ismodule(value)
             and getattr(value, "__module__", module.__name__) == module.__name__
         }
         assert public == set(exports), (module.__name__, sorted(public - set(exports)))
@@ -1162,31 +1245,46 @@ def test_t1_vendored_encoding_matches_the_pinned_sha256():
     assert hashlib.sha256(ENCODING_PATH.read_bytes()).hexdigest() == ENCODING_SHA256
 
 
-def test_t2_tokenizer_builds_with_sockets_disabled(tmp_path, monkeypatch):
+_T2_CHILD = textwrap.dedent(
+    """
+    import socket, sys
+
+    def no_network(*args, **kwargs):
+        raise AssertionError("the tokenizer reached the network")
+
+    socket.socket = no_network
+    socket.create_connection = no_network
+    socket.getaddrinfo = no_network
+
+    import task_generator.tokenizer as T
+    enc = T.reference_encoding()
+    assert enc.name == "o200k_base"
+    print(T.count_tokens("submit_review_invoice"))
+    """
+)
+
+
+def test_t2_tokenizer_builds_with_sockets_disabled(tmp_path):
     """T2: it builds and encodes offline, and writes nothing to a cache directory.
 
     tiktoken 0.14.0's read_file_cached writes a copy under the cache directory for
     a *local* path too, and load_tiktoken_bpe goes through it, so neither may be
-    used (finding 9).  A get_encoding fallback would raise on the socket.
-    """
-    import socket
+    used (finding 9).  A get_encoding fallback raises on the patched socket.
 
+    Run in a fresh interpreter, not in this one.  The encoding is expensive, so
+    any sane tokenizer caches it; an earlier test in the same session would then
+    have built it already and this test would assert on a cached object, having
+    disabled nothing.  That is not hypothetical -- it is how the first draft of
+    this test let the get_encoding fallback through the whole mutation pass.
+    """
     cache = tmp_path / "tiktoken-cache"
     cache.mkdir()
-    monkeypatch.setenv("TIKTOKEN_CACHE_DIR", str(cache))
-
-    def no_sockets(*args, **kwargs):
-        raise AssertionError("the tokenizer opened a socket")
-
-    monkeypatch.setattr(socket, "socket", no_sockets)
-    monkeypatch.setattr(socket, "create_connection", no_sockets)
-
-    from task_generator.tokenizer import count_tokens, reference_encoding
-
-    enc = reference_encoding()
-    assert enc.encode_ordinary("submit_review_invoice") is not None
-    assert count_tokens("submit_review_invoice") == 3
-    assert list(cache.iterdir()) == [], sorted(p.name for p in cache.iterdir())
+    env = dict(os.environ, TIKTOKEN_CACHE_DIR=str(cache))
+    proc = subprocess.run([sys.executable, "-c", _T2_CHILD],
+                          capture_output=True, text=True, env=env)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == "3", proc.stdout
+    assert sorted(cache.iterdir()) == [], sorted(p.name for p in cache.iterdir())
 
 
 def test_t3_offline_counts_match_the_pinned_pairs():
