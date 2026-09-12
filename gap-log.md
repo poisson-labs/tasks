@@ -224,3 +224,8 @@ CN-2 (Colab).
 
   Not blocking TG-M1 or TG-M2: the engine's behaviour is the same under all
   three, and only the verdict's comparison changes.
+- **Taylor's lean, 2026-09-11, recorded and not binding:** option 2, exclude the
+  audit field from `passed`. The reasoning is that the audit field is instrument
+  bookkeeping rather than domain state, which is the same split TG-ADR-35 drew
+  between the records and the sequence counter. TG-M3's Session A still makes
+  the call and still has to justify it against the other two.
