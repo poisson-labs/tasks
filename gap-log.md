@@ -229,3 +229,41 @@ CN-2 (Colab).
   bookkeeping rather than domain state, which is the same split TG-ADR-35 drew
   between the records and the sequence counter. TG-M3's Session A still makes
   the call and still has to justify it against the other two.
+- **Closed 2026-09-14 by TG-M3's Session A, at `b8f3bfe` on `tg-m3-session-a`:
+  option 2.** The verdict compares the records without the audit field. A records
+  value is a sorted tuple of `(class, record_id, stage, token)` and there is no
+  audit field in it, so `initial_state` and `expected_final_state` both carry the
+  projection and `verify` compares on exactly it. `mutations` is TG-M1's and is
+  unchanged: it still reports `(class, id, "audit")` triples and `Verdict.mutations`
+  still carries them, because that field is diagnostic output and not the predicate.
+
+  **The deciding argument is N14, not that the audit field is bookkeeping.** Taylor's
+  lean and option 2 agree, and the lean's reasoning is not what carried it. Option 1
+  makes `expected_final_state` differ between `depth:d1+h8` and `depth:d1`, so N14's
+  list of fields the D control may change grows from the two §2.2 names to three — and
+  the field that joins it is *the one the verdict compares*. Option 3 costs TG-ADR-36
+  its wording, re-opens a module two steps back, and is not even reachable: the engine
+  would have to know `seq_start` to subtract it, and `DomainState` carries `next_seq`
+  and never `seq_start` (TG-ADR-35). Option 2 is the only one of the three that leaves
+  N14 at the two fields §2.2 names.
+
+  **Measured, not asserted** (Master Action List §18 rule 14). Option 2 is only free if
+  no call can move a record's audit field without moving its stage. `apply` writes it in
+  the one branch that also writes `stage` and `token`, and
+  `test_pg16_2_the_audit_field_moves_if_and_only_if_the_stage_moves` measures that over
+  the status codes the engine emits, with `test_pg16_3` as a property over random
+  sequences. So the projection is as discriminating as the full records for `passed`
+  and for `collateral_mutation` alike: a record cannot have been mutated without its
+  stage moving.
+
+  **What option 1 would also have cost, found by the mutation pass and not by reading.**
+  Mutant `m01b`, a consistent option-1 implementation, fails
+  `test_ov3_a_passing_episode_with_a_malformed_turn_is_still_passed`: under option 1 an
+  episode that makes one rejected call before an otherwise-correct solution no longer
+  passes, because the rejected call advances `seq` and shifts the audit field. That is
+  the failure TG-ADR-35 names in its own words — "an extra rejected call can't fail an
+  otherwise-correct episode" — reappearing through the verdict rather than the state.
+
+  **What would reopen it:** a design that needs the verdict to distinguish two final
+  states that differ only in when a transition happened. Nothing in §2.3's vocabulary
+  does; a label about *ordering* rather than *outcome* would.
