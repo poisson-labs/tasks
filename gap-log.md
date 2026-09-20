@@ -267,3 +267,25 @@ CN-2 (Colab).
   **What would reopen it:** a design that needs the verdict to distinguish two final
   states that differ only in when a transition happened. Nothing in §2.3's vocabulary
   does; a label about *ordering* rather than *outcome* would.
+
+---
+
+## PG-17 · No public read of an episode's `meta`
+
+- **Date:** 2026-09-20
+- **Needed:** to read what a stored episode recorded in `meta` (`scenario_hash`,
+  `task_id`, `arm_id`, the level) from a finished run, so that A2 ("two scripted runs,
+  with the stores compared"), A3 ("`meta` carries the level on every episode") and A6
+  ("recorded, so any episode can be regenerated") can be tested against what
+  `proofload sweep` actually stored.
+- **Available:** `inspect` prints a row's config, seed, `t` and any stored trace spans,
+  and no `meta` field. `diff`, `report` and `check` never read `meta`, which is
+  deliberate (PG-5; `defining-outcomes.md`). So no verb reaches a `meta` field.
+- **Workaround not taken:** `proofload.store.Store(...).read(...)`, an internal, which A1
+  forbids importing.
+- **Taken, and named:** TG-M5's oracle reads `<run>/episodes/part-NNNNN.parquet` with
+  pyarrow, the on-disk layout PG-13 already asks Proofload to document. It is a test-side
+  read only, and it depends on that layout and on `meta` being a JSON string column, so a
+  layout change moves one helper (`read_rows`) and nothing in the adapter.
+- **Ask:** `proofload inspect --json`, or a `--meta KEY` selector, or the documented
+  layout PG-13 asks for, which would turn the interim into a contract.
