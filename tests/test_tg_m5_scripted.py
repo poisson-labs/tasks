@@ -9,11 +9,15 @@ silent this docstring decides, and it is authoritative for the build wherever th
 could not be used as written.  Every decision below carries its reason and an escape hatch.
 
 **The tests drive Proofload's real CLI.**  Build step 4 is "run against Proofload end to
-end".  `test_a2_*`, `test_a3_*`, `test_a5_*` and `test_a6_*` read the stores of real
-`proofload sweep` runs through a lazily built module-level `world()`; everything else calls
-targets or the outcome map in process.  The stores are read from their files: no public verb
-prints an episode's `meta` (gap log, PG-17).  The child interpreters inherit `PYTHONPATH`, so
-they import the same copy of the package the tests do.
+end".  A lazily built module-level `world()` builds both registries and runs seventeen real
+`proofload sweep`s once (every arm of both knobs, two `faulty` arms over two plant cells, and
+one run under another salt); the first test that needs a registered target builds it.
+`test_a2_*`, `test_a3_*`, `test_a5_1`, `test_a5_2`, `test_a6_3` and `test_f8` read what those
+sweeps stored, `test_a5_4` and `test_a5_5` run `proofload diff` over them, and `test_a5_6` and
+`test_a7_5` run the CLI on their own; everything else calls targets or the outcome map in
+process.  The stores are read from their files: no public verb prints an episode's `meta`
+(gap log, PG-17).  The child interpreters inherit `PYTHONPATH`, so they import the same copy
+of the package the tests do.
 
 Decisions
 ---------
@@ -24,7 +28,8 @@ arm targets, a registry built from the pre-registration file, an outcome map and
 N18) a pre-registration validator; each name is one an invariant cannot be tested without.
 Every imported name is underscore-aliased, as `knobs.py` and `tasks.py` do, so SF2 holds.
 The module imports no `verifiers` (build step 4: "no verifiers dependency and no model") and
-no network module; the model path puts what needs `verifiers` in modules of its own.  *Escape hatch:* rename any of the five; SF1, SF6 and the `adapter()` helper move.
+no network module; the model path puts what needs `verifiers` in modules of its own.
+*Escape hatch:* rename any of the five; SF1, SF6 and the `adapter()` helper move.
 
 **2. The registration file is TOML and the lock is over its bytes.**  Top level: `knob`,
 `strictness`, `split`, `generator_version`, `slack`, `horizon` and `arms` (a list of
@@ -142,9 +147,13 @@ least spec-anchored decisions in the file; the plants' *scoring* is stage 0a's a
 
 **12. Inherited coverage: knob R's level axis.**  TG-M3's tests build one contrast, `r0`
 against `r8`, at three seeds, and four of the mutation rows run against TG-M3's build
-survived its 235 tests for that reason.  Every knob R test here runs over `levels("distractor")`, both R
-controls and a seed spread that includes the seeds whose first record-id word a tool name
-carries, and `test_ct*` reach TG-M3's ledger through the registered arm sets.  **The open gap
+survived its 235 tests for that reason.  Every test here that checks what a knob R arm
+generates, stores or labels runs over `levels("distractor")` and both R controls, or over
+every stored run; the tests of a *rule* (`test_cfg2` to `test_cfg7`, `test_map1`, `test_a4_2`,
+`test_a4_6`, `test_a4_7`, `test_a5_7`, `test_a5_8`, `test_a8_5`) fix one to four arms,
+`SPEC_D3` and `SPEC_R4` mainly, and claim no level.  `test_ct*` reach TG-M3's ledger through
+the registered arm sets: `test_ct3` and `test_ct4` on the seeds whose first record-id word a
+tool name carries, and `test_ct5` on one pair, `r0` against `r14`, at a dense spread.  **The open gap
 (TG-ADR-42) is wider than recorded**: measured here at 60 seeds per word, `city` (eval),
 `grad` and `port` (train) refuse a knob R contrast at `r14` at every seed, and so does `disc`
 (train) at 43 of 60, which the record does not name; `face` and `elect` refuse none, and
@@ -330,8 +339,8 @@ def bundle_of(spec: ArmSpec, seed: int) -> Any:
 
 # ---------------------------------------------------------------------------
 # seeds: a spread over the 32-bit space, and the seeds whose first record-id word is one
-# some tool name carries (measured against TG-M3's build).  Knob R's level axis is what
-# they exercise, so nothing below is parameterised over one pair of levels.
+# some tool name carries (measured against TG-M3's build), which `test_ct3` and `test_ct4`
+# use.  Knob R's level axis is what they exercise.
 # ---------------------------------------------------------------------------
 
 
