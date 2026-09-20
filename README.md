@@ -17,5 +17,4 @@ Needs Python 3.11 and a Proofload checkout at `../proofload`.
 python3.11 -m venv .venv
 .venv/bin/pip install -e ../proofload
 .venv/bin/pip install -e ".[dev]"
-git config core.hooksPath .githooks
 ```
