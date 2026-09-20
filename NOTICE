@@ -1,0 +1,244 @@
+Copyright (c) 2026 Poisson Labs
+
+This repository is distributed under the MIT License; see LICENSE.
+
+This file lists the third-party material that the repository contains or depends
+on, and the license each is under. Every license grant below is quoted from the
+upstream file or terms page named beside it, read on 2026-09-20. Where no
+license or terms of use could be found, the entry says so and asserts nothing.
+
+================================================================================
+1. Third-party material contained in this repository
+================================================================================
+
+The o200k_base encoding file
+----------------------------
+File:      src/task_generator/data/o200k_base.tiktoken (3,613,922 bytes)
+What:      The byte-pair-encoding merge ranks of the o200k_base encoding, in tiktoken's
+           file format. The reference tokenizer reads this copy instead of fetching the
+           encoding at run time.
+Source:    https://openaipublic.blob.core.windows.net/encodings/o200k_base.tiktoken
+           This is the URL that tiktoken 0.14.0 uses for the encoding
+           (tiktoken_ext/openai_public.py, function o200k_base). A HEAD request on
+           2026-09-20 returned HTTP 200 and a Content-Length equal to this file's size.
+Integrity: sha256 446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d,
+           equal to the expected_hash that tiktoken 0.14.0 pins for it. The file is
+           vendored unmodified, and src/task_generator/tokenizer.py refuses to load it
+           if the hash differs.
+License:   NONE FOUND. The tiktoken 0.14.0 distribution ships only its MIT License
+           (quoted in section 2), which is the license of the tiktoken software and says
+           nothing about the encoding files. The source URL returns the file with no
+           license header and no link to terms of use. The terms under which this file
+           may be redistributed are therefore UNVERIFIED, and this NOTICE does not
+           assert any.
+
+Code copied from tiktoken
+-------------------------
+File:      src/task_generator/tokenizer.py
+What:      The pre-tokenization regular expression (_PAT_STR) and the two special-token
+           ids (_SPECIAL_TOKENS) are copied from the o200k_base definition in tiktoken
+           0.14.0 (tiktoken_ext/openai_public.py), reflowed to this repository's line
+           length. The module's own comments mark these two as the copied parts.
+License:   tiktoken's MIT License, quoted in section 2.
+
+The vocabulary table
+--------------------
+File:      src/task_generator/data/vocabulary-v1.json
+What:      Written for this repository and released under its MIT License. No
+           third-party word list, corpus or dataset is recorded as a source for it.
+           Its two 256-word record-id lists are common English words chosen so that each
+           is a single o200k_base token inside a record id.
+
+Model weights and datasets
+--------------------------
+None are contained in this repository, and no code in it loads or downloads any. Model
+names appear in the tests only as strings, for example as a revision-string format and as
+tool-call marker names; nothing is fetched.
+
+================================================================================
+2. Runtime dependencies
+================================================================================
+
+Declared in pyproject.toml and installed by pip. They are not vendored or
+redistributed here. The packages they themselves depend on are not listed.
+
+tiktoken 0.14.0
+---------------
+Upstream:    https://github.com/openai/tiktoken
+Source read: https://raw.githubusercontent.com/openai/tiktoken/main/LICENSE
+License:     MIT
+
+    Copyright (c) 2022 OpenAI, Shantanu Jain
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+verifiers 0.3.1
+---------------
+Upstream:    https://github.com/PrimeIntellect-ai/verifiers
+Source read: https://raw.githubusercontent.com/PrimeIntellect-ai/verifiers/main/LICENSE
+License:     MIT
+
+    Copyright (c) 2026 Prime Intellect
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+Proofload core 0.0.1 (first party)
+----------------------------------
+Upstream:    the sibling checkout at ../proofload, which this repository's README asks for
+Source read: LICENSE in that checkout. No public URL is cited, because none was verified
+             as reachable on 2026-09-20.
+License:     MIT
+
+    Copyright (c) 2026 Poisson Labs
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+================================================================================
+3. Development dependencies
+================================================================================
+
+The optional extra `dev` in pyproject.toml, which does not pin versions. The
+versions installed when this file was written are named below. They are not
+vendored or redistributed here.
+
+pytest 9.1.1
+------------
+Upstream:    https://github.com/pytest-dev/pytest
+Source read: https://raw.githubusercontent.com/pytest-dev/pytest/main/LICENSE
+License:     MIT
+
+    Copyright (c) 2004 Holger Krekel and others
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy of
+    this software and associated documentation files (the "Software"), to deal in
+    the Software without restriction, including without limitation the rights to
+    use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+    of the Software, and to permit persons to whom the Software is furnished to do
+    so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+hypothesis 6.168.0
+------------------
+Upstream:    https://github.com/HypothesisWorks/hypothesis
+Source read: https://raw.githubusercontent.com/HypothesisWorks/hypothesis/master/LICENSE.txt (the notice)
+             https://www.mozilla.org/MPL/2.0/ (section 2.1 of the license it names)
+License:     Mozilla Public License 2.0
+
+    Copyright (c) 2013, David R. MacIver
+
+    All code in this repository except where explicitly noted otherwise is released
+    under the Mozilla Public License v 2.0. You can obtain a copy at https://mozilla.org/MPL/2.0/.
+
+    Some code in this repository comes from other projects. Where applicable, the
+    original copyright and license are noted and any modifications made are released
+    dual licensed with the original license.
+
+Section 2.1 of the Mozilla Public License 2.0, the license that notice names:
+
+    2.1. Grants
+
+    Each Contributor hereby grants You a world-wide, royalty-free,
+    non-exclusive license:
+
+    (a) under intellectual property rights (other than patent or trademark)
+        Licensable by such Contributor to use, reproduce, make available,
+        modify, display, perform, distribute, and otherwise exploit its
+        Contributions, either on an unmodified basis, with Modifications, or
+        as part of a Larger Work; and
+
+    (b) under Patent Claims of such Contributor to make, use, sell, offer
+        for sale, have made, import, and otherwise transfer either its
+        Contributions or its Contributor Version.
+
+hypothesis is used only to run the tests. Nothing from it is copied into or distributed
+with this repository.
+
+mypy 2.3.1
+----------
+Upstream:    https://github.com/python/mypy
+Source read: https://raw.githubusercontent.com/python/mypy/master/LICENSE
+License:     MIT
+
+    Mypy (and mypyc) are licensed under the terms of the MIT license, reproduced below.
+
+    Copyright (c) 2012-2023 Jukka Lehtosalo and contributors
+    Copyright (c) 2015-2023 Dropbox, Inc.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+ruff 0.16.7
+-----------
+Upstream:    https://github.com/astral-sh/ruff
+Source read: https://raw.githubusercontent.com/astral-sh/ruff/main/LICENSE (the MIT block at the head of the file)
+License:     MIT
+
+    Copyright (c) 2022 Charles Marsh
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+================================================================================
+4. Build backend
+================================================================================
+
+hatchling
+---------
+Declared in the [build-system] table of pyproject.toml. Used to build the package and not
+installed in the development environment, so it is not versioned here.
+
+Upstream:    https://github.com/pypa/hatch
+Source read: https://raw.githubusercontent.com/pypa/hatch/master/LICENSE.txt
+License:     MIT
+
+    Copyright (c) 2017-present Ofek Lev <oss@ofek.dev>
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to
+    deal in the Software without restriction, including without limitation the
+    rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+    sell copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
