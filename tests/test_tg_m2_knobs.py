@@ -59,7 +59,7 @@ What is deliberately not tested here
 ------------------------------------
 * **N17's scripted `diff`.**  The spec's test for N17 is a Proofload ``diff`` of the
   lowest arm against the highest, reporting zero truncated rows.  TG-M2 may import
-  only ``Episode`` and ``Rollout`` from Proofload (CLAUDE.md), so the ``diff`` half
+  only ``Episode`` and ``Rollout`` from Proofload, so the ``diff`` half
   runs in TG-M5 against A5.  What is tested here is the arithmetic N17 rests on:
   ``H = max(max_turns)`` over the arm set, one ``H`` for every arm of a knob.
 * **N10 and N13's measurements.**  Both are run-time: N10 compares a serving pin
@@ -564,7 +564,7 @@ def test_sf4_arm_spec_carries_exactly_the_six_fields():
 def test_sf5_generation_imports_no_network_and_no_verifiers():
     """SF5: TG-M1 to TG-M3 make no model call and no network call, import neither
     `verifiers` nor any network library, and from `proofload` import only `Episode`
-    and `Rollout` (CLAUDE.md).  TG-M2 needs none of those, so the list is empty."""
+    and `Rollout`.  TG-M2 needs none of those, so the list is empty."""
     banned = {"verifiers", "openai", "requests", "httpx", "urllib", "urllib3",
               "socket", "aiohttp", "http", "proofload", "random", "time", "datetime"}
     assert imported_names() & banned == set()

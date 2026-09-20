@@ -625,9 +625,9 @@ def test_sf7_the_two_signatures_are_the_specs():
 
 
 def test_sf8_generation_imports_no_network_no_model_and_no_verifiers():
-    """G2's static half, and CLAUDE.md's rule.  An `ast` walk over every import in the
-    module: no `verifiers`, no network library, no `proofload`, and nothing that could
-    make generation non-deterministic."""
+    """G2's static half, and the rule that generation makes no model or network call.
+    An `ast` walk over every import in the module: no `verifiers`, no network library,
+    no `proofload`, and nothing that could make generation non-deterministic."""
     source = pathlib.Path(inspect.getfile(tasks())).read_text()
     banned = {
         "verifiers", "requests", "urllib", "socket", "aiohttp", "http", "proofload",
