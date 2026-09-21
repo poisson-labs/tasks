@@ -45,10 +45,9 @@ means here: 548 tests, and `pytest -q` is the check.
 
 ## Install
 
-You need Python 3.11 and a checkout of **Proofload**, which is this project's one
-first-party dependency. Proofload is not public yet. Without it, `pip install -e .`
-cannot resolve `proofload==0.0.1`, and the first two examples and the tests that do not
-touch Proofload are as far as you can get.
+You need Python 3.11 and a checkout of **Proofload**, this project's one first-party
+dependency, as a sibling directory. Proofload is not public yet; if you do not have it,
+see *Without Proofload* below, which is most of this repository.
 
 From the repository root, with a Proofload checkout at `../proofload`:
 
@@ -71,6 +70,28 @@ Put `.venv/bin` on `PATH` for anything that shells out to `proofload`:
 ```bash
 export PATH="$PWD/.venv/bin:$PATH"
 ```
+
+### Without Proofload
+
+`pip install -e ".[dev]"` fails outright without it -- `proofload==0.0.1` does not
+resolve -- so install the package without its dependencies and add the public ones:
+
+```bash
+python3.11 -m venv .venv
+.venv/bin/pip install -e . --no-deps
+.venv/bin/pip install "tiktoken==0.14.0" "pytest>=9.1.1" "hypothesis>=6.168.0"
+.venv/bin/python -m task_generator.fetch_encoding
+```
+
+That gets you the generator, the verifier and the pin ledger: the first two examples
+run, and so do the three test files that do not touch Proofload --
+
+```bash
+.venv/bin/pytest -q tests/test_tg_m1_engine.py tests/test_tg_m2_knobs.py tests/test_tg_m3_tasks.py
+```
+
+-- which is 235 of the 548 tests. The third example and the other 313 tests drive
+Proofload's real CLI and need it.
 
 ## Quickstart
 

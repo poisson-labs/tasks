@@ -41,7 +41,8 @@ Then read [docs/knobs-and-arms.md](../docs/knobs-and-arms.md).
 python examples/proofload_sweep/run.py [--store DIR]
 ```
 
-**Needs Proofload**, which is not yet public; see the README's install section.
+**Needs Proofload**, which is not yet public; see the README's install section. The
+other two examples run without it.
 
 Writes a pre-registration, builds a registry module from it under its own hash, writes a
 Proofload sweep spec, and runs three real `proofload sweep` processes -- one per arm --
@@ -53,5 +54,5 @@ Every episode comes back `passed`, and the depth arms differ in `t` -- 2 turns a
 at `d3` -- which is the scripted path doing its job: the instrument is exercised with the
 model taken out, so a later failure is a model's and not the harness's.
 
-It takes a few seconds and writes about 1 MB under `examples/proofload_sweep/example-store`,
+It takes a few seconds and writes about 80 KB under `examples/proofload_sweep/example-store`,
 which is git-ignored. Delete that directory to start over.
