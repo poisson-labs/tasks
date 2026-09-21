@@ -2156,9 +2156,20 @@ def test_n17_2_the_horizon_follows_the_slack_and_the_arm_set():
     refused(reg_doc("distractor", R_SPECS, horizon=H_R + 1), "horizon")
 
 
-@pytest.mark.parametrize("field, value", [("horizon", "13"), ("horizon", None), ("slack", "4"), ("slack", -1), ("slack", 4.5), ("slack", True)])
-def test_n17_3_slack_and_horizon_are_integers_and_slack_is_not_negative(field, value):
-    refused(reg_doc("depth", PILOT, **{field: value}), field)
+# `horizon` is N17's number for the pilot arms at the slack the case sets: 13 at slack 4, 8 at -1, 10 at `True`
+# (which counts as 1).  Left at the pilot's 13, the -1 and `True` documents also break N17, so a validator that
+# lacked the slack clause would refuse them for their horizon, in a message that names the slack, and the test
+# would pass on those words.  No integer agrees with a slack of 4.5, which keeps 13, and the two horizon cases
+# replace the horizon they are given.
+@pytest.mark.parametrize(
+    "field, value, horizon",
+    [("horizon", "13", 13), ("horizon", None, 13), ("slack", "4", 13), ("slack", -1, 8), ("slack", 4.5, 13), ("slack", True, 10)],
+    ids=["horizon-13", "horizon-None", "slack-4", "slack--1", "slack-4.5", "slack-True"],
+)
+def test_n17_3_slack_and_horizon_are_integers_and_slack_is_not_negative(field, value, horizon):
+    doc = reg_doc("depth", PILOT, horizon=horizon)
+    doc[field] = value
+    refused(doc, field)
 
 
 @pytest.mark.parametrize("field", ["knob", "strictness", "split", "generator_version", "slack", "horizon", "arms"])
@@ -2184,27 +2195,34 @@ def test_val4_strictness_and_knob_are_from_the_closed_sets():
 
 
 @pytest.mark.parametrize(
-    "arms, needle",
+    "arms, needle, horizon",
     [
-        (["depth:d1", "depth:d1", "depth:d1+h8"], "depth:d1"),
-        (["depth:d1", "depth:d1+h8", "distractor:r0@k16"], "distractor:r0@k16"),
-        (["depth:d1", "depth:d01", "depth:d1+h8"], "depth:d01"),
-        (["depth:d1", "depth:d3+h3"], "depth:d3+h3"),
-        (["depth:d1", "depth:d8+h1"], "depth:d8+h1"),
-        (["depth:d1", "depth:D1", "depth:d1+h8"], "depth:D1"),
-        (["depth:d1", " depth:d3", "depth:d1+h8"], "depth:d3"),
-        (["depth:d1", "depth:x", "depth:d1+h8"], "depth:x"),
-        (["depth:d1", "depth:d3+h8 ", "depth:d1+h8"], "depth:d3+h8"),
+        (["depth:d1", "depth:d1", "depth:d1+h8"], "depth:d1", 6),
+        (["depth:d1", "depth:d1+h8", "distractor:r0@k16"], "distractor:r0@k16", 7),
+        (["depth:d1", "depth:d01", "depth:d1+h8"], "depth:d01", 13),
+        (["depth:d1", "depth:d3+h3"], "depth:d3+h3", 13),
+        (["depth:d1", "depth:d8+h1"], "depth:d8+h1", 13),
+        (["depth:d1", "depth:D1", "depth:d1+h8"], "depth:D1", 13),
+        (["depth:d1", " depth:d3", "depth:d1+h8"], "depth:d3", 13),
+        (["depth:d1", "depth:x", "depth:d1+h8"], "depth:x", 13),
+        (["depth:d1", "depth:d3+h8 ", "depth:d1+h8"], "depth:d3+h8", 13),
     ],
     ids=["duplicate", "another_knob", "leading_zero", "control_equal", "control_lower", "capital",
          "leading_space", "not_an_arm", "trailing_space"],
 )
-def test_val5_an_arm_must_be_a_canonical_distinct_arm_id_of_the_registrations_knob(arms, needle):
+def test_val5_an_arm_must_be_a_canonical_distinct_arm_id_of_the_registrations_knob(arms, needle, horizon):
     """Every arm names itself as `arm_id` renders it — one id per `(knob, level, control)`,
     which is what keeps two registered targets from being one arm — belongs to the
     registration's knob, and is listed once.  TG-M2's constructor refuses `d3+h3` and
-    `d8+h1` (N15); here the same refusal is reached from a registration file."""
-    doc = reg_doc("depth", PILOT)
+    `d8+h1` (N15); here the same refusal is reached from a registration file.
+
+    Where the listed arms are all valid, `horizon` is N17's number for them: 6 for the
+    duplicate (its arms need at most 6 turns) and 7 for the other knob's `r0` (which needs
+    7).  Each of the two documents then breaks one clause only, so a build without that
+    clause accepts it.  Left at the pilot's 13, N17 refuses it too, and the test would pass
+    or fail on whether that message names the arm.  The other seven are refused while their
+    arms are read, before any horizon is computed, and keep 13."""
+    doc = reg_doc("depth", PILOT, horizon=horizon)
     doc["arms"] = arms
     refused(doc, needle)
 
