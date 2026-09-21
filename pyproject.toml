@@ -78,6 +78,20 @@ strict = true
 module = ["tiktoken_ext.*"]
 ignore_missing_imports = true
 
+# verifiers ships no py.typed marker, so mypy reads nothing from the wheel and every
+# `vf` name is Any. The export subclasses seven of them, which strict mode refuses on its
+# own (`disallow_subclassing_any`); the module's own signatures are checked as usual, and
+# the wheel's names are pinned by X1's CI test instead (the tests import each one from the
+# pinned 0.3.1 wheel).
+[[tool.mypy.overrides]]
+module = ["verifiers", "verifiers.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["task_generator.export"]
+disallow_subclassing_any = false
+disallow_untyped_decorators = false
+
 # proofload is the optional extra, so `mypy` over a plain install has nothing to read and
 # would fail on adapter.py's import alone. This silences that one error and nothing else:
 # where the extra IS installed, Proofload ships py.typed and mypy checks the adapter
