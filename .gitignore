@@ -43,3 +43,6 @@ src/task_generator/data/*.tiktoken
 
 # The example sweep writes its registration, registry module and run store here.
 examples/**/example-store/
+
+# Devlogs live in the vault only (docs/repo-hygiene.md, section 2.7)
+devlog.md
