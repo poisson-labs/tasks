@@ -20,11 +20,18 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Typing :: Typed",
 ]
-# proofload is Proofload core, installed editable from ../proofload before this package.
-# The exact pin keeps pip off the 0.0.0 name-hold on PyPI.
-dependencies = ["proofload==0.0.1", "verifiers==0.3.1", "tiktoken==0.14.0"]
+# Everything a plain install needs. Proofload is not here: it is one of two output
+# routes and it is not public, so it is an optional extra below.
+dependencies = ["verifiers==0.3.1", "tiktoken==0.14.0"]
 
 [project.optional-dependencies]
+# The Proofload route. Proofload core is first party and not published anywhere, so
+# this extra resolves only when a checkout is already installed into the same
+# environment (`pip install -e ../proofload` first); the exact pin keeps pip off the
+# 0.0.0 name-hold on PyPI. Nothing outside `task_generator.adapter`, the third example
+# and `tests/test_tg_m5_scripted.py` needs it.
+proofload = ["proofload==0.0.1"]
+
 # Floors, not pins: the suite, mypy --strict and the ruff rule set in this file are
 # known green on these versions, and nothing below them is claimed. NOTICE names the
 # exact versions each tool's quoted licence was read from.
@@ -69,6 +76,14 @@ strict = true
 # unlike tiktoken itself. fetch_encoding reads the o200k_base constructor out of it.
 [[tool.mypy.overrides]]
 module = ["tiktoken_ext.*"]
+ignore_missing_imports = true
+
+# proofload is the optional extra, so `mypy` over a plain install has nothing to read and
+# would fail on adapter.py's import alone. This silences that one error and nothing else:
+# where the extra IS installed, Proofload ships py.typed and mypy checks the adapter
+# against the real types, which is the configuration the gate is run in.
+[[tool.mypy.overrides]]
+module = ["proofload"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

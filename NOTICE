@@ -141,7 +141,8 @@ License:     MIT
 
 Proofload core 0.0.1 (first party)
 ----------------------------------
-Upstream:    the sibling checkout at ../proofload, which this repository's README asks for
+Upstream:    the sibling checkout at ../proofload, which the optional `proofload` extra
+             asks for. It is not a dependency of a plain install.
 Source read: LICENSE in that checkout. No public URL is cited, because none was verified
              as reachable on 2026-09-20.
 License:     MIT

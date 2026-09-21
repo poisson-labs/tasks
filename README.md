@@ -23,7 +23,7 @@ processes and platforms.
 | the reference tokenizer | **built** -- o200k_base, offline |
 | knobs, arms and the pin ledger | **built** -- two knobs, their control arms, thirteen rows |
 | task and verifier generation | **built** -- `generate`, `verify`, the outcome vocabulary, the negative controls |
-| the Proofload adapter, scripted path | **built** -- runs end to end against Proofload with no model |
+| the Proofload adapter, scripted path | **built** -- runs end to end against Proofload with no model, on the optional `proofload` extra |
 
 ## What is not
 
@@ -45,15 +45,10 @@ means here: 548 tests, and `pytest -q` is the check.
 
 ## Install
 
-You need Python 3.11 and a checkout of **Proofload**, this project's one first-party
-dependency, as a sibling directory. Proofload is not public yet; if you do not have it,
-see *Without Proofload* below, which is most of this repository.
-
-From the repository root, with a Proofload checkout at `../proofload`:
+You need Python 3.11. Nothing else is required:
 
 ```bash
 python3.11 -m venv .venv
-.venv/bin/pip install -e ../proofload
 .venv/bin/pip install -e ".[dev]"
 .venv/bin/python -m task_generator.fetch_encoding
 ```
@@ -65,33 +60,33 @@ tiktoken and downloads through tiktoken's own reader, checking the digest before
 `NOTICE` sets out what was checked and what was found. Nothing else here touches the
 network, and the tokenizer itself never does.
 
-Put `.venv/bin` on `PATH` for anything that shells out to `proofload`:
+That is the whole generator: the domain engine, the knobs and their control arms, the pin
+ledger, task and verifier generation. The first two examples run, and `pytest -q` gives
+**548 tests, 235 passed and 313 skipped** -- the skipped ones are the Proofload adapter's,
+and they say so.
+
+### The Proofload route, optional
+
+Proofload is one of the two routes a generated task can be run down, and it is an
+*optional extra*, not a dependency. **Proofload is not publicly available yet**, so the
+extra does not resolve from an index: it resolves against a checkout you already have
+installed in the same environment. With one at `../proofload`:
+
+```bash
+.venv/bin/pip install -e ../proofload
+.venv/bin/pip install -e ".[dev,proofload]"
+```
+
+Then the third example and the adapter's tests run, and `pytest -q` is **548 passed, 0
+skipped**. Put `.venv/bin` on `PATH` first, because they shell out to `proofload`:
 
 ```bash
 export PATH="$PWD/.venv/bin:$PATH"
 ```
 
-### Without Proofload
-
-`pip install -e ".[dev]"` fails outright without it -- `proofload==0.0.1` does not
-resolve -- so install the package without its dependencies and add the public ones:
-
-```bash
-python3.11 -m venv .venv
-.venv/bin/pip install -e . --no-deps
-.venv/bin/pip install "tiktoken==0.14.0" "pytest>=9.1.1" "hypothesis>=6.168.0"
-.venv/bin/python -m task_generator.fetch_encoding
-```
-
-That gets you the generator, the verifier and the pin ledger: the first two examples
-run, and so do the three test files that do not touch Proofload --
-
-```bash
-.venv/bin/pytest -q tests/test_tg_m1_engine.py tests/test_tg_m2_knobs.py tests/test_tg_m3_tasks.py
-```
-
--- which is 235 of the 548 tests. The third example and the other 313 tests drive
-Proofload's real CLI and need it.
+Without the extra, `import task_generator` and every module under it work as they do
+with it. Only `task_generator.adapter` needs Proofload, and importing it without the
+extra raises a `ModuleNotFoundError` that names the extra.
 
 ## Quickstart
 
@@ -148,7 +143,8 @@ verdict = verify(bundle, turns, True, False, FormatSpec("direct", ()))
 assert verdict.label == "passed"
 ```
 
-Then run the whole scripted path against Proofload, three arms end to end:
+Then, with the optional `proofload` extra installed, run the whole scripted path
+against Proofload, three arms end to end:
 
 ```bash
 .venv/bin/python examples/proofload_sweep/run.py
@@ -169,10 +165,14 @@ Then run the whole scripted path against Proofload, three arms end to end:
 ## Development
 
 ```bash
-.venv/bin/pytest -q          # 548 tests; the Proofload ones drive its real CLI
+.venv/bin/pytest -q          # 548 tests; 313 skip without the proofload extra
 .venv/bin/mypy               # strict, over src/
 .venv/bin/ruff check .
 ```
+
+The 313 are the adapter's, and they drive Proofload's real CLI. `tests/conftest.py`
+skips them when the extra is absent, and says why in the reason pytest prints; the
+frozen test files themselves know nothing about it.
 
 The test files are frozen: each module was built against tests written before it, and
 the suite is not edited to suit a build. Comments and docstrings in them may be

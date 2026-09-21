@@ -54,6 +54,14 @@ Each carries its escape hatch.  The tests pin none of them beyond what is said h
 * **At slack 0 the leaky plant cannot overshoot.**  An overshoot is `d + 2` turns and the
   budget is `d + 1`, so `to_episode`'s turn guard raises and Proofload stores an errored
   row.  The pilot's slack is 4; `validate_preregistration` allows 0 because N17 does.
+* **Proofload is an optional extra, and this module is the only thing in the package that
+  needs it.**  `pip install task-generator` brings no Proofload; `pip install
+  "task-generator[proofload]"` does.  The import below stays the one shape A1 permits, a
+  top-level `from proofload import Episode`, and is wrapped so that importing this module
+  without the extra raises a `ModuleNotFoundError` naming the extra rather than the bare
+  "No module named 'proofload'".  Nothing on the package's import path reaches this module,
+  so `import task_generator` and everything under it but this file work without Proofload.
+  *Escape hatch:* delete the `try`; A1 reads the `from` either way, since it walks the tree.
 """
 
 from __future__ import annotations
@@ -70,7 +78,16 @@ from dataclasses import dataclass as _dataclass
 from pathlib import Path as _Path
 from typing import Any as _Any
 
-from proofload import Episode as _Episode
+try:
+    from proofload import Episode as _Episode
+except ModuleNotFoundError as _exc:
+    raise ModuleNotFoundError(
+        "This module is the Proofload route, and Proofload is an optional extra of "
+        "task-generator: nothing else in the package needs it.  Install the extra with "
+        "`pip install -e '.[proofload]'`.  Proofload is not publicly available yet, so "
+        "the extra resolves only against a checkout already installed in the same "
+        "environment: `pip install -e ../proofload` first."
+    ) from _exc
 
 from task_generator.engine import DomainState as _DomainState
 from task_generator.engine import apply as _apply
