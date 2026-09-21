@@ -76,6 +76,19 @@ What:      Written for this repository and released under its MIT License. No
            third-party word list, corpus or dataset is recorded as a source for it.
            Its two 256-word record-id lists are common English words chosen so that each
            is a single o200k_base token inside a record id.
+Checked:   On 2026-09-21 the two lists were tested against six public word lists --
+           google-10000-english and its no-swears variant, that project's 20k list, the
+           EFF large wordlist, dwyl/english-words (words_alpha, 370,105 words) and macOS
+           /usr/share/dict/words (web2). None of the six produces the 512 words under
+           this table's own selection rule, and two of them cannot even contain them:
+           fourteen of the 512 are absent from the 10,000-word list and three are absent
+           from the 20,000-word one. What the 512 are drawn from is the o200k_base
+           vocabulary under this table's single-token rule, which no English word list
+           satisfies. That no public list was ever consulted is not a thing this check
+           can establish, and this NOTICE does not claim it: it claims only that none is
+           recorded as a source and that none of the obvious candidates can be one. The
+           measurements, the candidate lists and the scripts are in the vault, under
+           projects/task-generator/evidence/tg-publish-prep/word-lists/.
 
 Model weights and datasets
 --------------------------
