@@ -40,3 +40,6 @@ notes
 # The o200k_base encoding file. Not vendored: its redistribution terms could not be
 # established (NOTICE). `python -m task_generator.fetch_encoding` puts it here.
 src/task_generator/data/*.tiktoken
+
+# The example sweep writes its registration, registry module and run store here.
+examples/**/example-store/
