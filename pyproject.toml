@@ -9,12 +9,38 @@ description = "A deterministic generator of tool-use tasks over one mock statefu
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
+authors = [{ name = "Poisson Labs", email = "work@poissonlabs.ai" }]
+maintainers = [{ name = "Poisson Labs", email = "work@poissonlabs.ai" }]
+keywords = ["tool-use", "evaluation", "benchmark", "reinforcement-learning", "agents"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
 # proofload is Proofload core, installed editable from ../proofload before this package.
 # The exact pin keeps pip off the 0.0.0 name-hold on PyPI.
 dependencies = ["proofload==0.0.1", "verifiers==0.3.1", "tiktoken==0.14.0"]
 
 [project.optional-dependencies]
-dev = ["pytest", "hypothesis", "mypy", "ruff"]
+# Floors, not pins: the suite, mypy --strict and the ruff rule set in this file are
+# known green on these versions, and nothing below them is claimed. NOTICE names the
+# exact versions each tool's quoted licence was read from.
+dev = [
+    "pytest>=9.1.1",
+    "hypothesis>=6.168.0",
+    "mypy>=2.3.1",
+    "ruff>=0.16.7",
+]
+
+# The repository is named for the working label and will move when the name is
+# settled; these three URLs are the one place that has to change with it.
+[project.urls]
+Homepage = "https://github.com/poisson-labs/task-generator"
+Repository = "https://github.com/poisson-labs/task-generator"
+Issues = "https://github.com/poisson-labs/task-generator/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/task_generator"]
