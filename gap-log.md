@@ -206,15 +206,15 @@ CN-2 (Colab).
   successful transition, and TG-ADR-35 makes `seq_start` an argument that N14
   varies by arm. So the audit field of a completed record differs between the
   `dL+hH` control and the plain `dL` arm by exactly `H − dL`. Measured in
-  TG-M1's oracle: `test_e5_seq_start_is_an_argument_not_a_scenario_field`
+  TG-M1's tests: `test_e5_seq_start_is_an_argument_not_a_scenario_field`
   asserts every other record field is equal across two `seq_start`s and that the
   audit field moves by the offset.
 - **Workaround not taken:** quietly dropping the audit field from
   `records_bytes`, or quietly making it relative to `seq_start`. Either would
-  have hidden the choice inside TG-M1's oracle, two modules before the module
+  have hidden the choice inside TG-M1's tests, two modules before the module
   that has to live with it.
-- **Ask:** TG-M3's Session A picks one, and the pick goes in the spec before the
-  verifier is frozen:
+- **Ask:** TG-M3 picks one when its tests are written, and the pick goes in the spec
+  before the verifier is frozen:
   1. `expected_final_state` is computed per arm from that arm's `seq_start`, and
      N14's list of fields the D control may change gains it; or
   2. the verdict compares records excluding the audit field, and §2.3 says so;
@@ -227,10 +227,9 @@ CN-2 (Colab).
 - **Taylor's lean, 2026-09-11, recorded and not binding:** option 2, exclude the
   audit field from `passed`. The reasoning is that the audit field is instrument
   bookkeeping rather than domain state, which is the same split TG-ADR-35 drew
-  between the records and the sequence counter. TG-M3's Session A still makes
-  the call and still has to justify it against the other two.
-- **Closed 2026-09-14 by TG-M3's Session A, at `b8f3bfe` on `tg-m3-session-a`:
-  option 2.** The verdict compares the records without the audit field. A records
+  between the records and the sequence counter. TG-M3 still makes the call and
+  still has to justify it against the other two.
+- **Closed 2026-09-14 when TG-M3's tests were frozen: option 2.** The verdict compares the records without the audit field. A records
   value is a sorted tuple of `(class, record_id, stage, token)` and there is no
   audit field in it, so `initial_state` and `expected_final_state` both carry the
   projection and `verify` compares on exactly it. `mutations` is TG-M1's and is
@@ -283,7 +282,7 @@ CN-2 (Colab).
   deliberate (PG-5; `defining-outcomes.md`). So no verb reaches a `meta` field.
 - **Workaround not taken:** `proofload.store.Store(...).read(...)`, an internal, which A1
   forbids importing.
-- **Taken, and named:** TG-M5's oracle reads `<run>/episodes/part-NNNNN.parquet` with
+- **Taken, and named:** TG-M5's tests read `<run>/episodes/part-NNNNN.parquet` with
   pyarrow, the on-disk layout PG-13 already asks Proofload to document. It is a test-side
   read only, and it depends on that layout and on `meta` being a JSON string column, so a
   layout change moves one helper (`read_rows`) and nothing in the adapter.

@@ -1,12 +1,11 @@
-"""The frozen oracle for TG-M3, task and verifier generation: G1-G16, the outcome
+"""The frozen tests for TG-M3, task and verifier generation: G1-G16, the outcome
 vocabulary, the format check and the two strictnesses.
 
-Frozen by Session A on 2026-09-14 against spec v0 rev. 3.2 with the amendments of
-2026-09-11 (TG-ADR-35, TG-ADR-36) and 2026-09-13 (TG-ADR-37, TG-ADR-38), and with
-TG-ADR-39, which lives in `notes/log/task-generator-decisions.md` and **not** in the
-spec.  Session B builds against this file and does not edit it.  Where the spec's text
-could not be used as written, this docstring is authoritative; the reasoning is in
-`notes/handoffs/Task Generator - Handoff TG-M3.md`.
+Frozen on 2026-09-14 against spec v0 rev. 3.2 with the amendments of 2026-09-11
+(TG-ADR-35, TG-ADR-36) and 2026-09-13 (TG-ADR-37, TG-ADR-38), and with TG-ADR-39,
+which is a recorded decision and **not** in the spec.  The module is written against
+this file, which is not edited to suit it.  Where the spec's text could not be used
+as written, this docstring is authoritative.
 
 The module is `task_generator.tasks`
 ------------------------------------
@@ -14,8 +13,8 @@ TG-M1 is `engine.py` and TG-M2 is `knobs.py`.  2.3 is "Task and verifier generat
 and its type is `TaskBundle`, so the module is `tasks.py` rather than `generate.py`,
 which would have read `from task_generator.generate import generate`.
 
-The public surface this oracle pins
------------------------------------
+The public surface these tests pin
+----------------------------------
 `task_generator.tasks.__all__` is exactly, and in this order::
 
     TaskBundle  VerifierSpec  Verdict  FormatSpec  Turn
@@ -51,10 +50,10 @@ invariant that cannot otherwise be tested, and each is recorded here:
   s` over a sweep of 2^20 seeds.  Through `generate` that is 2^20 bundles, and `decode`
   has no other route at all.
 
-Decisions this oracle makes, where the spec leaves the shape open
------------------------------------------------------------------
+Decisions these tests make, where the spec leaves the shape open
+----------------------------------------------------------------
 **1. PG-16: the verdict compares the records without the audit field.**  8's open
-question, opened 2026-09-11 from TG-M1 Session A and assigned to TG-M3's Session A "before
+question, opened 2026-09-11 while TG-M1 was written and assigned to this file "before
 the verifier is frozen".  Option 2 of the three, which is also Taylor's recorded
 non-binding lean - but not for the reason the lean gives.
 
@@ -168,12 +167,12 @@ no negative control could produce `collateral_mutation`, and G8 would fail on a 
 whole of knob R rests on.  The shared entry code is the same argument one level down: a
 distractor that mirrors the required tool exactly has to be able to *succeed*.
 
-**11. Two named seams, and why a frozen oracle names them.**  `generate` calls the
+**11. Two named seams, and why a frozen test file names them.**  `generate` calls the
 module-global `verify` for G4's gate, and the module-global `_check_pins` - TG-M2's
 `check_pins`, aliased under an underscore the way `knobs.py` itself aliases its imports -
 for G11's.  Both are fault-injected (`test_g4_4`, `test_g11_1`), because the alternative
 is a deliberately broken generator as a fixture, and a gate that is only exercised by a
-correct generator is not a gate.  Naming a private alias in an oracle is a cost; the
+correct generator is not a gate.  Naming a private alias in a test is a cost; the
 escape hatch is a build that routes both through some other injectable seam, in which
 case those two tests move and nothing else does.
 
@@ -212,7 +211,7 @@ Shapes the spec names but does not define
 What is deliberately not tested here
 ------------------------------------
 * **N17's scripted `diff` and N18's revision predicate.**  Both are filed at 2.5 as
-  owed to TG-M5's Session A, and **no oracle covers either one today**.  This one does
+  owed to TG-M5's tests, and **nothing covers either one today**.  This file does
   not either: TG-M3 imports nothing from Proofload and no model string reaches a bundle.
   `test_n18_3` asserts that TG-M3, like TG-M2 before it, holds **no** revision
   predicate, so the gap stays visible and a later reader cannot take two modules'
@@ -228,8 +227,8 @@ What is deliberately not tested here
   literal and `structure_space` is pinned against a brute-force count on a reduced
   vocabulary.  The census over the pilot's real arms is a run, not a test (KC14).
 * **The mutation pass.**  G8's "a clause no control catches is a build failure" is a
-  report, not an assertion in this file: Session A's mutation table is in the handoff and
-  Session B re-runs it against `src/` as built.
+  report, not an assertion in this file: the mutation table is kept with the project's
+  records, and re-run against `src/` as built.
 """
 
 from __future__ import annotations
@@ -773,7 +772,7 @@ def test_g1_4_task_id_is_the_digest_of_every_other_field():
     covers all twenty, because it is taken over the whole bundle rather than a listed
     subset - so a field added later is covered without anyone remembering to add it.
 
-    Recomputed here independently, the way TG-M1's oracle recomputes `engine_hash`, so
+    Recomputed here independently, the way TG-M1's tests recompute `engine_hash`, so
     the claim is measured rather than read off the source.
     """
     import hashlib
@@ -1742,7 +1741,7 @@ def test_g13_4_the_seeded_calls_are_orthogonal_reads_on_non_target_items():
 def test_g13_5_the_control_carries_h_minus_dl_pairs_and_the_ledger_agrees():
     """N9's pair-count clause, from the generator's side.  TG-M2's build added the check
     and no test of its moved, because no fixture ever seeded the wrong number
-    (Handoff TG-M2, Session B mutation row 20).  `test_k20_2` is the other side."""
+    (TG-M2's mutation row 20).  `test_k20_2` is the other side."""
     for low, high in ((1, 8), (2, 5), (3, 8)):
         control = tasks().generate_contrast(depth_arms(low, high), 5252)[f"depth:d{low}+h{high}"]
         assert len(seeded_messages(control)[1:]) == 2 * (high - low)
@@ -1884,7 +1883,7 @@ def test_g15_4_the_controls_seeded_history_is_part_of_the_structure():
 
 
 G16_DRAWS = 6_000
-# G16's *Test:* line says 10^5 draws.  6,000 is what this oracle runs, and the reason is
+# G16's *Test:* line says 10^5 draws.  6,000 is what this file runs, and the reason is
 # runtime, not power: every draw is a whole `generate`, and 10^5 of them is minutes on
 # the slowest machine in the loop.  The reduced vocabulary's structure space is small -
 # `test_g16_1` measures it rather than assuming it - so 6,000 draws put on the order of a
@@ -1912,7 +1911,7 @@ def test_g16_1_structure_space_matches_a_brute_force_count():
     possible.  The count is taken by saturation rather than by re-deriving the
     generator's arithmetic: over 20,000 draws with k around 24, the chance any structure
     is missed is below 10^-300, so the distinct fingerprints observed *are* the space.
-    Re-deriving the arithmetic here would be the oracle checking a number against
+    Re-deriving the arithmetic here would be the test checking a number against
     itself."""
     m = tasks()
     assert m.structure_space(spec(level=2), spec=reduced_spec()) == len(_g16_counts())
@@ -1978,11 +1977,11 @@ def test_g16_4_structure_space_depends_on_the_arm_and_not_on_the_seed():
 # documented at all
 # --------------------------------------------------------------------------
 #
-# Handoff TG-M2's Session B mutation table records rows 20 and 21 as survivors: two
-# clauses the build went past the oracle to add, both the spec's own text, both failing
+# TG-M2's mutation table records rows 20 and 21 as survivors: two
+# clauses that build added beyond its tests, both the spec's own text, both failing
 # closed, and neither covered by any of the 102 green tests.  TG-ADR-39 records a third
 # of the same kind - N8's width is a UTF-8 byte length - which has no prose anywhere in
-# the tree and which TG-M2's oracle could not have caught, since it only ever asserts on
+# the tree and which TG-M2's tests could not have caught, since they only ever assert on
 # ASCII.  All three are TG-M2 behaviour reached through TG-M3 bundles: they are here
 # because TG-M3 is the first module that produces the inputs that discriminate.
 
@@ -2024,7 +2023,7 @@ def seeded_block_hitting(target, n_pairs, scenario):
     table allows.
 
     N9's band is an aggregate of +/- 2 and the read pair's reachable set is consecutive
-    (Handoff TG-M2), so a block of a *different* pair count can still land on a given
+    (TG-M2's measurement), so a block of a *different* pair count can still land on a given
     total whenever the total is inside that count's range.  That is the whole content of
     row 20: without the pair-count clause, six pairs summing correctly would pass N9.
     """
@@ -2086,7 +2085,7 @@ def test_k20_1_the_generated_control_seeds_exactly_h_minus_dl_pairs_and_lands_in
 
 
 def test_k20_2_a_control_that_seeds_the_wrong_number_of_pairs_is_refused_even_in_band():
-    """**Row 20, pinned.**  Handoff TG-M2's Session B mutation table records
+    """**Row 20, pinned.**  TG-M2's mutation table records
     `m20_n9_drops_the_pair_count_clause` as a survivor against 102 green tests: no
     fixture there ever seeded the wrong *number*, so deleting the clause moved nothing.
 
@@ -2098,7 +2097,7 @@ def test_k20_2_a_control_that_seeds_the_wrong_number_of_pairs_is_refused_even_in
     m = tasks()
     built = None
     # The probe needs a *wrong* pair count whose reachable range still brackets the right
-    # total.  A read pair reaches a consecutive [lo, hi] (Handoff TG-M2), so `n` pairs
+    # total.  A read pair reaches a consecutive [lo, hi] (TG-M2's measurement), so `n` pairs
     # reach [n*lo, n*hi], and the seven-pair chain total does not always sit inside the
     # six- or eight-pair range - measured at [51, 66] per pair, six reach at most 396 and
     # eight at least 408, so a target between them is out of both.  So the fixture
@@ -2173,7 +2172,7 @@ def test_k21_3_the_same_suffix_on_an_r_control_is_the_filler_and_is_allowed():
 def test_k22_1_n8s_width_is_a_byte_length_and_not_a_character_count():
     """**TG-ADR-39's fifth call, pinned.**  `measure_pins` measures an observation's width
     as `len(observation.encode("utf-8"))` (`knobs.py:586`), which has no prose anywhere in
-    the tree, and TG-M2's oracle asserts only `len(obs.encode("ascii")) == L_OBS` - so
+    the tree, and TG-M2's tests assert only `len(obs.encode("ascii")) == L_OBS` - so
     every fixture it has is one on which a byte count and a character count agree.
 
     2.1 says table strings are ASCII **because `L_obs` is a byte count**, so the byte
@@ -2215,12 +2214,12 @@ def test_k22_2_every_generated_observation_is_ascii_and_l_obs_bytes():
 
 
 # --------------------------------------------------------------------------
-# the two gaps owed to TG-M5's Session A, which this module does not close
+# the two gaps owed to TG-M5's tests, which this module does not close
 # --------------------------------------------------------------------------
 
 
 def test_n18_3_tg_m3_holds_no_revision_predicate_either():
-    """2.5 files N18's revision predicate as owed to TG-M5's Session A, and TG-M2's
+    """2.5 files N18's revision predicate as owed to TG-M5's tests, and TG-M2's
     `n18_2` asserts that TG-M2 holds none.  This is the same assertion for TG-M3, so the
     gap stays visible: two modules' silence is not coverage, and a build here cannot
     quietly add half a validator.

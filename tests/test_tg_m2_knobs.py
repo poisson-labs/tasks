@@ -1,13 +1,12 @@
-"""The frozen oracle for TG-M2, knobs, control arms and the pin ledger: N1-N18.
+"""The frozen tests for TG-M2, knobs, control arms and the pin ledger: N1-N18.
 
-Frozen by Session A on 2026-09-13 against spec v0 rev. 3.2 with the amendments of
-2026-09-11 (TG-ADR-35, TG-ADR-36) and 2026-09-13 (TG-ADR-37).  Session B builds
-against this file and does not edit it.  Where the spec's text could not be used as
-written, this docstring is authoritative; the reasoning is in `notes/handoffs/Task
-Generator - Handoff TG-M2.md`.
+Frozen on 2026-09-13 against spec v0 rev. 3.2 with the amendments of 2026-09-11
+(TG-ADR-35, TG-ADR-36) and 2026-09-13 (TG-ADR-37).  The module is written against
+this file, which is not edited to suit it.  Where the spec's text could not be used
+as written, this docstring is authoritative.
 
-The public surface this oracle pins
------------------------------------
+The public surface these tests pin
+----------------------------------
 `task_generator.knobs.__all__` is exactly, and in this order::
 
     ArmSpec  PinRow  PinRecord  PinReport
@@ -45,10 +44,10 @@ Shapes the spec names but does not define
   knob.  That is a caller error and not a pin violation, so it is not a refusal.
 * A **bundle** is anything carrying the fields ``measure_pins`` reads.  TG-M3 owns
   ``TaskBundle`` and does not exist yet, so this file builds bundle-shaped objects
-  by hand, the way TG-M1's oracle built ``Scenario`` by hand.  The fields are
-  2.3's, plus three this oracle needs and 2.3 does not name - ``template_id``,
+  by hand, the way TG-M1's tests built ``Scenario`` by hand.  The fields are
+  2.3's, plus three these tests need and 2.3 does not name - ``template_id``,
   ``prompt_slots`` and ``reference_observations``.  **Those three are a drafted
-  amendment to 2.3, not a decision**: see the handoff.  They are the other halves
+  amendment to 2.3, not a decision**.  They are the other halves
   of fields 2.3 already names, and without them N6 and N9 have no measurement.
 * Seeded history is the OpenAI chat shape, since N18 pins the endpoint type to
   OpenAI-compatible chat completions: ``{"role": "assistant", "tool_calls":
@@ -64,13 +63,13 @@ What is deliberately not tested here
   ``H = max(max_turns)`` over the arm set, one ``H`` for every arm of a knob.
 * **N10 and N13's measurements.**  Both are run-time: N10 compares a serving pin
   across a model's runs and N13 reads server-reported usage from the trace.  A
-  bundle carries neither, so the oracle pins that ``measure_pins`` *declares* them
+  bundle carries neither, so these tests pin that ``measure_pins`` *declares* them
   unmeasured with a reason, and that the ledger still carries their rows.
 * **N18's revision predicate.**  N18's own *Test:* line assigns it to "the
   pre-registration validator", which is 4 stage 4 and is built in TG-M5.  No model
   string reaches a bundle or an arm spec, so TG-M2 declares the row through N10 and
   validates nothing.  **This and N17's `diff` half are two named gaps owed to
-  TG-M5's Session A**, and neither is covered by any other module's oracle today.
+  TG-M5's tests**, and neither is covered by any other module's tests today.
 * **The band N9 refuses on, as a property of a real generator.**  This file pins
   the band's value and the shape of the comparison.  Whether TG-M3's generator can
   always land inside it is G16's structure-census question.
@@ -371,7 +370,7 @@ def depth_contrast(low=1, high=8, control=True, residual=0):
 
     The control's seeded history is balanced to `residual` tokens by default, because
     an unbalanced one makes every test in this file that asserts `refused is False`
-    fail on N9 whatever row it is actually about.  Session A's shim run found exactly
+    fail on N9 whatever row it is actually about.  The stand-in run found exactly
     that: the fixture, not the shim.
     """
     k = knobs()
@@ -572,7 +571,7 @@ def test_sf5_generation_imports_no_network_and_no_verifiers():
 
 def test_sf6_n8_cites_tg_m1s_literals_and_does_not_re_mint_them():
     """SF6: "`L_obs` and the token band are pin-ledger literals.  TG-M2's N8 cites
-    them and doesn't re-mint them" (the TG-M1 handoff's inherited constraints).  So
+    them and doesn't re-mint them" (TG-M1's inherited constraints).  So
     N8's tolerance carries the frozen table's numbers, and the module contains no
     second copy of them as literals of its own."""
     row = {r.row_id: r for r in knobs().pin_ledger("depth")}["N8"]
@@ -974,7 +973,7 @@ def test_n7_2_a_prompt_that_names_a_tool_in_one_arm_only_refuses():
 def test_n8_1_observation_size_is_cited_from_the_engines_frozen_literals():
     """N8: "`L_obs` exact; tokens in band", measured by E2.  The bundle's reference
     observations are engine output, so the row is measurable here; what it must not do
-    is mint a second `L_obs` (the TG-M1 handoff's inherited constraint)."""
+    is mint a second `L_obs` (TG-M1's inherited constraint)."""
     k = knobs()
     b = bundle(spec(level=3))
     rec = k.measure_pins(b)
@@ -1023,7 +1022,7 @@ def test_n9_1_the_seeded_history_is_compared_as_an_aggregate_not_per_pair():
 
 
 def test_n9_2_the_declared_band_is_two_tokens_on_the_aggregate():
-    """N9: the band this oracle freezes.  Minted at a measured residual of 0 over 256
+    """N9: the band this file freezes.  Minted at a measured residual of 0 over 256
     blocks of seven pairs across two disjoint scenarios, declared at +/- 2 - the same
     two-token margin, and the same empirical footing, as TG-M1's observation band."""
     k = knobs()
@@ -1331,8 +1330,8 @@ def test_n18_2_tg_m2_holds_no_revision_predicate_and_the_ledger_says_who_does():
     and validates nothing - asserted here so that a build does not quietly add a
     half-validator, and so the gap is visible rather than assumed covered.
 
-    **The predicate itself is a named gap owed to TG-M5's Session A**, together with
-    N17's scripted `diff`.  Both are in this file's docstring and in the handoff.
+    **The predicate itself is a named gap owed to TG-M5's tests**, together with
+    N17's scripted `diff`.  Both are in this file's docstring.
     """
     k = knobs()
     rows = {r.row_id: r for r in k.pin_ledger("depth")}

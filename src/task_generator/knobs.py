@@ -3,7 +3,7 @@ measurements a bundle supports.
 
 The invariants this file is built against are N1-N18 in the spec's 2.2, as amended on
 2026-09-11 by TG-ADR-35 and TG-ADR-36 and on 2026-09-13 by TG-ADR-37 and TG-ADR-38.  The
-frozen oracle is `tests/test_tg_m2_knobs.py`, and where the spec's text could not be used
+frozen test file is `tests/test_tg_m2_knobs.py`, and where the spec's text could not be used
 as written that file's module docstring is authoritative.
 
 The public surface is 2.2's Interface list plus the three type names its signatures use,
@@ -93,8 +93,8 @@ _K_D = 16
 _K_R = 16
 _D_R = 2
 
-# N9's declared band, in reference-tokenizer tokens, over the aggregate.  Minted by
-# Session A at a measured residual of 0 over 256 blocks of seven pairs across two disjoint
+# N9's declared band, in reference-tokenizer tokens, over the aggregate.  Minted with
+# the tests, at a measured residual of 0 over 256 blocks of seven pairs across two disjoint
 # scenarios; the same two-token margin, and the same empirical footing, as TG-M1's
 # observation band.  It is an aggregate and explicitly not a per-pair equality: 51.4% of
 # chain calls are cheaper on arguments than any read call and 3.0% of chain pairs fall

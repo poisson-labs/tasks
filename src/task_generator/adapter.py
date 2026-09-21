@@ -3,7 +3,7 @@ pre-registration validator.
 
 The invariants this file is built against are A1-A9 and A12 in the spec's 2.5, the two
 coverage gaps 2.5 says the adapter inherits (N17's scripted `diff`, N18's revision
-predicate) and knob R's level axis.  The frozen oracle is `tests/test_tg_m5_scripted.py`;
+predicate) and knob R's level axis.  The frozen test file is `tests/test_tg_m5_scripted.py`;
 where the spec's text could not be used as written, that file's module docstring is
 authoritative and this file follows it.  Its twelve decisions are implemented as written
 and are not restated here: the five public names, the TOML registration locked over its
@@ -17,9 +17,9 @@ Every entry point is a pure function of its arguments and the registration it wa
 from: no clock, no RNG but a keyed hash of the Proofload seed, no model, no network, and
 no module-level state that a call writes (A12).
 
-Shapes the oracle leaves open, decided by this build
+Shapes the tests leave open, decided by this build
 ----------------------------------------------------
-Each carries its escape hatch.  The oracle pins none of them beyond what is said here.
+Each carries its escape hatch.  The tests pin none of them beyond what is said here.
 
 * **`faulty`'s draws are keyed on the seed, the plant and the step, and on nothing
   else.**  The arm and the plant cell are not in the key, so two arms fed one seed draw

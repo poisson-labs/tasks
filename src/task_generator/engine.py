@@ -1,7 +1,7 @@
 """TG-M1, the domain engine: a deterministic state machine over one record domain.
 
 The invariants this file is built against are E1-E10 in the spec's 2.1, as amended on
-2026-09-11 by TG-ADR-35 and TG-ADR-36.  The frozen oracle is
+2026-09-11 by TG-ADR-35 and TG-ADR-36.  The frozen test file is
 `tests/test_tg_m1_engine.py`, and where the spec's text could not be used as written
 that file's module docstring is authoritative.
 
@@ -11,7 +11,7 @@ Three shapes the spec names but does not define, decided here:
   scenario and no spec argument, and stage 1 has to check the entry code the scenario
   gave a record while every transition has to derive a token from the scenario's token
   key.  Neither is reachable from the records alone, so the state carries the scenario
-  it was initialised from.  The oracle anticipates the field: its hand-built state pairs
+  it was initialised from.  The tests anticipate the field: their hand-built state pairs
   rebuild a `DomainState` by carrying over every dataclass field beyond `records` and
   `next_seq`.  The escape hatch, if a later module wants the state free of it, is to
   pass an `EngineSpec`-like context to `apply` -- which changes 2.1's signature and so
@@ -119,7 +119,7 @@ class EngineSpec:
     Nothing here validates the table.  `engine_hash`'s "if" direction has to be able to
     hash a table with any single entry changed, including entries that would make an
     unusable engine, so validation would turn E10's test into an exception.  The table
-    is validated by the oracle's VT rows instead, against the one table that ships.
+    is validated by the tests' VT rows instead, against the one table that ships.
     """
 
     table: dict[str, Any]

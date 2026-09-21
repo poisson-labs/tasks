@@ -4,7 +4,7 @@ verifier, a reference solution and negative controls generated alongside the tas
 The invariants this file is built against are G1-G16, the outcome vocabulary and the
 format check in the spec's 2.3, as amended on 2026-09-11 by TG-ADR-35 and TG-ADR-36, on
 2026-09-13 by TG-ADR-37 and TG-ADR-38, and on 2026-09-14 by TG-ADR-40 and TG-ADR-41.
-The frozen oracle is `tests/test_tg_m3_tasks.py`; where the spec's text could not be
+The frozen test file is `tests/test_tg_m3_tasks.py`; where the spec's text could not be
 used as written, that file's module docstring is authoritative and this file follows it.
 
 Everything here is a pure function of its arguments and the frozen vocabulary table:
@@ -14,7 +14,7 @@ reached by import and never re-minted, `d_R` included -- it is read back off TG-
 
 Shapes the spec names but does not define, decided by this build
 ---------------------------------------------------------------
-The oracle's docstring settles twelve of them and this file implements those as
+That file's docstring settles twelve of them and this file implements those as
 written.  Six more were open at the level of the build and are recorded here, each
 with its escape hatch.  **Three of the six are one finding**: N7 holds the
 prompt-to-tool-name overlap *set* equal across a knob's arms, and knob R's block both
@@ -42,7 +42,7 @@ one place it does not, and that residual is named under `_drawable_entry_codes`.
   function of the one slot draw.  This is the generator satisfying the ledger rather
   than the ledger excusing the generator: the arm transform still only replaces
   designated slots, and re-ranking an ordered selection is a bijection on selections, so
-  `structure_space` is untouched.  *Measured*, because the frozen oracle catches neither
+  `structure_space` is untouched.  *Measured*, because the frozen tests catch neither
   half -- it builds a knob R contrast at three seeds, all `r0` against `r8`: over 3,600
   contrasts on the seed ranges whose first record-id word a tool name carries, dropping
   the read half refuses 350 and dropping the distractor half refuses 162, on disjoint
@@ -61,7 +61,7 @@ one place it does not, and that residual is named under `_drawable_entry_codes`.
   *Escape hatch:* the check names the word and the tools that carry it.
 
 * **`overshoot` is generated when the block holds a tool that can carry the target past
-  the goal, and not otherwise.**  The oracle's decision 7 states the top-stage case; the
+  the goal, and not otherwise.**  The tests' decision 7 states the top-stage case; the
   same sentence decides knob R, whose block holds stages 1 and 2 alone, so no call the
   model can make overshoots and no control could produce the label.  G7 is carried by
   `collateral_mutation` there, exactly as at stage 8.  *Escape hatch:* `test_g7_2` is
@@ -74,7 +74,7 @@ one place it does not, and that residual is named under `_drawable_entry_codes`.
   blocks and print different fingerprints.  The count does not claim them.  That is the
   conservative direction for G16's floor -- a smaller `k` overstates the chance of a
   repeat -- and it keeps `structure_space` equal to a brute-force count on the plain
-  arms, which is the clause the oracle measures.  *Escape hatch:* count the seeded
+  arms, which is the clause the tests measure.  *Escape hatch:* count the seeded
   block's own reach and report `k` per arm rather than per knob.
 
 * **Opaque slot values are masked by slot name, not by pattern.**  G15's fingerprint
@@ -84,7 +84,7 @@ one place it does not, and that residual is named under `_drawable_entry_codes`.
   applied to the slots the template declares opaque and the rendered string is never
   edited.  *Escape hatch:* the declared set is one constant.
 
-`_check_pins` and the module-global `verify` are the two seams the oracle fault-injects
+`_check_pins` and the module-global `verify` are the two seams the tests fault-inject
 (`test_g11_1`, `test_g4_4`).  Renaming either moves those two tests and nothing else.
 """
 
@@ -1130,7 +1130,7 @@ def _outside_call(
     """A call naming a real tool outside the block that mutates nothing.
 
     A read is preferred, because a control that disturbed the chain could not be prefixed
-    to a passing episode -- which is how the oracle separates "fell short of `passed`"
+    to a passing episode -- which is how the tests separate "fell short of `passed`"
     from the label order (decision 4).  On a table too small to leave a read outside the
     block, a stage tool of another class aimed at a record the scenario does not hold is
     `no_such_rec` and mutates nothing either.
@@ -1505,7 +1505,7 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
         generator_hash=_generator_hash(arm.generator_version),
     )
 
-    # G4's gate, through the module-global `verify` so the oracle can fault-inject it.
+    # G4's gate, through the module-global `verify` so a test can fault-inject it.
     # Without the gate, G4 is a property of a correct generator and not a gate.
     reference_turns = tuple(
         Turn(content="", calls=(call,), finish_reason="tool_calls") for call in reference_calls

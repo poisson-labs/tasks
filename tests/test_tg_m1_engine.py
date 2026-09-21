@@ -1,13 +1,12 @@
-"""The frozen oracle for TG-M1, the domain engine: E1-E10, P1, T1-T3, VT1-VT4.
+"""The frozen tests for TG-M1, the domain engine: E1-E10, P1, T1-T3, VT1-VT4.
 
-Frozen by Session A on 2026-09-11 against spec v0 rev. 3.2 with the amendments of
-that date (TG-ADR-35 and TG-ADR-36). Session B builds against this file and does
-not edit it. Where the spec's text could not be used as written, this docstring
-is authoritative; the reasoning is in `notes/handoffs/Task Generator - Handoff
-TG-M1.md`, sections *Session A's step-zero report* and *the mapping*.
+Frozen on 2026-09-11 against spec v0 rev. 3.2 with the amendments of that date
+(TG-ADR-35 and TG-ADR-36). The module is written against this file, which is not
+edited to suit it. Where the spec's text could not be used as written, this
+docstring is authoritative.
 
-The public surface this oracle pins
------------------------------------
+The public surface these tests pin
+----------------------------------
 `task_generator.engine.__all__` is exactly::
 
     EngineSpec  Scenario  DomainState  init_state  apply  replay  mutations  engine_hash
@@ -74,7 +73,7 @@ ENCODING_PATH = DATA / "o200k_base.tiktoken"
 # T1: the expected_hash tiktoken 0.14.0 pins for o200k_base, read from
 # tiktoken_ext/openai_public.py at step zero.  An independent source.
 ENCODING_SHA256 = "446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d"
-# VT4: the table as Session A froze it at commit zero.
+# VT4: the table as it was frozen, at commit zero.
 TABLE_SHA256 = "61ca483f28e98677beb799e1c8683f120c5e0f766c74b5c314f1c3151859b682"
 
 ENGINE_EXPORTS = (
@@ -85,7 +84,7 @@ TOKENIZER_EXPORTS = ("reference_encoding", "count_tokens")
 
 # E9, finding 13.  Checked case-insensitively, as a substring.  DENY applies to
 # every authored table string except the ones that must carry digits; DENY_NAMES
-# is Session A's extension and applies to the stage names and tool names only.
+# is this file's extension and applies to the stage names and tool names only.
 DENY = (
     "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth",
     "one", "two", "three", "four", "five", "six", "seven", "eight",
@@ -224,7 +223,7 @@ def a_record(scenario):
 def advance(state, scenario, cls, rid, upto):
     """Drive a record from its current stage to `upto` through the public surface.
 
-    The scenario is passed in rather than read back off the state: the oracle
+    The scenario is passed in rather than read back off the state: this file
     already holds it, and asking DomainState for it would invent a surface the
     spec does not name.
     """
@@ -263,7 +262,7 @@ def rejected_calls(scenario, at_stage_1, at_stage_0):
     takes a record still at stage 0; and `not_ready` needs one whose precondition
     fails.
 
-    Precedence, which the spec leaves open and the oracle therefore fixes: the
+    Precedence, which the spec leaves open and these tests therefore fix: the
     stage precondition is decided before the argument.  A stage-3 tool aimed at a
     record standing at stage 1 is `not_ready` whatever token it carries, because
     no token could have been right for it (TG-ADR-36).
@@ -1272,7 +1271,7 @@ def test_t2_tokenizer_builds_with_sockets_disabled(tmp_path):
     used (finding 9).  A get_encoding fallback raises on the patched socket.
 
     Run in a fresh interpreter, not in this one.  The encoding is expensive, so
-    any sane tokenizer caches it; an earlier test in the same session would then
+    any sane tokenizer caches it; an earlier test in the same interpreter would then
     have built it already and this test would assert on a cached object, having
     disabled nothing.  That is not hypothetical -- it is how the first draft of
     this test let the get_encoding fallback through the whole mutation pass.
@@ -1389,7 +1388,7 @@ def test_vt3_equal_count_sets_have_a_single_count():
 
 
 def test_vt4_table_hash_is_pinned_and_feeds_engine_hash():
-    """VT4: the table is the one Session A froze, and it reaches engine_hash."""
+    """VT4: the table is the one that was frozen, and it reaches engine_hash."""
     from task_generator.engine import EngineSpec, engine_hash
 
     assert hashlib.sha256(TABLE_PATH.read_bytes()).hexdigest() == TABLE_SHA256
