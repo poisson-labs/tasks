@@ -1,12 +1,11 @@
-# task-generator
+# Tool-Use Task Generator (`task-generator`)
+
+[![Code License: MIT](https://img.shields.io/badge/Code%20License-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](pyproject.toml)
 
 A deterministic generator of tool-use tasks over one mock stateful domain. Each task is
 generated together with its verifier, a reference solution, and a set of wrong answers
 that are each labelled with the outcome they should earn.
-
-It exists to make a *controlled* measurement possible. Two tasks that differ only in the
-one thing you are varying, and a ledger of equalities that refuses the pair when they
-differ in anything else.
 
 Generation makes no model calls and no network calls, and is byte-identical across runs,
 processes and platforms.
@@ -15,7 +14,43 @@ processes and platforms.
 > the `task_generator` package all use it until the name is settled; the three URLs in
 > `pyproject.toml` are the only other place it appears.
 
-## What is here today
+---
+
+## What It Generates
+
+A task is a request to move one record of a mock ledger up a fixed ladder of stages,
+using the tools it is given and nothing else.
+
+- **The domain.** Twelve ledger classes over a shared eight-stage ladder (`review`,
+  `sample`, `measure`, `monitor`, `compare`, `bundle`, `route`, `label`), and a block of
+  sixteen tools. One call moves one record one stage: the first carries the record's
+  `entry_code`, every later one the `chain_token` the previous call returned, so a
+  depth-*d* task takes at least *d* calls whatever the model already knows. Every call
+  returns one fixed-width line of 52 bytes, and a call that is wrong changes nothing
+  [*source:* [`docs/the-task.md`](docs/the-task.md)].
+- **The bundle.** `generate(arm, seed)` returns the task and arm ids, the prompts, the
+  tool schemas in the order the model sees them, the goal as `(class, record_id, stage)`,
+  a reference solution with the domain's reply to every call, negative controls keyed by
+  the outcome each should earn, the pin-ledger measurements, and the engine and generator
+  hashes.
+- **The verdict.** `verify(bundle, turns, ended_with_reply, turn_limit_hit, fmt)` is a
+  pure function of those five arguments. The outcome vocabulary is closed and ordered at
+  ten labels, first match wins: `verifier_error`, `replay_mismatch`, `api_error`,
+  `wall_timeout`, `malformed_call`, `turn_limit`, `overshoot`, `wrong_state`,
+  `collateral_mutation`, `passed`. Every episode is judged strict and leaky at once, as
+  `strict_label` and `leaky_pass`.
+- **The knobs.** `depth` at levels `1, 2, 3, 5, 8` and `distractor` at `0, 2, 4, 8, 14`,
+  each with a control arm that answers the obvious objection to it: `depth:d1+h8` is as
+  long as `d8` and as deep as `d1`, and `distractor:r0+len(r8)@k16` holds the block's
+  token count where `r8` puts it while keeping `r0`'s tools [*source:*
+  [`docs/knobs-and-arms.md`](docs/knobs-and-arms.md)].
+- **The pin ledger.** Thirteen rows, each an equality across the arms of one contrast,
+  measured on the generated bundles. A violated row refuses the contrast before any model
+  runs -- except N5, the block's token count, which reports.
+
+---
+
+## What Is Built
 
 | | |
 |---|---|
@@ -25,72 +60,58 @@ processes and platforms.
 | task and verifier generation | **built** -- `generate`, `verify`, the outcome vocabulary, the negative controls |
 | the Proofload adapter, scripted path | **built** -- runs end to end against Proofload with no model, on the optional `proofload` extra |
 
-## What is not
+"Built" means covered by the test suite: **548 tests**, and `pytest -q` is the check.
 
-Say it plainly, because the package installs cleanly either way:
+---
 
-* **The model path is not built.** Nothing here runs a language model. There is no vLLM
-  serving stack, no `verifiers` integration and no trace handling, and the `verifiers`
-  dependency in `pyproject.toml` is not yet imported by any module. The scripted path
-  exercises the instrument with the model taken out of it.
-* **The `verifiers` taskset export is not built.** The tasks are not yet emitted in any
-  third-party taskset format.
-* **Calibration has not been run.** No difficulty level here has been measured against a
-  real model, so nothing in this repository tells you what a given depth is worth. The
-  levels are candidates.
-* **No pilot has been run**, so there are no results to report and none are claimed.
+## What Is Not Built, and What Is Not Claimed
 
-Everything in *What is here today* is covered by the test suite, which is what "built"
-means here: 548 tests, and `pytest -q` is the check.
+1. **The model path is not built.** Nothing here runs a language model. There is no vLLM
+   serving stack, no `verifiers` integration and no trace handling, and the `verifiers`
+   dependency in `pyproject.toml` is not yet imported by any module. The scripted path
+   exercises the instrument with the model taken out of it.
+2. **The `verifiers` taskset export is not built.** The tasks are not emitted in any
+   third-party taskset format.
+3. **Calibration has not been run.** No difficulty level here has been measured against a
+   real model, so nothing in this repository tells you what a given depth is worth. The
+   levels are candidates.
+4. **No pilot has been run**, so there are no results to report and none are claimed.
+5. **One known gap in the pin ledger.** Four of the 512 record-id words (`city`, `disc`,
+   `grad`, `port`) make row N7 refuse a `distractor` contrast that holds the `r14` arm.
+   `depth` is unaffected at every level [*source:* [`gap-log.md`](gap-log.md),
+   [`docs/knobs-and-arms.md`](docs/knobs-and-arms.md)].
 
-## Install
+---
 
-You need Python 3.11. Nothing else is required:
+## How to Run It
+
+### 1. Environment Setup
+
+Python 3.11, and nothing else is required:
 
 ```bash
+git clone https://github.com/poisson-labs/task-generator.git
+cd task-generator
+
 python3.11 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
 .venv/bin/python -m task_generator.fetch_encoding
 ```
 
-The last step fetches the o200k_base encoding file, about 3.6 MB, once. It is **not**
-shipped in this repository or in the distribution: its redistribution terms could not be
-established, so the fetch reads the URL and the expected digest out of the installed
-tiktoken and downloads through tiktoken's own reader, checking the digest before writing.
-`NOTICE` sets out what was checked and what was found. Nothing else here touches the
-network, and the tokenizer itself never does.
+The last step fetches the o200k_base encoding file, about 3.6 MB, once. It is not shipped
+in this repository or in the distribution; [`NOTICE`](NOTICE) records why and what was
+checked. Nothing else here touches the network, and the tokenizer itself never does.
 
-That is the whole generator: the domain engine, the knobs and their control arms, the pin
-ledger, task and verifier generation. The first two examples run, and `pytest -q` gives
-**548 tests, 235 passed and 313 skipped** -- the skipped ones are the Proofload adapter's,
+Sanity check:
+
+```bash
+.venv/bin/pytest -q
+```
+
+**548 tests, 235 passed and 313 skipped.** The skipped ones are the Proofload adapter's,
 and they say so.
 
-### The Proofload route, optional
-
-Proofload is one of the two routes a generated task can be run down, and it is an
-*optional extra*, not a dependency. **Proofload is not publicly available yet**, so the
-extra does not resolve from an index: it resolves against a checkout you already have
-installed in the same environment. With one at `../proofload`:
-
-```bash
-.venv/bin/pip install -e ../proofload
-.venv/bin/pip install -e ".[dev,proofload]"
-```
-
-Then the third example and the adapter's tests run, and `pytest -q` is **548 passed, 0
-skipped**. Put `.venv/bin` on `PATH` first, because they shell out to `proofload`:
-
-```bash
-export PATH="$PWD/.venv/bin:$PATH"
-```
-
-Without the extra, `import task_generator` and every module under it work as they do
-with it. Only `task_generator.adapter` needs Proofload, and importing it without the
-extra raises a `ModuleNotFoundError` that names the extra.
-
-## Quickstart
-
-Generate one task and judge every answer it ships with:
+### 2. Generate One Task, and Judge Every Answer It Ships With
 
 ```bash
 .venv/bin/python examples/one_task.py
@@ -143,42 +164,93 @@ verdict = verify(bundle, turns, True, False, FormatSpec("direct", ()))
 assert verdict.label == "passed"
 ```
 
-Then, with the optional `proofload` extra installed, run the whole scripted path
-against Proofload, three arms end to end:
+### 3. Run a Contrast Through the Pin Ledger
+
+```bash
+.venv/bin/python examples/a_contrast.py
+```
+
+Builds four arms of `depth` and all five of `distractor` at one seed, runs the thirteen
+rows over each contrast, and prints which were measured off the bundles, which two could
+not be and why, and the one row that reports rather than refuses. Then it builds a
+deliberately broken contrast -- two arms generated from different seeds -- and prints the
+three rows that catch it.
+
+### 4. The Proofload Route, Optional
+
+Proofload is one of the two routes a generated task can be run down. It is an **optional
+extra, not a dependency**, and **Proofload is not publicly available yet**, so the extra
+does not resolve from an index: it resolves against a checkout already installed in the
+same environment. With one at `../proofload`:
+
+```bash
+.venv/bin/pip install -e ../proofload
+.venv/bin/pip install -e ".[dev,proofload]"
+export PATH="$PWD/.venv/bin:$PATH"
+```
+
+The `PATH` line is required: the adapter and its tests shell out to `proofload`. Then:
 
 ```bash
 .venv/bin/python examples/proofload_sweep/run.py
 ```
 
-## Where to go next
+Writes a pre-registration, builds a registry module from it under its own hash, writes a
+Proofload sweep spec, and runs three real `proofload sweep` processes -- one per arm --
+driven by the reference policy. It then reads the stored episodes back and prints their
+outcomes, and runs a `proofload diff` of the two depth arms. Every episode comes back
+`passed`, and the depth arms differ in `t`: 2 turns at `d1`, 4 at `d3`. It takes a few
+seconds and writes about 80 KB under `examples/proofload_sweep/example-store`, which is
+git-ignored.
 
-* [`examples/`](examples/) -- three runnable examples, smallest first
-* [`docs/the-task.md`](docs/the-task.md) -- the domain, what a bundle carries, and the
-  outcome vocabulary
-* [`docs/knobs-and-arms.md`](docs/knobs-and-arms.md) -- the two knobs, their control
-  arms, the turn budget and the pin ledger
-* [`gap-log.md`](gap-log.md) -- what is known to be missing or unresolved, and what
-  would close each one
-* [`NOTICE`](NOTICE) -- every piece of third-party material, what licence it is under,
-  and where that was read from
+With the extra installed, `pytest -q` is **548 passed, 0 skipped**.
 
-## Development
+Without it, `import task_generator` and every module under it work as they do with it.
+Only `task_generator.adapter` needs Proofload, and importing it without the extra raises
+a `ModuleNotFoundError` naming the extra.
+
+### 5. Types and Lint
 
 ```bash
-.venv/bin/pytest -q          # 548 tests; 313 skip without the proofload extra
 .venv/bin/mypy               # strict, over src/
 .venv/bin/ruff check .
 ```
 
-The 313 are the adapter's, and they drive Proofload's real CLI. `tests/conftest.py`
-skips them when the extra is absent, and says why in the reason pytest prints; the
-frozen test files themselves know nothing about it.
+---
 
-The test files are frozen: each module was built against tests written before it, and
-the suite is not edited to suit a build. Comments and docstrings in them may be
-corrected; assertions may not.
+## Repository Index & Artifacts
+
+- **The instrument:** [`docs/the-task.md`](docs/the-task.md) -- the domain, what a bundle
+  carries, and the outcome vocabulary; [`docs/knobs-and-arms.md`](docs/knobs-and-arms.md)
+  -- the two knobs, their control arms, the turn budget and the pin ledger.
+- **Examples:** [`examples/`](examples/) -- three, smallest first, with
+  [`examples/README.md`](examples/README.md) describing each.
+- **Known gaps:** [`gap-log.md`](gap-log.md) -- what is missing or unresolved, and what
+  would close each one.
+- **Standard & hygiene:** [`docs/repo-hygiene.md`](docs/repo-hygiene.md).
+- **Third-party material:** [`NOTICE`](NOTICE) -- every piece, its licence, and where that
+  was read from, including one file that is deliberately not redistributed here;
+  [`LICENSE`](LICENSE).
+
+The test files under [`tests/`](tests/) are frozen: each module was built against tests
+written before it, and the suite is not edited to suit a build. Comments and docstrings
+in them may be corrected; assertions may not. [`tests/conftest.py`](tests/conftest.py) is
+outside that freeze and holds the skip for the Proofload adapter's 313 tests.
+
+---
+
+## Citation
+
+```bibtex
+@misc{kolasinski2026taskgenerator,
+  author = {Kolasinski, Taylor},
+  title  = {task-generator: deterministic tool-use tasks, each generated with its verifier},
+  year   = {2026},
+  howpublished = {\url{https://github.com/poisson-labs/task-generator}},
+  note   = {Poisson Labs}
+}
+```
 
 ## Licence
 
-MIT, see [`LICENSE`](LICENSE). Third-party material is itemised in [`NOTICE`](NOTICE),
-including one file that is deliberately not redistributed here.
+MIT. See [`LICENSE`](LICENSE). Third-party material is itemised in [`NOTICE`](NOTICE).
