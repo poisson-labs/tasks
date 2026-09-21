@@ -4,33 +4,61 @@ This repository is distributed under the MIT License; see LICENSE.
 
 This file lists the third-party material that the repository contains or depends
 on, and the license each is under. Every license grant below is quoted from the
-upstream file or terms page named beside it, read on 2026-09-20. Where no
-license or terms of use could be found, the entry says so and asserts nothing.
+upstream file or terms page named beside it, read on 2026-09-20, and the first entry
+re-checked on 2026-09-21. Where no license or terms of use could be found, the entry
+says so and asserts nothing.
 
 ================================================================================
-1. Third-party material contained in this repository
+1. Third-party material this repository contains or fetches
 ================================================================================
 
-The o200k_base encoding file
-----------------------------
+The o200k_base encoding file -- NOT contained here, fetched after installation
+------------------------------------------------------------------------------
 File:      src/task_generator/data/o200k_base.tiktoken (3,613,922 bytes)
+Status:    NOT in this repository, NOT in the sdist and NOT in the wheel. It is
+           git-ignored and excluded from both build targets. It is fetched once, after
+           installation, by `python -m task_generator.fetch_encoding`, which reads the
+           URL and the expected digest out of the installed tiktoken and downloads
+           through tiktoken's own reader. Nothing is redistributed here.
 What:      The byte-pair-encoding merge ranks of the o200k_base encoding, in tiktoken's
-           file format. The reference tokenizer reads this copy instead of fetching the
-           encoding at run time.
+           file format. The reference tokenizer reads the fetched copy, so that it never
+           reaches the network and leaves no byte in any cache directory.
 Source:    https://openaipublic.blob.core.windows.net/encodings/o200k_base.tiktoken
            This is the URL that tiktoken 0.14.0 uses for the encoding
            (tiktoken_ext/openai_public.py, function o200k_base). A HEAD request on
-           2026-09-20 returned HTTP 200 and a Content-Length equal to this file's size.
+           2026-09-21 returned HTTP 200 and a Content-Length equal to the size above.
 Integrity: sha256 446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d,
-           equal to the expected_hash that tiktoken 0.14.0 pins for it. The file is
-           vendored unmodified, and src/task_generator/tokenizer.py refuses to load it
-           if the hash differs.
-License:   NONE FOUND. The tiktoken 0.14.0 distribution ships only its MIT License
-           (quoted in section 2), which is the license of the tiktoken software and says
-           nothing about the encoding files. The source URL returns the file with no
-           license header and no link to terms of use. The terms under which this file
-           may be redistributed are therefore UNVERIFIED, and this NOTICE does not
-           assert any.
+           equal to the expected_hash that tiktoken 0.14.0 pins for it. The fetch
+           refuses any other digest, and src/task_generator/tokenizer.py refuses to load
+           a file whose digest differs.
+License:   NONE FOUND, re-checked on 2026-09-21 and recorded below. The terms under
+           which this file may be redistributed could not be established, so it is no
+           longer copied into this repository. This NOTICE asserts no terms for it.
+
+           What was checked, and what each showed:
+
+           * The tiktoken 0.14.0 distribution ships one license file, its own MIT
+             License (quoted in section 2). That is the license of the tiktoken
+             software. The distribution contains no encoding data at all -- no
+             .tiktoken file appears in its RECORD -- so the MIT grant has no encoding
+             file to cover.
+           * The openai/tiktoken source tree (read 2026-09-21) contains no encoding
+             data either, and its only license statement outside the LICENSE file is
+             pyproject.toml's `license = { file = "LICENSE" }`. Nothing in the tree
+             says anything about the hosted files.
+           * The source URL returns the file with no license header and no link to
+             terms of use.
+           * The blob container that serves it holds exactly five files: the four
+             encodings and a 92-byte README.md, whose whole text is "# Vocabularies for
+             encodings / See https://github.com/openai/tiktoken / Have a wonderful
+             day!". It points at the repository; it grants nothing, and the repository
+             it points at does not contain the file.
+
+           A pointer from the data to a repository whose license covers that
+           repository's software is not a license for the data. Reading it as one would
+           be a guess, and this file does not make it. The measurements behind the four
+           points above are filed in the vault, under
+           projects/task-generator/evidence/tg-publish-prep/encoding-licence/.
 
 Code copied from tiktoken
 -------------------------

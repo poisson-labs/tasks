@@ -1,21 +1,28 @@
-"""The reference tokenizer: o200k_base, built offline from the vendored encoding file.
+"""The reference tokenizer: o200k_base, built offline from one local encoding file.
 
 TG-ADR-13 makes o200k_base through tiktoken the one design-time measurement, with the
-encoding file vendored and hashed.  This module is the only place that encoding is
+encoding file held locally and hashed.  This module is the only place that encoding is
 built: N5-N7 and N9 in TG-M2 and G14 in TG-M3 import it, and nothing anywhere calls
 `tiktoken.get_encoding`.
 
+**The file is not part of this repository or of the distribution.**  The terms under
+which the encoding file may be redistributed could not be established, so it is fetched
+once, after installation, by `python -m task_generator.fetch_encoding`, which reads the
+URL and the expected digest out of the installed tiktoken.  NOTICE records what the file
+is and where it comes from; `fetch_encoding` is the only code here that touches the
+network, and it is never called from this module.
+
 Three routes into tiktoken 0.14.0 are closed here, all three for one reason -- a test
 has to build this encoder with the network gone and without leaving a byte behind
-(finding 9 of the TG-M1 handoff):
+(the TG-M1 build, finding 9):
 
 * `tiktoken.get_encoding("o200k_base")` fetches the encoding over HTTPS.
 * `tiktoken.load.read_file_cached` writes a copy under `$TMPDIR/data-gym-cache`, keyed
   by the sha1 of its argument.  It does that for a *local* path too, not only a URL.
 * `tiktoken.load.load_tiktoken_bpe` calls `read_file_cached`, so it is closed as well.
 
-So the vendored file is read here, checked against the sha256 tiktoken 0.14.0 pins for
-it, parsed, and handed to `tiktoken.Encoding` with the `pat_str` and the special tokens
+So the local file is read here, checked against the sha256 tiktoken 0.14.0 pins for it,
+parsed, and handed to `tiktoken.Encoding` with the `pat_str` and the special tokens
 copied from that version's `o200k_base` constructor.
 """
 
@@ -57,12 +64,18 @@ _SPECIAL_TOKENS = {"<|endoftext|>": 199999, "<|endofprompt|>": 200018}
 
 
 def _mergeable_ranks() -> dict[bytes, int]:
-    """Parse the vendored file, after checking it is the one tiktoken pins.
+    """Parse the local file, after checking it is the one tiktoken pins.
 
     The check is not decoration.  Nothing downstream would notice a corrupted encoding
     file: a flipped byte moves a rank, every count shifts, and the token band and the
     equal-count sets frozen against it become quietly wrong.
     """
+    if not _ENCODING_PATH.exists():
+        raise FileNotFoundError(
+            f"the {_ENCODING_NAME} encoding file is not here: {_ENCODING_PATH}. "
+            f"It is not shipped with this package; fetch it once with "
+            f"`python -m task_generator.fetch_encoding`."
+        )
     blob = _ENCODING_PATH.read_bytes()
     digest = hashlib.sha256(blob).hexdigest()
     if digest != _ENCODING_SHA256:
@@ -81,11 +94,11 @@ def _mergeable_ranks() -> dict[bytes, int]:
 
 @functools.lru_cache(maxsize=1)
 def reference_encoding() -> tiktoken.Encoding:
-    """The o200k_base encoding, built from the vendored file with no network and no cache.
+    """The o200k_base encoding, built from the local file with no network and no cache.
 
     Cached, because building it parses 200k lines.  A test that has to see the build
     itself -- T2, which disables the network -- therefore has to run in a fresh
-    interpreter, and the oracle says so.
+    interpreter, and the tests say so.
     """
     return tiktoken.Encoding(
         name=_ENCODING_NAME,

@@ -44,6 +44,11 @@ Issues = "https://github.com/poisson-labs/task-generator/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/task_generator"]
+# The encoding file is fetched after installation, never shipped: see NOTICE.
+exclude = ["data/*.tiktoken"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["src/task_generator/data/*.tiktoken"]
 
 [tool.ruff]
 line-length = 100
@@ -59,6 +64,12 @@ select = ["E", "F", "W", "I", "UP", "B"]
 python_version = "3.11"
 files = ["src"]
 strict = true
+
+# tiktoken_ext is tiktoken's plugin namespace package and carries no py.typed marker,
+# unlike tiktoken itself. fetch_encoding reads the o200k_base constructor out of it.
+[[tool.mypy.overrides]]
+module = ["tiktoken_ext.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
