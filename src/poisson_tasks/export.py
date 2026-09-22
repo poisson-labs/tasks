@@ -39,10 +39,11 @@ schema from a function's signature (a `title` per property, no `additionalProper
 which is not the bundle's, and it is the manager's only public entry point; `register`
 therefore builds the `Tool` itself and puts it in the manager (X3).
 
-Two readings the spec leaves open are not settled here, and the tests do not pin them: where
-a call the harness refused sorts (its tool message carries no `seq`, and it mutates nothing
-wherever it lands), and how `turn_limit_hit` is read off a trace -- `is_truncated` is the
-name §0 verifies, and it is also true for a token limit.
+One reading the spec leaves open is not settled here, and the tests do not pin it: where a
+call the harness refused sorts (its tool message carries no `seq`, and it mutates nothing
+wherever it lands).  How `turn_limit_hit` is read was ruled on 2026-09-21: the stop reason,
+`Trace.stop_condition == "max_turns"`, and not `is_truncated`, which is also true for a token
+limit (`_verdict`).
 """
 
 from __future__ import annotations
@@ -436,13 +437,19 @@ def _ordered_turns(trace: _Any) -> tuple[tuple[_Turn, ...], bool]:
 
 
 def _verdict(data: ExportTaskData, trace: _Any) -> _Verdict:
-    """TG-M3's verdict on the trace.  The reward is never its own expectation (X4)."""
+    """TG-M3's verdict on the trace.  The reward is never its own expectation (X4).
+
+    `turn_limit_hit` is the stop reason and nothing wider (ruled 2026-09-21): a trace the
+    wheel stopped at `max_turns`.  `is_truncated` is also true for a token limit and for a
+    length-finished reply, and neither is a turn limit -- an episode cut by one of those
+    ended for a reason the verdict's five arguments cannot see, and is `verifier_error`.
+    """
     turns, ended_with_reply = _ordered_turns(trace)
     return _verify(
         bundle_from_data(data),
         turns,
         ended_with_reply,
-        bool(trace.is_truncated),
+        trace.stop_condition == "max_turns",
         _EXPORT_FORMAT,
     )
 
