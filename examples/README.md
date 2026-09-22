@@ -41,8 +41,8 @@ Then read [docs/knobs-and-arms.md](../docs/knobs-and-arms.md).
 python examples/proofload_sweep/run.py [--store DIR]
 ```
 
-**Needs the optional `proofload` extra**, and Proofload is not yet publicly available;
-see the README's install section. The other two examples run without it.
+**Needs Proofload installed**, and Proofload is not yet publicly available, so it comes
+from a checkout rather than an index; see the README's install section. The other two examples run without it.
 
 Writes a pre-registration, builds a registry module from it under its own hash, writes a
 Proofload sweep spec, and runs three real `proofload sweep` processes -- one per arm --

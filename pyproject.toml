@@ -25,12 +25,35 @@ classifiers = [
 dependencies = ["verifiers==0.3.1", "tiktoken==0.14.0"]
 
 [project.optional-dependencies]
-# The Proofload route. Proofload core is first party and not published anywhere, so
-# this extra resolves only when a checkout is already installed into the same
-# environment (`pip install -e ../proofload` first); the exact pin keeps pip off the
-# 0.0.0 name-hold on PyPI. Nothing outside `poisson_tasks.adapter`, the third example
-# and `tests/test_tg_m5_scripted.py` needs it.
-proofload = ["proofload==0.0.1"]
+# The Proofload route has NO EXTRA while Proofload is unpublished, and the block below is
+# commented out rather than deleted so it can be restored in one move.
+#
+# Why. `proofload==0.0.1` is a distribution that exists on no index: Proofload core is first
+# party and not public, and the exact pin was there to keep pip off the 0.0.0 name-hold on
+# PyPI. An extra naming it is unresolvable, and that is not confined to whoever asks for the
+# extra: `uv run` locks before it runs, `uv lock` resolves EVERY extra into the universal
+# lockfile, and there is no `uv.lock` here to skip that. So a stranger following
+# `docs/verifiers-export.md` -- `uv run eval poisson-tasks ...` -- got a resolution error
+# instead of a run, having asked for no extra at all. Measured live, 2026-09-22, on uv 0.11.14;
+# reproduced on a five-line throwaway project, so it is uv's lock behaviour and not this tree's.
+# `--no-extra proofload` does not help: it only subtracts from `--all-extras`.
+#
+# What replaces it. Nothing, and nothing needs to: the extra never installed Proofload for
+# anyone anyway. It resolved only against a checkout already installed in the same
+# environment, which is exactly the one instruction that still works and is what the README,
+# `tests/conftest.py` and `poisson_tasks.adapter` now say:
+#
+#     pip install -e ../proofload && pip install -e ".[dev]"
+#
+# An empty `proofload = []` was rejected on purpose: it would let `pip install
+# "poisson-tasks[proofload]"` report success while installing no Proofload at all.
+#
+# Restore this block when Proofload is published, re-pin it to the published version, and put
+# the extra back in the README, `tests/conftest.py`'s skip reason and the adapter's import
+# error. Nothing outside `poisson_tasks.adapter`, the third example and
+# `tests/test_tg_m5_scripted.py` has ever needed it.
+#
+# proofload = ["proofload==0.0.1"]
 
 # Floors, not pins: the suite, mypy --strict and the ruff rule set in this file are
 # known green on these versions, and nothing below them is claimed. NOTICE names the

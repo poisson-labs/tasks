@@ -123,7 +123,7 @@ launches a task-scoped tool server as a child process.
 
 ## What this export does not do
 
-* It does not import Proofload, and nothing here needs the optional extra installed.
+* It does not import Proofload, and nothing here needs Proofload installed.
 * It does not decide a format check. The reward's verdict is the state predicate; a
   `malformed_call` label comes from the serving pin's own parser, on the adapter's side.
 * It does not pin the model, the endpoint or the sampling: those are the command line's,
