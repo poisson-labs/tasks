@@ -58,7 +58,7 @@ using the tools it is given and nothing else.
 | the reference tokenizer | **built** -- o200k_base, offline |
 | knobs, arms and the pin ledger | **built** -- two knobs, their control arms, thirteen rows |
 | task and verifier generation | **built** -- `generate`, `verify`, the outcome vocabulary, the negative controls |
-| the Proofload adapter, scripted path | **built** -- runs end to end against Proofload with no model, on the optional `proofload` extra |
+| the Proofload adapter, scripted path | **built** -- runs end to end against Proofload with no model, on an installed Proofload checkout |
 | the `verifiers` taskset export | **built** -- the task data, the task with its reward, the tool server, and a finite taskset over a declared list of seeds |
 | the model path, standalone | **built** -- the taskset id `poisson-tasks` resolves, and `eval` runs the measured harness against an OpenAI-compatible endpoint with no flag |
 
@@ -177,13 +177,13 @@ three rows that catch it.
 ### 4. The Proofload Route, Optional
 
 Proofload is one of the two routes a generated task can be run down. It is an **optional
-extra, not a dependency**, and **Proofload is not publicly available yet**, so the extra
-does not resolve from an index: it resolves against a checkout already installed in the
-same environment. With one at `../proofload`:
+optional route, not a dependency**, and **Proofload is not publicly available yet**, so
+there is no extra for it and no index to install it from: it comes from a checkout
+installed into the same environment. With one at `../proofload`:
 
 ```bash
 .venv/bin/pip install -e ../proofload
-.venv/bin/pip install -e ".[dev,proofload]"
+.venv/bin/pip install -e ".[dev]"
 export PATH="$PWD/.venv/bin:$PATH"
 ```
 
@@ -201,11 +201,11 @@ outcomes, and runs a `proofload diff` of the two depth arms. Every episode comes
 seconds and writes about 80 KB under `examples/proofload_sweep/example-store`, which is
 git-ignored.
 
-With the extra installed, `pytest -q` is **1086 passed, 0 skipped**.
+With Proofload installed, `pytest -q` is **1086 passed, 0 skipped**.
 
 Without it, `import poisson_tasks` and every module under it work as they do with it.
-Only `poisson_tasks.adapter` needs Proofload, and importing it without the extra raises
-a `ModuleNotFoundError` naming the extra.
+Only `poisson_tasks.adapter` needs Proofload, and importing it without Proofload raises
+a `ModuleNotFoundError` saying where it comes from.
 
 ### 5. Types and Lint
 

@@ -46,3 +46,7 @@ examples/**/example-store/
 
 # Devlogs live in the vault only (docs/repo-hygiene.md, section 2.7)
 devlog.md
+
+# Local secrets. Never committed, and the live smoke reads MODEL_API_KEY from here.
+.env
+.env.local

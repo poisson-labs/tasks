@@ -24,6 +24,50 @@ but types `control` and `generator_version` as strings, so pass the arm whole. W
 harness named, the run uses the measured harness (below) in a local subprocess; both are
 this taskset's own defaults and both show in the run's saved config.
 
+That command, run against OpenAI on 2026-09-22 with `MODEL=gpt-5-nano` on a machine with no
+environment prepared, printed this:
+
+```
+Using CPython 3.12.13
+Creating virtual environment at: .venv
+   Building poisson-tasks @ file:///.../task-generator
+      Built poisson-tasks @ file:///.../task-generator
+Installed 103 packages in 498ms
+env       poisson-tasks  ·  null harness  ·  subprocess runtime
+model     gpt-5-nano  via https://api.openai.com/v1
+taskset   arm={knob=depth,level=3,control=None,strictness=strict,split=eval,gen…
+          ·  seeds=[404,55,2121]  ·  task.arm_id=depth:d3
+limits    ≤128 episodes     ·  no turn cap         ·  no token cap
+output    outputs/poisson-tasks--gpt-5-nano--null--539ec6b0
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3/3 · 48s · reward 0.67 · err 0.00
+rewards   strict 0.67
+metrics   leaky_pass 0.67  ·  mutation_count 2.00  ·  sampled_calls 2.33  ·
+          turns 3.33
+usage     2.2K/10.6K tokens (0 cached, 10.0K reasoning)
+time      boot 0.0s  ·  setup 5s  ·  agent 33s (model 32s + harness 0.9s)  ·
+          finalize 0.0s  ·  scoring 0.0s
+[success ] task idx=None agent=agent · cffdef76 · subproces… reward=1.00 · 45s
+[success ] task idx=None agent=agent · 14962068 · subproces… reward=0.00 · 21s
+[success ] task idx=None agent=agent · a40932b0 · subproces… reward=1.00 · 45s
+```
+
+Ten model calls, 8,363 prompt and 10,558 completion tokens (9,984 of them reasoning), about
+half a cent. **`reward 0.67` is the model's score, not a fault in the run**: all three
+episodes completed (`err 0.00`, every rollout `agent_completed`), and one of the three ended
+without the model calling a single tool, which scores 0 under `strict` as it should. Two of
+three at `depth:d3` is a measurement of `gpt-5-nano`, and what a level is worth is the
+calibration module's subject, not this page's.
+
+Paths are elided above; nothing else is.
+
+**If the run goes quiet, it has not hung on the model.** At 0.3.1 a run's env server is a
+child process, and if it dies during startup -- a config it refuses, a missing dependency --
+the parent keeps waiting: no top-level error, no non-zero exit, and `traces.jsonl` stays 0
+bytes. Measured 2026-09-22: ~15 minutes to a manual interrupt, with nothing printed. A run
+that has produced no trace after a minute or two is worth interrupting; the reason is in the
+run's own `logs/attempt_1/eval.log`, under the env server's traceback. This is the wheel's
+behaviour, not this taskset's, and it is reported upstream.
+
 `examples/` has no verifiers example yet; the shortest thing that works in Python is below.
 
 ## The ten names
@@ -123,7 +167,7 @@ launches a task-scoped tool server as a child process.
 
 ## What this export does not do
 
-* It does not import Proofload, and nothing here needs the optional extra installed.
+* It does not import Proofload, and nothing here needs Proofload installed.
 * It does not decide a format check. The reward's verdict is the state predicate; a
   `malformed_call` label comes from the serving pin's own parser, on the adapter's side.
 * It does not pin the model, the endpoint or the sampling: those are the command line's,

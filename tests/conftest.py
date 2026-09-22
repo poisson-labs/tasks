@@ -1,9 +1,10 @@
 """Test configuration, outside the frozen test files.
 
 `tests/test_tg_m5_scripted.py` drives Proofload's real CLI and `tests/test_tg_m5_bridge.py`
-calls the adapter's `to_episode`, and Proofload is an optional extra: `pip install
-"poisson-tasks[proofload]"`, and not the plain install.  Without it every test in those two
-files is skipped, with the reason below, and the rest of the suite runs.
+calls the adapter's `to_episode`, and Proofload is not a dependency of this package and not
+installable from any index.  It comes from a checkout installed into the same environment
+(`pip install -e ../proofload`).  Without it every test in those two files is skipped, with
+the reason below, and the rest of the suite runs.
 
 It is done here and not in the file itself because the test files are frozen: each module
 was built against tests written before it, and the suite is not edited to suit an install.
@@ -30,10 +31,10 @@ import pytest
 PROOFLOAD_TEST_FILES = frozenset({"test_tg_m5_scripted.py", "test_tg_m5_bridge.py"})
 
 SKIP_REASON = (
-    "Proofload is not installed: these tests drive its real CLI. "
-    "It is the optional `proofload` extra -- `pip install -e '.[proofload]'` -- and it is "
-    "not publicly available yet, so the extra resolves only against a checkout already "
-    "installed in the same environment."
+    "Proofload is not installed: these tests drive its real CLI.  It is not a dependency "
+    "of this package and it is not publicly available yet, so there is no extra and no "
+    "index to install it from: it comes from a checkout installed into the same "
+    "environment -- `pip install -e ../proofload`."
 )
 
 
