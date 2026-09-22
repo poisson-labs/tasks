@@ -24,6 +24,14 @@ but types `control` and `generator_version` as strings, so pass the arm whole. W
 harness named, the run uses the measured harness (below) in a local subprocess; both are
 this taskset's own defaults and both show in the run's saved config.
 
+**If the run goes quiet, it has not hung on the model.** At 0.3.1 a run's env server is a
+child process, and if it dies during startup -- a config it refuses, a missing dependency --
+the parent keeps waiting: no top-level error, no non-zero exit, and `traces.jsonl` stays 0
+bytes. Measured 2026-09-22: ~15 minutes to a manual interrupt, with nothing printed. A run
+that has produced no trace after a minute or two is worth interrupting; the reason is in the
+run's own `logs/attempt_1/eval.log`, under the env server's traceback. This is the wheel's
+behaviour, not this taskset's, and it is reported upstream.
+
 `examples/` has no verifiers example yet; the shortest thing that works in Python is below.
 
 ## The ten names
