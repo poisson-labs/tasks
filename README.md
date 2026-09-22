@@ -59,19 +59,21 @@ using the tools it is given and nothing else.
 | knobs, arms and the pin ledger | **built** -- two knobs, their control arms, thirteen rows |
 | task and verifier generation | **built** -- `generate`, `verify`, the outcome vocabulary, the negative controls |
 | the Proofload adapter, scripted path | **built** -- runs end to end against Proofload with no model, on the optional `proofload` extra |
+| the `verifiers` taskset export | **built** -- the task data, the task with its reward, the tool server, and a finite taskset over a declared list of seeds |
+| the model path, standalone | **built** -- the taskset id `poisson-tasks` resolves, and `eval` runs the measured harness against an OpenAI-compatible endpoint with no flag |
 
-"Built" means covered by the test suite: **548 tests**, and `pytest -q` is the check.
+"Built" means covered by the test suite: **1086 tests**, and `pytest -q` is the check.
 
 ---
 
 ## What Is Not Built, and What Is Not Claimed
 
-1. **The model path is not built.** Nothing here runs a language model. There is no vLLM
-   serving stack, no `verifiers` integration and no trace handling, and the `verifiers`
-   dependency in `pyproject.toml` is not yet imported by any module. The scripted path
-   exercises the instrument with the model taken out of it.
-2. **The `verifiers` taskset export is not built.** The tasks are not emitted in any
-   third-party taskset format.
+1. **No language model has been run against this repository.** The standalone model path
+   is built and tested -- the taskset loads by its id, and `eval` resolves to the measured
+   harness in a local subprocess -- but every test drives it against a stub or the `null`
+   harness. No number here was produced by a real model.
+2. **The pinned serving path is not built.** There is no vLLM serving stack, no serving
+   proxy, no forced output and no store mirror, so none of the pilot's controls exist yet.
 3. **Calibration has not been run.** No difficulty level here has been measured against a
    real model, so nothing in this repository tells you what a given depth is worth. The
    levels are candidates.
@@ -104,7 +106,7 @@ Sanity check:
 .venv/bin/pytest -q
 ```
 
-**548 tests, 235 passed and 313 skipped.** The skipped ones are the Proofload adapter's,
+**1086 tests, 706 passed and 380 skipped.** The skipped ones are the Proofload adapter's,
 and they say so.
 
 ### 2. Generate One Task, and Judge Every Answer It Ships With
@@ -199,7 +201,7 @@ outcomes, and runs a `proofload diff` of the two depth arms. Every episode comes
 seconds and writes about 80 KB under `examples/proofload_sweep/example-store`, which is
 git-ignored.
 
-With the extra installed, `pytest -q` is **548 passed, 0 skipped**.
+With the extra installed, `pytest -q` is **1086 passed, 0 skipped**.
 
 Without it, `import poisson_tasks` and every module under it work as they do with it.
 Only `poisson_tasks.adapter` needs Proofload, and importing it without the extra raises

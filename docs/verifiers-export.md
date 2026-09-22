@@ -5,7 +5,26 @@ v1 taskset: the task data, the task with its reward, the tool server, and a fini
 over a declared list of seeds. Everything on this page is against `verifiers==0.3.1`, which
 is the version the package pins.
 
-`examples/` has no verifiers example yet; the shortest thing that works is below.
+**The taskset id is `poisson-tasks`.** It is the distribution's name, and the wheel resolves
+it to the package itself, which exports the taskset and its environment. `import
+poisson_tasks` does not import `verifiers`: the two are exported lazily, and only `eval` (or
+whoever asks for them by name) pays for the import.
+
+## Running it against a model
+
+One command. Set `MODEL`, `MODEL_BASE_URL` and `MODEL_API_KEY` for an OpenAI-compatible
+endpoint serving a model that calls tools, then:
+
+```
+uv run eval poisson-tasks --model "$MODEL" --client.base-url "$MODEL_BASE_URL" --client.api-key-var MODEL_API_KEY --env.taskset.arm '{"knob": "depth", "level": 3, "control": null, "strictness": "strict", "split": "eval", "generator_version": "0"}' --env.taskset.seeds 404 55 2121 --no-push
+```
+
+The arm is one JSON value and the seeds are a list; `--env.taskset.arm.<field>` also parses
+but types `control` and `generator_version` as strings, so pass the arm whole. With no
+harness named, the run uses the measured harness (below) in a local subprocess; both are
+this taskset's own defaults and both show in the run's saved config.
+
+`examples/` has no verifiers example yet; the shortest thing that works in Python is below.
 
 ## The ten names
 
@@ -72,12 +91,11 @@ changed the prompt the arms are supposed to share, so a difference measured acro
 no longer a difference in the knob. The numbers may still be interesting; they are not
 comparable with the pinned ones, and they are not what the ledger says.
 
-At 0.3.1 a taskset package's default harness is `bash` unless the package ships one of its
-own, so **name the harness on the command line** until that is settled here:
-
-```
-uv run eval <taskset-id> --env.agent.harness.id null --no-push
-```
+**`eval poisson-tasks` runs `null` with no flag.** At 0.3.1 a taskset's default harness is
+`bash` unless the taskset's own environment says otherwise, and this one's does: its
+environment pins `agent.harness.id` to `null` and `agent.runtime.type` to `subprocess`, and
+nothing else. **A harness named on the command line still wins** (`--env.agent.harness.id
+bash`), and a run under it is outside the pin ledger, as above.
 
 **`eval` needs `--no-push` to stay local.** Without it a finished run is pushed to the
 verifiers hub. Nothing in a generated task is secret, but a pilot's runs are pre-registered
@@ -108,6 +126,5 @@ launches a task-scoped tool server as a child process.
 * It does not import Proofload, and nothing here needs the optional extra installed.
 * It does not decide a format check. The reward's verdict is the state predicate; a
   `malformed_call` label comes from the serving pin's own parser, on the adapter's side.
-* It is not yet loadable by a taskset id: at 0.3.1 an id resolves to a top-level module
-  that exports one `Taskset` subclass through `__all__`, and this package does not export
-  one. Build the taskset in Python, as above.
+* It does not pin the model, the endpoint or the sampling: those are the command line's,
+  and the saved config records what was used.

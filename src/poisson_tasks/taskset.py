@@ -1,0 +1,68 @@
+"""The taskset the id ``poisson-tasks`` names, and the ``Env`` that makes ``eval`` run the
+measured harness with no flag.
+
+Layer 1 of the model path (Handoff Model Path, MP1 to MP9; TG-ADR-46, the two items TG-M4
+handed here).  A stranger installs the package, names an OpenAI-compatible endpoint and runs
+``uv run eval poisson-tasks ...``: the wheel resolves the id to the package root, whose
+``__all__`` points here, and finds one ``Taskset`` and one ``Env``.
+
+The taskset is TG-M4's ``ExportTaskset``, re-exported and unchanged: one task per declared
+seed, scored by the export's own ``strict`` reward (X4).  The ``Env`` is the wheel's
+single-agent env with a config that pins what the section below lists, because at 0.3.1 a
+taskset's default harness is ``bash`` unless its own ``Env`` says otherwise (VN-8), and
+``AgentConfig.runtime`` defaults to a hosted sandbox (VN-3).
+
+Pins
+----
+Every field this module's env config sets away from the wheel's own single-agent default is
+listed here, one line each, with the reason (MP4).  Nothing else is pinned: a stranger's run
+differs from a plain ``eval`` of this taskset in exactly these, each shows in the run's saved
+config, and a flag on the command line overrides either (MP5).
+
+- `agent.harness.id` = `null` -- the measured harness; the default is otherwise `bash` (X9)
+  (ruled 2026-09-21, TG-ADR-46).  Every number the pin ledger carries was produced under the
+  `null` harness: it adds no system prompt and no tools of its own, and a run under `bash`
+  measures something the ledger cannot be compared with.
+- `agent.runtime.type` = `subprocess` -- the harness program runs on the caller's machine (VN-3)
+  (A11, MP8).  ``AgentConfig.runtime`` defaults to Prime's hosted sandbox, which a stranger
+  has no account for, and which would make the run's outbound connections something other
+  than the endpoint they named.
+
+Nothing here imports Proofload: the standalone path needs no extra (MP6).
+"""
+
+from __future__ import annotations
+
+from typing import Any as _Any
+
+import verifiers.v1 as _vf
+
+from poisson_tasks.export import MEASURED_HARNESS as _MEASURED_HARNESS
+from poisson_tasks.export import ExportTaskset
+
+__all__ = ["ExportTaskset", "PoissonTasksEnvConfig", "PoissonTasksEnv"]
+
+
+class PoissonTasksEnvConfig(_vf.SingleAgentEnvConfig):
+    """The single-agent config with the two pins the module docstring lists.
+
+    A pinned ``harness`` narrows to the harness's own config type when the config is built,
+    and a role's partial CLI data deep-merges onto this declared instance, which is what
+    makes each pin a default and not a lock.
+    """
+
+    agent: _vf.AgentConfig = _vf.AgentConfig(
+        harness={"id": _MEASURED_HARNESS}, runtime={"type": "subprocess"}
+    )
+
+
+class PoissonTasksEnv(_vf.Env[PoissonTasksEnvConfig]):
+    """The single-agent env, one seat, bound to the pinned config.
+
+    ``vf.Env[PoissonTasksEnvConfig]`` is how the wheel learns the config type (it reads the
+    generic parameter through the MRO), and it is what narrows ``--env.agent.*`` to this
+    config on the command line.  ``run`` is the wheel's single-agent body.
+    """
+
+    async def run(self, task: _Any, agents: _Any) -> None:
+        await agents.agent.run(task)

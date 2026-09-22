@@ -233,8 +233,20 @@ def _judge(bundle: _TaskBundle, run: Run) -> _Judgement:
         )
         calls = [call for turn in run.turns for call in turn.calls]
         scenario = _scenario_for(bundle.seed, bundle.split)
-        _final, observed = _replay(scenario, calls, bundle.seq_start)
-        replays = tuple(observed) == tuple(run.tool_messages)
+        # A8, shape (b): a call the `null` harness answered itself (VN-7) never reached the
+        # engine, so it is not replayed; `verify` still sees it, which is what makes the
+        # episode `malformed_call`.  Everything else is replayed and compared byte for byte.
+        kept = [
+            (call, message)
+            # `strict=False`: a count difference is a mismatch and not an exception, and
+            # the `len` comparison below is what detects it (`test_a8_2`).
+            for call, message in zip(calls, run.tool_messages, strict=False)
+            if not _harness_answered(message)
+        ]
+        _final, observed = _replay(scenario, [call for call, _m in kept], bundle.seq_start)
+        replays = len(calls) == len(run.tool_messages) and tuple(observed) == tuple(
+            message for _c, message in kept
+        )
     except Exception:
         return _Judgement(_VERIFIER_ERROR, _VERIFIER_ERROR, False, None)
     if not replays:
@@ -244,6 +256,13 @@ def _judge(bundle: _TaskBundle, run: Run) -> _Judgement:
     return _Judgement(
         verdict.label, verdict.strict_label, verdict.leaky_pass, verdict.format_clause
     )
+
+
+def _harness_answered(message: str) -> bool:
+    """Whether a tool message is the `null` harness's own refusal (VN-7): its `error: ...`
+    line, which carries no `seq` because the engine never saw the call.  An engine
+    observation opens with its six-digit `seq`, so the two shapes cannot be confused."""
+    return message.startswith("error: ")
 
 
 def to_episode(
