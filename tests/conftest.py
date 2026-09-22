@@ -1,7 +1,7 @@
 """Test configuration, outside the frozen test files.
 
 `tests/test_tg_m5_scripted.py` drives Proofload's real CLI, and Proofload is an optional
-extra: `pip install "task-generator[proofload]"`, and not the plain install.  Without it
+extra: `pip install "poisson-tasks[proofload]"`, and not the plain install.  Without it
 every test in that file is skipped, with the reason below, and the rest of the suite runs.
 
 It is done here and not in the file itself because the test files are frozen: each module
@@ -9,7 +9,7 @@ was built against tests written before it, and the suite is not edited to suit a
 This adds no assertion and changes none; with the extra installed the hook does nothing and
 all 548 tests run exactly as they did.
 
-The file collects cleanly either way -- it imports `task_generator.adapter` lazily, through
+The file collects cleanly either way -- it imports `poisson_tasks.adapter` lazily, through
 `importlib`, inside its own helper -- so the skip is applied to collected items rather than
 by refusing to collect, and `pytest -q` reports the count and the reason.
 """

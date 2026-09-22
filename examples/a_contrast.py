@@ -12,8 +12,8 @@ No model, no network, no Proofload.
 
 from __future__ import annotations
 
-from task_generator.knobs import ArmSpec, arm_id, check_pins, levels, pin_ledger
-from task_generator.tasks import generate
+from poisson_tasks.knobs import ArmSpec, arm_id, check_pins, levels, pin_ledger
+from poisson_tasks.tasks import generate
 
 SEED = 404
 GEN = "tg-m3-v1"

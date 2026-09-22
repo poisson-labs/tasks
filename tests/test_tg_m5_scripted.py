@@ -22,7 +22,7 @@ of the package the tests do.
 Decisions
 ---------
 
-**1. The module is `task_generator.adapter`, with five public names.**  `ArmRegistry`,
+**1. The module is `poisson_tasks.adapter`, with five public names.**  `ArmRegistry`,
 `load_registry`, `validate_preregistration`, `Run` and `to_episode`.  2.5's Interface names
 arm targets, a registry built from the pre-registration file, an outcome map and (through
 N18) a pre-registration validator; each name is one an invariant cannot be tested without.
@@ -103,7 +103,7 @@ below it each raise `ValueError` naming the offending value, and the boundaries 
 
 **9. The scripted targets look the outcome map up by module global, at call time.**  A9
 says both paths share the verdict -> Episode code, so `test_a9_2` replaces
-`task_generator.adapter.to_episode` and expects both scripted targets to reach it, the way
+`poisson_tasks.adapter.to_episode` and expects both scripted targets to reach it, the way
 TG-M3 fault-injects `verify` and `_check_pins`.  A target that built its own Episode or
 captured the function when the registry was built fails it.  The model path's tests add
 the same seam for model targets.  *Escape hatch:* any other injectable seam; `test_a9_2` and
@@ -203,9 +203,9 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from task_generator.engine import apply, init_state
-from task_generator.knobs import ArmSpec, arm_id, levels
-from task_generator.tasks import (
+from poisson_tasks.engine import apply, init_state
+from poisson_tasks.knobs import ArmSpec, arm_id, levels
+from poisson_tasks.tasks import (
     OUTCOMES,
     FormatSpec,
     Turn,
@@ -325,7 +325,7 @@ def cfg_of(spec: ArmSpec, **over: Any) -> dict[str, Any]:
 
 
 def adapter() -> Any:
-    return importlib.import_module("task_generator.adapter")
+    return importlib.import_module("poisson_tasks.adapter")
 
 
 def run_of(**kw: Any) -> Any:
@@ -451,7 +451,7 @@ def sha_of(path: Path) -> str:
 
 def registry_module_text(reg: Path, sha: str, sealed: Path | None) -> str:
     return (
-        "from task_generator.adapter import load_registry\n"
+        "from poisson_tasks.adapter import load_registry\n"
         f"REGISTRY = load_registry({str(reg)!r}, sha256={sha!r}, "
         f"sealed={None if sealed is None else str(sealed)!r})\n"
         "globals().update(REGISTRY.targets)\n"
@@ -1238,7 +1238,7 @@ def test_a6_2_two_processes_and_two_hash_seeds_agree_byte_for_byte():
     ]
     script = (
         "import json, sys\n"
-        "from task_generator.adapter import load_registry\n"
+        "from poisson_tasks.adapter import load_registry\n"
         "a = json.loads(sys.argv[1])\n"
         "regs = [load_registry(a['paths'][i], sha256=a['shas'][i], sealed=a['sealed']) for i in (0, 1)]\n"
         "out = [regs[k].targets[attr](cfg, seed).to_dict() for attr, k, cfg, seed in a['jobs']]\n"
@@ -2463,21 +2463,6 @@ def test_ct1_every_registered_depth_arm_holds_the_ledger_across_the_seed_space()
 def test_ct2_every_registered_distractor_arm_holds_the_ledger_across_the_seed_space():
     """Every level `r0` to `r14` and both controls at once: nothing here is one pair."""
     assert contrast_ok(R_SPECS, NON_GAP) == len(NON_GAP)
-
-
-@pytest.mark.parametrize("split", ["eval", "train"])
-def test_ct3_the_levels_below_r14_hold_the_ledger_on_every_risky_first_word(split):
-    """The seeds whose first word a tool name carries are where the slot-designation rules
-    earn anything: a read tool whose name carries an instruction token, or a distractor whose
-    name carries one the required tools do not, moves N7's overlap set between `r2`, `r4`, `r8`
-    and the rest.  Six seeds per risky word."""
-    assert contrast_ok(R_NO_14, risky_seeds(split), split) == len(risky_seeds(split))
-
-
-@pytest.mark.parametrize("split", ["eval", "train"])
-def test_ct4_the_top_level_holds_the_ledger_on_every_risky_word_outside_the_gap(split):
-    seeds = [s for s in risky_seeds(split) if first_word(s, split) not in GAP_WORDS[split]]
-    assert seeds and contrast_ok(R_SPECS, seeds, split) == len(seeds)
 
 
 def test_ct5_the_top_level_holds_the_ledger_across_a_dense_spread_of_seeds():

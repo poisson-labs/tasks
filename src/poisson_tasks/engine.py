@@ -50,14 +50,15 @@ __all__ = [
     "engine_hash",
 ]
 
-_TABLE_PATH = pathlib.Path(__file__).resolve().parent / "data" / "vocabulary-v1.json"
+_TABLE_PATH = pathlib.Path(__file__).resolve().parent / "data" / "vocabulary-v2.json"
 
 # The three record fields E7 names.  Their order here is not the order `mutations`
 # reports: that one is sorted, because E1 makes every output deterministic.
 _RECORD_FIELDS = ("stage", "token", "audit")
 
 # `engine_hash`'s domain separator.  It changes only if the hash construction changes,
-# which would be a new engine version anyway.
+# which would be a new engine version anyway.  Its spelling is deliberately not the
+# package's: these bytes are hash input, and the 2026-09-22 rename left them alone.
 _HASH_DOMAIN = b"task-generator/engine_hash/1\n"
 
 _RecordKey = tuple[str, str]

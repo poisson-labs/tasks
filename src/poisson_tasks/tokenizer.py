@@ -7,7 +7,7 @@ built: N5-N7 and N9 in TG-M2 and G14 in TG-M3 import it, and nothing anywhere ca
 
 **The file is not part of this repository or of the distribution.**  The terms under
 which the encoding file may be redistributed could not be established, so it is fetched
-once, after installation, by `python -m task_generator.fetch_encoding`, which reads the
+once, after installation, by `python -m poisson_tasks.fetch_encoding`, which reads the
 URL and the expected digest out of the installed tiktoken.  NOTICE records what the file
 is and where it comes from; `fetch_encoding` is the only code here that touches the
 network, and it is never called from this module.
@@ -74,7 +74,7 @@ def _mergeable_ranks() -> dict[bytes, int]:
         raise FileNotFoundError(
             f"the {_ENCODING_NAME} encoding file is not here: {_ENCODING_PATH}. "
             f"It is not shipped with this package; fetch it once with "
-            f"`python -m task_generator.fetch_encoding`."
+            f"`python -m poisson_tasks.fetch_encoding`."
         )
     blob = _ENCODING_PATH.read_bytes()
     digest = hashlib.sha256(blob).hexdigest()

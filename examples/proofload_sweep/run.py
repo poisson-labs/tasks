@@ -31,8 +31,8 @@ import re
 import subprocess
 import sys
 
-from task_generator.knobs import ArmSpec, arm_id
-from task_generator.tasks import generate
+from poisson_tasks.knobs import ArmSpec, arm_id
+from poisson_tasks.tasks import generate
 
 HERE = pathlib.Path(__file__).resolve().parent
 
@@ -83,7 +83,7 @@ def registry_text(registration: pathlib.Path, digest: str) -> str:
     """A registry module is three lines: load the registration under its hash, then put
     the targets it built into the module's globals, where `--target` can reach them."""
     return (
-        "from task_generator.adapter import load_registry\n\n"
+        "from poisson_tasks.adapter import load_registry\n\n"
         f"REGISTRY = load_registry({str(registration)!r}, sha256={digest!r})\n"
         "globals().update(REGISTRY.targets)\n"
     )
@@ -99,7 +99,7 @@ def sweep_text(horizon: int) -> str:
     outcome is known in advance."""
     generator_hash = generate(ARMS[0], 0).generator_hash
     return (
-        'target_id = "task-generator-example"\n'
+        'target_id = "poisson-tasks-example"\n'
         't_unit = "turns"\n'
         f"replicates = {REPLICATES}\n\n"
         f'[axes.slack]\ntype = "continuous"\nvalues = [{SLACK}]\n\n'
@@ -164,7 +164,7 @@ def main() -> None:
     modules.mkdir(exist_ok=True)
     (modules / "registry.py").write_text(registry_text(registration, digest))
 
-    from task_generator.adapter import load_registry
+    from poisson_tasks.adapter import load_registry
 
     registry = load_registry(registration, sha256=digest)
     print(f"\nregistry: slack {registry.slack}, horizon {registry.horizon}")

@@ -7,15 +7,15 @@ which is a recorded decision and **not** in the spec.  The module is written aga
 this file, which is not edited to suit it.  Where the spec's text could not be used
 as written, this docstring is authoritative.
 
-The module is `task_generator.tasks`
+The module is `poisson_tasks.tasks`
 ------------------------------------
 TG-M1 is `engine.py` and TG-M2 is `knobs.py`.  2.3 is "Task and verifier generation"
 and its type is `TaskBundle`, so the module is `tasks.py` rather than `generate.py`,
-which would have read `from task_generator.generate import generate`.
+which would have read `from poisson_tasks.generate import generate`.
 
 The public surface these tests pin
 ----------------------------------
-`task_generator.tasks.__all__` is exactly, and in this order::
+`poisson_tasks.tasks.__all__` is exactly, and in this order::
 
     TaskBundle  VerifierSpec  Verdict  FormatSpec  Turn
     OUTCOMES
@@ -254,8 +254,8 @@ from hypothesis import strategies as st
 # frozen literals
 # --------------------------------------------------------------------------
 
-DATA = pathlib.Path(__file__).resolve().parent.parent / "src" / "task_generator" / "data"
-TABLE_PATH = DATA / "vocabulary-v1.json"
+DATA = pathlib.Path(__file__).resolve().parent.parent / "src" / "poisson_tasks" / "data"
+TABLE_PATH = DATA / "vocabulary-v2.json"
 TABLE = json.loads(TABLE_PATH.read_text())
 L_OBS = TABLE["L_obs"]
 BAND_LO, BAND_HI = TABLE["token_band"]
@@ -371,19 +371,19 @@ SPLITS = ("eval", "train")
 def tasks():
     """The module under test.  Imported here and not at module scope, so this file
     still collects on a bare tree while every test in it fails."""
-    import task_generator.tasks as m
+    import poisson_tasks.tasks as m
 
     return m
 
 
 def knobs():
-    import task_generator.knobs as m
+    import poisson_tasks.knobs as m
 
     return m
 
 
 def engine():
-    import task_generator.engine as m
+    import poisson_tasks.engine as m
 
     return m
 
@@ -396,7 +396,7 @@ def es():
 
 
 def encoding():
-    from task_generator.tokenizer import reference_encoding
+    from poisson_tasks.tokenizer import reference_encoding
 
     return reference_encoding()
 
@@ -639,8 +639,8 @@ def test_sf8_generation_imports_no_network_no_model_and_no_verifiers():
         elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
             seen.add(node.module.split(".")[0])
     assert seen & banned == set(), sorted(seen & banned)
-    assert {"task_generator"} & seen or any(
-        n.startswith("task_generator") for n in seen
+    assert {"poisson_tasks"} & seen or any(
+        n.startswith("poisson_tasks") for n in seen
     ), "TG-M3 reaches TG-M1 and TG-M2 by import, and mints neither's literals"
 
 
@@ -699,6 +699,8 @@ def bundle_bytes(bundle) -> bytes:
 # yes, by covering all twenty.  It has to be pinned as a construction rather than
 # measured as a difference: all three fields are determined by the arm, the scenario and
 # the engine, so no pair of bundles differing only in one of them exists to compare.
+# The separator keeps the pre-rename spelling on purpose: it is tasks.py's literal,
+# and those bytes are hash input rather than a name (2026-09-22).
 TASK_ID_DOMAIN = b"task-generator/task_id/1\n"
 
 
@@ -717,7 +719,7 @@ _CHILD = textwrap.dedent(
     import hashlib, json, sys
     sys.path.insert(0, {tests!r})
     import test_tg_m3_tasks as O
-    import task_generator.tasks as T
+    import poisson_tasks.tasks as T
 
     b = T.generate(O.spec(level={level}), {seed})
     print(json.dumps({{
@@ -816,7 +818,7 @@ def test_g2_1_generation_runs_with_sockets_disabled():
         socket.create_connection = lambda *a, **k: (_ for _ in ()).throw(OSError("G2"))
         sys.path.insert(0, {str(pathlib.Path(__file__).resolve().parent)!r})
         import test_tg_m3_tasks as O
-        import task_generator.tasks as T
+        import poisson_tasks.tasks as T
         print(T.generate(O.spec(level=3), 5).task_id)
         """
     )

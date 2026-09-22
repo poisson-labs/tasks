@@ -24,6 +24,15 @@ and refuse a clean contrast.  The prose, the slot designation and the entry-code
 are the three places this build has the freedom to hold it still; the record id is the
 one place it does not, and that residual is named under `_drawable_entry_codes`.
 
+*Amended 2026-09-21.*  The residual is closed, and not by this module: vocabulary v2
+draws both record-id word lists disjoint from every tool name, which is the escape hatch
+TG-ADR-42 recorded and the coverage item the spec's 2.1 owed any future table.  The
+three rules below still earn their place -- they hold the overlap set still for the
+prose, the slots and the entry code, none of which the table's disjointness reaches --
+and the sentences above stand as they were written, because the freedom this build had
+and did not have is what they describe.  `tests/test_record_id_fix.py` pins the new
+property; the six words v1 carried are named there and in `_drawable_entry_codes`.
+
 * **The block's read tools are the table's first `n` reads, in table order, and the
   block is then permuted by the scenario's one slot draw.**  2.2 says knob D's block is
   "8 orthogonal read tools" and never which eight.  Drawing the subset *and* the
@@ -48,6 +57,8 @@ one place it does not, and that residual is named under `_drawable_entry_codes`.
   the read half refuses 350 and dropping the distractor half refuses 162, on disjoint
   words (`city`, `grad`, `port` for the reads; `disc` for the distractors), against 0
   with both.  *Escape hatch:* designate in slot order and let N7 refuse those scenarios.
+  *(Those four words are vocabulary v1's and are not in v2's lists; the measurement is
+  left as it was taken, against the table it was taken on.)*
 
 * **The prompt template's prose carries no token that a read tool's name or a qualifier
   carries**, asserted at import by `_check_template_words`.  The same finding one level
@@ -101,20 +112,20 @@ from dataclasses import replace as _replace
 from typing import Any as _Any
 from typing import cast as _cast
 
-from task_generator.engine import EngineSpec as _EngineSpec
-from task_generator.engine import Scenario as _Scenario
-from task_generator.engine import apply as _apply
-from task_generator.engine import engine_hash as _engine_hash
-from task_generator.engine import init_state as _init_state
-from task_generator.engine import mutations as _mutations
-from task_generator.engine import replay as _replay
-from task_generator.knobs import ArmSpec as _ArmSpec
-from task_generator.knobs import PinRecord as _PinRecord
-from task_generator.knobs import arm_id as _arm_id
-from task_generator.knobs import check_pins as _check_pins
-from task_generator.knobs import measure_pins as _measure_pins
-from task_generator.tokenizer import count_tokens as _count_tokens
-from task_generator.tokenizer import reference_encoding as _reference_encoding
+from poisson_tasks.engine import EngineSpec as _EngineSpec
+from poisson_tasks.engine import Scenario as _Scenario
+from poisson_tasks.engine import apply as _apply
+from poisson_tasks.engine import engine_hash as _engine_hash
+from poisson_tasks.engine import init_state as _init_state
+from poisson_tasks.engine import mutations as _mutations
+from poisson_tasks.engine import replay as _replay
+from poisson_tasks.knobs import ArmSpec as _ArmSpec
+from poisson_tasks.knobs import PinRecord as _PinRecord
+from poisson_tasks.knobs import arm_id as _arm_id
+from poisson_tasks.knobs import check_pins as _check_pins
+from poisson_tasks.knobs import measure_pins as _measure_pins
+from poisson_tasks.tokenizer import count_tokens as _count_tokens
+from poisson_tasks.tokenizer import reference_encoding as _reference_encoding
 
 __all__ = [
     "TaskBundle",
@@ -160,6 +171,9 @@ _D_R = (
 
 # Domain separators.  Each changes only if its construction changes, which would be a new
 # generator version anyway -- the same shape as TG-M1's `engine_hash` separator.
+# The spelling is deliberately not the package's: these bytes are hash input, so the
+# 2026-09-22 rename to `poisson_tasks` left them alone.  Respelling one moves every id
+# it keys.
 _TASK_ID_DOMAIN = b"task-generator/task_id/1\n"
 _SCENARIO_DOMAIN = b"task-generator/scenario_hash/1\n"
 _FINGERPRINT_DOMAIN = b"task-generator/structural_fingerprint/1\n"
@@ -425,16 +439,25 @@ def _drawable_entry_codes(spec: _EngineSpec) -> tuple[str, ...]:
     the code is masked out of G15's fingerprint anyway, so the draw loses nothing
     structural.
 
-    **The record id has no such freedom, and that is the residual**: G14 makes it an
+    **The record id has no such freedom, and that was the residual**: G14 makes it an
     injective function of the seed, so a seed whose first word a tool name carries -- two
     of 256 in `eval`, four of 256 in `train` -- puts that word into the overlap set, and
     a knob R contrast at `r14`, the one level whose block keeps no read tool at all,
     refuses.  Measured at 9 seeds in 300 before this filter and 0 in 300 after it; over
     the wider sweep, dropping the filter refuses 10 contrasts of 1,216 against 0, all at
-    `r14`.  The remainder is reachable only through those six words, and three of them do
-    refuse at `r14` today -- `city`, `grad` and `port`, measured, not assumed.
-    *Escape hatch:* a table version whose record-id word lists are disjoint from every
-    tool name closes it outright.
+    `r14`.  The remainder was reachable only through those six words, and four of them
+    did refuse at `r14` -- `city` (`eval`), `grad` and `port` (`train`) at 60 of 60 seeds
+    and `disc` (`train`) at 43 of 60, measured, not assumed (TG-ADR-44; the record was
+    filed with three and `disc` is the one it did not name).
+
+    **Closed 2026-09-21 by the escape hatch, in vocabulary v2**: the record-id word lists
+    are now disjoint from every tool name, so the residual has nothing left to reach.  The
+    six words v1 carried are gone -- `city` and `face` from `eval`, `disc`, `elect`, `grad`
+    and `port` from `train` -- and `circle`, `email`, `disable`, `east`, `gray` and `point`
+    stand in their places, each drawn by the rule this function applies to the entry codes:
+    take only what no tool name carries.  `tests/test_record_id_fix.py` pins it.  This
+    filter stays: it is the entry code's own rule and the table does not cover it, because
+    `look` is still one of the thirty-two and `lookup_region` still carries it.
     """
     names = tuple(tool.name for tool in spec.tools)
     drawable = tuple(code for code in _entry_codes(spec) if not any(code in n for n in names))
