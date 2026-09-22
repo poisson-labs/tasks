@@ -1,8 +1,9 @@
 """Test configuration, outside the frozen test files.
 
-`tests/test_tg_m5_scripted.py` drives Proofload's real CLI, and Proofload is an optional
-extra: `pip install "poisson-tasks[proofload]"`, and not the plain install.  Without it
-every test in that file is skipped, with the reason below, and the rest of the suite runs.
+`tests/test_tg_m5_scripted.py` drives Proofload's real CLI and `tests/test_tg_m5_bridge.py`
+calls the adapter's `to_episode`, and Proofload is an optional extra: `pip install
+"poisson-tasks[proofload]"`, and not the plain install.  Without it every test in those two
+files is skipped, with the reason below, and the rest of the suite runs.
 
 It is done here and not in the file itself because the test files are frozen: each module
 was built against tests written before it, and the suite is not edited to suit an install.
@@ -22,9 +23,11 @@ from typing import Any
 
 import pytest
 
-# The one test file that needs the extra. Matched on the name, so a run from any directory
-# and any invocation (`pytest`, `pytest tests/`, a single node id) sees the same thing.
-PROOFLOAD_TEST_FILES = frozenset({"test_tg_m5_scripted.py"})
+# The test files that need the extra: the scripted path's, which drives Proofload's CLI, and
+# the model path's bridge (MP10), which calls `to_episode`. Matched on the name, so a run from
+# any directory and any invocation (`pytest`, `pytest tests/`, a single node id) sees the same
+# thing.
+PROOFLOAD_TEST_FILES = frozenset({"test_tg_m5_scripted.py", "test_tg_m5_bridge.py"})
 
 SKIP_REASON = (
     "Proofload is not installed: these tests drive its real CLI. "

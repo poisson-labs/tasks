@@ -330,3 +330,37 @@ CN-2 (Colab).
   its own, against a channel shape read from `interception/server.py` and
   `mcp/server.py` and documented nowhere. A wheel that changes the channel still moves
   that test. **Not closed.**
+
+## PG-19 · Resolving a taskset by id, and a run's config, need the wheel's loader names
+
+- **Date:** 2026-09-22
+- **Scope note:** a verifiers gap, like PG-18; a PG number because that is the repo's one
+  series.
+- **Needed:** the model path's layer 1 (spec §2.5, "What TG-M4 hands to the model path";
+  Handoff Model Path MP1 to MP9) is about what `eval` does with the id `poisson-tasks`: which
+  module it imports, which `Taskset` and `Env` it finds, which harness and runtime the run
+  resolves to with no flag, and whether a flag still wins. Testing that means calling the
+  same functions `eval` calls, without a model.
+- **Available:** the spec's verified list (section 0) names `vf.Env.run_episode`,
+  `SingleAgentEnvConfig` and `AgentConfig`, and none of the resolution. At `verifiers==0.3.1`
+  the resolution lives in `verifiers.v1.utils.loaders` (`import_taskset`, `taskset_class`,
+  `environment_class`, `taskset_config_type`, `default_harness_id`, `harness_class`,
+  `load_harness`) and in three names `verifiers.v1` re-exports (`resolve_env_config`,
+  `load_environment`, `ModelContext`), with the endpoint config `EvalClientConfig` and the
+  runtime configs `SubprocessConfig` and `PrimeConfig` beside them. The push flag is a field
+  of the CLI's run config, `verifiers.v1.configs.cli.eval.EvalConfig`, and `eval --dry-run`
+  is the documented way to resolve a whole run config without running it. None of these is
+  documented as the stable surface for "what does this id resolve to"; the loader module is
+  under `utils/`.
+- **Workaround not taken:** re-implementing the id-to-module rule and the `__all__` lookup
+  in the tests (they would then test the test's own reading of the wheel), or driving `eval`
+  against a live model for every case.
+- **Taken, and named:** `tests/test_tg_m5_standalone.py` reaches the build only through the
+  loader, by the id, and drives `eval --dry-run` as a subprocess for the command-line
+  cases. Test-side only: the id module and the `Env`'s module take none of these names and
+  are held to section 0's table by `test_sf2`. A wheel that moves any of them moves the
+  helpers at the top of that file and nothing in the package. Section 0 gained the row the
+  same day (the model path's Session A).
+- **Ask:** upstream, a documented entry point for "resolve this taskset id and give me its
+  taskset, env and config types", so a taskset author can test their export the way `eval`
+  reads it.
