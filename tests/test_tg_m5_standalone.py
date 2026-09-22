@@ -3,7 +3,8 @@ that makes `eval` run the measured harness with no flag, and a stranger's one-li
 as tests.
 
 The invariants this file is built against are MP1 to MP9 of [[Task Generator -- Handoff Model
-Path]] (layer 1), the two items TG-M4 handed to the model path (TG-ADR-46: the measured-harness
+Path]] (layer 1), the wire round-trip invariant ruled out of the 2026-09-22 live smoke, the
+two items TG-M4 handed to the model path (TG-ADR-46: the measured-harness
 default and loading the taskset by id), Taylor's 2026-09-21 rulings on the model path (the id
 is `poisson-tasks`; the release needs layer 1 only; `turn_limit_hit` reads the stop reason),
 and knob R's level axis.  MP10, the bridge to the adapter's verdict, is in
@@ -75,6 +76,14 @@ needs the live smoke and cannot be closed here; what can be is that the fenced
 with `--dry-run`, and that the config it resolves to loads by the id, runs `null` in a
 subprocess with no harness named, pushes nothing, and declares an arm and seeds.
 *Escape hatch:* the fenced block's first line; `one_liner()` moves.
+
+**7. The resolved env config survives its own wire format.**  Ruled 2026-09-22 out of the
+live smoke, whose whole cost bought this one row: `resolve_env_config(env_config_data(cfg))`
+validates and is a fixed point.  It is the only place the config crosses a process boundary,
+and `--dry-run` -- which every other config test here goes through -- exits before the serve
+pool starts, so nothing else in this file reaches it.  The control is the same round trip on
+a config with no arm, whose `task` stays the base `TaskConfig`.
+*Escape hatch:* `env_config_data`'s name; `wire()` moves.
 
 **6. A run's egress is measured in the test process.**  The interception server and its
 outbound client run in the pytest process, so a guard on `socket.connect` that allows loopback
@@ -1094,6 +1103,61 @@ def test_mp9_3_the_one_liner_resolves_to_tasks_the_generator_would_make():
     spec = ArmSpec(**taskset["arm"])
     tasks = list(taskset_of(spec, taskset["seeds"]).load())
     assert [task.key for task in tasks] == [generate(spec, seed).task_id for seed in taskset["seeds"]]
+
+
+# --------------------------------------------------------------------------
+# W - the resolved env config survives its own wire format (ruled 2026-09-22)
+# --------------------------------------------------------------------------
+
+
+def wire(config: Any) -> dict[str, Any]:
+    """The env config as the serve pool ships it to the env server process.
+
+    `serve/pool.py`'s `env_config_data` is a `model_dump(mode="json")`, and `serve_env` on
+    the far side rebuilds it with `resolve_env_config`.  That round trip happens in exactly
+    one place, and `--dry-run` -- which every other config test here uses -- writes the
+    resolved config and exits before the serve pool starts, so nothing else reaches it."""
+    return dict(importlib.import_module("verifiers.v1.serve.pool").env_config_data(config))
+
+
+def test_w1_the_resolved_env_config_survives_its_own_wire_format():
+    """The invariant the 2026-09-22 live smoke bought, ruled the same day: a config the
+    wheel resolved must validate again from its own dump, and be a fixed point under it.
+
+    `TasksetConfig.task` is `SerializeAsAny[TaskConfig]`, so the dump is duck-typed and
+    carries whatever subclass the field holds -- but the annotation is still the base
+    `TaskConfig`, which forbids extras.  A dict from the dump is therefore validated
+    narrow while it was written wide, and the env server dies on a config the CLI itself
+    produced, after the run has started and with nothing said at the top level.  The dump's
+    width is asserted first, against the base `TaskConfig`'s own fields: without a dump
+    wider than the annotation there is nothing for the narrow validation to refuse, and the
+    round trip would pass for the wrong reason."""
+    config = env_config(taskset={"id": TASKSET_ID, "arm": dataclasses.asdict(SPEC_D3), "seeds": [404, 55, 2121]})
+    data = wire(config)
+    assert set(data["taskset"]["task"]) > set(vf.TaskConfig().model_dump(mode="json")), (
+        "the dump carries no more than the base `TaskConfig`'s own fields, so the narrow "
+        "validation below cannot fail and this test pins nothing"
+    )
+
+    again = vf.resolve_env_config(data)
+
+    assert wire(again) == data, "the round trip validates but is not a fixed point"
+    assert type(again.taskset.task) is type(config.taskset.task)
+    assert again.taskset.task.strictness == config.taskset.task.strictness
+    assert again.taskset.task.arm_id == config.taskset.task.arm_id != ""
+    assert again.agent.harness.id == MEASURED_HARNESS
+    assert again.agent.runtime.type == "subprocess"
+
+
+def test_w2_a_config_with_no_arm_round_trips_the_known_positive_control():
+    """The control: the same round trip on a config whose `task` is the base `TaskConfig`,
+    because no arm was given and the taskset config derives nothing.  It passes on the tree
+    that fails `test_w1`, which is what locates the failure in the derived subclass rather
+    than in the wheel's dump-and-load."""
+    config = env_config()
+    data = wire(config)
+    again = vf.resolve_env_config(data)
+    assert wire(again) == data
 
 
 # --------------------------------------------------------------------------
