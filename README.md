@@ -76,10 +76,6 @@ using the tools it is given and nothing else.
    real model, so nothing in this repository tells you what a given depth is worth. The
    levels are candidates.
 4. **No pilot has been run**, so there are no results to report and none are claimed.
-5. **One known gap in the pin ledger.** Four of the 512 record-id words (`city`, `disc`,
-   `grad`, `port`) make row N7 refuse a `distractor` contrast that holds the `r14` arm.
-   `depth` is unaffected at every level [*source:* [`gap-log.md`](gap-log.md),
-   [`docs/knobs-and-arms.md`](docs/knobs-and-arms.md)].
 
 ---
 

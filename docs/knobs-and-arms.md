@@ -85,11 +85,18 @@ The distinction matters and is why the rows carry their own action rather than a
 boolean: the block's token count *should* move with the distractor level, so N5 is a
 number to record, not a failure.
 
-## One known gap
+## A gap that was here, and is closed
 
-Six of the 512 record-id words are a substring of some tool name, and four of them
-(`city`, `disc`, `grad`, `port`) make N7 refuse a distractor contrast that holds the
-`r14` arm -- the one level whose block keeps no read tool at all. Knob `depth` is
-unaffected at every level. It is measured, it is in `gap-log.md`, and it closes outright
-the day a vocabulary version draws the record-id word lists disjoint from every tool
-name.
+No record-id word is a substring of any tool name. Both 256-word lists are checked
+against all 112 names, and `tests/test_record_id_fix.py` is where that check lives.
+
+It was not always so. Vocabulary v1 carried six words some tool name contains, and four
+of them -- `city`, `disc`, `grad`, `port` -- made N7 refuse a distractor contrast that
+held the `r14` arm, the one level whose block keeps no read tool at all. N7 is measured
+by substring over the user instruction's tokens, the record id is in the instruction,
+and G14 makes that id an injective function of the task seed: a seed whose first word
+was one of the four had no way out, because generation's three degrees of freedom -- the
+prose, the designated slots and the entry-code draw -- do not reach the id. Knob `depth`
+was unaffected at every level throughout. Vocabulary v2 draws the lists disjoint from
+every tool name, which is what the spec's coverage item asked for, and closes it
+outright.
