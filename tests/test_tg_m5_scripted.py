@@ -2161,10 +2161,21 @@ def test_n17_2_the_horizon_follows_the_slack_and_the_arm_set():
 # lacked the slack clause would refuse them for their horizon, in a message that names the slack, and the test
 # would pass on those words.  No integer agrees with a slack of 4.5, which keeps 13, and the two horizon cases
 # replace the horizon they are given.
+#
+# `slack-4.0` and `horizon-13.0` are the two cases that isolate the *type* half of each clause, and they are
+# why the three cases beside them can stay as they are.  A value that is not an integer is refused twice
+# wherever it can also be compared: a slack of 4.5 makes N17's number 13.5, which no integer horizon equals, so
+# a build without the slack clause's type check refuses the document for its horizon instead, in a message that
+# names the slack; `"13"` and `None` are refused by the horizon's type clause and again by N17's equality
+# clause, and both messages name `horizon`.  Neither can be isolated by any document, because a string, a
+# `None` and a non-integral float can never compare equal to N17's integer -- what isolates the type clause is
+# a value that is not an `int` and *does* compare equal, which is what `4.0` and `13.0` are.  Measured: `4.0`
+# is accepted by `m133` and `m97f` and refused by every other row, and `13.0` by `m143`, `m143a` and `m97f`.
 @pytest.mark.parametrize(
     "field, value, horizon",
-    [("horizon", "13", 13), ("horizon", None, 13), ("slack", "4", 13), ("slack", -1, 8), ("slack", 4.5, 13), ("slack", True, 10)],
-    ids=["horizon-13", "horizon-None", "slack-4", "slack--1", "slack-4.5", "slack-True"],
+    [("horizon", "13", 13), ("horizon", None, 13), ("horizon", 13.0, 13), ("slack", "4", 13), ("slack", -1, 8),
+     ("slack", 4.0, 13), ("slack", 4.5, 13), ("slack", True, 10)],
+    ids=["horizon-13", "horizon-None", "horizon-13.0", "slack-4", "slack--1", "slack-4.0", "slack-4.5", "slack-True"],
 )
 def test_n17_3_slack_and_horizon_are_integers_and_slack_is_not_negative(field, value, horizon):
     doc = reg_doc("depth", PILOT, horizon=horizon)
@@ -2199,7 +2210,7 @@ def test_val4_strictness_and_knob_are_from_the_closed_sets():
     [
         (["depth:d1", "depth:d1", "depth:d1+h8"], "depth:d1", 6),
         (["depth:d1", "depth:d1+h8", "distractor:r0@k16"], "distractor:r0@k16", 7),
-        (["depth:d1", "depth:d01", "depth:d1+h8"], "depth:d01", 13),
+        (["depth:d1", "depth:d03", "depth:d1+h8"], "depth:d03", 8),
         (["depth:d1", "depth:d3+h3"], "depth:d3+h3", 13),
         (["depth:d1", "depth:d8+h1"], "depth:d8+h1", 13),
         (["depth:d1", "depth:D1", "depth:d1+h8"], "depth:D1", 13),
@@ -2217,11 +2228,18 @@ def test_val5_an_arm_must_be_a_canonical_distinct_arm_id_of_the_registrations_kn
     `d8+h1` (N15); here the same refusal is reached from a registration file.
 
     Where the listed arms are all valid, `horizon` is N17's number for them: 6 for the
-    duplicate (its arms need at most 6 turns) and 7 for the other knob's `r0` (which needs
-    7).  Each of the two documents then breaks one clause only, so a build without that
-    clause accepts it.  Left at the pilot's 13, N17 refuses it too, and the test would pass
-    or fail on whether that message names the arm.  The other seven are refused while their
-    arms are read, before any horizon is computed, and keep 13."""
+    duplicate (its arms need at most 6 turns), 7 for the other knob's `r0` (which needs 7)
+    and 8 for the leading zero (`d3` needs 8).  Each of the three documents then breaks one
+    clause only, so a build without that clause accepts it.  Left at the pilot's 13, N17
+    refuses it too, and the test would pass or fail on whether that message names the arm.
+    The other six are refused while their arms are read, before any horizon is computed, and
+    keep 13.
+
+    `leading_zero` also had to stop naming an arm the document already lists: `d01` renders
+    as `depth:d1`, so a build without the canonical clause refused it as a duplicate of the
+    `depth:d1` beside it, in a message naming `depth:d1` and not `depth:d01`.  `d03` renders
+    as `depth:d3`, which no other listed arm is, so the canonical clause is the only clause
+    that can refuse the document."""
     doc = reg_doc("depth", PILOT, horizon=horizon)
     doc["arms"] = arms
     refused(doc, needle)
@@ -2236,9 +2254,17 @@ def test_val6_arms_is_a_non_empty_list_of_strings(arms):
 
 def test_val7_a_non_canonical_distractor_id_is_refused_because_its_k_is_fixed():
     """`@k16` is fixed by 2.2 and the renderer is the only thing that writes it, so `@k8` is
-    not another arm: it is an id `arm_id` would never produce."""
+    not another arm: it is an id `arm_id` would never produce.
+
+    `distractor:r4@k8` takes the place of `distractor:r4@k16`, the arm it renders as, rather
+    than of the last arm in the list.  It used to take the last one's place, which left the
+    `r4@k16` it renders as still listed, so a build without the canonical clause refused the
+    document as a duplicate, in a message naming `distractor:r4@k16`.  Swapped for the arm it
+    renders as, the arm set such a build reads is exactly `R_SPECS` -- every arm once, a
+    control arm among them, and `reg_doc`'s horizon still N17's number for it -- so the
+    canonical clause is the only clause that can refuse the document."""
     doc = reg_doc("distractor", R_SPECS)
-    doc["arms"] = [*doc["arms"][:-1], "distractor:r4@k8"]
+    doc["arms"] = ["distractor:r4@k8" if a == "distractor:r4@k16" else a for a in doc["arms"]]
     refused(doc, "distractor:r4@k8")
 
 
