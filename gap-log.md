@@ -318,3 +318,15 @@ CN-2 (Colab).
 - **Ask:** the spec's verified list gains the four trace-building names, checked at
   source like the rest; and upstream, a documented way to start one toolset for one task
   outside a rollout.
+- **Half closed 2026-09-22, and kept open for the other half.** The first ask is met:
+  the spec's §0 gained the four trace-building names — `vf.MessageNode`, `vf.TraceTask`,
+  `vf.AgentInfo` and `vf.UserMessage` — plus `vf.State`, `Trace.stop_condition`,
+  `Trace.calls` and `verifiers.v1.mcp.serve`, each read at source in the installed
+  `verifiers==0.3.1` wheel, in the same form as the rest of the section. So the names
+  the tests use are verified names now, and X1 still holds the export module to the
+  original table plus `vf.State`. **The second ask stays open, and it is upstream's:**
+  there is still no documented way to start one toolset for one task outside a rollout.
+  `test_x3_5` still goes through `verifiers.v1.mcp.serve` against a `/task` endpoint of
+  its own, against a channel shape read from `interception/server.py` and
+  `mcp/server.py` and documented nowhere. A wheel that changes the channel still moves
+  that test. **Not closed.**
