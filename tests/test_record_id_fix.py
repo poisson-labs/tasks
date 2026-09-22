@@ -54,7 +54,7 @@ from task_generator.tokenizer import count_tokens
 # --------------------------------------------------------------------------
 
 DATA = pathlib.Path(__file__).resolve().parent.parent / "src" / "task_generator" / "data"
-TABLE_PATH = DATA / "vocabulary-v1.json"
+TABLE_PATH = DATA / "vocabulary-v2.json"
 TABLE = json.loads(TABLE_PATH.read_text())
 
 SPLITS = ("eval", "train")

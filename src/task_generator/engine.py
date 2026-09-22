@@ -50,7 +50,7 @@ __all__ = [
     "engine_hash",
 ]
 
-_TABLE_PATH = pathlib.Path(__file__).resolve().parent / "data" / "vocabulary-v1.json"
+_TABLE_PATH = pathlib.Path(__file__).resolve().parent / "data" / "vocabulary-v2.json"
 
 # The three record fields E7 names.  Their order here is not the order `mutations`
 # reports: that one is sorted, because E1 makes every output deterministic.

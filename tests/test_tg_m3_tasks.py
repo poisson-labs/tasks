@@ -255,7 +255,7 @@ from hypothesis import strategies as st
 # --------------------------------------------------------------------------
 
 DATA = pathlib.Path(__file__).resolve().parent.parent / "src" / "task_generator" / "data"
-TABLE_PATH = DATA / "vocabulary-v1.json"
+TABLE_PATH = DATA / "vocabulary-v2.json"
 TABLE = json.loads(TABLE_PATH.read_text())
 L_OBS = TABLE["L_obs"]
 BAND_LO, BAND_HI = TABLE["token_band"]

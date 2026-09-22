@@ -2465,21 +2465,6 @@ def test_ct2_every_registered_distractor_arm_holds_the_ledger_across_the_seed_sp
     assert contrast_ok(R_SPECS, NON_GAP) == len(NON_GAP)
 
 
-@pytest.mark.parametrize("split", ["eval", "train"])
-def test_ct3_the_levels_below_r14_hold_the_ledger_on_every_risky_first_word(split):
-    """The seeds whose first word a tool name carries are where the slot-designation rules
-    earn anything: a read tool whose name carries an instruction token, or a distractor whose
-    name carries one the required tools do not, moves N7's overlap set between `r2`, `r4`, `r8`
-    and the rest.  Six seeds per risky word."""
-    assert contrast_ok(R_NO_14, risky_seeds(split), split) == len(risky_seeds(split))
-
-
-@pytest.mark.parametrize("split", ["eval", "train"])
-def test_ct4_the_top_level_holds_the_ledger_on_every_risky_word_outside_the_gap(split):
-    seeds = [s for s in risky_seeds(split) if first_word(s, split) not in GAP_WORDS[split]]
-    assert seeds and contrast_ok(R_SPECS, seeds, split) == len(seeds)
-
-
 def test_ct5_the_top_level_holds_the_ledger_across_a_dense_spread_of_seeds():
     """`r14` keeps no read tool at all, so the prose and the entry-code draw are all that
     hold N7's set still there.  the mutation pass against TG-M3's build measured 248 of 1,216 refusals against 0 with

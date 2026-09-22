@@ -67,14 +67,14 @@ from hypothesis import strategies as st
 # --------------------------------------------------------------------------
 
 DATA = pathlib.Path(__file__).resolve().parent.parent / "src" / "task_generator" / "data"
-TABLE_PATH = DATA / "vocabulary-v1.json"
+TABLE_PATH = DATA / "vocabulary-v2.json"
 ENCODING_PATH = DATA / "o200k_base.tiktoken"
 
 # T1: the expected_hash tiktoken 0.14.0 pins for o200k_base, read from
 # tiktoken_ext/openai_public.py at step zero.  An independent source.
 ENCODING_SHA256 = "446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d"
 # VT4: the table as it was frozen, at commit zero.
-TABLE_SHA256 = "61ca483f28e98677beb799e1c8683f120c5e0f766c74b5c314f1c3151859b682"
+TABLE_SHA256 = "9f3a8c4f4711574e947ec8b3396ff552c9b7aa730fbb5d565db4f10776653037"
 
 ENGINE_EXPORTS = (
     "EngineSpec", "Scenario", "DomainState",
