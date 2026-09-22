@@ -121,6 +121,16 @@ class ExportTasksetConfig(_vf.TasksetConfig):
     The `task` config is derived from the arm when the caller gives none: it carries
     exactly what §2.4 says it carries, and the arm already determines both fields.
 
+    `task` is re-declared here, narrower than the base's `SerializeAsAny[TaskConfig]`,
+    and it has to be: the wheel dumps that field duck-typed (whatever subclass instance it
+    holds, with that subclass's own fields) but validates it against the base, which forbids
+    extras.  So a config carrying this module's task config serialises wide and loads narrow,
+    and the one place it crosses a process boundary -- `serve/pool.py` shipping the env config
+    to the env server -- refuses the config the wheel itself just resolved.  Measured live,
+    2026-09-22: the env server died on `strictness` and `arm_id` before the first model call.
+    Re-declaring the field makes the round trip a fixed point.  Reported upstream as well;
+    the invariant is `test_w1` in `tests/test_tg_m5_standalone.py`.
+
     A declared list that repeats a seed is refused.  The refusal is forced, not chosen:
     X7 makes keys unique within a taskset, X8 makes `len(list(load()))` the list's
     length, and a repeated seed is a repeated `task_id` -- so both cannot hold for it.
@@ -129,6 +139,7 @@ class ExportTasksetConfig(_vf.TasksetConfig):
 
     arm: dict[str, _Any] = _Field(default_factory=dict)
     seeds: list[int] = _Field(default_factory=list)
+    task: ExportTaskConfig = _Field(default_factory=ExportTaskConfig)
 
     @_model_validator(mode="before")
     @classmethod
