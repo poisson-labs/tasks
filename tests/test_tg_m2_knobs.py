@@ -7,7 +7,7 @@ as written, this docstring is authoritative.
 
 The public surface these tests pin
 ----------------------------------
-`task_generator.knobs.__all__` is exactly, and in this order::
+`poisson_tasks.knobs.__all__` is exactly, and in this order::
 
     ArmSpec  PinRow  PinRecord  PinReport
     arm_id  levels  pin_ledger  measure_pins  check_pins
@@ -94,7 +94,7 @@ from hypothesis import strategies as st
 # frozen literals
 # --------------------------------------------------------------------------
 
-DATA = pathlib.Path(__file__).resolve().parent.parent / "src" / "task_generator" / "data"
+DATA = pathlib.Path(__file__).resolve().parent.parent / "src" / "poisson_tasks" / "data"
 TABLE_PATH = DATA / "vocabulary-v2.json"
 TABLE = json.loads(TABLE_PATH.read_text())
 L_OBS = TABLE["L_obs"]
@@ -215,19 +215,19 @@ BAD_MODELS = (
 def knobs():
     """The module under test.  Imported here and not at module scope, so this file
     still collects on a bare tree while every test in it fails."""
-    import task_generator.knobs as m
+    import poisson_tasks.knobs as m
 
     return m
 
 
 def engine():
-    import task_generator.engine as m
+    import poisson_tasks.engine as m
 
     return m
 
 
 def encoding():
-    from task_generator.tokenizer import reference_encoding
+    from poisson_tasks.tokenizer import reference_encoding
 
     return reference_encoding()
 
@@ -605,7 +605,7 @@ def test_p2_determinism_across_processes_and_hash_seeds():
     here and nowhere else."""
     src = """
         import json
-        from task_generator.knobs import ArmSpec, arm_id, pin_ledger, levels
+        from poisson_tasks.knobs import ArmSpec, arm_id, pin_ledger, levels
         rows = [(r.row_id, r.held, r.measured, r.tolerance, r.on_violation, r.stage,
                  tuple(r.applies_to)) for k in ("depth", "distractor") for r in pin_ledger(k)]
         ids = [arm_id(ArmSpec("depth", 1, 8, "strict", "eval", "0.0.1")),

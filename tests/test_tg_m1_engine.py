@@ -7,11 +7,11 @@ docstring is authoritative.
 
 The public surface these tests pin
 ----------------------------------
-`task_generator.engine.__all__` is exactly::
+`poisson_tasks.engine.__all__` is exactly::
 
     EngineSpec  Scenario  DomainState  init_state  apply  replay  mutations  engine_hash
 
-`task_generator.tokenizer.__all__` is exactly::
+`poisson_tasks.tokenizer.__all__` is exactly::
 
     reference_encoding  count_tokens
 
@@ -66,7 +66,7 @@ from hypothesis import strategies as st
 # frozen literals
 # --------------------------------------------------------------------------
 
-DATA = pathlib.Path(__file__).resolve().parent.parent / "src" / "task_generator" / "data"
+DATA = pathlib.Path(__file__).resolve().parent.parent / "src" / "poisson_tasks" / "data"
 TABLE_PATH = DATA / "vocabulary-v2.json"
 ENCODING_PATH = DATA / "o200k_base.tiktoken"
 
@@ -195,7 +195,7 @@ def records_bytes(state, audit: bool = True) -> bytes:
 def make_scenario(n_records: int = 4, token_key: bytes = b"oracle-key-a", *,
                   split: str = "eval", shared_id: bool = False, n_items: int = 4):
     """Build a Scenario by hand.  No seed is drawn: that is TG-M2's (finding 15)."""
-    from task_generator.engine import Scenario
+    from poisson_tasks.engine import Scenario
 
     words = TABLE["record_id_words"][split]
     quals = TABLE["qualifiers"]
@@ -227,7 +227,7 @@ def advance(state, scenario, cls, rid, upto):
     already holds it, and asking DomainState for it would invent a surface the
     spec does not name.
     """
-    from task_generator.engine import apply
+    from poisson_tasks.engine import apply
 
     obs = []
     while state.records[(cls, rid)].stage < upto:
@@ -329,7 +329,7 @@ SLOW = settings(max_examples=40, deadline=None,
 _CHILD = textwrap.dedent(
     """
     import hashlib, json, sys
-    import task_generator.engine as E
+    import poisson_tasks.engine as E
     sys.path.insert(0, {tests!r})
     import test_tg_m1_engine as O
 
@@ -365,7 +365,7 @@ def test_e1_two_processes_agree_byte_for_byte():
     Two fresh interpreters at different PYTHONHASHSEED values, so set and dict
     iteration order cannot leak into the bytes (finding 11).
     """
-    import task_generator.engine as engine
+    import poisson_tasks.engine as engine
 
     calls = [
         [stage_tool(TABLE["stage_names"][0], TABLE["qualifiers"][0]),
@@ -399,7 +399,7 @@ def test_e1_repeat_within_one_process_agrees():
     module-level counter, which two fresh processes agree on and therefore
     cannot see (finding 11, and Taylor's review of 2026-09-11).
     """
-    from task_generator.engine import apply, init_state
+    from poisson_tasks.engine import apply, init_state
 
     scenario = make_scenario()
     cls, rid = a_record(scenario)
@@ -429,7 +429,7 @@ def test_e1_engine_source_has_no_impurity():
     FORBIDDEN_MODULES, and may not call any of FORBIDDEN_CALLS.  The table is
     loaded into an EngineSpec once and `apply` opens no file (finding 11).
     """
-    import task_generator.engine as engine
+    import poisson_tasks.engine as engine
 
     # Never reached at all: a clock, a random source, the environment, the network.
     FORBIDDEN_MODULES = {
@@ -490,7 +490,7 @@ def test_e1_engine_source_has_no_impurity():
 
 def test_e2_every_status_code_renders_l_obs_bytes():
     """E2, exhaustive over status codes: every one renders exactly L_obs bytes."""
-    from task_generator.engine import apply, init_state
+    from poisson_tasks.engine import apply, init_state
 
     scenario = make_scenario(shared_id=False)
     at1, at0 = sorted(scenario.records)[:2]
@@ -517,8 +517,8 @@ def test_e2_observation_token_count_in_band(payload_seed):
     on a disjoint 300k sample (standing rule 8).  This test draws fresh payloads,
     so it is a third sample and can disagree with both.
     """
-    from task_generator.engine import apply, init_state
-    from task_generator.tokenizer import count_tokens
+    from poisson_tasks.engine import apply, init_state
+    from poisson_tasks.tokenizer import count_tokens
 
     scenario = make_scenario(token_key=payload_seed.to_bytes(4, "big") + b"-band")
     cls, rid = a_record(scenario)
@@ -533,7 +533,7 @@ def test_e2_observation_token_count_in_band(payload_seed):
 
 def test_e2_l_obs_holds_across_tool_families():
     """E2's "from any tool": all three families, success and error, and seq's width."""
-    from task_generator.engine import apply, init_state
+    from poisson_tasks.engine import apply, init_state
 
     scenario = make_scenario()
     cls, rid = a_record(scenario)
@@ -564,7 +564,7 @@ def test_e3_chain_requires_the_previous_stage_token():
     carrying stage 2's token would succeed on a stage-5 record and rewind it,
     which `overshoot` and G5 both rule out by assumption.
     """
-    from task_generator.engine import apply, init_state, mutations
+    from poisson_tasks.engine import apply, init_state, mutations
 
     scenario = make_scenario(n_records=3)
     (cls, rid), (other_cls, other_rid) = sorted(scenario.records)[:2]
@@ -638,7 +638,7 @@ def test_e3_tokens_depend_on_the_key():
     This is the only clause that can catch a token derived from (record, stage)
     with the key left out.
     """
-    from task_generator.engine import init_state
+    from poisson_tasks.engine import init_state
 
     a = make_scenario(n_records=6, token_key=b"oracle-key-a")
     b = make_scenario(n_records=6, token_key=b"oracle-key-b")
@@ -662,7 +662,7 @@ def test_e3_tokens_depend_on_the_key():
 
 def test_e3_tokens_are_fixed_width_lowercase_hex():
     """E3: rendered as fixed-width hex."""
-    from task_generator.engine import init_state
+    from poisson_tasks.engine import init_state
 
     width = LAYOUT["token_hex_chars"]
     scenario = make_scenario(n_records=3)
@@ -683,7 +683,7 @@ def test_e3_no_token_appears_in_the_tool_block():
     token that can be copied verbatim out of the block, not one a model could
     compute.  Sufficiency is E3's key clause above.
     """
-    from task_generator.engine import EngineSpec, init_state
+    from poisson_tasks.engine import EngineSpec, init_state
 
     spec = EngineSpec.load()
     block = "\n".join(
@@ -713,7 +713,7 @@ def test_e4_error_calls_do_not_touch_the_records(data):
     Asserted twice over, on the direct field comparison and on `mutations`.  They
     are independent: a `mutations` that missed changes could not hide one here.
     """
-    from task_generator.engine import apply, init_state, mutations
+    from poisson_tasks.engine import apply, init_state, mutations
 
     scenario = make_scenario(n_records=4)
     state = init_state(scenario, data.draw(st.integers(min_value=1, max_value=5000)))
@@ -729,7 +729,7 @@ def test_e4_error_calls_do_not_touch_the_records(data):
 @SLOW
 def test_e4_error_calls_advance_next_seq_by_one(data):
     """E4 with E5: the counter is the one thing an error does change."""
-    from task_generator.engine import apply, init_state
+    from poisson_tasks.engine import apply, init_state
 
     scenario = make_scenario(n_records=4)
     state = init_state(scenario, data.draw(st.integers(min_value=1, max_value=5000)))
@@ -746,7 +746,7 @@ def test_e4_error_calls_advance_next_seq_by_one(data):
 
 def test_e5_seq_numbers_every_call_from_seq_start():
     """E5: seq starts at seq_start and advances once per call, errors included."""
-    from task_generator.engine import apply, init_state
+    from poisson_tasks.engine import apply, init_state
 
     scenario = make_scenario()
     cls, rid = a_record(scenario)
@@ -771,7 +771,7 @@ def test_e5_seq_numbers_every_call_from_seq_start():
 
 def test_e5_counter_is_the_only_error_effect():
     """E5: on an error, (records, next_seq) differs in next_seq alone."""
-    from task_generator.engine import apply, init_state
+    from poisson_tasks.engine import apply, init_state
 
     scenario = make_scenario()
     at1, at0 = sorted(scenario.records)[:2]
@@ -791,7 +791,7 @@ def test_e5_seq_start_is_an_argument_not_a_scenario_field():
     field and nowhere else.  This is what lets N14 vary seq_start by arm while N1
     holds the scenario equal (TG-ADR-35).
     """
-    from task_generator.engine import Scenario, apply, init_state
+    from poisson_tasks.engine import Scenario, apply, init_state
 
     scenario = make_scenario()
     cls, rid = a_record(scenario)
@@ -827,7 +827,7 @@ def test_e5_replay_numbers_in_list_order():
     The caller sorts the sampled calls by the seq in their tool messages (X4, in
     TG-M3 and TG-M4); replay numbers what it is handed, in the order it is handed.
     """
-    from task_generator.engine import replay
+    from poisson_tasks.engine import replay
 
     scenario = make_scenario()
     cls, rid = a_record(scenario)
@@ -858,7 +858,7 @@ def test_e5_replay_numbers_in_list_order():
 
 def test_e6_public_surface_draws_only_from_the_table():
     """E6: every name, parameter and description comes from the frozen table."""
-    from task_generator.engine import EngineSpec
+    from poisson_tasks.engine import EngineSpec
 
     spec = EngineSpec.load()
     stage_names, quals = set(TABLE["stage_names"]), set(TABLE["qualifiers"])
@@ -893,7 +893,7 @@ def test_e6_observation_fields_decode_to_table_values():
     the 12-byte field; E2's byte clause cannot see that, because the truncation
     keeps the observation exactly L_obs bytes.
     """
-    from task_generator.engine import apply, init_state
+    from poisson_tasks.engine import apply, init_state
 
     codes = set(TABLE["status_codes"])
     values = {v for row in TABLE["catalogue_values"].values() for v in row.values()}
@@ -922,7 +922,7 @@ def test_e6_observation_fields_decode_to_table_values():
 
 def test_e6_error_observations_echo_no_input():
     """E6: nothing from the call reaches the observation."""
-    from task_generator.engine import apply, init_state
+    from poisson_tasks.engine import apply, init_state
 
     scenario = make_scenario()
     state = init_state(scenario, 5)
@@ -945,7 +945,7 @@ def test_e6_error_observations_echo_no_input():
 @SLOW
 def test_e7_reads_leave_the_records_unchanged(data):
     """E7: read tools never mutate the records; the counter still advances."""
-    from task_generator.engine import apply, init_state
+    from poisson_tasks.engine import apply, init_state
 
     scenario = make_scenario(n_records=4)
     state = init_state(scenario, 1)
@@ -967,7 +967,7 @@ def test_e7_transition_touches_one_record_and_three_fields():
     Asserted on `mutations` and, independently, by comparing every other record
     field by field.
     """
-    from task_generator.engine import apply, init_state, mutations
+    from poisson_tasks.engine import apply, init_state, mutations
 
     scenario = make_scenario(n_records=5)
     cls, rid = a_record(scenario)
@@ -993,7 +993,7 @@ def test_e7_calls_are_never_redirected_across_classes():
     Uses a scenario where one id lives in two classes, which is the only shape
     that can expose a redirect (finding 4).
     """
-    from task_generator.engine import apply, init_state, mutations
+    from poisson_tasks.engine import apply, init_state, mutations
 
     scenario = make_scenario(n_records=3, shared_id=True)
     shared = [key for key in scenario.records
@@ -1024,7 +1024,7 @@ def test_mutations_against_hand_built_state_pairs():
     Not produced by `apply`.  A `mutations` that missed changes would make every
     E4 and E7 row that leans on it read green, so it is pinned on its own.
     """
-    from task_generator.engine import init_state, mutations
+    from poisson_tasks.engine import init_state, mutations
 
     scenario = make_scenario(n_records=4)
     base = init_state(scenario, 1)
@@ -1069,7 +1069,7 @@ def test_e8_replay_equals_the_left_fold_of_apply(data):
     The comparison against the live toolset is A8, run per episode in TG-M5
     (finding 7).  Nothing in this file can see a live toolset.
     """
-    from task_generator.engine import apply, init_state, replay
+    from poisson_tasks.engine import apply, init_state, replay
 
     scenario = make_scenario(n_records=4)
     seq_start = data.draw(st.integers(min_value=1, max_value=5000))
@@ -1093,7 +1093,7 @@ def test_e8_replay_equals_the_left_fold_of_apply(data):
 
 def test_e9_names_are_clean_against_the_frozen_denylist():
     """E9: no ordinal or sequence word in a stage name or a tool name."""
-    from task_generator.engine import EngineSpec
+    from poisson_tasks.engine import EngineSpec
 
     spec = EngineSpec.load()
     names = [t.name for t in spec.tools] + list(TABLE["stage_names"])
@@ -1114,7 +1114,7 @@ def test_e9_names_are_clean_against_the_frozen_denylist():
 
 def test_e9_descriptions_come_only_from_the_three_templates():
     """E9: the dependency is stated only in the description, through the slot."""
-    from task_generator.engine import EngineSpec
+    from poisson_tasks.engine import EngineSpec
 
     spec = EngineSpec.load()
     templates = TABLE["description_templates"]
@@ -1145,7 +1145,7 @@ def test_e9_descriptions_come_only_from_the_three_templates():
 
 def test_e10_hash_moves_on_any_single_change():
     """E10's "if": the spec, any one table entry, or the version moves the hash."""
-    from task_generator.engine import EngineSpec, engine_hash
+    from poisson_tasks.engine import EngineSpec, engine_hash
 
     base = engine_hash(EngineSpec.from_mapping(TABLE))
     moved = {}
@@ -1178,7 +1178,7 @@ def test_e10_hash_is_stable_across_everything_else():
     Not the process, not PYTHONHASHSEED, not the insertion order of a spec built
     two ways, and not the path the table was loaded from (finding 12).
     """
-    from task_generator.engine import EngineSpec, engine_hash
+    from poisson_tasks.engine import EngineSpec, engine_hash
 
     base = engine_hash(EngineSpec.load())
     assert engine_hash(EngineSpec.from_mapping(TABLE)) == base
@@ -1203,7 +1203,7 @@ def test_e10_hash_is_stable_across_everything_else():
         copy.unlink(missing_ok=True)
 
     # two fresh processes at different PYTHONHASHSEED values
-    src = ("import task_generator.engine as E;"
+    src = ("import poisson_tasks.engine as E;"
            "print(E.engine_hash(E.EngineSpec.load()))")
     out = []
     for seed in ("0", "1"):
@@ -1220,8 +1220,8 @@ def test_e10_hash_is_stable_across_everything_else():
 
 def test_p1_module_exports_are_exactly_the_named_surface():
     """P1: runtime equality of each module's __all__, and nothing else public."""
-    import task_generator.engine as engine
-    import task_generator.tokenizer as tokenizer
+    import poisson_tasks.engine as engine
+    import poisson_tasks.tokenizer as tokenizer
 
     assert tuple(engine.__all__) == ENGINE_EXPORTS
     assert tuple(tokenizer.__all__) == TOKENIZER_EXPORTS
@@ -1255,7 +1255,7 @@ _T2_CHILD = textwrap.dedent(
     socket.create_connection = no_network
     socket.getaddrinfo = no_network
 
-    import task_generator.tokenizer as T
+    import poisson_tasks.tokenizer as T
     enc = T.reference_encoding()
     assert enc.name == "o200k_base"
     print(T.count_tokens("submit_review_invoice"))
@@ -1292,7 +1292,7 @@ def test_t3_offline_counts_match_the_pinned_pairs():
     An independent source, not this encoder's own output read back (standing rule
     8).  No test here touches the network.
     """
-    from task_generator.tokenizer import count_tokens
+    from poisson_tasks.tokenizer import count_tokens
 
     for string, expected in PINNED_TOKEN_COUNTS:
         assert count_tokens(string) == expected, (string, count_tokens(string), expected)
@@ -1304,7 +1304,7 @@ def test_t3_offline_counts_match_the_pinned_pairs():
 
 def test_vt1_table_meets_the_required_coverage():
     """VT1: spec 2.1's required-coverage list, item by item, and ASCII."""
-    from task_generator.engine import EngineSpec
+    from poisson_tasks.engine import EngineSpec
 
     spec = EngineSpec.load()
     assert len(TABLE["qualifiers"]) >= 8
@@ -1334,7 +1334,7 @@ def test_vt1_table_meets_the_required_coverage():
 
 def test_vt2_word_lists_are_disjoint_and_single_token():
     """VT2: 256 + 256, disjoint, one token per word in every id position (G14)."""
-    from task_generator.tokenizer import count_tokens
+    from poisson_tasks.tokenizer import count_tokens
 
     ev = TABLE["record_id_words"]["eval"]
     tr = TABLE["record_id_words"]["train"]
@@ -1360,7 +1360,7 @@ def test_vt3_equal_count_sets_have_a_single_count():
     tokenizes unevenly, and forcing them to a single count would make them
     atypical hex and break the very size matching N9 needs.
     """
-    from task_generator.tokenizer import count_tokens
+    from poisson_tasks.tokenizer import count_tokens
 
     def counts(rendering, strings):
         return {count_tokens(rendering(s)) for s in strings}
@@ -1389,7 +1389,7 @@ def test_vt3_equal_count_sets_have_a_single_count():
 
 def test_vt4_table_hash_is_pinned_and_feeds_engine_hash():
     """VT4: the table is the one that was frozen, and it reaches engine_hash."""
-    from task_generator.engine import EngineSpec, engine_hash
+    from poisson_tasks.engine import EngineSpec, engine_hash
 
     assert hashlib.sha256(TABLE_PATH.read_bytes()).hexdigest() == TABLE_SHA256
     base = engine_hash(EngineSpec.load())

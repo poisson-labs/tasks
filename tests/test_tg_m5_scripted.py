@@ -22,7 +22,7 @@ of the package the tests do.
 Decisions
 ---------
 
-**1. The module is `task_generator.adapter`, with five public names.**  `ArmRegistry`,
+**1. The module is `poisson_tasks.adapter`, with five public names.**  `ArmRegistry`,
 `load_registry`, `validate_preregistration`, `Run` and `to_episode`.  2.5's Interface names
 arm targets, a registry built from the pre-registration file, an outcome map and (through
 N18) a pre-registration validator; each name is one an invariant cannot be tested without.
@@ -103,7 +103,7 @@ below it each raise `ValueError` naming the offending value, and the boundaries 
 
 **9. The scripted targets look the outcome map up by module global, at call time.**  A9
 says both paths share the verdict -> Episode code, so `test_a9_2` replaces
-`task_generator.adapter.to_episode` and expects both scripted targets to reach it, the way
+`poisson_tasks.adapter.to_episode` and expects both scripted targets to reach it, the way
 TG-M3 fault-injects `verify` and `_check_pins`.  A target that built its own Episode or
 captured the function when the registry was built fails it.  The model path's tests add
 the same seam for model targets.  *Escape hatch:* any other injectable seam; `test_a9_2` and
@@ -203,9 +203,9 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from task_generator.engine import apply, init_state
-from task_generator.knobs import ArmSpec, arm_id, levels
-from task_generator.tasks import (
+from poisson_tasks.engine import apply, init_state
+from poisson_tasks.knobs import ArmSpec, arm_id, levels
+from poisson_tasks.tasks import (
     OUTCOMES,
     FormatSpec,
     Turn,
@@ -325,7 +325,7 @@ def cfg_of(spec: ArmSpec, **over: Any) -> dict[str, Any]:
 
 
 def adapter() -> Any:
-    return importlib.import_module("task_generator.adapter")
+    return importlib.import_module("poisson_tasks.adapter")
 
 
 def run_of(**kw: Any) -> Any:
@@ -451,7 +451,7 @@ def sha_of(path: Path) -> str:
 
 def registry_module_text(reg: Path, sha: str, sealed: Path | None) -> str:
     return (
-        "from task_generator.adapter import load_registry\n"
+        "from poisson_tasks.adapter import load_registry\n"
         f"REGISTRY = load_registry({str(reg)!r}, sha256={sha!r}, "
         f"sealed={None if sealed is None else str(sealed)!r})\n"
         "globals().update(REGISTRY.targets)\n"
@@ -1238,7 +1238,7 @@ def test_a6_2_two_processes_and_two_hash_seeds_agree_byte_for_byte():
     ]
     script = (
         "import json, sys\n"
-        "from task_generator.adapter import load_registry\n"
+        "from poisson_tasks.adapter import load_registry\n"
         "a = json.loads(sys.argv[1])\n"
         "regs = [load_registry(a['paths'][i], sha256=a['shas'][i], sealed=a['sealed']) for i in (0, 1)]\n"
         "out = [regs[k].targets[attr](cfg, seed).to_dict() for attr, k, cfg, seed in a['jobs']]\n"

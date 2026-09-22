@@ -11,17 +11,17 @@ reading shares, the open point is listed under *Open, and not settled here*, and
 carries it for a ruling.
 
 **No test here needs Proofload.**  The task generator is standalone and Proofload is an
-optional extra, so this file imports neither `proofload` nor `task_generator.adapter`, and
+optional extra, so this file imports neither `proofload` nor `poisson_tasks.adapter`, and
 the module it tests may import neither (`test_pv1`, `test_pv2`).  `verifiers==0.3.1` is a
 plain dependency and the tests drive the installed wheel.
 
 Every test reaches the module through `importlib`, inside `export()`, so the file collects
-on a tree that has no `task_generator.export` and its tests fail there for that one reason.
+on a tree that has no `poisson_tasks.export` and its tests fail there for that one reason.
 
 Shapes decided here
 -------------------
 
-**1. The module is `task_generator.export`, with ten public names.**  `ExportTasksetConfig`,
+**1. The module is `poisson_tasks.export`, with ten public names.**  `ExportTasksetConfig`,
 `ExportTaskConfig`, `ExportTaskData`, `ExportTask`, `ExportTaskset`, `DomainToolsetConfig`,
 `DomainToolset`, `task_from_bundle`, `bundle_from_data` and `MEASURED_HARNESS`.  2.4's
 Interface names five classes and spells none; 0 says a name not verified there is a
@@ -163,9 +163,9 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 from mcp.server.fastmcp import FastMCP
 
-from task_generator.engine import apply, init_state, replay
-from task_generator.knobs import ArmSpec, arm_id, levels
-from task_generator.tasks import FormatSpec, TaskBundle, Turn, generate, scenario_for, verify
+from poisson_tasks.engine import apply, init_state, replay
+from poisson_tasks.knobs import ArmSpec, arm_id, levels
+from poisson_tasks.tasks import FormatSpec, TaskBundle, Turn, generate, scenario_for, verify
 
 REPO = Path(__file__).resolve().parents[1]
 THIS_FILE = Path(__file__).resolve()
@@ -254,7 +254,7 @@ def leaky(spec: ArmSpec) -> ArmSpec:
 
 def export() -> Any:
     """The module under test, imported lazily so this file collects without it."""
-    return importlib.import_module("task_generator.export")
+    return importlib.import_module("poisson_tasks.export")
 
 
 def export_source() -> ast.Module:
@@ -550,7 +550,7 @@ def test_sf5_a_task_config_needs_no_argument():
 # PV - Proofload stays optional
 # --------------------------------------------------------------------------
 
-PROOFLOAD_SIDE = ("proofload", "task_generator.adapter")
+PROOFLOAD_SIDE = ("proofload", "poisson_tasks.adapter")
 
 
 def needs_proofload(modules: set[str]) -> set[str]:
@@ -563,7 +563,7 @@ def needs_proofload(modules: set[str]) -> set[str]:
 def test_pv1_the_export_imports_no_proofload_and_no_adapter():
     """Ruled 2026-09-21: the task generator is standalone and Proofload is an optional
     extra.  The rule, in prose: no import in the export module names `proofload` or
-    `task_generator.adapter`, by an `ast` walk that also reads `import_module` strings."""
+    `poisson_tasks.adapter`, by an `ast` walk that also reads `import_module` strings."""
     assert needs_proofload(imported_modules(export_source())) == set()
 
 
@@ -581,12 +581,12 @@ def test_pv3_the_walker_sees_each_shape_of_import():
         "from proofload import Episode": {"proofload"},
         "from proofload.store import x": {"proofload.store"},
         "import importlib\nimportlib.import_module('proofload')": {"proofload"},
-        "__import__('task_generator.adapter')": {"task_generator.adapter"},
-        "from task_generator.adapter import to_episode": {"task_generator.adapter"},
+        "__import__('poisson_tasks.adapter')": {"poisson_tasks.adapter"},
+        "from poisson_tasks.adapter import to_episode": {"poisson_tasks.adapter"},
     }
     for source, expected in shapes.items():
         assert needs_proofload(imported_modules(ast.parse(source))) == expected, source
-    assert needs_proofload(imported_modules(ast.parse("import task_generator.tasks"))) == set()
+    assert needs_proofload(imported_modules(ast.parse("import poisson_tasks.tasks"))) == set()
 
 
 # --------------------------------------------------------------------------
@@ -1144,8 +1144,8 @@ def test_x7_3_keys_are_stable_across_loads_and_across_processes():
     assert here == [generate(spec, seed).task_id for seed in seeds]
     program = (
         "import dataclasses, json\n"
-        "from task_generator.knobs import ArmSpec\n"
-        "from task_generator.export import ExportTaskset, ExportTasksetConfig\n"
+        "from poisson_tasks.knobs import ArmSpec\n"
+        "from poisson_tasks.export import ExportTaskset, ExportTasksetConfig\n"
         f"spec = ArmSpec(**{dataclasses.asdict(spec)!r})\n"
         f"config = ExportTasksetConfig(arm=dataclasses.asdict(spec), seeds={seeds!r})\n"
         "print(json.dumps([task.key for task in ExportTaskset(config).load()]))\n"

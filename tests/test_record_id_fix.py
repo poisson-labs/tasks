@@ -44,16 +44,16 @@ import pathlib
 
 import pytest
 
-from task_generator.engine import EngineSpec
-from task_generator.knobs import ArmSpec
-from task_generator.tasks import decode_record_id, encode_record_id, generate_contrast
-from task_generator.tokenizer import count_tokens
+from poisson_tasks.engine import EngineSpec
+from poisson_tasks.knobs import ArmSpec
+from poisson_tasks.tasks import decode_record_id, encode_record_id, generate_contrast
+from poisson_tasks.tokenizer import count_tokens
 
 # --------------------------------------------------------------------------
 # frozen literals
 # --------------------------------------------------------------------------
 
-DATA = pathlib.Path(__file__).resolve().parent.parent / "src" / "task_generator" / "data"
+DATA = pathlib.Path(__file__).resolve().parent.parent / "src" / "poisson_tasks" / "data"
 TABLE_PATH = DATA / "vocabulary-v2.json"
 TABLE = json.loads(TABLE_PATH.read_text())
 
