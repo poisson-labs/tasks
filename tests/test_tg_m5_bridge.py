@@ -8,7 +8,8 @@ verdict against its own scripted runs, and no test had put them on one trace.  T
 It needs the Proofload extra, because `to_episode` returns a `proofload.Episode` and
 `poisson_tasks.adapter` imports Proofload at import, which is why it is not in
 `tests/test_tg_m5_standalone.py`: `tests/conftest.py` skips it whole without the extra, the way
-it skips the scripted path's file.
+it skips the scripted path's file.  **Frozen 2026-09-22** with the standalone file, on Taylor's
+approval of the mapping and his ruling that MP10 stays in this file.
 
 The traces are synthetic, built as the `null` harness at 0.3.1 leaves one (TG-M4's decision 6):
 the seeded prompt, one sampled assistant message per call with its tool message, then a reply.

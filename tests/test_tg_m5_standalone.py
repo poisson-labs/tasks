@@ -10,6 +10,13 @@ and knob R's level axis.  MP10, the bridge to the adapter's verdict, is in
 `tests/test_tg_m5_bridge.py`, because `to_episode` imports Proofload and no test here may.
 Layer 2 (MP11 to MP18, the pinned GPU stack) is not tested here.
 
+**Frozen 2026-09-22**, on Taylor's approval of the invariant-to-test mapping ([[Task Generator --
+Handoff Model Path]], *Session A, layer 1*) and his six rulings of the same day: the mapping stands;
+MP10 stays in its own Prove-gated file; Session B may edit the one-line turn-limit read in
+`export.py` and `_judge` in `adapter.py`; the Env's second declared pin is the runtime; the
+one-liner passes the arm as one JSON value and the taskset config defaults nothing; `test_sf4`
+stays untouched and the retrofit branch goes unused.
+
 **No test here needs Proofload, a GPU or a model.**  Where an invariant is about a run, the run
 is made through the wheel's own lifecycle (`load_environment`, `serving`, `run_episode`)
 against a stub OpenAI-compatible endpoint on loopback that answers with the reference calls.
@@ -49,10 +56,9 @@ is not settled here.  *Escape hatch:* the line shape; `PIN_LINE` moves.
 
 **3. The taskset the id exports is `export.ExportTaskset` itself or a subclass that adds
 nothing to `load`.**  The tests check the class through the loader and compare each loaded
-task with `task_from_bundle(generate(arm, seed))`.  Whether the taskset's config should default
-an arm and a seed list so the one-liner is shorter is recorded under *Open* and not settled:
-the one-liner test asks only that the documented command resolves to a non-empty arm and
-seed list.
+task with `task_from_bundle(generate(arm, seed))`.  The taskset config defaults nothing (ruled
+2026-09-22): the one-liner carries the arm, as one JSON value, and the seeds, and the one-liner
+test asks that the documented command resolves to a non-empty arm and seed list.
 
 **4. `turn_limit_hit` is `Trace.stop_condition == "max_turns"`.**  Taylor's ruling of
 2026-09-21 (question 4 of the model path spec; TG-M4's open point 5), pinned here on the only
@@ -78,12 +84,9 @@ loopback and are outside the guard, which is recorded and not claimed.
 Open, and not settled here (each is in the handoff, for a ruling)
 ----------------------------------------------------------------
 
-1. **Whether the taskset config defaults an arm and a seed list.**  Without a default the
-   stranger's command carries the arm as one JSON value (measured: `--env.taskset.arm.<field>`
-   parses but types `control` and `generator_version` as strings).  Decision 3 leaves it open.
-2. **What else the env config may pin** (Handoff open point 7).  Decision 2 pins the
+1. **What else the env config may pin** (Handoff open point 7).  Decision 2 pins the
    declaration, not the list.
-3. **MP9's byte-for-byte clause** waits on the live smoke ($20 cap, granted).
+2. **MP9's byte-for-byte clause** waits on the live smoke ($20 cap, granted).
 
 What this file does not freeze: anything that needs a real model (MP9 proper); the model
 targets, the trace-to-`Run` mapping and A8's shape (layer 2, MP11 to MP18); and MP10, which
