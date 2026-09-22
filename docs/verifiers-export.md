@@ -1,6 +1,6 @@
 # Running a generated task under verifiers
 
-`task_generator.export` packages a generated task as a [verifiers](https://github.com/willccbb/verifiers)
+`poisson_tasks.export` packages a generated task as a [verifiers](https://github.com/willccbb/verifiers)
 v1 taskset: the task data, the task with its reward, the tool server, and a finite taskset
 over a declared list of seeds. Everything on this page is against `verifiers==0.3.1`, which
 is the version the package pins.
@@ -11,8 +11,8 @@ is the version the package pins.
 
 ```python
 import dataclasses
-from task_generator.knobs import ArmSpec
-from task_generator.export import ExportTaskset, ExportTasksetConfig, task_from_bundle
+from poisson_tasks.knobs import ArmSpec
+from poisson_tasks.export import ExportTaskset, ExportTasksetConfig, task_from_bundle
 
 arm = ArmSpec(knob="depth", level=3, control=None, strictness="strict",
               split="eval", generator_version="0")
@@ -100,7 +100,7 @@ Two things about the server are worth knowing if you are reading a trace:
   and every call is numbered. A call refused before the body would leave the live counter
   trailing a replay of the same calls, and everything after it would differ.
 
-The module runs as `__main__` (`python -m task_generator.export`), which is how the wheel
+The module runs as `__main__` (`python -m poisson_tasks.export`), which is how the wheel
 launches a task-scoped tool server as a child process.
 
 ## What this export does not do

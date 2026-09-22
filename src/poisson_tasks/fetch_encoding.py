@@ -8,7 +8,7 @@ copied in.  What it is and where it comes from is set out in NOTICE.
 
 Run it after installing the package::
 
-    python -m task_generator.fetch_encoding
+    python -m poisson_tasks.fetch_encoding
 
 Nothing is hard-coded but the encoding's name.  The URL and the expected sha256 are
 read out of the installed tiktoken, so the file this writes is the file that version of

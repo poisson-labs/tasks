@@ -59,19 +59,19 @@ from mcp.server.fastmcp.tools import Tool as _Tool
 from pydantic import Field as _Field
 from pydantic import model_validator as _model_validator
 
-from task_generator.engine import apply as _apply
-from task_generator.engine import init_state as _init_state
-from task_generator.knobs import ArmSpec as _ArmSpec
-from task_generator.knobs import PinRecord as _PinRecord
-from task_generator.knobs import arm_id as _arm_id
-from task_generator.tasks import FormatSpec as _FormatSpec
-from task_generator.tasks import TaskBundle as _TaskBundle
-from task_generator.tasks import Turn as _Turn
-from task_generator.tasks import Verdict as _Verdict
-from task_generator.tasks import VerifierSpec as _VerifierSpec
-from task_generator.tasks import generate as _generate
-from task_generator.tasks import scenario_for as _scenario_for
-from task_generator.tasks import verify as _verify
+from poisson_tasks.engine import apply as _apply
+from poisson_tasks.engine import init_state as _init_state
+from poisson_tasks.knobs import ArmSpec as _ArmSpec
+from poisson_tasks.knobs import PinRecord as _PinRecord
+from poisson_tasks.knobs import arm_id as _arm_id
+from poisson_tasks.tasks import FormatSpec as _FormatSpec
+from poisson_tasks.tasks import TaskBundle as _TaskBundle
+from poisson_tasks.tasks import Turn as _Turn
+from poisson_tasks.tasks import Verdict as _Verdict
+from poisson_tasks.tasks import VerifierSpec as _VerifierSpec
+from poisson_tasks.tasks import generate as _generate
+from poisson_tasks.tasks import scenario_for as _scenario_for
+from poisson_tasks.tasks import verify as _verify
 
 __all__ = [
     "ExportTasksetConfig",

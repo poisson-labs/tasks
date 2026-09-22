@@ -55,9 +55,9 @@ from dataclasses import dataclass as _dataclass
 from typing import Any as _Any
 from typing import Protocol as _Protocol
 
-from task_generator.engine import EngineSpec as _EngineSpec
-from task_generator.tokenizer import count_tokens as _count_tokens
-from task_generator.tokenizer import reference_encoding as _reference_encoding
+from poisson_tasks.engine import EngineSpec as _EngineSpec
+from poisson_tasks.tokenizer import count_tokens as _count_tokens
+from poisson_tasks.tokenizer import reference_encoding as _reference_encoding
 
 __all__ = [
     "ArmSpec",

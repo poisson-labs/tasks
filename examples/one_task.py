@@ -11,8 +11,8 @@ from __future__ import annotations
 import json
 import sys
 
-from task_generator.knobs import ArmSpec, arm_id
-from task_generator.tasks import FormatSpec, Turn, generate, verify
+from poisson_tasks.knobs import ArmSpec, arm_id
+from poisson_tasks.tasks import FormatSpec, Turn, generate, verify
 
 SEED = int(sys.argv[1]) if len(sys.argv) > 1 else 7
 

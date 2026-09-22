@@ -14,10 +14,10 @@ says so and asserts nothing.
 
 The o200k_base encoding file -- NOT contained here, fetched after installation
 ------------------------------------------------------------------------------
-File:      src/task_generator/data/o200k_base.tiktoken (3,613,922 bytes)
+File:      src/poisson_tasks/data/o200k_base.tiktoken (3,613,922 bytes)
 Status:    NOT in this repository, NOT in the sdist and NOT in the wheel. It is
            git-ignored and excluded from both build targets. It is fetched once, after
-           installation, by `python -m task_generator.fetch_encoding`, which reads the
+           installation, by `python -m poisson_tasks.fetch_encoding`, which reads the
            URL and the expected digest out of the installed tiktoken and downloads
            through tiktoken's own reader. Nothing is redistributed here.
 What:      The byte-pair-encoding merge ranks of the o200k_base encoding, in tiktoken's
@@ -29,7 +29,7 @@ Source:    https://openaipublic.blob.core.windows.net/encodings/o200k_base.tikto
            2026-09-21 returned HTTP 200 and a Content-Length equal to the size above.
 Integrity: sha256 446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d,
            equal to the expected_hash that tiktoken 0.14.0 pins for it. The fetch
-           refuses any other digest, and src/task_generator/tokenizer.py refuses to load
+           refuses any other digest, and src/poisson_tasks/tokenizer.py refuses to load
            a file whose digest differs.
 License:   NONE FOUND, re-checked on 2026-09-21 and recorded below. The terms under
            which this file may be redistributed could not be established, so it is no
@@ -62,7 +62,7 @@ License:   NONE FOUND, re-checked on 2026-09-21 and recorded below. The terms un
 
 Code copied from tiktoken
 -------------------------
-File:      src/task_generator/tokenizer.py
+File:      src/poisson_tasks/tokenizer.py
 What:      The pre-tokenization regular expression (_PAT_STR) and the two special-token
            ids (_SPECIAL_TOKENS) are copied from the o200k_base definition in tiktoken
            0.14.0 (tiktoken_ext/openai_public.py), reflowed to this repository's line
@@ -71,7 +71,7 @@ License:   tiktoken's MIT License, quoted in section 2.
 
 The vocabulary table
 --------------------
-File:      src/task_generator/data/vocabulary-v1.json
+File:      src/poisson_tasks/data/vocabulary-v2.json
 What:      Written for this repository and released under its MIT License. No
            third-party word list, corpus or dataset is recorded as a source for it.
            Its two 256-word record-id lists are common English words chosen so that each

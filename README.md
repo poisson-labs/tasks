@@ -1,4 +1,4 @@
-# Tool-Use Task Generator (`task-generator`)
+# Poisson Tasks (`poisson-tasks`)
 
 [![Code License: MIT](https://img.shields.io/badge/Code%20License-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](pyproject.toml)
@@ -10,9 +10,9 @@ that are each labelled with the outcome they should earn.
 Generation makes no model calls and no network calls, and is byte-identical across runs,
 processes and platforms.
 
-> `task-generator` is a working label, not a name. The repository, the distribution and
-> the `task_generator` package all use it until the name is settled; the three URLs in
-> `pyproject.toml` are the only other place it appears.
+> The tool is **Poisson Tasks**. The distribution and the importable package are
+> `poisson-tasks` and `poisson_tasks`; the repository is `poisson-labs/tasks`, which the
+> three URLs in `pyproject.toml` carry.
 
 ---
 
@@ -86,12 +86,12 @@ using the tools it is given and nothing else.
 Python 3.11, and nothing else is required:
 
 ```bash
-git clone https://github.com/poisson-labs/task-generator.git
-cd task-generator
+git clone https://github.com/poisson-labs/tasks.git
+cd tasks
 
 python3.11 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
-.venv/bin/python -m task_generator.fetch_encoding
+.venv/bin/python -m poisson_tasks.fetch_encoding
 ```
 
 The last step fetches the o200k_base encoding file, about 3.6 MB, once. It is not shipped
@@ -147,8 +147,8 @@ Open with entry code know; each later stage needs what the stage before returned
 In code, that is:
 
 ```python
-from task_generator.knobs import ArmSpec
-from task_generator.tasks import FormatSpec, Turn, generate, verify
+from poisson_tasks.knobs import ArmSpec
+from poisson_tasks.tasks import FormatSpec, Turn, generate, verify
 
 arm = ArmSpec("depth", 3, None, "strict", "eval", "tg-m3-v1")
 bundle = generate(arm, seed=7)
@@ -201,8 +201,8 @@ git-ignored.
 
 With the extra installed, `pytest -q` is **548 passed, 0 skipped**.
 
-Without it, `import task_generator` and every module under it work as they do with it.
-Only `task_generator.adapter` needs Proofload, and importing it without the extra raises
+Without it, `import poisson_tasks` and every module under it work as they do with it.
+Only `poisson_tasks.adapter` needs Proofload, and importing it without the extra raises
 a `ModuleNotFoundError` naming the extra.
 
 ### 5. Types and Lint
@@ -238,11 +238,11 @@ outside that freeze and holds the skip for the Proofload adapter's 313 tests.
 ## Citation
 
 ```bibtex
-@misc{kolasinski2026taskgenerator,
+@misc{kolasinski2026poissontasks,
   author = {Kolasinski, Taylor},
-  title  = {task-generator: deterministic tool-use tasks, each generated with its verifier},
+  title  = {poisson-tasks: deterministic tool-use tasks, each generated with its verifier},
   year   = {2026},
-  howpublished = {\url{https://github.com/poisson-labs/task-generator}},
+  howpublished = {\url{https://github.com/poisson-labs/tasks}},
   note   = {Poisson Labs}
 }
 ```

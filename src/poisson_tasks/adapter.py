@@ -55,12 +55,12 @@ Each carries its escape hatch.  The tests pin none of them beyond what is said h
   budget is `d + 1`, so `to_episode`'s turn guard raises and Proofload stores an errored
   row.  The pilot's slack is 4; `validate_preregistration` allows 0 because N17 does.
 * **Proofload is an optional extra, and this module is the only thing in the package that
-  needs it.**  `pip install task-generator` brings no Proofload; `pip install
-  "task-generator[proofload]"` does.  The import below stays the one shape A1 permits, a
+  needs it.**  `pip install poisson-tasks` brings no Proofload; `pip install
+  "poisson-tasks[proofload]"` does.  The import below stays the one shape A1 permits, a
   top-level `from proofload import Episode`, and is wrapped so that importing this module
   without the extra raises a `ModuleNotFoundError` naming the extra rather than the bare
   "No module named 'proofload'".  Nothing on the package's import path reaches this module,
-  so `import task_generator` and everything under it but this file work without Proofload.
+  so `import poisson_tasks` and everything under it but this file work without Proofload.
   *Escape hatch:* delete the `try`; A1 reads the `from` either way, since it walks the tree.
 """
 
@@ -83,26 +83,26 @@ try:
 except ModuleNotFoundError as _exc:
     raise ModuleNotFoundError(
         "This module is the Proofload route, and Proofload is an optional extra of "
-        "task-generator: nothing else in the package needs it.  Install the extra with "
+        "poisson-tasks: nothing else in the package needs it.  Install the extra with "
         "`pip install -e '.[proofload]'`.  Proofload is not publicly available yet, so "
         "the extra resolves only against a checkout already installed in the same "
         "environment: `pip install -e ../proofload` first."
     ) from _exc
 
-from task_generator.engine import DomainState as _DomainState
-from task_generator.engine import apply as _apply
-from task_generator.engine import init_state as _init_state
-from task_generator.engine import replay as _replay
-from task_generator.knobs import ArmSpec as _ArmSpec
-from task_generator.knobs import arm_id as _arm_id
-from task_generator.tasks import OUTCOMES as _OUTCOMES
-from task_generator.tasks import FormatSpec as _FormatSpec
-from task_generator.tasks import TaskBundle as _TaskBundle
-from task_generator.tasks import Turn as _Turn
-from task_generator.tasks import generate as _generate
-from task_generator.tasks import scenario_for as _scenario_for
-from task_generator.tasks import verify as _verify
-from task_generator.tokenizer import count_tokens as _count_tokens
+from poisson_tasks.engine import DomainState as _DomainState
+from poisson_tasks.engine import apply as _apply
+from poisson_tasks.engine import init_state as _init_state
+from poisson_tasks.engine import replay as _replay
+from poisson_tasks.knobs import ArmSpec as _ArmSpec
+from poisson_tasks.knobs import arm_id as _arm_id
+from poisson_tasks.tasks import OUTCOMES as _OUTCOMES
+from poisson_tasks.tasks import FormatSpec as _FormatSpec
+from poisson_tasks.tasks import TaskBundle as _TaskBundle
+from poisson_tasks.tasks import Turn as _Turn
+from poisson_tasks.tasks import generate as _generate
+from poisson_tasks.tasks import scenario_for as _scenario_for
+from poisson_tasks.tasks import verify as _verify
+from poisson_tasks.tokenizer import count_tokens as _count_tokens
 
 __all__ = [
     "ArmRegistry",
@@ -154,7 +154,8 @@ _PLANT_KEYS = ("step_fail_rate", "history_fail_rate", "overshoot_rate")
 _DIRECT = _FormatSpec(name="direct", markers=())
 _REPLY = _Turn(content="Done.", calls=(), finish_reason="stop")
 
-# `faulty`'s draw domain, the same shape as TG-M1's and TG-M3's separators.
+# `faulty`'s draw domain, the same shape as TG-M1's and TG-M3's separators, and left at
+# the old spelling for the same reason: these bytes are hash input, not a name.
 _DRAW_DOMAIN = b"task-generator/adapter/faulty-draw/1\n"
 
 _Target = _Callable[[_Mapping[str, _Any], int], _Episode]

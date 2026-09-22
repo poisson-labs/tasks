@@ -112,20 +112,20 @@ from dataclasses import replace as _replace
 from typing import Any as _Any
 from typing import cast as _cast
 
-from task_generator.engine import EngineSpec as _EngineSpec
-from task_generator.engine import Scenario as _Scenario
-from task_generator.engine import apply as _apply
-from task_generator.engine import engine_hash as _engine_hash
-from task_generator.engine import init_state as _init_state
-from task_generator.engine import mutations as _mutations
-from task_generator.engine import replay as _replay
-from task_generator.knobs import ArmSpec as _ArmSpec
-from task_generator.knobs import PinRecord as _PinRecord
-from task_generator.knobs import arm_id as _arm_id
-from task_generator.knobs import check_pins as _check_pins
-from task_generator.knobs import measure_pins as _measure_pins
-from task_generator.tokenizer import count_tokens as _count_tokens
-from task_generator.tokenizer import reference_encoding as _reference_encoding
+from poisson_tasks.engine import EngineSpec as _EngineSpec
+from poisson_tasks.engine import Scenario as _Scenario
+from poisson_tasks.engine import apply as _apply
+from poisson_tasks.engine import engine_hash as _engine_hash
+from poisson_tasks.engine import init_state as _init_state
+from poisson_tasks.engine import mutations as _mutations
+from poisson_tasks.engine import replay as _replay
+from poisson_tasks.knobs import ArmSpec as _ArmSpec
+from poisson_tasks.knobs import PinRecord as _PinRecord
+from poisson_tasks.knobs import arm_id as _arm_id
+from poisson_tasks.knobs import check_pins as _check_pins
+from poisson_tasks.knobs import measure_pins as _measure_pins
+from poisson_tasks.tokenizer import count_tokens as _count_tokens
+from poisson_tasks.tokenizer import reference_encoding as _reference_encoding
 
 __all__ = [
     "TaskBundle",
@@ -171,6 +171,9 @@ _D_R = (
 
 # Domain separators.  Each changes only if its construction changes, which would be a new
 # generator version anyway -- the same shape as TG-M1's `engine_hash` separator.
+# The spelling is deliberately not the package's: these bytes are hash input, so the
+# 2026-09-22 rename to `poisson_tasks` left them alone.  Respelling one moves every id
+# it keys.
 _TASK_ID_DOMAIN = b"task-generator/task_id/1\n"
 _SCENARIO_DOMAIN = b"task-generator/scenario_hash/1\n"
 _FINGERPRINT_DOMAIN = b"task-generator/structural_fingerprint/1\n"
