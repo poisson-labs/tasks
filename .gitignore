@@ -46,3 +46,4 @@ examples/**/example-store/
 
 # Devlogs live in the vault only (docs/repo-hygiene.md, section 2.7)
 devlog.md
+.env
