@@ -174,6 +174,13 @@ CAL_NAMES = (
     "check_decoding",
     "run_config_for",
     "owed_after_interrupt",
+    # added 2026-09-22 by rulings R11, R14 and R16
+    "within_budget",
+    "STOP_REASONS",
+    "record_instrument",
+    "read_tally",
+    "label_from_signals",
+    "EpisodeSignals",
 )
 
 
@@ -196,6 +203,17 @@ RESAMPLES = 2000  # CAL9
 SATURATED_HIGH = 0.95  # CAL12
 SATURATED_LOW = 0.05  # CAL12
 MODEL_A = "gpt-5-nano-2025-08-07"  # R2
+MODEL_B = "Qwen/Qwen3.5-9B"  # R3: class only; the exact revision is owed before the run
+
+# R11, 2026-09-22: the run stops on whichever limit arrives first.  A token budget alone
+# cannot see an OpenAI balance or a Colab compute allowance.
+STOP_REASONS = ("tokens", "wall_clock", "provider_exhausted")
+
+# R16, 2026-09-22: the signals a trace already carries, which this module maps to 2.3's
+# instrument labels itself.  `adapter.py` assigns three of the four and CAL22 forbids
+# importing it, so without this mapping nothing fills the field and every API error counts
+# as the model failing the task.
+TRACE_SIGNALS = ("ok", "errors", "stop_condition", "has_error")
 
 # CAL18's list, verbatim from the handoff and no more (ambiguity A-2).
 PROVENANCE_FIELDS = (
@@ -219,6 +237,12 @@ PROVENANCE_FIELDS = (
     "saturation_low",
     "instrument_threshold",
     "rate_read_date",
+    # R12, 2026-09-22: a locally served model needs its serving stack recorded, or its
+    # numbers cannot be reproduced -- the same weights served differently give different
+    # numbers.  N18 (2.2) already says what a pinned revision looks like.
+    "serving",
+    # R11: the stop is no longer a token ceiling alone.
+    "budget",
 )
 
 # 2.3's vocabulary, split as 2.3 splits it.
@@ -916,6 +940,20 @@ def provenance(**over: Any) -> Any:
         "saturation_low": SATURATED_LOW,
         "instrument_threshold": 0.02,
         "rate_read_date": "2026-09-22",
+        # R12: what it takes to reproduce a locally served model's numbers.
+        "serving": {
+            MODEL_A: {"kind": "hosted", "endpoint_host": "api.openai.com"},
+            MODEL_B: {
+                "kind": "local",
+                "stack": "vllm",
+                "stack_version": "0.29.0",
+                "flags": ["--revision " + "b" * 40, "--served-model-name " + "b" * 40],
+                "gpu": "A100",
+                "revision": "b" * 40,
+            },
+        },
+        # R11: the stop is three limits, whichever arrives first.
+        "budget": {"tokens": 70_000_000, "wall_clock_seconds": 43_200},
     }
     base.update(over)
     return cal().Provenance(**base)
@@ -1377,18 +1415,71 @@ def test_cal19_2_the_records_round_trip_through_their_own_wire_format() -> None:
         )
 
 
-def test_cal20_1_the_ceiling_is_checked_before_each_episode() -> None:
-    """CAL20: "A token ceiling is checked before each episode".  **Ambiguity A-1:** R1's real
-    limit is an account balance and model B's is a Colab compute-unit allowance; neither is a
-    token count, and this test pins only the token ceiling the invariant names."""
+def budget(**over: Any) -> dict[str, Any]:
+    base = {"tokens": 1000, "wall_clock_seconds": 600}
+    base.update(over)
+    return base
+
+
+def test_cal20_1_the_stop_is_checked_before_each_episode() -> None:
+    """CAL20: "A ceiling is checked before each episode".  **Ruling R11, 2026-09-22:** the
+    ceiling is no longer a token budget alone."""
     spent = 0
     stopped_at = None
     for index in range(100):
-        if not cal().within_ceiling(spent, ceiling=1000):
+        verdict = cal().within_budget(
+            tokens=spent, elapsed_seconds=0, provider_exhausted=False, budget=budget()
+        )
+        if not verdict.ok:
             stopped_at = index
             break
         spent += 150
     assert stopped_at == 7, stopped_at
+
+
+@pytest.mark.parametrize("reason", STOP_REASONS)
+def test_cal20_1b_each_of_the_three_limits_stops_the_run_on_its_own(reason: str) -> None:
+    """**R11's whole point, and the row a token-only stop fails.**  The run stops on whichever
+    limit arrives first: the token budget, the wall clock, or the provider saying out of
+    credit.  R1 withdrew the $75 ceiling in favour of balances that already exist, and **a
+    balance is not a token count** — an OpenAI credit runs out on its own arithmetic and a
+    Colab allowance is wall-clock. Each limit is tripped alone here, with the other two slack,
+    so a stop that watches only one is red on the other two."""
+    slack = {"tokens": 0, "elapsed_seconds": 0, "provider_exhausted": False}
+    tripped = dict(slack)
+    if reason == "tokens":
+        tripped["tokens"] = budget()["tokens"] + 1
+    elif reason == "wall_clock":
+        tripped["elapsed_seconds"] = budget()["wall_clock_seconds"] + 1
+    else:
+        tripped["provider_exhausted"] = True
+    verdict = cal().within_budget(budget=budget(), **tripped)
+    assert verdict.ok is False, (reason, verdict)
+    assert verdict.reason == reason, (reason, verdict)
+
+
+def test_cal20_1c_a_run_inside_every_limit_continues() -> None:
+    """R11's control.  Without it `within_budget` could refuse unconditionally."""
+    verdict = cal().within_budget(
+        tokens=1, elapsed_seconds=1, provider_exhausted=False, budget=budget()
+    )
+    assert verdict.ok is True
+    assert verdict.reason is None
+
+
+def test_cal20_1d_a_provider_stop_is_the_same_clean_stop_as_a_token_stop() -> None:
+    """R11: all three are **one** clean stop — partial records that still recompute, the cell
+    marked incomplete, never a quietly smaller `S`.  A run that treated running out of credit
+    as a crash rather than a stop would lose the episodes it had already paid for."""
+    for tripped in (
+        {"tokens": 10_000, "elapsed_seconds": 0, "provider_exhausted": False},
+        {"tokens": 0, "elapsed_seconds": 10_000, "provider_exhausted": False},
+        {"tokens": 0, "elapsed_seconds": 0, "provider_exhausted": True},
+    ):
+        verdict = cal().within_budget(budget=budget(), **tripped)
+        assert verdict.ok is False
+        assert verdict.reason in STOP_REASONS
+        assert verdict.clean is True, verdict
 
 
 def test_cal20_2_a_stop_leaves_partial_records_that_still_recompute() -> None:
@@ -2212,3 +2303,291 @@ def test_cal23_9_an_interrupted_run_against_a_stub_endpoint_resumes_to_the_same_
     rebuilt = {hashes[0]: 1 + owed[hashes[0]], hashes[1]: owed[hashes[1]]}
     assert rebuilt == {hashes[0]: 2, hashes[1]: 2}
     assert sum(owed.values()) == 3, "an episode was run twice or skipped"
+
+
+# ---------------------------------------------------------------------------
+# R16 - a tooling failure is read from the signals the run already carries
+#
+# Ruled 2026-09-22.  Three of 2.3's four instrument labels are assigned in
+# `src/poisson_tasks/adapter.py`, which CAL22 forbids this module to import, so nothing filled
+# the field.  **Left alone, every API error would count as the model failing the task and every
+# level would look harder than it is** -- the one failure mode that biases the whole card in a
+# single direction.  The signals are already in the trace.
+# ---------------------------------------------------------------------------
+
+
+def signals(**over: Any) -> Any:
+    """The episode-level signals a run carries: `Episode.ok`, `Episode.errors`, and the
+    trace's `has_error` and `stop_condition`.  Every one is on the stranger's path."""
+    base = {"ok": True, "errors": (), "has_error": False, "stop_condition": "agent_completed"}
+    base.update(over)
+    return cal().EpisodeSignals(**base)
+
+
+def test_cal16_7_an_api_error_is_a_tooling_failure_not_a_failed_task() -> None:
+    """**The row this ruling exists for.**  An episode that ended because a model-server or
+    transport call failed is `api_error` -- an instrument label -- and it leaves the
+    denominator.  It is **not** a task the model got wrong.
+
+    Counting it as one is the mutation this oracle must catch (`m45`): it makes every level
+    look harder than it is, in the same direction, everywhere, and no type checker or smoke
+    would see it."""
+    label = cal().label_from_signals(
+        signals(ok=False, has_error=True, errors=("connection reset by peer",),
+                stop_condition="error")
+    )
+    assert label == "api_error", label
+    assert label in INSTRUMENT_LABELS
+    cell = [record(task_id="a", seed=1, attempt=0, strict=False, label=label)]
+    assert cal().scored(cell) == [], "an api_error must leave the denominator"
+
+
+def test_cal16_8_a_wall_timeout_is_a_tooling_failure() -> None:
+    """2.3: "an env or harness wall-clock deadline ended the episode"."""
+    label = cal().label_from_signals(
+        signals(ok=False, has_error=True, errors=("deadline exceeded",),
+                stop_condition="wall_timeout")
+    )
+    assert label == "wall_timeout", label
+    assert label in INSTRUMENT_LABELS
+
+
+def test_cal16_9_a_clean_episode_carries_no_instrument_label() -> None:
+    """**The control, and it is the one that stops R16 over-reaching.**  A model that simply
+    failed the task ends cleanly: `ok`, no errors, `agent_completed`.  If that were mapped to
+    an instrument label the exclusion would swallow real failures and **every level would look
+    easier than it is** -- the opposite bias, and just as wrong."""
+    assert cal().label_from_signals(signals()) is None
+
+
+@pytest.mark.parametrize("ok", [True, False])
+def test_cal16_10_a_turn_limit_is_the_models_and_not_the_instruments(ok: bool) -> None:
+    """A trace the wheel stopped at `max_turns` is `turn_limit`, a **system** label: the model
+    ran out of budget, which is a fact about the task's difficulty.  Ruled 2026-09-21 that
+    `turn_limit_hit` is `stop_condition == "max_turns"` and nothing wider.
+
+    **Both values of `ok`, because only one of them reaches the clause.**  Mutant m47 survived
+    a version of this test that passed `ok=True`: with the episode otherwise clean the
+    mapping short-circuits before the turn-limit case is consulted, so the mutation was never
+    executed. A turn-limited episode that did *not* finish cleanly is the case that matters,
+    and it is the case a real run produces."""
+    label = cal().label_from_signals(signals(ok=ok, stop_condition="max_turns"))
+    assert label not in INSTRUMENT_LABELS, (ok, label)
+    assert label is None, (ok, label)
+
+
+def test_cal16_11_the_mapping_imports_no_adapter() -> None:
+    """R16's other half: the labels are assigned **by this module**, and `adapter.py` stays
+    unimported.  CAL22 checks the whole module; this checks the one function the ruling added,
+    because it is the function that would be tempted to reach for the adapter's vocabulary."""
+    source = inspect.getsource(cal().label_from_signals)
+    assert "adapter" not in source
+    assert "proofload" not in source
+
+
+@pytest.mark.parametrize("stop", ["error", "wall_timeout", "agent_completed", "max_turns"])
+def test_cal16_12_every_stop_condition_maps_somewhere_definite(stop: str) -> None:
+    """Total over the stop conditions this path produces: each maps to an instrument label or
+    to none, and never raises.  A mapping that fell through would leave the field empty again,
+    which is the state R16 exists to end."""
+    label = cal().label_from_signals(signals(ok=(stop in {"agent_completed", "max_turns"}),
+                                             has_error=(stop == "error"), stop_condition=stop))
+    assert label is None or label in INSTRUMENT_LABELS
+
+
+# ---------------------------------------------------------------------------
+# R14 - instrument failures are tallied as they happen, outside what resume touches
+# ---------------------------------------------------------------------------
+
+
+def test_cal16_13_the_tally_is_written_at_the_moment_of_failure(tmp_path: Path) -> None:
+    """R14: the count is taken as the failures happen, not read back afterwards."""
+    run = tmp_path / "run"
+    run.mkdir()
+    for label in INSTRUMENT_LABELS:
+        cal().record_instrument(run, task_id="t0", seed=1, attempt=0, label=label)
+    tally = cal().read_tally(run)
+    assert sum(tally.values()) == len(INSTRUMENT_LABELS)
+    for label in INSTRUMENT_LABELS:
+        assert tally[label] == 1
+
+
+def test_cal16_14_a_resume_does_not_touch_the_tally(tmp_path: Path) -> None:
+    """**R14's whole point.**  `resume.load` rewrites `traces.jsonl` to the rows it kept, and
+    the rows it drops are exactly the failed ones — so a count taken from the trace file after
+    a resume is lower than what happened, and CAL16's refusal to publish above a threshold
+    could never fire.
+
+    The tally is a separate append-only file. After a resume has pruned the traces, the tally
+    still holds the original count."""
+    run = tmp_path / "run"
+    run.mkdir()
+    rows = [("h0", True), ("h0", False), ("h0", True)]
+    traces_file(run, rows)
+    for _ in range(sum(1 for _, ok in rows if not ok)):
+        cal().record_instrument(run, task_id="h0", seed=1, attempt=1, label="api_error")
+    before = cal().read_tally(run)
+    assert before["api_error"] == 1
+    wheel_resume().load(run, ["h0"], PLAN_N)
+    after = cal().read_tally(run)
+    assert after == before, "the resume pruned the tally as well as the traces"
+
+
+def test_cal16_15_the_threshold_gate_reads_the_tally_and_not_the_survivors(tmp_path: Path) -> None:
+    """The consequence, as a number. A cell whose failures have already been re-run looks
+    clean in the records and is not: the gate must still refuse to publish it."""
+    run = tmp_path / "run"
+    run.mkdir()
+    clean_cell = cell_from((3,) * 8)
+    for index in range(20):
+        cal().record_instrument(run, task_id=f"t{index:03d}", seed=index, attempt=0,
+                                label="api_error")
+    observed = cal().instrument_rate(clean_cell, tally=cal().read_tally(run))
+    assert observed > 0.02, observed
+    with pytest.raises(ValueError) as caught:
+        cal().build_artifact(
+            {("depth:d3", MODEL_A): clean_cell}, provenance(instrument_threshold=0.02),
+            tally=cal().read_tally(run),
+        )
+    assert "instrument" in str(caught.value).lower()
+
+
+# ---------------------------------------------------------------------------
+# R12, R13, R15, R17 - what the card and the provenance block carry
+# ---------------------------------------------------------------------------
+
+
+SERVING_FIELDS = ("kind", "stack", "stack_version", "flags", "gpu", "revision")
+
+
+def test_cal18_4_a_locally_served_model_records_its_serving_stack() -> None:
+    """**R12, 2026-09-22.** The block carried the model, its revision and its endpoint host.
+    For a model served locally that is not enough to reproduce a number — **the same weights
+    served differently give different numbers** — so it now carries the serving stack and its
+    version, the serve flags, the GPU type and the revision."""
+    carried = provenance().serving[MODEL_B]
+    for field in SERVING_FIELDS:
+        assert field in carried, field
+    assert carried["kind"] == "local"
+
+
+def test_cal18_5_a_locally_served_model_missing_its_stack_refuses_the_write() -> None:
+    """CAL18's "a missing field refuses the write" reaches R12's fields.  One test per field,
+    so a build that checks five of the six is red."""
+    for field in SERVING_FIELDS:
+        if field == "kind":
+            continue
+        broken = dict(provenance().serving[MODEL_B])
+        broken.pop(field)
+        with pytest.raises(ValueError) as caught:
+            cal().build_artifact(
+                {("depth:d3", MODEL_B): cal().scored(cell_from(HETEROGENEOUS_COUNTS, model=MODEL_B))},
+                provenance(serving={MODEL_B: broken},
+                           models=[{"id": MODEL_B, "revision": "b" * 40, "endpoint_host": "localhost"}]),
+            )
+        assert field in str(caught.value), (field, str(caught.value))
+
+
+def test_cal18_6_a_hosted_model_is_not_asked_for_a_gpu() -> None:
+    """R12's control.  A hosted model has no serving stack of ours to record, and demanding
+    one would make model A unpublishable.  The requirement follows `kind`."""
+    artifact = cal().build_artifact(
+        {("depth:d3", MODEL_A): cal().scored(cell_from(HETEROGENEOUS_COUNTS))}, provenance()
+    )
+    assert artifact.cells
+
+
+def test_cal18_7_the_pinned_revision_is_forty_hex_characters() -> None:
+    """N18 (§2.2) already says what a pinned open-weights revision looks like: a full
+    40-character commit hash, never a branch or a tag, and the same string through
+    `--revision` and `--served-model-name`.  R12 brings that into this module's provenance."""
+    carried = provenance().serving[MODEL_B]
+    assert len(carried["revision"]) == 40
+    assert all(c in "0123456789abcdef" for c in carried["revision"])
+    joined = " ".join(carried["flags"])
+    assert f"--revision {carried['revision']}" in joined
+    assert f"--served-model-name {carried['revision']}" in joined
+
+
+def test_cal17_6_the_card_states_the_resume_guarantee_in_words() -> None:
+    """**R13, 2026-09-22.**  A resumed run cannot reproduce the text of the attempts it
+    replaces, because CAL5 requires the decoding not to be deterministic.  The guarantee is the
+    achievable one, and **the card says so**, so nobody reads "reproducible" as "identical"."""
+    document = cal().render_document(sample_artifact())
+    lowered = document.lower()
+    assert "resum" in lowered
+    assert "not run twice" in lowered or "none run twice" in lowered
+    assert "identical" in lowered or "byte" in lowered, (
+        "the card must say what the guarantee is NOT, or a reader supplies the strong reading"
+    )
+
+
+def leaky_differs_artifact() -> Any:
+    """A cell where the two predicates genuinely differ: every attempt is an `overshoot`,
+    which leaky accepts and strict does not, except the two per task that pass outright.
+    On a cell where they agree, a card that dropped the leaky column would still show the
+    right numbers, so R15 could not be tested on one."""
+    cells = {}
+    for spec in ALL_SPECS:
+        rows: list[Any] = []
+        for index in range(8):
+            for attempt in range(N):
+                strict = attempt < 2
+                rows.append(record(
+                    task_id=f"d{index:03d}", seed=5000 + index, attempt=attempt,
+                    strict=strict, leaky=True, arm=arm_id(spec),
+                    label="passed" if strict else "overshoot",
+                ))
+        cells[(arm_id(spec), MODEL_A)] = cal().scored(rows)
+    return cal().build_artifact(cells, provenance())
+
+
+def test_cal17_7_both_predicates_are_published_with_strict_as_the_headline() -> None:
+    """**R15, 2026-09-22.**  §2.3 computes both always, so the leaky column is free, and a
+    stranger reading "this level is worth 0.4" must be able to tell which number that is.
+
+    **The check is on the numbers in the rows, not on the words in the header.**  Mutant m56
+    survived a version of this test that looked for the word "leaky" in the table: dropping
+    the value from every row left the header untouched, so the word was still there and the
+    column was empty. The fixture is built so the two rates differ — 0.400 strict against
+    1.000 leaky — and both must appear in each level row."""
+    artifact = leaky_differs_artifact()
+    document = cal().render_document(artifact)
+    level_table = document.partition(cal().INSTRUMENT_TABLE_HEADING)[0]
+    assert cal().HEADLINE_PREDICATE == "strict"
+    assert level_table.lower().index("strict") < level_table.lower().index("leaky")
+    strict_rate, leaky_rate = artifact.cells[0]["pass_at_1"], artifact.cells[0]["leaky_at_1"]
+    assert strict_rate != pytest.approx(leaky_rate), "this fixture cannot test R15"
+
+    # **By column, not by substring.**  A substring check is not enough and m56 proved it:
+    # the leaky rate here is 1.000 and so is pass@5, so "1.000 is somewhere in the row" is
+    # true even with the leaky column deleted.  The header names the columns; the value is
+    # read out of the position the header gives it.
+    header = next(line for line in level_table.splitlines() if line.startswith("| arm |"))
+    columns = [cell.strip().lower() for cell in header.strip().strip("|").split("|")]
+    assert "strict pass@1" in columns, columns
+    assert "leaky pass@1" in columns, columns
+    strict_at, leaky_at = columns.index("strict pass@1"), columns.index("leaky pass@1")
+    assert strict_at < leaky_at, columns
+
+    rows = [line for line in level_table.splitlines() if line.startswith("| `")]
+    assert rows, level_table
+    for line in rows:
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        assert len(cells) == len(columns), (len(cells), len(columns), line)
+        assert cells[strict_at] == f"{strict_rate:.3f}", (line, cells[strict_at])
+        assert cells[leaky_at] == f"{leaky_rate:.3f}", (line, cells[leaky_at])
+
+
+def test_cal17_8_the_card_carries_three_k_values_and_the_artifact_carries_all() -> None:
+    """**R17, 2026-09-22.**  Three on the card is what a reader needs; every `k ≤ n` in the
+    machine-readable file costs nothing and settles it for anyone who wants the curve."""
+    artifact = sample_artifact()
+    document = cal().render_document(artifact)
+    for k in K_VALUES:
+        assert f"pass@{k}" in document, k
+    absent = [k for k in range(1, N + 1) if k not in K_VALUES]
+    for k in absent:
+        assert f"pass@{k}" not in document, k
+    for cell in artifact.cells:
+        assert sorted(int(k) for k in cell["pass_at_k"]) == list(range(1, N + 1)), cell["pass_at_k"]
