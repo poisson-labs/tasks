@@ -152,8 +152,10 @@ generates, stores or labels runs over `levels("distractor")` and both R controls
 every stored run; the tests of a *rule* (`test_cfg2` to `test_cfg7`, `test_map1`, `test_a4_2`,
 `test_a4_6`, `test_a4_7`, `test_a5_7`, `test_a5_8`, `test_a8_5`) fix one to four arms,
 `SPEC_D3` and `SPEC_R4` mainly, and claim no level.  `test_ct*` reach TG-M3's ledger through
-the registered arm sets: `test_ct3` and `test_ct4` on the seeds whose first record-id word a
-tool name carries, and `test_ct5` on one pair, `r0` against `r14`, at a dense spread.  **The open gap
+the registered arm sets, `test_ct5` on one pair, `r0` against `r14`, at a dense spread.
+`test_ct3` and `test_ct4` did the same on the seeds whose first record-id word a tool name
+carried, until vocabulary v2 left them no such seed and `45d0f49` retired them; the three
+TG-M3 rows only `test_ct3` caught are pinned in `tests/test_tg_m3_tasks.py`.  **The open gap
 (TG-ADR-42) is wider than recorded**: measured here at 60 seeds per word, `city` (eval),
 `grad` and `port` (train) refuse a knob R contrast at `r14` at every seed, and so does `disc`
 (train) at 43 of 60, which the record does not name; `face` and `elect` refuse none, and
@@ -340,7 +342,9 @@ def bundle_of(spec: ArmSpec, seed: int) -> Any:
 # ---------------------------------------------------------------------------
 # seeds: a spread over the 32-bit space, and the seeds whose first record-id word is one
 # some tool name carries (measured against TG-M3's build), which `test_ct3` and `test_ct4`
-# use.  Knob R's level axis is what they exercise.
+# used until `45d0f49` retired them.  Vocabulary v2 draws no such word, so `RISKY_WORDS`
+# and the helpers that read it find no seed and are unused; `GAP_WORDS` still filters
+# `test_ct2`'s and `test_ct5`'s seeds.
 # ---------------------------------------------------------------------------
 
 

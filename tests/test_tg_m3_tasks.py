@@ -2250,3 +2250,160 @@ def test_n17_2_tg_m3_asserts_no_horizon_and_does_not_reach_proofload():
     assert "horizon" not in fields and "max_turns" not in fields
     source = pathlib.Path(inspect.getfile(tasks())).read_text()
     assert "proofload" not in source.lower()
+
+
+# --------------------------------------------------------------------------
+# the three N7 rules the build added, pinned directly (retrofit, 2026-09-24)
+# --------------------------------------------------------------------------
+#
+# The build holds N7's overlap set still in three places it has freedom, and says so in
+# its module docstring: the reads the instruction touches are replaced last, the
+# distractors that add no instruction token the required tools lack are taken first, and
+# the template's prose carries no token a read tool's name or a qualifier carries.  Its
+# mutation rows 22, 23 and 26 cut each rule, and each survived this file.  Until
+# 2026-09-22 one case caught all three, TG-M5's `test_ct3[train]`, through the registered
+# arm sets and the six vocabulary-v1 record-id words a tool name carried; `45d0f49`
+# retired it with the words, and nothing caught the three rows after that.
+#
+# **On vocabulary v2 the two designation rules are latent.**  Measured exhaustively, over
+# both splits, every qualifier, every drawable entry code and every record-id word in each
+# position it can be rendered in: no instruction token is carried by a read tool's name,
+# and none makes a distractor loud.  On the frozen table a build without either rule
+# generates the same bytes, so no test over the frozen table can tell them apart.  They
+# are pinned here on the frozen table with one key changed, `entry_codes` narrowed to one
+# code joined from two of the table's own words, which the reference tokenizer splits at
+# the join: `regionform` puts `region` in every instruction, and `lookup_region` is a read
+# in every knob R block; `discountform` puts `discount` in every instruction, and
+# `discount`'s stage tools are distractors for every other class.  Neither whole word is in
+# a tool name, so both codes are drawable -- the entry-code filter reads whole words, and
+# N7 reads tokens.  Only the entry codes change, because the engine's `apply` resolves
+# every call against the frozen table, so a variant cannot rename anything the reference
+# chain calls.  The prose is pinned on the frozen table itself, since the template is the
+# frozen one.
+
+N7G_SEEDS = tuple(7 + i * (SEED_SPACE // 24) for i in range(24))
+
+
+def instruction_pieces(text):
+    """N7's decomposition of an instruction: the reference tokenizer's tokens as the
+    strings they stand for, stripped and lowered, the empty ones dropped."""
+    enc = encoding()
+    pieces = (enc.decode([token]).strip().lower() for token in enc.encode_ordinary(text))
+    return tuple(piece for piece in pieces if piece)
+
+
+@functools.lru_cache(maxsize=2)
+def one_code_spec(code):
+    """The frozen table with `entry_codes` narrowed to `code`, so every scenario draws it."""
+    t = json.loads(json.dumps(TABLE))
+    t["entry_codes"] = [code]
+    return engine().EngineSpec.from_mapping(t)
+
+
+def r_names(level, seed, split, table_spec):
+    """A plain knob R arm's tool names, in slot order, and its instruction."""
+    b = tasks().generate(spec(knob="distractor", level=level, split=split), seed, table_spec)
+    return tuple(tool["name"] for tool in b.tools), b.prompt
+
+
+def designation(names, pieces, table_spec):
+    """The order the build designates the `r0` block's read slots in: the reads no
+    instruction token touches first, then the rest, each group in slot order."""
+    reads = [slot for slot, name in enumerate(names) if name in table_spec.read_tools]
+    return sorted(reads, key=lambda slot: (any(p in names[slot].lower() for p in pieces), slot))
+
+
+@pytest.mark.parametrize("split", SPLITS)
+def test_n7g_1_a_read_the_instruction_touches_is_replaced_last(split):
+    """Every level replaces a prefix of one designation, and the designation puts the
+    read the instruction touches after every read it does not.  Replacing it earlier would
+    take `region` out of N7's overlap set between `r0` and that level."""
+    table_spec = one_code_spec("regionform")
+    for seed in N7G_SEEDS:
+        names, prompt = r_names(0, seed, split, table_spec)
+        pieces = instruction_pieces(prompt)
+        order = designation(names, pieces, table_spec)
+        touched = [names[slot] for slot in order if any(p in names[slot].lower() for p in pieces)]
+        assert touched == ["lookup_region"], (seed, touched)
+        for level in DISTRACTOR_LEVELS[1:]:
+            high, high_prompt = r_names(level, seed, split, table_spec)
+            assert high_prompt == prompt
+            moved = {slot for slot, name in enumerate(names) if high[slot] != name}
+            assert moved == set(order[:level]), (seed, level)
+
+
+@pytest.mark.parametrize("split", SPLITS)
+def test_n7g_2_the_quiet_distractors_are_taken_first(split):
+    """`r14` replaces every read, so its block shows the whole drawn distractor order, one
+    per designated slot.  In it every quiet distractor comes before every loud one, and
+    every lower level takes a prefix of it into a prefix of the designation.  A loud
+    distractor taken while a quiet one waits would put `discount` into N7's overlap set."""
+    table_spec = one_code_spec("discountform")
+    drawn_loud = 0
+    for seed in N7G_SEEDS:
+        names, prompt = r_names(0, seed, split, table_spec)
+        pieces = instruction_pieces(prompt)
+        core = [name.lower() for name in names if name in table_spec.stage_tools]
+        order = designation(names, pieces, table_spec)
+        top, _prompt = r_names(DISTRACTOR_LEVELS[-1], seed, split, table_spec)
+        ranked = [top[slot] for slot in order]
+        loud = [
+            any(p in name.lower() and not any(p in c for c in core) for p in pieces)
+            for name in ranked
+        ]
+        assert loud == sorted(loud), (seed, ranked)
+        drawn_loud += any(loud)
+        for level in DISTRACTOR_LEVELS[1:-1]:
+            high, _prompt = r_names(level, seed, split, table_spec)
+            assert [high[slot] for slot in order[:level]] == ranked[:level], (seed, level)
+            assert [high[slot] for slot in order[level:]] == [names[s] for s in order[level:]]
+    # The rule only orders what it is given: a seed whose draw holds no loud distractor
+    # pins nothing, so the sample must hold some.
+    assert drawn_loud >= len(N7G_SEEDS) // 2, drawn_loud
+
+
+@pytest.mark.parametrize("code", ["regionform", "discountform"])
+@pytest.mark.parametrize("split", SPLITS)
+def test_n7g_3_on_either_table_every_contrast_below_r14_holds_n7(split, code):
+    """What the two orderings are for.  `r14` is left out on purpose: its block keeps no
+    read and takes every distractor drawn, so there is no order left to choose and the
+    rules have no freedom to use."""
+    table_spec = one_code_spec(code)
+    for seed in N7G_SEEDS:
+        for level in DISTRACTOR_LEVELS[1:-1]:
+            tasks().generate_contrast(distractor_arms(0, level, split=split), seed, table_spec)
+
+
+def template_prose(bundle):
+    """The instruction with its slot values cut out, in slot order: what the template
+    itself says."""
+    text, cut, prose = bundle.prompt, 0, []
+    for _slot, value in bundle.prompt_slots:
+        at = text.index(value, cut)
+        prose.append(text[cut:at])
+        cut = at + len(value)
+    prose.append(text[cut:])
+    return "\n".join(prose)
+
+
+def test_n7g_4_the_templates_prose_carries_no_token_a_read_tool_or_qualifier_carries():
+    """The first of the three rules, and the only one the frozen table exercises: knob R's
+    block loses reads and gains other classes' stage tools as the level rises, so a prose
+    token either carries enters or leaves N7's set with the level.  `in`, `is`, `up` and
+    `to`, the four words the template started with, are each carried by some name here,
+    which is what shows the check can see what it guards."""
+    carriers = tuple(
+        f"{verb}_{facet}" for verb, facet in zip(TABLE["read_verbs"], TABLE["facets"])
+    ) + QUALIFIERS
+    for word in ("in", "is", "up", "to"):
+        assert any(word in name for name in carriers), word
+    arms = [spec(level=level) for level in DEPTH_LEVELS]
+    arms += [spec(knob="distractor", level=level) for level in DISTRACTOR_LEVELS]
+    for split in SPLITS:
+        for arm in arms:
+            arm = dataclasses.replace(arm, split=split)
+            for seed in N7G_SEEDS[:6]:
+                pieces = instruction_pieces(template_prose(tasks().generate(arm, seed)))
+                assert len(pieces) > 20
+                carried = {p: [n for n in carriers if p in n] for p in pieces}
+                assert not any(carried.values()), (split, arm, seed, carried)
