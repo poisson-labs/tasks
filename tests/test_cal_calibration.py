@@ -143,6 +143,7 @@ serving stack; the 1 spec amendment R8 authorises, which is the spec's and not a
 from __future__ import annotations
 
 import ast
+import hashlib
 import importlib
 import inspect
 import itertools
@@ -945,7 +946,7 @@ def provenance(**over: Any) -> Any:
         "models": [{"id": MODEL_A, "revision": MODEL_A, "endpoint_host": "api.openai.com"}],
         "decoding": {"temperature": 0.7, "top_p": 1.0, "reasoning_effort": "low", "max_tokens": 2048},
         "seed_list": list(range(1000, 1000 + S)),
-        "seed_list_hash": "s" * 64,
+        "seed_list_hash": hashlib.sha256(json.dumps(list(range(1000, 1000 + S))).encode("utf-8")).hexdigest(),
         "S": S,
         "n": N,
         "k_values": list(K_VALUES),
