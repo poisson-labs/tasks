@@ -90,11 +90,30 @@ Checked:   On 2026-09-21 the two lists were tested against six public word lists
            measurements, the candidate lists and the scripts are in the vault, under
            projects/task-generator/evidence/tg-publish-prep/word-lists/.
 
+The Qwen3-8B chat template -- a test fixture
+-------------------------------------------
+File:      tests/fixtures/qwen3-8b-chat-template.json
+What:      The chat template of Qwen/Qwen3-8B at revision
+           b968826d9c46dd6066d109eabc6255188de91218, copied unmodified out of that
+           revision's tokenizer_config.json (sha256 d5d09f07b48c3086c508b30d1c9114bd
+           1189145b74e982a265350c923acd8101), with its source and its sha256 beside it.
+           tests/test_cal_qwen_prep.py renders it to check the thinking-off template that
+           poisson_tasks.calibration_run derives from it at run time. The package ships no
+           part of it; the derivation replaces one line that the module names.
+Source:    https://huggingface.co/Qwen/Qwen3-8B/blob/b968826d9c46dd6066d109eabc6255188de91218/tokenizer_config.json
+License:   Apache License 2.0, per the repository's LICENSE file at the same revision
+           (read 2026-09-25), whose appendix reads "Copyright 2024 Alibaba Cloud".
+           The full text is at https://www.apache.org/licenses/LICENSE-2.0.
+
 Model weights and datasets
 --------------------------
-None are contained in this repository, and no code in it loads or downloads any. Model
-names appear in the tests only as strings, for example as a revision-string format and as
-tool-call marker names; nothing is fetched.
+None are contained in this repository. Two things fetch them at run time, on the
+runtime that serves the model and never into this repository: the calibration notebook
+(notebooks/calibration_model_b.ipynb), whose vLLM server downloads Qwen/Qwen3-8B's
+weights at the pinned revision from the Hugging Face Hub (Apache-2.0, as above), and
+`python -m poisson_tasks.calibration_run serve`, which reads that revision's
+tokenizer_config.json for its chat template. Elsewhere, model names appear in the tests
+only as strings, for example as a revision-string format and as tool-call marker names.
 
 ================================================================================
 2. Runtime dependencies
