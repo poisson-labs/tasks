@@ -486,6 +486,20 @@ def test_the_probe_proceeds_when_the_model_reaches_the_goal() -> None:
     assert verdict.leaky == pytest.approx(6 / 24)
 
 
+def test_the_floor_is_on_leaky_so_overshooting_every_goal_is_not_a_floor() -> None:
+    """A model that carries every record past its goal fails strict everywhere and reaches
+    every goal.  That is a finding about stopping (model A's depth:d5 was strict 0.177, leaky
+    0.713), not a model that cannot do the level, and the card must run.  The mutation pass
+    found a floor read on strict survived every other probe test, whose records never
+    separate the two."""
+    module = run_module()
+    records = [_record("depth:d5", i, 0, label="overshoot", calls=6) for i in range(24)]
+    verdict = module.probe_verdict(records, {}, max_prompt_tokens=3000, context_stops=0,
+                                   prompt_cap=6144)
+    assert verdict.strict == 0.0 and verdict.leaky == 1.0
+    assert verdict.proceed, verdict.reasons
+
+
 @pytest.mark.parametrize("case", ["no_call", "instrument", "context", "headroom"])
 def test_the_probe_stops_for_what_would_spoil_the_card(case: str) -> None:
     """Above CAL24's no-call threshold every cell would refuse; an instrument failure is
