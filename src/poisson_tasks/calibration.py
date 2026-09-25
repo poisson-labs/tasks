@@ -1,7 +1,9 @@
 """TG-M6, difficulty calibration: what each difficulty level is worth to a named model.
 
 The spec is the calibration handoff, invariants CAL1 to CAL23 with Taylor's rulings R1 to
-R17 of 2026-09-22 folded in, and the frozen oracle is `tests/test_cal_calibration.py`.  A
+R17 of 2026-09-22 folded in, and the frozen oracle is `tests/test_cal_calibration.py`.  CAL24
+and the plumbing gate are Taylor's rulings of 2026-09-25, pinned in
+`tests/test_cal_calibration_fix.py`.  A
 cell is `(arm, model)`; its records are `n` independent attempts at each of `S` generated
 tasks, and its numbers are pass@1 and pass@k under the export's own strict reward (X4), with
 the leaky predicate beside them (R15), a task-clustered interval (CAL9), a paired difference
@@ -55,6 +57,28 @@ Shapes decided here, where the oracle leaves them open
   its checkpoint is the wheel's own `traces.jsonl` plus `resume.load` (CAL23).
 * **A dollar figure needs a rate.**  A model whose provenance carries no rate publishes
   `null` dollars, not zero: model B costs compute units, not dollars (R1, R3).
+* **A cell that measures whether the model starts refuses to publish (CAL24).**  Model A's
+  first card had 72.5% of its episodes end on a first reply that asked for the record id
+  and the entry code and called no tool, which is a statement about the prompt and not
+  about the level.  Every cell carries the share of scored episodes that made no tool call
+  and the share that started and stopped short of the structural minimum; the two are
+  disjoint.  Above `NO_CALL_THRESHOLD` of the first, the cell refuses, the way CAL16
+  refuses above the instrument threshold.  Stopping short stays a printed column and not a
+  gate: giving up partway through a long chain is a difficulty result.
+* **Phase 1 is a plumbing gate, not a sample (`plumbing_gate`).**  Every episode scores, no
+  instrument label and no tally, every episode makes at least one tool call, and at least
+  half reach their arm's structural minimum.  The first two conditions alone passed a phase
+  1 whose five of six episodes never called a tool.
+* **Knob D's ordering is published on both predicates.**  Every depth arm offers the whole
+  eight-stage ladder, so below the top level the model can carry the record past the goal
+  (`overshoot`) and strict fails it; at the top level no stage lies above the goal.  Strict
+  at the lower levels therefore includes a stop-at-the-goal test the top level cannot have,
+  and leaky, which measures reaching the goal at every level, is shown beside it.  Strict
+  stays the headline (R15).
+* **The two call counts are named for what they count.**  A record's `sampled_calls` is the
+  export's metric of that name, the number of tool calls, and its `turns` is
+  `trace.num_turns`, the number of model calls.  The record keeps the oracle's field names;
+  the artifact publishes `tool_calls`, `model_calls` and `model_calls_median`.
 * **`docs/calibration.md` is one document with these sections in this order:** the level
   tables per knob, the instrument arms (R9), cost, adjacent levels, ordering, provenance.
   The control arms appear only under the instrument heading.
@@ -116,6 +140,10 @@ __all__ = [
     "dollars",
     "INSTRUMENT_TABLE_HEADING",
     "HEADLINE_PREDICATE",
+    "NO_CALL_THRESHOLD",
+    # phase 1's plumbing gate (ruling 3, 2026-09-25)
+    "plumbing_gate",
+    "PlumbingVerdict",
     # what runs (CAL1 to CAL5, CAL20 to CAL23, R11, R14, R16)
     "seed_list",
     "pilot_seeds",
@@ -162,6 +190,10 @@ INSTRUMENT_THRESHOLD = 0.02
 """CAL16's instrument-rate gate.  Declared here because a cell that exceeds it refuses to
 publish; the handoff records (open item 9) that nothing measured supports the number, and
 phase 1 is where it is first read against a real rate."""
+NO_CALL_THRESHOLD = 0.10
+"""CAL24's gate: a cell in which more than this share of scored episodes made no tool call
+refuses to publish, because it measures whether the model starts and not the level.  Taylor's
+number (2026-09-25); after the prompt fix the probe showed 0 of 16."""
 MODEL_A = "gpt-5-nano-2025-08-07"
 """Model A, pinned (R2)."""
 DECODING: dict[str, _Any] = {
@@ -238,6 +270,10 @@ class EpisodeRecord:
     metric; `label` is 2.3's outcome label, instrument or system.  The four token fields are
     `vf.Usage`'s: `prompt_tokens` excludes cache reads and `cached_input_tokens` carries
     them; `reasoning_tokens` is a subset of `completion_tokens` and is never added again.
+
+    `sampled_calls` is the number of **tool calls** the model made (the export's metric of
+    that name) and `turns` is the number of **model calls** (`trace.num_turns`).  The names
+    are the oracle's and stay; the artifact publishes them as `tool_calls` and `model_calls`.
     """
 
     task_id: str
@@ -621,6 +657,7 @@ class Provenance:
     rate_read_date: str
     serving: _Mapping[str, _Mapping[str, _Any]]
     budget: _Mapping[str, _Any]
+    no_call_threshold: float = NO_CALL_THRESHOLD
 
     def __post_init__(self) -> None:
         for name in ("package_version", "engine_hash", "generator_hash", "vocabulary_hash",
@@ -651,6 +688,8 @@ class Provenance:
             raise ValueError("saturation_low < saturation_high, both inside [0, 1]")
         if not 0.0 <= self.instrument_threshold <= 1.0:
             raise ValueError("instrument_threshold is a rate in [0, 1]")
+        if not 0.0 <= self.no_call_threshold <= 1.0:
+            raise ValueError("no_call_threshold is a rate in [0, 1]")
         try:
             _datetime.date.fromisoformat(self.rate_read_date)
         except ValueError as error:
@@ -711,6 +750,7 @@ class Provenance:
         decoding: _Mapping[str, _Any] | None = None,
         budget: _Mapping[str, _Any] | None = None,
         instrument_threshold: float = INSTRUMENT_THRESHOLD,
+        no_call_threshold: float = NO_CALL_THRESHOLD,
     ) -> Provenance:
         """The block for a real run, with every hash and version read from the package and
         the wheel rather than typed."""
@@ -740,6 +780,7 @@ class Provenance:
             rate_read_date=rate_read_date,
             serving={key: dict(value) for key, value in serving.items()},
             budget=dict(DEFAULT_BUDGET if budget is None else budget),
+            no_call_threshold=no_call_threshold,
         )
 
 
@@ -813,6 +854,17 @@ def _minimum_calls(arm: str) -> int | None:
     return spec.level if spec.knob == _DEPTH else D_R
 
 
+def _made_no_call(row: EpisodeRecord) -> bool:
+    """CAL24: the episode ended without a single tool call."""
+    return row.sampled_calls == 0
+
+
+def _stopped_short(row: EpisodeRecord, minimum: int | None) -> bool:
+    """CAL24: the episode started and made fewer tool calls than its structural minimum.
+    Disjoint from `_made_no_call`, so no call, short and reached partition the episodes."""
+    return minimum is not None and 0 < row.sampled_calls < minimum
+
+
 def _cell_tally(
     key: CellKey,
     cells: _Mapping[CellKey, Cell],
@@ -837,7 +889,8 @@ def _check_cell(
 ) -> None:
     """The refusals that name a cell: two models in one record (CAL14), a model or arm the
     key does not name, a model the block does not declare, an instrument rate over the
-    threshold (CAL16), and no scored episode at all."""
+    threshold (CAL16), no scored episode at all, and a no-call share over its threshold
+    (CAL24)."""
     arm, model = key
     models = sorted({row.model for row in cell})
     if len(models) > 1:
@@ -856,8 +909,16 @@ def _check_cell(
             f"cell {key} refuses to publish: its instrument rate {rate:.3f} exceeds the "
             f"declared threshold {provenance.instrument_threshold}"
         )
-    if not scored(cell):
+    kept = scored(cell)
+    if not kept:
         raise ValueError(f"cell {key} has no scored episode")
+    share = sum(1 for row in kept if _made_no_call(row)) / len(kept)
+    if share > provenance.no_call_threshold:
+        raise ValueError(
+            f"cell {key} refuses to publish: {share:.3f} of its scored episodes made no tool "
+            f"call, above the declared {provenance.no_call_threshold}; it measures whether "
+            "the model starts, not the level (CAL24)"
+        )
 
 
 def _cell_figures(
@@ -890,6 +951,9 @@ def _cell_figures(
             pass_k_interval[str(k)] = [low, high]
     labelled = len(cell) - len(kept)
     failures = max(labelled, sum(tally.values())) if tally else labelled
+    minimum = _minimum_calls(arm)
+    no_call = sum(1 for row in kept if _made_no_call(row))
+    short = sum(1 for row in kept if _stopped_short(row, minimum))
     completion = sum(row.completion_tokens for row in kept)
     reasoning = sum(row.reasoning_tokens for row in kept)
     prompt = sum(row.prompt_tokens for row in kept)
@@ -898,7 +962,7 @@ def _cell_figures(
         "arm_id": arm,
         "model": model,
         "control": _is_control(arm),
-        "minimum_calls": _minimum_calls(arm),
+        "minimum_calls": minimum,
         "seeds": sorted(block[0].seed for block in blocks),
         "S_declared": provenance.S,
         "S_observed": len(blocks),
@@ -918,9 +982,13 @@ def _cell_figures(
         "instrument_count": failures,
         "instrument_rate": rate,
         "episodes_scored": len(kept),
-        "turns": sum(row.turns for row in kept),
-        "turns_median": _statistics.median(row.turns for row in kept),
-        "sampled_calls": sum(row.sampled_calls for row in kept),
+        "no_call_count": no_call,
+        "no_call_share": no_call / len(kept),
+        "stopped_short_count": short,
+        "stopped_short_share": short / len(kept),
+        "model_calls": sum(row.turns for row in kept),
+        "model_calls_median": _statistics.median(row.turns for row in kept),
+        "tool_calls": sum(row.sampled_calls for row in kept),
         "prompt_tokens": prompt,
         "cached_input_tokens": cached,
         "completion_tokens": completion,
@@ -989,7 +1057,8 @@ def _pair_rows(
 
 def _ordering_rows(cells: _Mapping[CellKey, Cell]) -> list[dict[str, _Any]]:
     """CAL13 per model and knob, and the family agreement count where two models share a
-    complete axis."""
+    complete axis.  Each ordering row carries leaky pass@1 across the axis beside the strict
+    rates (ruling 5, 2026-09-25); the agreement count stays on the strict headline."""
     rows: list[dict[str, _Any]] = []
     reports: dict[tuple[str, str], OrderingReport] = {}
     for model in sorted({model for _, model in cells}):
@@ -1000,11 +1069,16 @@ def _ordering_rows(cells: _Mapping[CellKey, Cell]) -> list[dict[str, _Any]]:
                 continue
             report = ordering({level: scored(cells[key]) for level, key in keyed.items()}, axis)
             reports[(model, knob)] = report
+            leaky = [_leaky_at_1(scored(cells[keyed[level]])) for level in axis]
             rows.append({
                 "kind": "ordering", "model": model, "knob": knob,
                 "levels": list(report.levels), "pass_at_1": list(report.rates),
                 "non_increasing": report.non_increasing,
                 "pairs": [list(pair) for pair in report.pairs],
+                "leaky_at_1": leaky,
+                "leaky_non_increasing": all(
+                    leaky[i] >= leaky[i + 1] for i in range(len(leaky) - 1)
+                ),
             })
     for knob in _KNOBS:
         families = sorted(model for model, k in reports if k == knob)
@@ -1096,7 +1170,8 @@ def _interval(value: _Sequence[float] | None) -> str:
 def _level_header(k_values: _Sequence[int]) -> tuple[str, str]:
     columns = ["arm", "model", "strict pass@1", "95% interval", "leaky pass@1"]
     columns += [f"strict pass@{k}" for k in k_values if k != 1]
-    columns += ["min calls", "saturated", "instrument", "incomplete"]
+    columns += ["min calls", "no tool call", "stopped short", "saturated", "instrument",
+                "incomplete"]
     return "| " + " | ".join(columns) + " |", "|" + "---|" * len(columns)
 
 
@@ -1107,7 +1182,8 @@ def _level_row(cell: _Mapping[str, _Any], k_values: _Sequence[int]) -> str:
     ]
     values += [_fmt(cell["pass_at_k"].get(str(k))) for k in k_values if k != 1]
     values += [
-        _fmt(cell["minimum_calls"]), _fmt(cell["saturated"]),
+        _fmt(cell["minimum_calls"]), _fmt(cell["no_call_share"]),
+        _fmt(cell["stopped_short_share"]), _fmt(cell["saturated"]),
         str(cell["instrument_count"]), _fmt(cell["incomplete"]),
     ]
     return "| " + " | ".join(values) + " |"
@@ -1116,6 +1192,21 @@ def _level_row(cell: _Mapping[str, _Any], k_values: _Sequence[int]) -> str:
 def _plain(knob: str, level: int) -> _ArmSpec:
     return _ArmSpec(knob=knob, level=level, control=None, strictness="strict",
                     split=SPLIT, generator_version=GENERATOR_VERSION)
+
+
+def _depth_stop_note(axis: _Sequence[int]) -> str:
+    """Ruling 5's sentence, from the axis: every depth arm offers the whole stage ladder, so
+    below the top level strict also asks the model to stop at the goal, and at the top level
+    no stage lies above it."""
+    lower, top = list(axis[:-1]), axis[-1]
+    below = f"d{lower[0]} to d{lower[-1]}" if len(lower) > 1 else f"d{lower[0]}"
+    return (
+        f"Strict at {below} includes a stop-at-the-goal test that d{top} cannot have: every "
+        "depth arm offers the whole stage ladder, so below the top level the model can carry "
+        f"the record past the goal (overshoot), and at d{top} no stage lies above the goal. "
+        "Leaky measures reaching the goal at every level and is comparable across the whole "
+        "axis. Strict stays the headline."
+    )
 
 
 def render_document(artifact: Artifact) -> str:
@@ -1155,8 +1246,13 @@ def render_document(artifact: Artifact) -> str:
         "so a rate is never read without knowing which one it is. The interval is a "
         "task-clustered bootstrap at "
         f"{prov.bootstrap_resamples} resamples (seed {prov.bootstrap_seed}). *min calls* is "
-        "the structural minimum, which needs no model. A saturated level is one this model "
-        "cannot see past and it appears in no claim below.",
+        "the structural minimum, which needs no model. *no tool call* is the share of scored "
+        "episodes that ended without a single tool call, and *stopped short* the share that "
+        "started and made fewer calls than the minimum; the two are disjoint. A cell whose "
+        f"no-call share is above {prov.no_call_threshold} is not published at all (CAL24), "
+        "because it would measure whether the model starts rather than the level; stopping "
+        "short is a difficulty result and is printed, not gated. A saturated level is one "
+        "this model cannot see past and it appears in no claim below.",
     ]
     level_cells = [cell for cell in artifact.cells if not cell["control"]]
     control_cells = [cell for cell in artifact.cells if cell["control"]]
@@ -1188,13 +1284,13 @@ def render_document(artifact: Artifact) -> str:
         f"{prov.rate_read_date}; a model with no rate declared has no dollar figure, and a "
         "provider-reported cost is printed beside the computed one and never reconciled.",
         "",
-        "| arm | model | median turns | median tokens | prompt tokens | cached input tokens "
+        "| arm | model | median model calls | median tokens | prompt tokens | cached input tokens "
         "| completion tokens | reasoning share | computed $ | reported $ |",
         "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for cell in artifact.cells:
         lines.append(
-            f"| `{cell['arm_id']}` | {cell['model']} | {_fmt(cell['turns_median'])} | "
+            f"| `{cell['arm_id']}` | {cell['model']} | {_fmt(cell['model_calls_median'])} | "
             f"{_fmt(cell['tokens_median'])} | {cell['prompt_tokens']} | "
             f"{cell['cached_input_tokens']} | {cell['completion_tokens']} | "
             f"{_fmt(cell['reasoning_share'])} | {_fmt(cell['dollars'])} | "
@@ -1229,6 +1325,13 @@ def render_document(artifact: Artifact) -> str:
                 f"{row['levels']} is {', '.join(_fmt(rate) for rate in row['pass_at_1'])}; "
                 f"non-increasing: {_fmt(row['non_increasing'])}."
             )
+            lines.append(
+                f"  - leaky pass@1 across levels {row['levels']} is "
+                f"{', '.join(_fmt(rate) for rate in row['leaky_at_1'])}; "
+                f"non-increasing: {_fmt(row['leaky_non_increasing'])}."
+            )
+            if row["knob"] == _DEPTH:
+                lines.append("  - " + _depth_stop_note(row["levels"]))
         else:
             lines.append(
                 f"- {row['knob']}: {row['models'][0]} and {row['models'][1]} put the harder "
@@ -1250,7 +1353,8 @@ def render_document(artifact: Artifact) -> str:
         "every k up to n is in the artifact",
         f"- bootstrap: {prov.bootstrap_resamples} resamples, seed {prov.bootstrap_seed}",
         f"- delta* = {prov.delta_star}; saturation at or below {prov.saturation_low} and at or "
-        f"above {prov.saturation_high}; instrument threshold {prov.instrument_threshold}",
+        f"above {prov.saturation_high}; instrument threshold {prov.instrument_threshold}; "
+        f"no-call threshold {prov.no_call_threshold}",
         f"- budget: {prov.budget['tokens']} tokens, {prov.budget['wall_clock_seconds']} s wall "
         "clock, or the provider out of credit, whichever first",
         f"- rates read on {prov.rate_read_date}",
@@ -1282,6 +1386,75 @@ def render_readme_lines(artifact: Artifact) -> str:
             + (" (incomplete)" if cell["incomplete"] else "")
         )
     return "\n".join(out) + "\n"
+
+
+# ---------------------------------------------------------------------------
+# phase 1's plumbing gate (ruling 3, 2026-09-25)
+# ---------------------------------------------------------------------------
+
+
+@_dc.dataclass(frozen=True)
+class PlumbingVerdict:
+    """What phase 1's plumbing pass found: whether it passed, why not, and every episode's
+    tool calls against its arm's structural minimum."""
+
+    passed: bool
+    reasons: tuple[str, ...]
+    episodes: int
+    no_call: int
+    reached_minimum: int
+    per_episode: tuple[dict[str, _Any], ...]
+
+
+def plumbing_gate(
+    records: _Sequence[EpisodeRecord], tally: _Mapping[str, int] | None = None
+) -> PlumbingVerdict:
+    """Phase 1 passes only if the path works end to end **and** the model acted on the task.
+
+    Every episode is scored, none carries an instrument label and the tally is empty (the
+    gate phase 1 already had); every episode makes at least one tool call; and at least half
+    of them reach their arm's structural minimum.  The first conditions alone passed the
+    2026-09-25 re-run, whose five of six episodes asked for the record id and the entry code
+    and never called a tool.
+    """
+    reasons: list[str] = []
+    rows: list[dict[str, _Any]] = []
+    for row in records:
+        rows.append({
+            "task_id": row.task_id, "arm_id": row.arm_id, "seed": row.seed,
+            "attempt": row.attempt, "label": row.label, "tool_calls": row.sampled_calls,
+            "minimum_calls": _minimum_calls(row.arm_id),
+        })
+    if not records:
+        reasons.append("no episode was recorded")
+    labelled = [row for row in records if row.label in INSTRUMENT_LABELS]
+    if labelled:
+        reasons.append(f"{len(labelled)} of {len(records)} episodes carry an instrument label")
+    if tally and sum(tally.values()):
+        reasons.append(f"the instrument tally is not empty: {dict(tally)}")
+    unknown = sorted({row["arm_id"] for row in rows if row["minimum_calls"] is None})
+    if unknown:
+        reasons.append(f"no structural minimum for arm(s) {unknown}")
+    no_call = sum(1 for row in records if _made_no_call(row))
+    if no_call:
+        reasons.append(f"{no_call} of {len(records)} episodes made no tool call")
+    reached = sum(
+        1 for row in rows
+        if row["minimum_calls"] is not None and row["tool_calls"] >= row["minimum_calls"]
+    )
+    if records and 2 * reached < len(records):
+        reasons.append(
+            f"{reached} of {len(records)} episodes reached their structural minimum; at least "
+            "half must"
+        )
+    return PlumbingVerdict(
+        passed=not reasons,
+        reasons=tuple(reasons),
+        episodes=len(records),
+        no_call=no_call,
+        reached_minimum=reached,
+        per_episode=tuple(rows),
+    )
 
 
 # ---------------------------------------------------------------------------
