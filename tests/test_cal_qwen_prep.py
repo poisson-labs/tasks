@@ -552,6 +552,8 @@ class Rig:
         self.server_pids: list[int] = []
 
     def argv(self, command: str, *extra: str) -> list[str]:
+        if command == "verify":  # the laptop's step, after the download: no runtime folders
+            return [sys.executable, str(self.driver), command, *extra]
         common = ["--local", str(self.local), "--durable", str(self.durable),
                   "--port", str(self.port), "--mirror-interval", "0.2"]
         return [sys.executable, str(self.driver), command, *common, *extra]
@@ -815,17 +817,29 @@ def test_verify_refuses_a_bundle_whose_file_changed(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _notebook_commands() -> list[str]:
+def _notebook_cells() -> list[str]:
     nb = json.loads(NOTEBOOK.read_text(encoding="utf-8"))
+    return ["".join(cell["source"]) for cell in nb["cells"] if cell["cell_type"] == "code"]
+
+
+def _notebook_commands() -> list[str]:
+    """Every driver subcommand the notebook runs, in cell order: each is a call to the
+    helper cell's `step("<command>", ...)`."""
+    import re
+
     commands = []
-    for cell in nb["cells"]:
-        if cell["cell_type"] != "code":
-            continue
-        for line in "".join(cell["source"]).splitlines():
-            if "-m poisson_tasks.calibration_run" in line:
-                after = line.split("-m poisson_tasks.calibration_run", 1)[1].split()
-                commands.append(after[0])
+    for source in _notebook_cells():
+        commands += re.findall(r'\bstep\(\s*"([a-z0-9-]+)"', source)
     return commands
+
+
+HELPER_MARK = "# the driver helper"
+
+
+def _helper_source() -> str:
+    found = [source for source in _notebook_cells() if source.startswith(HELPER_MARK)]
+    assert len(found) == 1, "the notebook has one helper cell"
+    return found[0]
 
 
 def test_the_notebook_is_a_valid_v4_notebook() -> None:
@@ -850,6 +864,78 @@ def test_every_notebook_command_is_one_the_driver_has() -> None:
     choices = parser._subparsers._group_actions[0].choices  # noqa: SLF001
     unknown = [command for command in _notebook_commands() if command not in choices]
     assert unknown == [], unknown
+
+
+KERNEL = textwrap.dedent("""
+    import json, sys
+    ns = json.loads(sys.argv[1])
+    exec(open(sys.argv[2]).read(), ns)
+    try:
+        ns["step"](*sys.argv[3:])
+    except KeyboardInterrupt:
+        print("KERNEL-INTERRUPTED", flush=True)
+        sys.exit(0)
+    except SystemExit as stop:
+        print(f"KERNEL-STOPPED {stop}", flush=True)
+        sys.exit(0)
+    print("KERNEL-DONE", flush=True)
+""")
+
+
+def _kernel(r: Rig, *step_args: str) -> list[str]:
+    """A stand-in for the notebook's kernel: the helper cell, exec'd with the rig's driver
+    and folders in place of the notebook's configuration cell."""
+    helper = r.tmp / "helper.py"
+    helper.write_text(_helper_source())
+    kernel = r.tmp / "kernel.py"
+    kernel.write_text(KERNEL)
+    names = {"DRIVER": [sys.executable, str(r.driver)],
+             "COMMON": ["--local", str(r.local), "--durable", str(r.durable),
+                        "--port", str(r.port), "--mirror-interval", "0.2"]}
+    return [sys.executable, str(kernel), json.dumps(names), str(helper), *step_args]
+
+
+@needs_uv
+def test_the_helper_turns_a_stop_into_a_halt_and_passes_a_success_through(rig: Any) -> None:
+    """A driver exit code other than 0 stops the notebook (so "Run all" goes no further than
+    a failed gate), and 0 lets it carry on."""
+    r = rig(mode="no_call")
+    r.serve()
+    ok = subprocess.run(_kernel(r, "preflight"), env=r.env, capture_output=True, text=True,
+                        timeout=600)
+    assert "KERNEL-DONE" in ok.stdout, ok.stdout + ok.stderr
+    stopped = subprocess.run(_kernel(r, "phase1"), env=r.env, capture_output=True, text=True,
+                             timeout=600)
+    assert "KERNEL-STOPPED" in stopped.stdout, stopped.stdout + stopped.stderr
+    assert "phase1" in stopped.stdout
+    r.stop_server()
+
+
+@needs_uv
+def test_the_helper_passes_the_stop_button_on_to_the_driver(rig: Any) -> None:
+    """Jupyter's Stop button interrupts the kernel and nothing else.  The helper must pass
+    the interrupt on and wait, or the driver runs on unseen: the kernel gets SIGINT here, the
+    driver exits, and the durable folder holds everything the local disk held."""
+    r = rig(delay=0.3)
+    r.serve()
+    r.run("preflight")
+    r.run("phase1")
+    r.run("probe")
+    kernel = subprocess.Popen(_kernel(r, "phase3", "--wall-clock-hours", "1"), env=r.env,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    r.started.append(kernel)  # type: ignore[arg-type]
+    _wait_for(lambda: len(r.durable_ids("phase3")) >= 2, timeout_s=300)
+    kernel.send_signal(signal.SIGINT)
+    out, _ = kernel.communicate(timeout=180)
+    assert "KERNEL-INTERRUPTED" in out, out
+    assert "interrupted" in out, "the driver did not see the interrupt"
+    for local in (r.local / "phase3").glob("*/traces.jsonl"):
+        durable = r.durable / local.relative_to(r.local)
+        assert durable.read_bytes() == run_module().complete_lines(local.read_bytes())
+    lock = json.loads((r.durable / "lock.json").read_text()) if (r.durable / "lock.json").exists() else None
+    assert lock is None, "the driver exited without releasing its lock"
+    r.run("phase3", "--wall-clock-hours", "1")
+    r.stop_server()
 
 
 def test_the_notebook_types_no_pin_of_its_own() -> None:

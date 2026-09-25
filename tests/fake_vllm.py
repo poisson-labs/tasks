@@ -43,31 +43,55 @@ def _first_user(messages: list[dict[str, Any]]) -> str | None:
     return None
 
 
-def build_registry(seeds: list[int]) -> dict[str, tuple[int, list[tuple[str, dict[str, Any]]]]]:
-    """First user message -> (assistant turns in the seeded history, reference calls)."""
+Calls = list[tuple[str, dict[str, Any]]]
+Registry = dict[str, list[tuple[list[str], Calls]]]
+
+
+def _call_names(messages: list[dict[str, Any]]) -> list[str]:
+    names = []
+    for message in messages:
+        if message.get("role") == "assistant":
+            for call in message.get("tool_calls") or []:
+                names.append(call.get("function", call).get("name"))
+    return names
+
+
+def build_registry(seeds: list[int]) -> Registry:
+    """First user message -> every task that opens with it, as (the seeded history's call
+    names, the reference calls).  A control arm opens with its plain arm's message and a
+    seeded history, so the history is what tells them apart."""
     from poisson_tasks import calibration as cal
     from poisson_tasks.tasks import generate
 
-    registry: dict[str, tuple[int, list[tuple[str, dict[str, Any]]]]] = {}
+    registry: Registry = {}
     for spec in cal.arm_specs():
         for seed in seeds:
             bundle = generate(spec, seed)
             prompt = bundle.prompt
             if isinstance(prompt, str):
-                first, history = prompt, 0
+                first, history = prompt, []
             else:
-                messages = list(prompt)
+                messages = [dict(m) for m in prompt]
                 first = _first_user(messages) or ""
-                history = sum(1 for m in messages if m.get("role") == "assistant")
+                history = _call_names(messages)
             calls = [(name, dict(arguments)) for name, arguments in bundle.reference_calls]
-            registry[first] = (history, calls)
+            registry.setdefault(first, []).append((history, calls))
     return registry
 
 
-def _reply(body: dict[str, Any], registry: dict[str, Any], mode: str) -> dict[str, Any]:
+def _match(registry: Registry, messages: list[dict[str, Any]]) -> tuple[int, Calls] | None:
+    """The task whose seeded history is the longest prefix of the conversation's calls."""
+    made = _call_names(messages)
+    best: tuple[int, Calls] | None = None
+    for history, calls in registry.get(_first_user(messages) or "", []):
+        if made[: len(history)] == history and (best is None or len(history) > best[0]):
+            best = (len(history), calls)
+    return best
+
+
+def _reply(body: dict[str, Any], registry: Registry, mode: str) -> dict[str, Any]:
     messages = body.get("messages") or []
-    first = _first_user(messages)
-    known = registry.get(first or "")
+    known = _match(registry, messages)
     assistants = sum(1 for m in messages if m.get("role") == "assistant")
     message: dict[str, Any] = {"role": "assistant", "content": "Done."}
     finish = "stop"
