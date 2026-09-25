@@ -172,7 +172,8 @@ DECODING: dict[str, _Any] = {
 }
 """The declared decoding (CAL5): every `SamplingConfig` field pinned, and not deterministic.
 Temperature 1.0 is the value the reasoning family accepts; whether the endpoint honours it at
-all is the handoff's open item 5 and is measured for cents in phase 1."""
+all is the handoff's open item 5 and is measured for cents in phase 1.  The limit is declared
+under `SamplingConfig`'s field name and sent as `max_completion_tokens` (`run_config_for`)."""
 DEFAULT_BUDGET: dict[str, _Any] = {"tokens": 100_000_000, "wall_clock_seconds": 12 * 3600}
 """The stop's declared limits (CAL20, R11): tokens and wall clock; the third limit is the
 provider saying out of credit, which is read from the episode and needs no number."""
@@ -1541,10 +1542,17 @@ def run_config_for(
     if run_dir is not None:
         shared["run"] = {"name": run_dir, "dir": run_dir}
     check_decoding(DECODING)
+    # The token limit goes out as `max_completion_tokens`: OpenAI's reasoning models refuse
+    # `max_tokens` with a 400, and vLLM's chat endpoint takes either, reading this one first.
+    # `SamplingConfig.max_tokens` serialises as `max_tokens` whichever alias fills it, so the
+    # limit rides `extra_body`, which `wire_args` flattens into the request unchanged.
+    declared = {name: value for name, value in DECODING.items() if name != "max_tokens"}
     calibration = EvalConfig(
         env=_env_config(spec, seed_list(spec)),
         num_rollouts=N,
-        sampling=_vf.SamplingConfig(**DECODING),
+        sampling=_vf.SamplingConfig(
+            **declared, extra_body={"max_completion_tokens": DECODING["max_tokens"]}
+        ),
         **shared,
     )
     return documented, calibration
