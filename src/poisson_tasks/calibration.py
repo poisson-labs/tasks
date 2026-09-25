@@ -1,0 +1,1838 @@
+"""TG-M6, difficulty calibration: what each difficulty level is worth to a named model.
+
+The spec is the calibration handoff, invariants CAL1 to CAL23 with Taylor's rulings R1 to
+R17 of 2026-09-22 folded in, and the frozen oracle is `tests/test_cal_calibration.py`.  A
+cell is `(arm, model)`; its records are `n` independent attempts at each of `S` generated
+tasks, and its numbers are pass@1 and pass@k under the export's own strict reward (X4), with
+the leaky predicate beside them (R15), a task-clustered interval (CAL9), a paired difference
+to the neighbouring level (CAL10, CAL11) and the cost the attempts burned (CAL15).
+
+**This is not stage 0a's blind calibration.**  0a plants bugs in a scripted policy and asks
+whether the instrument detects them.  This asks what a level is worth to a model, and it
+shares a word with 0a and no arithmetic.
+
+**A21's distinct-instance rule does not apply to this module.**  Rev. 3.1's V-1 fix and A21
+exist so that no two of the pilot's replicates are the same instance.  Here the opposite is
+required: pass@k is defined over repeated attempts at the same task, so a cell's `n` attempts
+share `task_id`, `arm_id`, `seed`, `scenario_hash` and `generator_hash` (CAL3), and
+`check_attempts` refuses a cell whose attempts were salted apart.  A session that carries A21
+across by reflex computes something that is not pass@k.
+
+**Tasks is standalone.**  Nothing here imports Proofload or the Prove-gated adapter, and the
+whole module works with Proofload unimportable (CAL22).  The instrument labels the adapter
+would assign are read from the signals the trace already carries instead (R16,
+`label_from_signals`), and every published number recomputes from the per-episode records with
+no model and no network (CAL19).
+
+Shapes decided here, where the oracle leaves them open
+------------------------------------------------------
+
+* **A cell is a plain sequence of `EpisodeRecord`** and every estimator takes one.  Records
+  are grouped into per-task blocks in first-seen order, so a records file recomputes to the
+  same bytes.
+* **The bootstrap is task-decomposable.**  Resampling tasks with each task's block carried
+  whole and recomputing a mean-over-tasks statistic is the mean of the per-task values over
+  the resampled indices; `cluster_bootstrap` computes it that way and refuses a statistic
+  that is not a mean over tasks.  The draw is `random.Random(seed)` with one `randrange(S)`
+  per resampled task, and the quantile rule is the smallest value whose cumulative share
+  reaches the quantile, which is the rule that reproduces the enumerated distribution
+  exactly.
+* **The seed list is derived, not typed.**  Sixty 32-bit seeds from a named derivation
+  (`_SEED_DERIVATION`), sorted; the derivation is the declaration and the list is published
+  in the artifact with its hash (CAL1, R7).
+* **The pilot's seeds are a registry.**  The pilot's stages declare *salts* and Proofload
+  derives their seeds at run time, which this module cannot import.  `pilot_seeds` returns
+  what the pilot has registered, and today that is nothing: CAL1's disjointness holds in the
+  other direction, by the pilot's salt vetting refusing a salt whose seeds meet the published
+  sixty.
+* **`instrument_rate` reads the tally first.**  A resume drops failed episodes and re-runs
+  them, so the records under-count what happened; the tally written at the moment of failure
+  (R14) is the count, and the denominator is the scored records plus the tally.
+* **The runner is the wheel's in-process eval body** with two things between episodes that
+  `run_eval` cannot do: the budget check before each episode (CAL20, R11) and the tally at
+  the moment of failure (R14).  Its config is `run_config_for`'s, which differs from the
+  documented command in exactly the seed list, `-r` and the declared sampling (CAL21), and
+  its checkpoint is the wheel's own `traces.jsonl` plus `resume.load` (CAL23).
+* **A dollar figure needs a rate.**  A model whose provenance carries no rate publishes
+  `null` dollars, not zero: model B costs compute units, not dollars (R1, R3).
+* **`docs/calibration.md` is one document with these sections in this order:** the level
+  tables per knob, the instrument arms (R9), cost, adjacent levels, ordering, provenance.
+  The control arms appear only under the instrument heading.
+"""
+
+from __future__ import annotations
+
+import asyncio as _asyncio
+import dataclasses as _dc
+import datetime as _datetime
+import hashlib as _hashlib
+import importlib.metadata as _metadata
+import json as _json
+import math as _math
+import pathlib as _pathlib
+import random as _random
+import statistics as _statistics
+import time as _time
+from collections.abc import Callable as _Callable
+from collections.abc import Iterable as _Iterable
+from collections.abc import Mapping as _Mapping
+from collections.abc import Sequence as _Sequence
+from typing import Any as _Any
+from typing import cast as _cast
+
+from poisson_tasks.engine import EngineSpec as _EngineSpec
+from poisson_tasks.engine import engine_hash as _engine_hash
+from poisson_tasks.export import MEASURED_HARNESS as _MEASURED_HARNESS
+from poisson_tasks.knobs import ArmSpec as _ArmSpec
+from poisson_tasks.knobs import arm_id as _arm_id
+from poisson_tasks.knobs import levels as _levels
+from poisson_tasks.tasks import generate as _generate
+
+__all__ = [
+    # records and the arithmetic (CAL6 to CAL16)
+    "EpisodeRecord",
+    "scored",
+    "instrument_rate",
+    "pass_at_1",
+    "pass_at_k",
+    "cluster_bootstrap",
+    "paired_delta",
+    "PairedDelta",
+    "call_pair",
+    "TOO_SMALL",
+    "DISTINGUISHABLE",
+    "saturated",
+    "ordering",
+    "OrderingReport",
+    # the artifact and the two renderings (CAL14, CAL17, CAL18, CAL19)
+    "Provenance",
+    "Artifact",
+    "build_artifact",
+    "render_document",
+    "render_readme_lines",
+    "write_artifact",
+    "read_records",
+    "write_records",
+    "dollars",
+    "INSTRUMENT_TABLE_HEADING",
+    "HEADLINE_PREDICATE",
+    # what runs (CAL1 to CAL5, CAL20 to CAL23, R11, R14, R16)
+    "seed_list",
+    "pilot_seeds",
+    "arm_specs",
+    "check_attempts",
+    "check_decoding",
+    "within_budget",
+    "BudgetVerdict",
+    "STOP_REASONS",
+    "EpisodeSignals",
+    "label_from_signals",
+    "record_instrument",
+    "read_tally",
+    "owed_after_interrupt",
+    "run_config_for",
+    "config_difference",
+    "run_arm",
+    "RunOutcome",
+    "records_from_run",
+]
+
+# ---------------------------------------------------------------------------
+# the declared design: every number Taylor ruled, in one place (handoff section 0)
+# ---------------------------------------------------------------------------
+
+S = 60
+"""Seeds per cell (R6)."""
+N = 5
+"""Attempts per task (R6)."""
+DELTA_STAR = 0.15
+"""The resolution, in pass-rate points, declared before any run (R5)."""
+K_VALUES = (1, 2, 5)
+"""The `k` values on the card; every `k <= n` goes in the artifact (R17)."""
+SPLIT = "eval"
+"""Calibrate on the eval split (R7)."""
+BOOTSTRAP_RESAMPLES = 2000
+"""CAL9's resample count."""
+BOOTSTRAP_SEED = 20260922
+"""CAL9's RNG seed, carried in the artifact so the interval recomputes byte for byte."""
+SATURATION_LOW = 0.05
+SATURATION_HIGH = 0.95
+"""CAL12's inclusive bounds."""
+INSTRUMENT_THRESHOLD = 0.02
+"""CAL16's instrument-rate gate.  Declared here because a cell that exceeds it refuses to
+publish; the handoff records (open item 9) that nothing measured supports the number, and
+phase 1 is where it is first read against a real rate."""
+MODEL_A = "gpt-5-nano-2025-08-07"
+"""Model A, pinned (R2)."""
+DECODING: dict[str, _Any] = {
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "reasoning_effort": "low",
+    "max_tokens": 2048,
+}
+"""The declared decoding (CAL5): every `SamplingConfig` field pinned, and not deterministic.
+Temperature 1.0 is the value the reasoning family accepts; whether the endpoint honours it at
+all is the handoff's open item 5 and is measured for cents in phase 1."""
+DEFAULT_BUDGET: dict[str, _Any] = {"tokens": 100_000_000, "wall_clock_seconds": 12 * 3600}
+"""The stop's declared limits (CAL20, R11): tokens and wall clock; the third limit is the
+provider saying out of credit, which is read from the episode and needs no number."""
+GENERATOR_VERSION = "0"
+TASKSET_ID = "poisson-tasks"
+DOCUMENTED_SEEDS = (404, 55, 2121)
+"""The seed list on the documented one-liner in `docs/verifiers-export.md` (CAL21)."""
+D_R = 2
+"""Knob R's fixed chain depth (2.2): a distractor arm's minimum calls."""
+
+TOO_SMALL = "too small for this design to call"
+DISTINGUISHABLE = "distinguishable"
+HEADLINE_PREDICATE = "strict"
+INSTRUMENT_TABLE_HEADING = "## Instrument arms (control arms, not difficulty levels)"
+
+STOP_REASONS = ("tokens", "wall_clock", "provider_exhausted")
+"""R11: the run stops on whichever arrives first."""
+
+# 2.3's closed outcome vocabulary, split as 2.3 splits it.
+INSTRUMENT_LABELS = frozenset({"verifier_error", "replay_mismatch", "api_error", "wall_timeout"})
+SYSTEM_LABELS = frozenset(
+    {"malformed_call", "turn_limit", "overshoot", "wrong_state", "collateral_mutation", "passed"}
+)
+OUTCOME_LABELS = INSTRUMENT_LABELS | SYSTEM_LABELS
+_PASSED = "passed"
+
+# 2.2's four SamplingConfig fields.  Each defaults to `None` in the wheel and `wire_args`
+# drops it, so an unset field is absent from the request and the provider's default applies.
+SAMPLING_FIELDS = ("temperature", "top_p", "reasoning_effort", "max_tokens")
+
+# R12: what a locally served model's provenance has to carry beyond `kind`.
+SERVING_KINDS = ("hosted", "local")
+SERVING_FIELDS_LOCAL = ("stack", "stack_version", "flags", "gpu", "revision")
+_RATE_FIELDS = ("input_rate", "cached_input_rate", "output_rate")
+
+# The two control arms per knob (2.2), the same four `tests/test_tg_m5_standalone.py`
+# parameterises over.  A control pair names two levels and is not derivable from the axis,
+# which is why these are declared and the plain arms are not.
+D_CONTROLS = ((1, 8), (2, 5))
+R_CONTROLS = ((0, 8), (2, 14))
+
+TALLY_FILE = "instrument-tally.jsonl"
+"""R14's append-only tally.  Deliberately not `traces.jsonl`, which `resume.load` rewrites."""
+TRACES_FILE = "traces.jsonl"
+RECORDS_FILE = "episodes.jsonl"
+
+_DEPTH = "depth"
+_DISTRACTOR = "distractor"
+_KNOBS = (_DEPTH, _DISTRACTOR)
+
+
+# ---------------------------------------------------------------------------
+# records
+# ---------------------------------------------------------------------------
+
+
+@_dc.dataclass(frozen=True, kw_only=True)
+class EpisodeRecord:
+    """One scored episode: the compact row committed to the repository (handoff section 1).
+
+    `strict` is `ExportTask.strict == 1.0` (X4) and `leaky` is the export's `leaky_pass`
+    metric; `label` is 2.3's outcome label, instrument or system.  The four token fields are
+    `vf.Usage`'s: `prompt_tokens` excludes cache reads and `cached_input_tokens` carries
+    them; `reasoning_tokens` is a subset of `completion_tokens` and is never added again.
+    """
+
+    task_id: str
+    arm_id: str
+    model: str
+    seed: int
+    attempt: int
+    strict: bool
+    leaky: bool
+    label: str
+    turns: int
+    sampled_calls: int
+    prompt_tokens: int
+    cached_input_tokens: int
+    completion_tokens: int
+    reasoning_tokens: int
+    cost: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.label not in OUTCOME_LABELS:
+            raise ValueError(
+                f"{self.label!r} is not a label 2.3 defines; the vocabulary is closed: "
+                + ", ".join(sorted(OUTCOME_LABELS))
+            )
+        if self.strict != (self.label == _PASSED):
+            raise ValueError(
+                f"strict is {self.strict} but the label is {self.label!r}: the strict "
+                "indicator is 1.0 exactly when the strict label is `passed` (X4)"
+            )
+        if self.strict and not self.leaky:
+            raise ValueError("a strict pass is a leaky pass (G6)")
+        if self.label in INSTRUMENT_LABELS and self.leaky:
+            raise ValueError("an instrument failure never wears a pass (G10)")
+        for name in ("attempt", "turns", "sampled_calls", "prompt_tokens",
+                     "cached_input_tokens", "completion_tokens", "reasoning_tokens"):
+            if getattr(self, name) < 0:
+                raise ValueError(f"{name} is negative")
+        if self.reasoning_tokens > self.completion_tokens:
+            raise ValueError("reasoning tokens are a subset of completion tokens")
+
+    @staticmethod
+    def to_json(row: EpisodeRecord) -> str:
+        """The wire format: one JSON object per line, keys sorted."""
+        return _json.dumps(_dc.asdict(row), sort_keys=True)
+
+    @staticmethod
+    def from_json(line: str) -> EpisodeRecord:
+        return EpisodeRecord(**_json.loads(line))
+
+
+Cell = _Sequence[EpisodeRecord]
+
+
+def _blocks(cell: Cell) -> list[list[EpisodeRecord]]:
+    """The cell's records grouped by task, in first-seen order.
+
+    CAL3's shape is checked on the way: the records of one task share its seed, arm and
+    model, or they are not attempts at one task.
+    """
+    grouped: dict[str, list[EpisodeRecord]] = {}
+    for row in cell:
+        block = grouped.setdefault(row.task_id, [])
+        if block and (block[0].seed, block[0].arm_id, block[0].model) != (
+            row.seed, row.arm_id, row.model
+        ):
+            raise ValueError(
+                f"the records of task {row.task_id} do not share one seed, arm and model; "
+                "attempts are attempts at one task (CAL3)"
+            )
+        block.append(row)
+    return list(grouped.values())
+
+
+def scored(cell: Cell) -> list[EpisodeRecord]:
+    """CAL16: an episode carrying an instrument label leaves the denominator."""
+    return [row for row in cell if row.label not in INSTRUMENT_LABELS]
+
+
+def instrument_rate(cell: Cell, tally: _Mapping[str, int] | None = None) -> float:
+    """The share of attempts that failed for instrument reasons.
+
+    R14: where a tally exists it is the count, because a resume has re-run what failed and
+    the records alone under-count.  The denominator is the scored records plus the failures,
+    which is every attempt that ran.
+    """
+    labelled = sum(1 for row in cell if row.label in INSTRUMENT_LABELS)
+    failures = max(labelled, sum(tally.values())) if tally else labelled
+    attempts = (len(cell) - labelled) + failures
+    return failures / attempts if attempts else 0.0
+
+
+# ---------------------------------------------------------------------------
+# the estimators (CAL6 to CAL8)
+# ---------------------------------------------------------------------------
+
+
+def _block_rate(block: _Sequence[EpisodeRecord], key: _Callable[[EpisodeRecord], bool]) -> float:
+    return sum(1 for row in block if key(row)) / len(block)
+
+
+def _block_pass_at_k(
+    block: _Sequence[EpisodeRecord], k: int, key: _Callable[[EpisodeRecord], bool]
+) -> float:
+    """CAL7's unbiased estimator for one task: `1 - C(n-c, k)/C(n, k)`."""
+    n = len(block)
+    if k < 1:
+        raise ValueError(f"pass@{k} needs k >= 1")
+    if k > n:
+        raise ValueError(
+            f"pass@{k} needs k <= n, and task {block[0].task_id} has n = {n} scored attempts"
+        )
+    c = sum(1 for row in block if key(row))
+    return 1.0 - _math.comb(n - c, k) / _math.comb(n, k)
+
+
+def _strict(row: EpisodeRecord) -> bool:
+    return row.strict
+
+
+def _leaky(row: EpisodeRecord) -> bool:
+    return row.leaky
+
+
+def _mean(values: _Sequence[float]) -> float:
+    if not values:
+        raise ValueError("a cell with no scored task has no rate")
+    return sum(values) / len(values)
+
+
+def pass_at_1(cell: Cell) -> float:
+    """CAL6: the mean over tasks of each task's mean strict indicator.  Task-weighted: every
+    seed counts once, whatever `n` it kept."""
+    return _mean([_block_rate(block, _strict) for block in _blocks(cell)])
+
+
+def pass_at_k(cell: Cell, k: int) -> float:
+    """CAL7: the unbiased estimator averaged over tasks; refuses `k > n` naming both.  At
+    `k = 1` it is `pass_at_1` exactly."""
+    return _mean([_block_pass_at_k(block, k, _strict) for block in _blocks(cell)])
+
+
+def _pass_at_k_statistic(k: int) -> _Callable[[Cell], float]:
+    def statistic(cell: Cell) -> float:
+        return pass_at_k(cell, k)
+
+    return statistic
+
+
+def _leaky_at_1(cell: Cell) -> float:
+    return _mean([_block_rate(block, _leaky) for block in _blocks(cell)])
+
+
+def _leaky_at_k(cell: Cell, k: int) -> float:
+    return _mean([_block_pass_at_k(block, k, _leaky) for block in _blocks(cell)])
+
+
+# ---------------------------------------------------------------------------
+# the interval (CAL9) and the paired difference (CAL10, CAL11, CAL12)
+# ---------------------------------------------------------------------------
+
+
+def _quantile(sorted_values: _Sequence[float], q: float) -> float:
+    """The smallest value whose cumulative share reaches `q`.  Not the nearest-rank rule and
+    not the floor rule: on a distribution with few atoms both report the atom below."""
+    index = _math.ceil(q * len(sorted_values)) - 1
+    return sorted_values[min(len(sorted_values) - 1, max(0, index))]
+
+
+def _resampled_means(
+    values: _Sequence[float], *, resamples: int, seed: int
+) -> list[float]:
+    """The bootstrap distribution of a mean over tasks: `resamples` draws of `S` task indices
+    with replacement, one `randrange(S)` per drawn task."""
+    if resamples < 1:
+        raise ValueError("the bootstrap needs at least one resample")
+    rng = _random.Random(seed)
+    size = len(values)
+    out: list[float] = []
+    for _ in range(resamples):
+        total = 0.0
+        for _position in range(size):
+            total += values[rng.randrange(size)]
+        out.append(total / size)
+    out.sort()
+    return out
+
+
+def cluster_bootstrap(
+    cell: Cell,
+    statistic: _Callable[[Cell], float],
+    *,
+    resamples: int,
+    seed: int,
+) -> tuple[float, float]:
+    """CAL9: the 95% interval of `statistic` under resampling of *tasks*, each task's block of
+    attempts carried whole, at a declared resample count and RNG seed.
+
+    `statistic` must be a mean over tasks of a per-task value, which pass@1 and pass@k both
+    are; a statistic that is not decomposes differently and is refused rather than
+    estimated wrongly.
+    """
+    blocks = _blocks(cell)
+    values = [statistic(block) for block in blocks]
+    whole = statistic(cell)
+    if not _math.isclose(whole, _mean(values), abs_tol=1e-9):
+        raise ValueError(
+            "cluster_bootstrap needs a statistic that is a mean over tasks; this one is "
+            f"{whole} on the cell and {_mean(values)} as a mean of per-task values"
+        )
+    distribution = _resampled_means(values, resamples=resamples, seed=seed)
+    return _quantile(distribution, 0.025), _quantile(distribution, 0.975)
+
+
+@_dc.dataclass(frozen=True)
+class PairedDelta:
+    """`pass@1(a) - pass@1(b)` with its paired 95% interval (CAL10)."""
+
+    point: float
+    low: float
+    high: float
+
+
+def _by_seed(cell: Cell) -> dict[int, list[EpisodeRecord]]:
+    out: dict[int, list[EpisodeRecord]] = {}
+    for block in _blocks(cell):
+        seed = block[0].seed
+        if seed in out:
+            raise ValueError(f"two tasks in one cell carry seed {seed}")
+        out[seed] = block
+    return out
+
+
+def paired_delta(
+    a: Cell,
+    b: Cell,
+    *,
+    resamples: int,
+    seed: int,
+    provenance: Provenance | None = None,
+) -> PairedDelta:
+    """CAL10: resample the shared seeds once, recompute both cells on that resample, and take
+    the difference, so the pairing is inside the interval.  Two cells with different seed sets
+    refuse, naming the symmetric difference.  With a provenance block, a saturated cell
+    refuses (CAL12)."""
+    left, right = _by_seed(a), _by_seed(b)
+    if set(left) != set(right):
+        symmetric = sorted(set(left) ^ set(right))
+        raise ValueError(
+            "the two cells do not share a seed set, so the difference would compare "
+            f"marginals; the symmetric difference is {symmetric}"
+        )
+    if provenance is not None:
+        for name, cell in (("a", a), ("b", b)):
+            rate = pass_at_1(cell)
+            if saturated(rate, provenance):
+                raise ValueError(
+                    f"cell {name} is saturated at pass@1 = {rate:.3f} and appears in no "
+                    "distinguishability claim (CAL12)"
+                )
+    order = sorted(left)
+    differences = [
+        _block_rate(left[key], _strict) - _block_rate(right[key], _strict) for key in order
+    ]
+    distribution = _resampled_means(differences, resamples=resamples, seed=seed)
+    return PairedDelta(
+        point=pass_at_1(a) - pass_at_1(b),
+        low=_quantile(distribution, 0.025),
+        high=_quantile(distribution, 0.975),
+    )
+
+
+def call_pair(delta: PairedDelta, provenance: Provenance) -> str:
+    """CAL11's two clauses: the paired interval excludes zero **and** `|delta| >= delta*`,
+    with delta* read from the provenance block.  Anything else is `TOO_SMALL`, never "no
+    difference"."""
+    excludes_zero = not (delta.low <= 0.0 <= delta.high)
+    if excludes_zero and abs(delta.point) >= provenance.delta_star:
+        return DISTINGUISHABLE
+    return TOO_SMALL
+
+
+def saturated(pass_rate: float, provenance: Provenance) -> bool:
+    """CAL12: at or above the high bound, or at or below the low one.  Both inclusive."""
+    return pass_rate >= provenance.saturation_high or pass_rate <= provenance.saturation_low
+
+
+# ---------------------------------------------------------------------------
+# ordering (CAL13)
+# ---------------------------------------------------------------------------
+
+
+def _sign(value: float) -> int:
+    return (value > 0) - (value < 0)
+
+
+@_dc.dataclass(frozen=True)
+class OrderingReport:
+    """Per model and knob: whether pass@1 is non-increasing across the level axis, and each
+    adjacent pair's difference.  `agreement` is a count, never a statistic."""
+
+    levels: tuple[int, ...]
+    rates: tuple[float, ...]
+    pairs: tuple[tuple[int, int, float], ...]
+    non_increasing: bool
+
+    def agreement(self, other: OrderingReport) -> int:
+        """The number of adjacent pairs on which two families put the harder level on the
+        same side."""
+        if self.levels != other.levels:
+            raise ValueError("ordering reports over different level axes cannot be compared")
+        return sum(
+            1 for mine, theirs in zip(self.pairs, other.pairs, strict=True)
+            if _sign(mine[2]) == _sign(theirs[2])
+        )
+
+
+def ordering(cells: _Mapping[int, Cell], axis: _Sequence[int]) -> OrderingReport:
+    """CAL13 over the whole axis, never a pair: `axis` is `levels(knob)` and every level must
+    have a cell."""
+    missing = [level for level in axis if level not in cells]
+    if missing:
+        raise ValueError(f"no cell for level(s) {missing}; ordering needs the whole axis")
+    rates = tuple(pass_at_1(cells[level]) for level in axis)
+    pairs = tuple(
+        (axis[i], axis[i + 1], rates[i] - rates[i + 1]) for i in range(len(axis) - 1)
+    )
+    return OrderingReport(
+        levels=tuple(axis),
+        rates=rates,
+        pairs=pairs,
+        non_increasing=all(difference >= 0.0 for _, _, difference in pairs),
+    )
+
+
+# ---------------------------------------------------------------------------
+# provenance (CAL18, R11, R12)
+# ---------------------------------------------------------------------------
+
+
+def _seed_list_digest(seeds: _Sequence[int]) -> str:
+    return _hashlib.sha256(_json.dumps(list(seeds)).encode("utf-8")).hexdigest()
+
+
+def _require_keys(block: _Mapping[str, _Any], keys: _Iterable[str], what: str) -> None:
+    missing = [key for key in keys if key not in block]
+    if missing:
+        raise ValueError(f"{what} is incomplete; missing " + ", ".join(missing))
+
+
+@_dc.dataclass(frozen=True, kw_only=True)
+class Provenance:
+    """CAL18's block: everything a number depends on.  A missing field refuses construction,
+    and so does a field that cannot be what it says it is.
+
+    `models` is one mapping per model with `id`, `revision` and `endpoint_host`, and either
+    all three of `input_rate`, `cached_input_rate` and `output_rate` (dollars per million
+    tokens) or none.  `serving` is keyed by model id; a `local` entry carries R12's five
+    fields and a `hosted` one carries `endpoint_host`.  A model with no `serving` entry is
+    hosted at its `endpoint_host`.
+    """
+
+    package_version: str
+    engine_hash: str
+    generator_hash: str
+    vocabulary_hash: str
+    verifiers_version: str
+    harness_id: str
+    models: _Sequence[_Mapping[str, _Any]]
+    decoding: _Mapping[str, _Any]
+    seed_list: _Sequence[int]
+    seed_list_hash: str
+    S: int
+    n: int
+    k_values: _Sequence[int]
+    bootstrap_resamples: int
+    bootstrap_seed: int
+    delta_star: float
+    saturation_high: float
+    saturation_low: float
+    instrument_threshold: float
+    rate_read_date: str
+    serving: _Mapping[str, _Mapping[str, _Any]]
+    budget: _Mapping[str, _Any]
+
+    def __post_init__(self) -> None:
+        for name in ("package_version", "engine_hash", "generator_hash", "vocabulary_hash",
+                     "verifiers_version", "seed_list_hash"):
+            if not isinstance(getattr(self, name), str) or not getattr(self, name):
+                raise ValueError(f"{name} must be a non-empty string")
+        if self.harness_id != _MEASURED_HARNESS:
+            raise ValueError(
+                f"harness_id is {self.harness_id!r}; every pinned measurement is under "
+                f"{_MEASURED_HARNESS!r} (X9)"
+            )
+        if self.S < 1 or self.n < 1:
+            raise ValueError("S and n are at least 1")
+        if len(self.seed_list) != self.S or len(set(self.seed_list)) != self.S:
+            raise ValueError(
+                f"seed_list must hold S = {self.S} distinct seeds; it holds "
+                f"{len(set(self.seed_list))} distinct of {len(self.seed_list)}"
+            )
+        if not self.k_values or any(
+            not isinstance(k, int) or k < 1 or k > self.n for k in self.k_values
+        ):
+            raise ValueError(f"k_values must be integers in 1..n = {self.n}: {self.k_values}")
+        if self.bootstrap_resamples < 1:
+            raise ValueError("bootstrap_resamples is at least 1")
+        if not 0.0 < self.delta_star < 1.0:
+            raise ValueError("delta_star is a pass-rate difference strictly inside (0, 1)")
+        if not 0.0 <= self.saturation_low < self.saturation_high <= 1.0:
+            raise ValueError("saturation_low < saturation_high, both inside [0, 1]")
+        if not 0.0 <= self.instrument_threshold <= 1.0:
+            raise ValueError("instrument_threshold is a rate in [0, 1]")
+        try:
+            _datetime.date.fromisoformat(self.rate_read_date)
+        except ValueError as error:
+            raise ValueError(
+                f"rate_read_date is not an ISO date: {self.rate_read_date!r}"
+            ) from error
+        check_decoding(self.decoding)
+        _require_keys(self.budget, ("tokens", "wall_clock_seconds"), "budget")
+        if not self.models:
+            raise ValueError("models names no model")
+        for entry in self.models:
+            _require_keys(
+                entry, ("id", "revision", "endpoint_host"), f"models[{entry.get('id')!r}]"
+            )
+            declared = [field for field in _RATE_FIELDS if field in entry]
+            if declared and len(declared) != len(_RATE_FIELDS):
+                raise ValueError(
+                    f"models[{entry['id']!r}] declares {declared}; the three rates are "
+                    "declared together or not at all"
+                )
+        for model_id, entry in self.serving.items():
+            kind = entry.get("kind")
+            if kind not in SERVING_KINDS:
+                raise ValueError(f"serving[{model_id!r}].kind must be one of {SERVING_KINDS}")
+            if kind == "local":
+                _require_keys(entry, SERVING_FIELDS_LOCAL, f"serving[{model_id!r}] (local)")
+                revision = str(entry["revision"])
+                if len(revision) != 40 or any(c not in "0123456789abcdef" for c in revision):
+                    raise ValueError(
+                        f"serving[{model_id!r}].revision must be a 40-character commit hash (N18)"
+                    )
+            else:
+                _require_keys(entry, ("endpoint_host",), f"serving[{model_id!r}] (hosted)")
+
+    def as_dict(self) -> dict[str, _Any]:
+        out: dict[str, _Any] = _json.loads(_json.dumps(_dc.asdict(self)))
+        return out
+
+    def rates_for(self, model: str) -> _Mapping[str, _Any] | None:
+        entry = self.model_entry(model)
+        if all(field in entry for field in _RATE_FIELDS):
+            return entry
+        return None
+
+    def model_entry(self, model: str) -> _Mapping[str, _Any]:
+        for entry in self.models:
+            if entry["id"] == model:
+                return entry
+        raise ValueError(f"model {model!r} is not declared in the provenance block's models")
+
+    @classmethod
+    def for_run(
+        cls,
+        *,
+        models: _Sequence[_Mapping[str, _Any]],
+        serving: _Mapping[str, _Mapping[str, _Any]],
+        rate_read_date: str,
+        decoding: _Mapping[str, _Any] | None = None,
+        budget: _Mapping[str, _Any] | None = None,
+        instrument_threshold: float = INSTRUMENT_THRESHOLD,
+    ) -> Provenance:
+        """The block for a real run, with every hash and version read from the package and
+        the wheel rather than typed."""
+        seeds = seed_list()
+        spec = _EngineSpec.load()
+        bundle = _generate(arm_specs()[0], seeds[0])
+        return cls(
+            package_version=_metadata.version("poisson-tasks"),
+            engine_hash=_engine_hash(spec),
+            generator_hash=bundle.generator_hash,
+            vocabulary_hash=_vocabulary_hash(),
+            verifiers_version=_metadata.version("verifiers"),
+            harness_id=_MEASURED_HARNESS,
+            models=list(models),
+            decoding=dict(DECODING if decoding is None else decoding),
+            seed_list=list(seeds),
+            seed_list_hash=_seed_list_digest(seeds),
+            S=S,
+            n=N,
+            k_values=list(K_VALUES),
+            bootstrap_resamples=BOOTSTRAP_RESAMPLES,
+            bootstrap_seed=BOOTSTRAP_SEED,
+            delta_star=DELTA_STAR,
+            saturation_high=SATURATION_HIGH,
+            saturation_low=SATURATION_LOW,
+            instrument_threshold=instrument_threshold,
+            rate_read_date=rate_read_date,
+            serving={key: dict(value) for key, value in serving.items()},
+            budget=dict(DEFAULT_BUDGET if budget is None else budget),
+        )
+
+
+def _vocabulary_hash() -> str:
+    """A digest over the frozen vocabulary table's bytes, as shipped."""
+    root = _pathlib.Path(__file__).resolve().parent
+    return _hashlib.sha256((root / "data" / "vocabulary-v2.json").read_bytes()).hexdigest()
+
+
+# ---------------------------------------------------------------------------
+# cost (CAL15)
+# ---------------------------------------------------------------------------
+
+
+def dollars(figures: _Mapping[str, _Any], rates: _Mapping[str, _Any] | None) -> float | None:
+    """CAL15: tokens times a rate carried in the artifact, cached input at its own rate and
+    reasoning tokens never added a second time.  No rate, no dollar figure."""
+    if rates is None:
+        return None
+    return (
+        float(figures["prompt_tokens"]) * float(rates["input_rate"])
+        + float(figures["cached_input_tokens"]) * float(rates["cached_input_rate"])
+        + float(figures["completion_tokens"]) * float(rates["output_rate"])
+    ) / 1_000_000
+
+
+# ---------------------------------------------------------------------------
+# the artifact (CAL14, CAL16 to CAL20)
+# ---------------------------------------------------------------------------
+
+
+@_dc.dataclass(frozen=True)
+class Artifact:
+    """The machine-readable artifact: one record per cell, the adjacent-level pairs, the
+    orderings, and the provenance block every figure was computed under."""
+
+    cells: list[dict[str, _Any]]
+    pairs: list[dict[str, _Any]]
+    orderings: list[dict[str, _Any]]
+    provenance: Provenance
+
+    def as_dict(self) -> dict[str, _Any]:
+        return {
+            "cells": _json.loads(_json.dumps(self.cells)),
+            "pairs": _json.loads(_json.dumps(self.pairs)),
+            "orderings": _json.loads(_json.dumps(self.orderings)),
+            "provenance": self.provenance.as_dict(),
+        }
+
+
+CellKey = tuple[str, str]
+
+
+def _spec_for(arm: str) -> _ArmSpec | None:
+    for spec in arm_specs():
+        if _arm_id(spec) == arm:
+            return spec
+    return None
+
+
+def _is_control(arm: str) -> bool:
+    spec = _spec_for(arm)
+    return spec is not None and spec.control is not None
+
+
+def _minimum_calls(arm: str) -> int | None:
+    """G5's structural number: `d` for a depth arm and `d_R` for a distractor arm."""
+    spec = _spec_for(arm)
+    if spec is None:
+        return None
+    return spec.level if spec.knob == _DEPTH else D_R
+
+
+def _cell_tally(
+    key: CellKey,
+    cells: _Mapping[CellKey, Cell],
+    tally: _Mapping[str, int] | _Mapping[CellKey, _Mapping[str, int]] | None,
+) -> _Mapping[str, int] | None:
+    """The tally for one cell.  A flat label-to-count tally is accepted only for a
+    single-cell artifact; otherwise it is keyed by cell."""
+    if tally is None:
+        return None
+    if all(isinstance(name, str) for name in tally):
+        if len(cells) != 1:
+            raise ValueError("a flat tally cannot be attributed across several cells")
+        flat = _cast(_Mapping[str, int], tally)
+        return {name: int(count) for name, count in flat.items()}
+    keyed = _cast(_Mapping[CellKey, _Mapping[str, int]], tally)
+    found = keyed.get(key)
+    return None if found is None else {name: int(count) for name, count in found.items()}
+
+
+def _check_cell(
+    key: CellKey, cell: Cell, provenance: Provenance, tally: _Mapping[str, int] | None
+) -> None:
+    """The refusals that name a cell: two models in one record (CAL14), a model or arm the
+    key does not name, a model the block does not declare, an instrument rate over the
+    threshold (CAL16), and no scored episode at all."""
+    arm, model = key
+    models = sorted({row.model for row in cell})
+    if len(models) > 1:
+        raise ValueError(
+            "no published number pools models; this record holds " + ", ".join(models)
+        )
+    if models and models[0] != model:
+        raise ValueError(f"cell {key} holds records of model {models[0]!r}")
+    arms = sorted({row.arm_id for row in cell})
+    if arms and arms != [arm]:
+        raise ValueError(f"cell {key} holds records of arm(s) {arms}")
+    provenance.model_entry(model)
+    rate = instrument_rate(cell, tally)
+    if rate > provenance.instrument_threshold:
+        raise ValueError(
+            f"cell {key} refuses to publish: its instrument rate {rate:.3f} exceeds the "
+            f"declared threshold {provenance.instrument_threshold}"
+        )
+    if not scored(cell):
+        raise ValueError(f"cell {key} has no scored episode")
+
+
+def _cell_figures(
+    key: CellKey,
+    cell: Cell,
+    provenance: Provenance,
+    tally: _Mapping[str, int] | None,
+) -> dict[str, _Any]:
+    arm, model = key
+    rate = instrument_rate(cell, tally)
+    kept = scored(cell)
+    raw_blocks = _blocks(cell)
+    blocks = _blocks(kept)
+    n_min = min(len(block) for block in blocks)
+    strict_1 = pass_at_1(kept)
+    interval_1 = cluster_bootstrap(
+        kept, pass_at_1, resamples=provenance.bootstrap_resamples, seed=provenance.bootstrap_seed
+    )
+    pass_k = {str(k): pass_at_k(kept, k) for k in range(1, n_min + 1)}
+    leaky_k = {str(k): _leaky_at_k(kept, k) for k in range(1, n_min + 1)}
+    pass_k_interval: dict[str, list[float]] = {}
+    for k in provenance.k_values:
+        if k <= n_min:
+            low, high = cluster_bootstrap(
+                kept,
+                _pass_at_k_statistic(k),
+                resamples=provenance.bootstrap_resamples,
+                seed=provenance.bootstrap_seed,
+            )
+            pass_k_interval[str(k)] = [low, high]
+    labelled = len(cell) - len(kept)
+    failures = max(labelled, sum(tally.values())) if tally else labelled
+    completion = sum(row.completion_tokens for row in kept)
+    reasoning = sum(row.reasoning_tokens for row in kept)
+    prompt = sum(row.prompt_tokens for row in kept)
+    cached = sum(row.cached_input_tokens for row in kept)
+    figures: dict[str, _Any] = {
+        "arm_id": arm,
+        "model": model,
+        "control": _is_control(arm),
+        "minimum_calls": _minimum_calls(arm),
+        "seeds": sorted(block[0].seed for block in blocks),
+        "S_declared": provenance.S,
+        "S_observed": len(blocks),
+        "n_declared": provenance.n,
+        "incomplete": len(blocks) < provenance.S
+        or any(len(block) < provenance.n for block in raw_blocks),
+        "pass_at_1": strict_1,
+        "pass_at_1_interval": [interval_1[0], interval_1[1]],
+        "pass_at_k": pass_k,
+        "pass_at_k_interval": pass_k_interval,
+        "leaky_at_1": _leaky_at_1(kept),
+        "leaky_at_k": leaky_k,
+        "saturated": saturated(strict_1, provenance),
+        "outcome_mix": {label: sum(1 for row in cell if row.label == label)
+                        for label in sorted(OUTCOME_LABELS)
+                        if any(row.label == label for row in cell)},
+        "instrument_count": failures,
+        "instrument_rate": rate,
+        "episodes_scored": len(kept),
+        "turns": sum(row.turns for row in kept),
+        "turns_median": _statistics.median(row.turns for row in kept),
+        "sampled_calls": sum(row.sampled_calls for row in kept),
+        "prompt_tokens": prompt,
+        "cached_input_tokens": cached,
+        "completion_tokens": completion,
+        "reasoning_tokens": reasoning,
+        "tokens_median": _statistics.median(
+            row.prompt_tokens + row.cached_input_tokens + row.completion_tokens for row in kept
+        ),
+        "cached_input_share": cached / (prompt + cached) if prompt + cached else 0.0,
+        "reasoning_share": reasoning / completion if completion else 0.0,
+        "reported_cost": (
+            sum(row.cost for row in kept if row.cost is not None)
+            if any(row.cost is not None for row in kept)
+            else None
+        ),
+    }
+    figures["dollars"] = dollars(figures, provenance.rates_for(model))
+    return figures
+
+
+def _pair_rows(
+    cells: _Mapping[CellKey, Cell],
+    figures: _Mapping[CellKey, dict[str, _Any]],
+    provenance: Provenance,
+) -> list[dict[str, _Any]]:
+    """One row per model, knob and adjacent pair of plain levels (CAL10 to CAL12), over the
+    whole axis and never a chosen pair."""
+    rows: list[dict[str, _Any]] = []
+    models = sorted({model for _, model in cells})
+    for model in models:
+        for knob in _KNOBS:
+            axis = _levels(knob)
+            for a, b in zip(axis, axis[1:], strict=False):
+                key_a = (_arm_id(_plain(knob, a)), model)
+                key_b = (_arm_id(_plain(knob, b)), model)
+                if key_a not in cells or key_b not in cells:
+                    continue
+                row: dict[str, _Any] = {
+                    "model": model, "knob": knob, "level_a": a, "level_b": b,
+                    "arm_a": key_a[0], "arm_b": key_b[0],
+                    "delta": None, "low": None, "high": None,
+                }
+                saturated_arms = [
+                    key[0] for key in (key_a, key_b) if figures[key]["saturated"]
+                ]
+                if saturated_arms:
+                    row["verdict"] = "excluded"
+                    row["reason"] = "saturated: " + ", ".join(saturated_arms)
+                    rows.append(row)
+                    continue
+                try:
+                    delta = paired_delta(
+                        scored(cells[key_a]), scored(cells[key_b]),
+                        resamples=provenance.bootstrap_resamples, seed=provenance.bootstrap_seed,
+                    )
+                except ValueError as error:
+                    row["verdict"] = "refused"
+                    row["reason"] = str(error)
+                    rows.append(row)
+                    continue
+                row.update(delta=delta.point, low=delta.low, high=delta.high)
+                row["verdict"] = call_pair(delta, provenance)
+                row["reason"] = None
+                rows.append(row)
+    return rows
+
+
+def _ordering_rows(cells: _Mapping[CellKey, Cell]) -> list[dict[str, _Any]]:
+    """CAL13 per model and knob, and the family agreement count where two models share a
+    complete axis."""
+    rows: list[dict[str, _Any]] = []
+    reports: dict[tuple[str, str], OrderingReport] = {}
+    for model in sorted({model for _, model in cells}):
+        for knob in _KNOBS:
+            axis = _levels(knob)
+            keyed = {level: (_arm_id(_plain(knob, level)), model) for level in axis}
+            if not all(key in cells for key in keyed.values()):
+                continue
+            report = ordering({level: scored(cells[key]) for level, key in keyed.items()}, axis)
+            reports[(model, knob)] = report
+            rows.append({
+                "kind": "ordering", "model": model, "knob": knob,
+                "levels": list(report.levels), "pass_at_1": list(report.rates),
+                "non_increasing": report.non_increasing,
+                "pairs": [list(pair) for pair in report.pairs],
+            })
+    for knob in _KNOBS:
+        families = sorted(model for model, k in reports if k == knob)
+        for i, first in enumerate(families):
+            for second in families[i + 1:]:
+                rows.append({
+                    "kind": "agreement", "knob": knob, "models": [first, second],
+                    "agreeing_pairs": reports[(first, knob)].agreement(reports[(second, knob)]),
+                    "of": len(_levels(knob)) - 1,
+                })
+    return rows
+
+
+def build_artifact(
+    cells: _Mapping[CellKey, Cell],
+    provenance: Provenance,
+    tally: _Mapping[str, int] | _Mapping[CellKey, _Mapping[str, int]] | None = None,
+) -> Artifact:
+    """Every published figure, computed from the records under one provenance block.
+
+    Refuses: a seed list whose hash is not the list's; a cell holding two models (CAL14) or
+    a model the block does not declare; a cell over the instrument threshold (CAL16); a
+    locally served model without its serving stack (R12, checked at `Provenance`).
+    """
+    tallies = {key: _cell_tally(key, cells, tally) for key in cells}
+    for key, cell in cells.items():
+        _check_cell(key, cell, provenance, tallies[key])
+    expected = _seed_list_digest(provenance.seed_list)
+    if provenance.seed_list_hash != expected:
+        raise ValueError(
+            "the seed list and its seed_list_hash disagree: the list hashes to "
+            f"{expected} and the block declares {provenance.seed_list_hash}"
+        )
+    figures = {
+        key: _cell_figures(key, cell, provenance, tallies[key]) for key, cell in cells.items()
+    }
+    return Artifact(
+        cells=list(figures.values()),
+        pairs=_pair_rows(cells, figures, provenance),
+        orderings=_ordering_rows(cells),
+        provenance=provenance,
+    )
+
+
+def write_artifact(artifact: Artifact, path: _pathlib.Path) -> _pathlib.Path:
+    """The machine-readable file, keys sorted, so two writes of one artifact are one file."""
+    path = _pathlib.Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_json.dumps(artifact.as_dict(), indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8")
+    return path
+
+
+def write_records(records: _Iterable[EpisodeRecord], path: _pathlib.Path) -> _pathlib.Path:
+    path = _pathlib.Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        for row in records:
+            handle.write(EpisodeRecord.to_json(row) + "\n")
+    return path
+
+
+def read_records(path: _pathlib.Path) -> list[EpisodeRecord]:
+    lines = _pathlib.Path(path).read_text(encoding="utf-8").splitlines()
+    return [EpisodeRecord.from_json(line) for line in lines if line.strip()]
+
+
+# ---------------------------------------------------------------------------
+# the renderings (CAL13, CAL17, R9, R10, R13, R15, R17)
+# ---------------------------------------------------------------------------
+
+
+def _fmt(value: _Any) -> str:
+    if value is None:
+        return "n/a"
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+    if isinstance(value, float):
+        return f"{value:.3f}"
+    return str(value)
+
+
+def _interval(value: _Sequence[float] | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"[{value[0]:.3f}, {value[1]:.3f}]"
+
+
+def _level_header(k_values: _Sequence[int]) -> tuple[str, str]:
+    columns = ["arm", "model", "strict pass@1", "95% interval", "leaky pass@1"]
+    columns += [f"strict pass@{k}" for k in k_values if k != 1]
+    columns += ["min calls", "saturated", "instrument", "incomplete"]
+    return "| " + " | ".join(columns) + " |", "|" + "---|" * len(columns)
+
+
+def _level_row(cell: _Mapping[str, _Any], k_values: _Sequence[int]) -> str:
+    values = [
+        f"`{cell['arm_id']}`", cell["model"], _fmt(cell["pass_at_1"]),
+        _interval(cell["pass_at_1_interval"]), _fmt(cell["leaky_at_1"]),
+    ]
+    values += [_fmt(cell["pass_at_k"].get(str(k))) for k in k_values if k != 1]
+    values += [
+        _fmt(cell["minimum_calls"]), _fmt(cell["saturated"]),
+        str(cell["instrument_count"]), _fmt(cell["incomplete"]),
+    ]
+    return "| " + " | ".join(values) + " |"
+
+
+def _plain(knob: str, level: int) -> _ArmSpec:
+    return _ArmSpec(knob=knob, level=level, control=None, strictness="strict",
+                    split=SPLIT, generator_version=GENERATOR_VERSION)
+
+
+def render_document(artifact: Artifact) -> str:
+    """`docs/calibration.md`: rendered from the artifact and never typed (CAL17).  Every
+    sentence is inside the spec's shape 2 template; nothing here ranks models or claims a
+    rank statistic (CAL13, CAL14)."""
+    prov = artifact.provenance
+    k_values = list(prov.k_values)
+    header, rule = _level_header(k_values)
+    lines: list[str] = [
+        "# What each difficulty level is worth",
+        "",
+        f"Rendered from the calibration artifact for poisson-tasks {prov.package_version} "
+        f"(domain `{prov.engine_hash}`, generator `{prov.generator_hash}`, vocabulary "
+        f"`{prov.vocabulary_hash}`), run through the `{prov.harness_id}` harness at verifiers "
+        f"{prov.verifiers_version} over S = {prov.S} seeds from the {SPLIT} split "
+        f"(seed list `{prov.seed_list_hash}`) at n = {prov.n} independent attempts per task.",
+        "",
+        "**This card is pinned to the generator hash above and is stale the moment "
+        "`tasks.py` changes.** It is not regenerated automatically (R10); a card whose "
+        "generator hash differs from the package's is stale and says so here.",
+        "",
+        "**A resumed run is the same run in this sense and no other (R13).** A run that was "
+        "interrupted and resumed serves the same tasks, each with its full number of "
+        "attempts, none run twice and none skipped. It does not reproduce the interrupted "
+        "attempts byte for byte: the decoding is deliberately not deterministic, so a resumed "
+        "attempt is a fresh attempt and not an identical copy of the one it replaces.",
+        "",
+        "Every number is one model's. No figure pools or ranks models, and a difference "
+        "between two levels is printed only under the two-clause rule below.",
+        "",
+        "## Levels",
+        "",
+        "The **strict** rate is the headline: the episode reached the goal state exactly and "
+        "ended with a reply (X4). The **leaky** rate beside it also accepts overshoot and "
+        "collateral damage. They are two different difficulty claims and both are published, "
+        "so a rate is never read without knowing which one it is. The interval is a "
+        "task-clustered bootstrap at "
+        f"{prov.bootstrap_resamples} resamples (seed {prov.bootstrap_seed}). *min calls* is "
+        "the structural minimum, which needs no model. A saturated level is one this model "
+        "cannot see past and it appears in no claim below.",
+    ]
+    level_cells = [cell for cell in artifact.cells if not cell["control"]]
+    control_cells = [cell for cell in artifact.cells if cell["control"]]
+    for knob in _KNOBS:
+        rows = [cell for cell in level_cells if _spec_for(cell["arm_id"]) is not None
+                and _spec_for(cell["arm_id"]).knob == knob]  # type: ignore[union-attr]
+        if not rows:
+            continue
+        lines += ["", f"### {knob}", "", header, rule]
+        lines += [_level_row(cell, k_values) for cell in rows]
+    lines += [
+        "",
+        INSTRUMENT_TABLE_HEADING,
+        "",
+        "These are instrument arms (R9). A control such as `depth:d1+h8` exists to separate "
+        "depth from history, not to be a difficulty level, and it must not be read as one.",
+        "",
+        header,
+        rule,
+    ]
+    lines += [_level_row(cell, k_values) for cell in control_cells]
+    lines += [
+        "",
+        "## Cost per episode",
+        "",
+        "Measured from each episode's own usage, never estimated. Cached and uncached input "
+        "are billed at different rates and are kept apart; reasoning tokens are part of the "
+        f"completion tokens and are not added again. Dollars are tokens times the rate read on "
+        f"{prov.rate_read_date}; a model with no rate declared has no dollar figure, and a "
+        "provider-reported cost is printed beside the computed one and never reconciled.",
+        "",
+        "| arm | model | median turns | median tokens | prompt tokens | cached input tokens "
+        "| completion tokens | reasoning share | computed $ | reported $ |",
+        "|---|---|---|---|---|---|---|---|---|---|",
+    ]
+    for cell in artifact.cells:
+        lines.append(
+            f"| `{cell['arm_id']}` | {cell['model']} | {_fmt(cell['turns_median'])} | "
+            f"{_fmt(cell['tokens_median'])} | {cell['prompt_tokens']} | "
+            f"{cell['cached_input_tokens']} | {cell['completion_tokens']} | "
+            f"{_fmt(cell['reasoning_share'])} | {_fmt(cell['dollars'])} | "
+            f"{_fmt(cell['reported_cost'])} |"
+        )
+    lines += [
+        "",
+        "## Adjacent levels",
+        "",
+        "A difference is paired over the shared seeds inside each resample. A pair is "
+        f"*{DISTINGUISHABLE}* only when its paired 95% interval excludes zero **and** the "
+        f"difference is at least delta* = {prov.delta_star:.2f} pass-rate points; otherwise "
+        f"it reads *{TOO_SMALL}*, with its difference and interval shown.",
+        "",
+        "| model | knob | levels | delta strict pass@1 | 95% paired interval | verdict |",
+        "|---|---|---|---|---|---|",
+    ]
+    for pair in artifact.pairs:
+        verdict = pair["verdict"]
+        if pair["reason"] is not None:
+            verdict = f"{verdict}: {pair['reason']}"
+        interval = None if pair["low"] is None else (pair["low"], pair["high"])
+        lines.append(
+            f"| {pair['model']} | {pair['knob']} | {pair['level_a']} vs {pair['level_b']} | "
+            f"{_fmt(pair['delta'])} | {_interval(interval)} | {verdict} |"
+        )
+    lines += ["", "## Ordering", ""]
+    for row in artifact.orderings:
+        if row["kind"] == "ordering":
+            lines.append(
+                f"- {row['model']}, {row['knob']}: strict pass@1 across levels "
+                f"{row['levels']} is {', '.join(_fmt(rate) for rate in row['pass_at_1'])}; "
+                f"non-increasing: {_fmt(row['non_increasing'])}."
+            )
+        else:
+            lines.append(
+                f"- {row['knob']}: {row['models'][0]} and {row['models'][1]} put the harder "
+                f"level on the same side for {row['agreeing_pairs']} of {row['of']} adjacent "
+                "pairs. A count, not a test."
+            )
+    if not artifact.orderings:
+        lines.append("- No model has a cell at every level of a knob yet.")
+    lines += [
+        "",
+        "## Provenance",
+        "",
+        "- models: " + "; ".join(
+            f"{entry['id']}@{entry['revision']} at {entry['endpoint_host']}"
+            for entry in prov.models
+        ),
+        "- decoding: " + ", ".join(f"{k}={prov.decoding[k]}" for k in SAMPLING_FIELDS),
+        f"- S = {prov.S}, n = {prov.n}, k on the card: {', '.join(str(k) for k in k_values)}; "
+        "every k up to n is in the artifact",
+        f"- bootstrap: {prov.bootstrap_resamples} resamples, seed {prov.bootstrap_seed}",
+        f"- delta* = {prov.delta_star}; saturation at or below {prov.saturation_low} and at or "
+        f"above {prov.saturation_high}; instrument threshold {prov.instrument_threshold}",
+        f"- budget: {prov.budget['tokens']} tokens, {prov.budget['wall_clock_seconds']} s wall "
+        "clock, or the provider out of credit, whichever first",
+        f"- rates read on {prov.rate_read_date}",
+    ]
+    for model_id, entry in prov.serving.items():
+        if entry.get("kind") == "local":
+            lines.append(
+                f"- {model_id} served locally: {entry['stack']} {entry['stack_version']} on "
+                f"{entry['gpu']}, revision {entry['revision']}, flags "
+                + " ".join(str(flag) for flag in entry["flags"])
+            )
+        else:
+            lines.append(f"- {model_id} hosted at {entry.get('endpoint_host')}")
+    return "\n".join(lines) + "\n"
+
+
+def render_readme_lines(artifact: Artifact) -> str:
+    """The README's difficulty lines: one per level, naming the model, from the same
+    artifact."""
+    out: list[str] = []
+    for cell in artifact.cells:
+        if cell["control"]:
+            continue
+        low, high = cell["pass_at_1_interval"]
+        out.append(
+            f"- `{cell['arm_id']}`: {cell['model']} strict pass@1 {cell['pass_at_1']:.3f} "
+            f"[{low:.3f}, {high:.3f}] over {cell['S_observed']} tasks at "
+            f"{artifact.provenance.n} attempts each"
+            + (" (incomplete)" if cell["incomplete"] else "")
+        )
+    return "\n".join(out) + "\n"
+
+
+# ---------------------------------------------------------------------------
+# what runs (CAL1 to CAL5)
+# ---------------------------------------------------------------------------
+
+_SEED_DERIVATION = "poisson-tasks/calibration/seeds/v0"
+"""The declaration behind the seed list: seed `i` is the first four bytes of
+`sha256("<derivation>:<i>")`, the same 32-bit shape as Proofload's, sorted."""
+
+
+def _derive_seeds() -> tuple[int, ...]:
+    seeds: list[int] = []
+    for index in range(S):
+        digest = _hashlib.sha256(f"{_SEED_DERIVATION}:{index}".encode()).digest()
+        seeds.append(int.from_bytes(digest[:4], "big"))
+    if len(set(seeds)) != S:
+        raise RuntimeError("the seed derivation collided; change the derivation string")
+    return tuple(sorted(seeds))
+
+
+_SEEDS = _derive_seeds()
+
+PILOT_SEEDS: dict[int, tuple[int, ...]] = {2: (), 3: (), 5: ()}
+"""The pilot's registered seeds per stage.  The pilot declares salts and Proofload derives
+their seeds at run time; none is registered yet.  The disjointness CAL1 asks for is kept by
+the pilot's salt vetting against the published sixty, and by this registry once a stage's
+seeds exist."""
+
+
+def seed_list(spec: _ArmSpec | None = None) -> tuple[int, ...]:
+    """CAL1: the same declared list at every arm."""
+    return _SEEDS
+
+
+def pilot_seeds(stage: int) -> tuple[int, ...]:
+    if stage not in PILOT_SEEDS:
+        raise ValueError(f"the pilot's seed-bearing stages are {sorted(PILOT_SEEDS)}")
+    return PILOT_SEEDS[stage]
+
+
+def arm_specs() -> tuple[_ArmSpec, ...]:
+    """CAL2: every level of each knob through `levels(knob)`, plus both control arms."""
+    out: list[_ArmSpec] = []
+    for knob, controls in ((_DEPTH, D_CONTROLS), (_DISTRACTOR, R_CONTROLS)):
+        for level in _levels(knob):
+            out.append(_plain(knob, level))
+        for level, control in controls:
+            out.append(_dc.replace(_plain(knob, level), control=control))
+    return tuple(out)
+
+
+def check_attempts(cell: Cell, *, S: int, n: int) -> bool:
+    """CAL3: the records group to exactly `S` tasks, each with `n` attempts."""
+    blocks = _blocks(cell)
+    if len(blocks) != S:
+        raise ValueError(
+            f"a cell holds S = {S} tasks with n = {n} attempts at the same task each; this "
+            f"one groups to {len(blocks)} task(s).  Attempts are repeated attempts at one "
+            "task, and A21's distinct-instance rule does not apply here."
+        )
+    for block in blocks:
+        if len(block) != n:
+            raise ValueError(
+                f"task {block[0].task_id} has {len(block)} attempts, not n = {n}"
+            )
+    return True
+
+
+def check_decoding(declared: _Mapping[str, _Any]) -> bool:
+    """CAL5: every `SamplingConfig` field declared, and the decoding not deterministic."""
+    missing = [name for name in SAMPLING_FIELDS if name not in declared or declared[name] is None]
+    if missing:
+        raise ValueError(
+            "the decoding is undeclared: " + ", ".join(missing) + ".  An unset sampling "
+            "field is absent from the request and the provider's own default applies."
+        )
+    temperature = declared["temperature"]
+    if not isinstance(temperature, (int, float)) or temperature <= 0:
+        raise ValueError(
+            f"temperature {temperature!r} makes the n attempts one attempt repeated, so "
+            "pass@k collapses onto pass@1; the decoding must not be deterministic"
+        )
+    return True
+
+
+# ---------------------------------------------------------------------------
+# the stop (CAL20, R11)
+# ---------------------------------------------------------------------------
+
+
+@_dc.dataclass(frozen=True)
+class BudgetVerdict:
+    ok: bool
+    reason: str | None
+    clean: bool = True
+
+
+def within_budget(
+    *,
+    tokens: int,
+    elapsed_seconds: float,
+    provider_exhausted: bool,
+    budget: _Mapping[str, _Any],
+) -> BudgetVerdict:
+    """Checked before each episode.  The run stops on whichever limit arrives first: the
+    token budget, the wall clock, or the provider saying out of credit (R11).  Every stop is
+    the same clean stop: the episodes already paid for are kept and the cell is marked
+    incomplete."""
+    if tokens >= int(budget["tokens"]):
+        return BudgetVerdict(False, "tokens")
+    if elapsed_seconds >= float(budget["wall_clock_seconds"]):
+        return BudgetVerdict(False, "wall_clock")
+    if provider_exhausted:
+        return BudgetVerdict(False, "provider_exhausted")
+    return BudgetVerdict(True, None)
+
+
+# ---------------------------------------------------------------------------
+# instrument labels from the trace's own signals (R16)
+# ---------------------------------------------------------------------------
+
+
+@_dc.dataclass(frozen=True)
+class EpisodeSignals:
+    """What an episode carries on the stranger's path: `Episode.ok`, `Episode.errors`, and
+    its trace's `has_error` and `stop_condition`."""
+
+    ok: bool
+    errors: tuple[str, ...]
+    has_error: bool
+    stop_condition: str | None
+
+
+_MODEL_STOPS = frozenset({
+    "agent_completed", "max_turns", "context_length",
+    "max_input_tokens", "max_output_tokens", "max_total_tokens",
+})
+_DEADLINE_WORDS = ("timeout", "timed out", "deadline")
+
+
+def label_from_signals(signals: EpisodeSignals) -> str | None:
+    """2.3's instrument label for an episode, or `None` when the outcome is the model's own.
+
+    A wall-clock deadline is `wall_timeout`.  An episode that did not finish cleanly for any
+    other reason ended without a completed model response, which is `api_error`.  A clean
+    end is no label, and so is a stop at `max_turns` or a token limit: a model that ran out
+    of budget is a fact about difficulty, and the verdict labels it.
+    """
+    if signals.stop_condition == "wall_timeout":
+        return "wall_timeout"
+    if any(word in message.lower() for message in signals.errors for word in _DEADLINE_WORDS):
+        return "wall_timeout"
+    if signals.has_error or not signals.ok:
+        if signals.stop_condition in _MODEL_STOPS and not signals.has_error and not signals.errors:
+            return None
+        return "api_error"
+    return None
+
+
+# ---------------------------------------------------------------------------
+# the tally (R14)
+# ---------------------------------------------------------------------------
+
+
+def record_instrument(
+    run_dir: _pathlib.Path,
+    *,
+    task_id: str,
+    seed: int,
+    attempt: int,
+    label: str,
+    episode_id: str | None = None,
+) -> None:
+    """Append one instrument failure at the moment it happens, to a file the resume never
+    touches.  `resume.load` rewrites `traces.jsonl` to the rows it kept and the rows it drops
+    are exactly the failed ones, so a count taken from the traces afterwards is lower than
+    what happened and CAL16's gate could never fire."""
+    if label not in INSTRUMENT_LABELS:
+        raise ValueError(f"{label!r} is not an instrument label")
+    path = _pathlib.Path(run_dir) / TALLY_FILE
+    row = {"task_id": task_id, "seed": seed, "attempt": attempt, "label": label}
+    if episode_id is not None:
+        row["episode_id"] = episode_id
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(_json.dumps(row, sort_keys=True) + "\n")
+
+
+def _tally_rows(run_dir: _pathlib.Path) -> list[dict[str, _Any]]:
+    path = _pathlib.Path(run_dir) / TALLY_FILE
+    if not path.exists():
+        return []
+    rows: list[dict[str, _Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            rows.append(_json.loads(line))
+    return rows
+
+
+def read_tally(run_dir: _pathlib.Path) -> dict[str, int]:
+    """The counts per 2.3 instrument label."""
+    out: dict[str, int] = {}
+    for row in _tally_rows(run_dir):
+        out[row["label"]] = out.get(row["label"], 0) + 1
+    return out
+
+
+# ---------------------------------------------------------------------------
+# checkpoint and resume (CAL23)
+# ---------------------------------------------------------------------------
+
+
+def owed_after_interrupt(run_dir: _pathlib.Path, keys: _Sequence[str], n: int) -> dict[str, int]:
+    """What a resume still owes per `task.hash`, by the wheel's own resume.
+
+    Not a query: `resume.load` rewrites `traces.jsonl` to the rows it keeps, dropping the
+    errored ones it owes again.  Anything that needs the failed rows reads them first (the
+    tally does).  The key is `task.hash`, the wire content hash, which is stable only while
+    `TaskData.idx` stays `None`."""
+    from verifiers.v1.cli.eval import resume as _resume
+
+    _, owed = _resume.load(_pathlib.Path(run_dir), list(keys), n)
+    return dict(owed)
+
+
+# ---------------------------------------------------------------------------
+# the stranger's path (CAL21)
+# ---------------------------------------------------------------------------
+
+
+def _env_config(spec: _ArmSpec, seeds: _Sequence[int]) -> _Any:
+    import verifiers.v1 as _vf
+
+    return _vf.resolve_env_config(
+        {"taskset": {"id": TASKSET_ID, "arm": _dc.asdict(spec), "seeds": list(seeds)}}
+    )
+
+
+def run_config_for(
+    spec: _ArmSpec,
+    *,
+    model: str = MODEL_A,
+    client: _Any = None,
+    output_dir: _pathlib.Path | None = None,
+    run_dir: str | None = None,
+) -> tuple[_Any, _Any]:
+    """The documented command's config and the calibration run's, so the difference is
+    enumerable: exactly the seed list, `-r` and the declared sampling fields."""
+    import verifiers.v1 as _vf
+    from verifiers.v1.configs.cli.eval import EvalConfig
+
+    shared: dict[str, _Any] = {"model": model, "push": False}
+    if client is not None:
+        shared["client"] = client
+    if output_dir is not None:
+        shared["output_dir"] = _pathlib.Path(output_dir)
+    documented = EvalConfig(env=_env_config(spec, DOCUMENTED_SEEDS), **shared)
+    if run_dir is not None:
+        shared["run"] = {"name": run_dir, "dir": run_dir}
+    check_decoding(DECODING)
+    calibration = EvalConfig(
+        env=_env_config(spec, seed_list(spec)),
+        num_rollouts=N,
+        sampling=_vf.SamplingConfig(**DECODING),
+        **shared,
+    )
+    return documented, calibration
+
+
+def _flatten(node: _Any, prefix: str = "") -> dict[str, _Any]:
+    out: dict[str, _Any] = {}
+    if isinstance(node, dict):
+        for key, value in node.items():
+            out.update(_flatten(value, f"{prefix}.{key}" if prefix else str(key)))
+    else:
+        out[prefix] = node
+    return out
+
+
+def config_difference(documented: _Any, calibration: _Any) -> dict[str, _Any]:
+    """Every field on which the two configs differ, from their serialised forms and not from
+    a list of what the build expects to differ.  The run's own identity (`run.*`) is not a
+    difference in what runs."""
+    left = _flatten(_json.loads(documented.model_dump_json()))
+    right = _flatten(_json.loads(calibration.model_dump_json()))
+    out: dict[str, _Any] = {}
+    for key in sorted(set(left) | set(right)):
+        if key.startswith("run.") or left.get(key) == right.get(key):
+            continue
+        if key == "env.taskset.seeds":
+            out["seeds"] = right[key]
+        elif key == "num_rollouts":
+            out["num_rollouts"] = right[key]
+        elif key.startswith("sampling"):
+            out.setdefault("sampling", {})[key.removeprefix("sampling.")] = right.get(key)
+        else:
+            out[key] = right.get(key)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# the runner (CAL20, CAL21, CAL23, R11, R14)
+# ---------------------------------------------------------------------------
+
+
+@_dc.dataclass(frozen=True)
+class RunOutcome:
+    run_dir: _pathlib.Path
+    episodes_kept: int
+    episodes_run: int
+    episodes_owed: int
+    tokens: int
+    stop: BudgetVerdict | None
+
+
+def _episode_errors(episode: _Any) -> list[_Any]:
+    """Every error the episode carries: its own, then each trace's.  A failed model call
+    lands on the trace (`Trace.errors`, `stop_condition == "error"`), not on the episode."""
+    errors = list(getattr(episode, "errors", []) or [])
+    for trace in getattr(episode, "traces", []) or []:
+        errors.extend(getattr(trace, "errors", []) or [])
+    return errors
+
+
+def _episode_signals(episode: _Any) -> EpisodeSignals:
+    traces = list(getattr(episode, "traces", []) or [])
+    trace = traces[0] if traces else None
+    return EpisodeSignals(
+        ok=bool(getattr(episode, "ok", False)),
+        errors=tuple(str(getattr(error, "message", error)) for error in _episode_errors(episode)),
+        has_error=bool(trace.has_error) if trace is not None else True,
+        stop_condition=getattr(trace, "stop_condition", None) if trace is not None else None,
+    )
+
+
+def _episode_tokens(episode: _Any) -> int:
+    usage = getattr(episode, "usage", None)
+    if usage is None:
+        return 0
+    return (
+        int(usage.prompt_tokens)
+        + int(usage.cached_input_tokens or 0)
+        + int(usage.completion_tokens)
+    )
+
+
+_EXHAUSTED_WORDS = ("insufficient_quota", "quota", "billing", "credit", "balance")
+
+
+def _provider_exhausted(episode: _Any) -> bool:
+    """The provider saying out of credit (R1, R11): a payment-required status, or a 429
+    whose message names the quota or the balance rather than the rate."""
+    for error in _episode_errors(episode):
+        status = getattr(error, "status_code", None)
+        message = str(getattr(error, "message", "")).lower()
+        if status == 402:
+            return True
+        if status == 429 and any(word in message for word in _EXHAUSTED_WORDS):
+            return True
+    return False
+
+
+def _tally_failures_on_disk(run_dir: _pathlib.Path) -> int:
+    """Before a resume prunes them: every failed row in `traces.jsonl` not yet in the tally
+    is tallied, keyed by episode id so a second restart does not count it twice."""
+    path = _pathlib.Path(run_dir) / TRACES_FILE
+    if not path.exists():
+        return 0
+    seen = {row.get("episode_id") for row in _tally_rows(run_dir)}
+    added = 0
+    with path.open("rb") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            try:
+                row = _json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(row, dict) or row.get("ok", False) or row.get("id") in seen:
+                continue
+            label = label_from_signals(_row_signals(row))
+            if label is None:
+                continue
+            data = row.get("task", {}).get("data", {})
+            record_instrument(
+                run_dir, task_id=str(data.get("task_id", row.get("task", {}).get("hash"))),
+                seed=int(data.get("seed", 0)), attempt=-1, label=label, episode_id=row.get("id"),
+            )
+            added += 1
+    return added
+
+
+def _row_signals(row: _Mapping[str, _Any]) -> EpisodeSignals:
+    traces = row.get("traces") or []
+    trace = traces[0] if traces else None
+    errors = list(row.get("errors") or [])
+    for entry in traces:
+        errors.extend(entry.get("errors") or [])
+    return EpisodeSignals(
+        ok=bool(row.get("ok", False)),
+        errors=tuple(str(error.get("message", "")) for error in errors),
+        has_error=(not bool(trace.get("ok", False))) if trace is not None else True,
+        stop_condition=trace.get("stop_condition") if trace is not None else None,
+    )
+
+
+async def _run_arm(config: _Any, budget: _Mapping[str, _Any]) -> RunOutcome:
+    import verifiers.v1 as _vf
+    from verifiers.v1.cli.eval import resume as _resume
+    from verifiers.v1.cli.output import append_episode, output_path, save_config
+    from verifiers.v1.cli.resume import distribute
+    from verifiers.v1.episode import EvalRunInfo
+    from verifiers.v1.utils.loaders import load_environment
+
+    env = load_environment(config.env)
+    tasks = list(env.taskset)
+    out = _pathlib.Path(output_path(config))
+    out.mkdir(parents=True, exist_ok=True)
+    keys = [task.hash for task in tasks]
+    if (out / TRACES_FILE).exists():
+        _tally_failures_on_disk(out)
+        kept, owed = _resume.load(out, keys, config.num_rollouts, env.complete)
+        counts = distribute(keys, owed, config.num_rollouts)
+    else:
+        save_config(config, out)
+        kept, owed, counts = [], {}, [config.num_rollouts] * len(tasks)
+    plan = [(task, count) for task, count in zip(tasks, counts, strict=True) if count]
+    attempts = {key: 0 for key in keys}
+    for episode in kept:
+        attempts[episode.task.hash] = attempts.get(episode.task.hash, 0) + 1
+    state: dict[str, _Any] = {
+        "tokens": sum(_episode_tokens(episode) for episode in kept),
+        "exhausted": False, "stop": None, "run": 0,
+    }
+    start = _time.monotonic()
+    lock = _asyncio.Lock()
+    ctx = _vf.ModelContext(client=config.client, model=config.model, sampling=config.sampling)
+    semaphore = _asyncio.Semaphore(config.max_concurrent or 128)
+
+    async def on_complete(episode: _Any) -> None:
+        episode.record_run(EvalRunInfo(id=config.run.id, name=config.run.name))
+        await append_episode(out, episode, lock)
+        attempt = attempts.get(episode.task.hash, 0)
+        attempts[episode.task.hash] = attempt + 1
+        state["tokens"] += _episode_tokens(episode)
+        state["run"] += 1
+        if _provider_exhausted(episode):
+            state["exhausted"] = True
+        label = label_from_signals(_episode_signals(episode))
+        if label is not None:
+            record_instrument(
+                out, task_id=str(episode.task.data.task_id), seed=int(episode.task.data.seed),
+                attempt=attempt, label=label, episode_id=episode.id,
+            )
+
+    async def guarded(slot: _Any) -> None:
+        async with semaphore:
+            if state["stop"] is not None:
+                return
+            verdict = within_budget(
+                tokens=state["tokens"], elapsed_seconds=_time.monotonic() - start,
+                provider_exhausted=state["exhausted"], budget=budget,
+            )
+            if not verdict.ok:
+                state["stop"] = verdict
+                return
+            await env.run_slot(slot, ctx, None, on_complete)
+
+    async with env.serving():
+        planned = [slot for task, count in plan for slot in env.slots(task, count)]
+        await _asyncio.gather(*(guarded(slot) for slot in planned))
+    return RunOutcome(
+        run_dir=out,
+        episodes_kept=len(kept),
+        episodes_run=state["run"],
+        episodes_owed=len(planned) - state["run"],
+        tokens=state["tokens"],
+        stop=state["stop"],
+    )
+
+
+def run_arm(
+    spec: _ArmSpec,
+    *,
+    output_dir: _pathlib.Path,
+    model: str = MODEL_A,
+    client: _Any = None,
+    budget: _Mapping[str, _Any] | None = None,
+) -> RunOutcome:
+    """One arm's cell through the stranger's path, resumable and capped.
+
+    The config is `run_config_for`'s (CAL21).  The run directory is `output_dir / <arm id>`,
+    so a second call resumes the first: the failed rows on disk are tallied before the
+    wheel's resume prunes them (R14), the owed rollouts are re-run (CAL23), and the budget
+    is checked before each episode is dispatched (CAL20, R11).  Nothing is pushed.
+    """
+    _, config = run_config_for(
+        spec, model=model, client=client, output_dir=output_dir,
+        run_dir=_arm_id(spec).replace("/", "-").replace(":", "-").replace("@", "-"),
+    )
+    return _asyncio.run(_run_arm(config, DEFAULT_BUDGET if budget is None else budget))
+
+
+def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecord]:
+    """The per-episode records of a finished run, from its `traces.jsonl`.
+
+    `strict` and `leaky` are what the wheel scored (X4's reward and the `leaky_pass`
+    metric); the outcome label is TG-M3's own verdict on the trace, re-read through the
+    export so that one ordering of the sampled calls exists; an instrument label from the
+    episode's signals overrides it.  Attempts are numbered by position in the file.
+    """
+    import verifiers.v1 as _vf
+    from verifiers.v1.cli.output import read_episodes
+
+    from poisson_tasks.export import ExportTaskData, _verdict
+
+    episodes = read_episodes(_pathlib.Path(run_dir), _vf.Trace)
+    attempts: dict[str, int] = {}
+    out: list[EpisodeRecord] = []
+    for episode in episodes:
+        data = ExportTaskData.model_validate(episode.task.data.model_dump(mode="json"))
+        attempt = attempts.get(episode.task.hash, 0)
+        attempts[episode.task.hash] = attempt + 1
+        trace = episode.traces[0] if episode.traces else None
+        instrument = label_from_signals(_episode_signals(episode))
+        usage = trace.usage if trace is not None else None
+        if instrument is not None or trace is None:
+            strict, leaky, label = False, False, instrument or "api_error"
+        else:
+            reward = trace.rewards.get("strict")
+            leaky_metric = trace.metrics.get("leaky_pass")
+            if reward is None or leaky_metric is None:
+                strict, leaky, label = False, False, "verifier_error"
+            else:
+                verdict = _verdict(data, trace)
+                strict = float(reward.value) == 1.0
+                leaky = float(leaky_metric) == 1.0
+                label = verdict.strict_label
+                if strict != (label == _PASSED) or leaky != verdict.leaky_pass:
+                    raise ValueError(
+                        f"episode {episode.id}: the recorded reward and the re-read verdict "
+                        f"disagree (strict={strict}, leaky={leaky}, label={label!r})"
+                    )
+        out.append(EpisodeRecord(
+            task_id=str(data.task_id), arm_id=str(data.arm_id), model=model,
+            seed=int(data.seed), attempt=attempt, strict=strict, leaky=leaky, label=label,
+            turns=int(trace.num_turns) if trace is not None else 0,
+            sampled_calls=int(trace.metrics.get("sampled_calls") or 0) if trace is not None else 0,
+            prompt_tokens=int(usage.prompt_tokens) if usage else 0,
+            cached_input_tokens=int(usage.cached_input_tokens or 0) if usage else 0,
+            completion_tokens=int(usage.completion_tokens) if usage else 0,
+            reasoning_tokens=int(usage.reasoning_tokens or 0) if usage else 0,
+            cost=float(usage.cost) if usage and usage.cost is not None else None,
+        ))
+    return out

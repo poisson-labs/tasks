@@ -364,3 +364,68 @@ CN-2 (Colab).
 - **Ask:** upstream, a documented entry point for "resolve this taskset id and give me its
   taskset, env and config types", so a taskset author can test their export the way `eval`
   reads it.
+
+---
+
+## PG-20 · Token accounting, decoding and the repeat flag have no verified names
+
+- **Date:** 2026-09-22
+- **Scope note:** a verifiers gap, like PG-18 and PG-19; a PG number because that is the
+  repo's one series.
+- **Needed:** difficulty calibration (Handoff Calibration, CAL5, CAL15, CAL20, CAL21) asks
+  three things of a run that section 0's table cannot express. What did an episode cost, in
+  tokens the provider counted rather than tokens we estimated (CAL15). What decoding did the
+  run actually send, as opposed to what it left to the provider (CAL5). And how does one ask
+  for `n` independent attempts at the *same* task on the documented command line, so that
+  pass@k is measured on the stranger's path and not on a private repeat loop (CAL21).
+- **Available:** at `verifiers==0.3.1`, all three exist and none is in the verified list.
+  `vf.Usage` (`verifiers/v1/types.py`) carries `prompt_tokens`, `completion_tokens`,
+  `cached_input_tokens`, `reasoning_tokens` and `cost`, with the derived properties
+  `input_tokens` and `total_tokens`; its own docstring records that `prompt_tokens`
+  **excludes** cache reads and that `reasoning_tokens` are a subset of `completion_tokens`
+  and are not added to totals again — so tokens times a headline rate is the wrong
+  arithmetic, and nothing in the published surface says so. `vf.SamplingConfig` carries
+  `temperature`, `top_p`, `reasoning_effort` and `max_tokens`, all defaulting to `None`, and
+  `wire_args()` dumps with `exclude_none=True`, so an unset field is **absent from the
+  request** rather than sent as a null: a run that does not pin them has undeclared decoding
+  and no error says so. `EvalConfig.num_rollouts` (`verifiers/v1/configs/cli/eval.py`)
+  defaults to 1, is documented as "Independent episodes per task — the trainer's group size",
+  and accepts the aliases `group_size`, `rollouts_per_example`, `num_rollouts` and `r`; the
+  runner plans `[(task, config.num_rollouts) for task in tasks]`.
+- **Also needed, and in the same position:** the wheel's resume. Taylor's ruling of
+  2026-09-22 makes checkpoint-and-resume an invariant (CAL23), because the second model is
+  served on a Colab GPU and those runtimes drop. `verifiers.v1.cli.eval.resume` provides
+  `load(resume_dir, selected_keys, num_rollouts, complete=None)` and
+  `verifiers.v1.cli.resume.distribute`, reached from the CLI as `--resume`. **It matches a
+  saved rollout on `episode.task.hash`, the wire content hash, and not on `task.key`** — the
+  field the export overrides to `task_id` (X7) — and it drops errored episodes and owes them
+  again. Neither fact is in the published surface; both were read in the module's own
+  docstring and body.
+- **Workaround not taken:** estimating tokens from a tokenizer instead of reading the
+  provider's own count (it would make CAL15 a model of the bill rather than the bill);
+  writing a private repeat loop instead of `-r`, which would put every published number on a
+  code path no stranger runs and would make CAL21 unreachable; and a private checkpoint file
+  beside `traces.jsonl`, which would do the same to CAL23.
+- **Taken, and named:** `tests/test_cal_calibration.py` reads `vf.Usage`'s five fields and
+  `vf.SamplingConfig`'s four from the pinned wheel (`test_cal5_4`), builds the calibration
+  run config with `EvalConfig(..., num_rollouts=n)` (`test_cal21_1` to `test_cal21_3`), and
+  drives `verifiers.v1.cli.eval.resume.load` directly for every interrupt point
+  (`test_cal23_1` to `test_cal23_6`, `test_cal23_9`). Test-side only: the calibration module
+  reaches the resume through one function, `owed_after_interrupt`, so a wheel that moves it
+  moves one name. A wheel that renames a `Usage` field, changes `wire_args`' `exclude_none`,
+  drops a `num_rollouts` alias, or resumes on `task.key` instead of `task.hash` moves these
+  tests and nothing in the package.
+- **Found by the mutation pass, and worth its own line:** **`resume.load` is not read-only.**
+  It rewrites `traces.jsonl` to the rows it kept, via a temp file and an atomic rename, so the
+  file a later reader sees is not the file the run wrote. Nothing in the name or the signature
+  says so; it is in the docstring's last clause. A consumer that treats it as a query, or that
+  compares two implementations over one run directory, gets an answer that agrees regardless.
+  Pinned by `test_cal23_5b`.
+- **Ask:** upstream, three things. A documented statement that `prompt_tokens` excludes cache
+  reads and `reasoning_tokens` are a subset of `completion_tokens`, so a consumer costing a
+  run does not double-count. A way to ask "what decoding will this run actually send", or a
+  strict mode that refuses an unpinned sampling field, so "undeclared" is an error and not a
+  silence. And a documented resume surface that states which task identity it keys on, since
+  a taskset that overrides `key` has two and the choice decides whether a resumed run is the
+  same run — and, in the same breath, a name or a signature that says `load` rewrites the file
+  it reads.
