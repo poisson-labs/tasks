@@ -402,15 +402,20 @@ def test_cal24_2_a_cell_at_the_threshold_publishes_with_its_shares() -> None:
 
 def test_cal24_3_the_share_is_over_scored_episodes() -> None:
     """An instrument failure made no call because the call failed, not because the model
-    did not start.  It leaves the denominator here as it does for pass@1 (CAL16)."""
-    cell = calls_cell([3] * 20)
-    cell.append(record(task_id="t000", seed=1000, attempt=N, arm="depth:d3",
-                       label="api_error", sampled_calls=0))
+    did not start.  It leaves the denominator here as it does for pass@1 (CAL16), in the
+    published share and in the refusal: one task in twenty never starts (0.05 of the scored
+    episodes), and ten failed calls with no tool call would lift a share over every episode
+    to 15 of 110, above 0.10."""
+    cell = calls_cell([0] + [3] * 19)
+    for attempt in range(10):
+        cell.append(record(task_id="t001", seed=1001, attempt=N + attempt, arm="depth:d3",
+                           label="api_error", sampled_calls=0))
+    assert sum(1 for row in cell if row.sampled_calls == 0) / len(cell) > 0.10
     figures = cal.build_artifact(
         {("depth:d3", MODEL_A): cell}, provenance(instrument_threshold=0.5)
     ).cells[0]
-    assert figures["no_call_share"] == 0.0
-    assert figures["no_call_count"] == 0
+    assert figures["no_call_share"] == pytest.approx(0.05)
+    assert figures["no_call_count"] == N
 
 
 def test_cal24_4_the_threshold_is_declared_and_carried_in_the_provenance() -> None:
