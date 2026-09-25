@@ -247,11 +247,17 @@ _SYSTEM_PROMPT = (
 # common short word -- `in`, `is`, `up`, `to` were the four this template started with --
 # enters or leaves the overlap set with the level and refuses the contrast.  The words
 # that remain are checked at import by `_check_template_words`.
+#
+# The record id and the entry code are in double quotes.  Both are ordinary English words
+# (four hyphenated ones and one), and bare they read as part of the sentence: model A's
+# first card had 72.5% of first replies ask for the values and call no tool.  Quoted, a
+# probe got the exact reference call 16 times in 16.  The slots stay the bare values; the
+# quotes are the template's.
 _USER_TEMPLATE = (
-    "Advance record {" + _SLOT_RECORD + "} of the {" + _SLOT_CLASS + "} ledger.\n"
+    "Advance record \"{" + _SLOT_RECORD + "}\" of the {" + _SLOT_CLASS + "} ledger.\n"
     "Stage ladder: {" + _SLOT_LADDER + "}.\n"
     "Raise that record through {" + _SLOT_GOAL + "}, and no further.\n"
-    "Open with entry code {" + _SLOT_ENTRY + "}; each later stage needs what the stage "
+    "Open with entry code \"{" + _SLOT_ENTRY + "}\"; each later stage needs what the stage "
     "before returned."
 )
 
