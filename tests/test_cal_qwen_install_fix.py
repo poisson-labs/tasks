@@ -498,7 +498,8 @@ def test_the_helpers_run_stops_with_the_commands_own_output_and_no_token(
 
 class Recorder:
     """Stands in for the helper's `run` in the tasks-environment cell: records each command
-    and runs none; `fail_on` makes one command stop the notebook."""
+    and runs none, except that `uv venv` makes its directory, as the real one does; `fail_on`
+    makes one command stop the notebook."""
 
     def __init__(self, fail_on: str | None = None) -> None:
         self.calls: list[list[str]] = []
@@ -508,6 +509,8 @@ class Recorder:
         self.calls.append([str(a) for a in argv])
         if self.fail_on and any(self.fail_on in str(a) for a in argv):
             raise SystemExit(f"STOP: planted failure of {argv[0]}")
+        if "venv" in argv:
+            Path(argv[-1]).mkdir(parents=True, exist_ok=True)
         return "usage: stand-in\n"
 
     def built(self) -> bool:
