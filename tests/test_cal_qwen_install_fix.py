@@ -115,14 +115,18 @@ if [ -n "$FAKE_UV_FAIL" ] && [ "$1" = "$FAKE_UV_FAIL" ]; then
   echo "error: planted uv failure, in uv's own words" >&2
   exit 2
 fi
+if [ -n "$FAKE_UV_SLOW" ] && [ "$1" = "$FAKE_UV_SLOW" ]; then
+  echo $$ > "$UV_SLOW_PID"
+  exec sleep 60
+fi
 exec "{real}" "$@"
 """
 
 
-def _build_wheel(path: Path) -> None:
+def _build_wheel(path: Path, extra: dict[str, str] | None = None) -> None:
     record = []
     with zipfile.ZipFile(path, "w") as archive:
-        for name, text in WHEEL_FILES.items():
+        for name, text in {**WHEEL_FILES, **(extra or {})}.items():
             data = text.encode("utf-8")
             digest = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=")
             record.append(f"{name},sha256={digest.decode()},{len(data)}")
@@ -174,7 +178,8 @@ class Install:
         }
         for name, value in self.env.items():
             monkeypatch.setenv(name, value)
-        for name in ("FAKE_CUDA", "FAKE_VLLM_IMPORT_ERROR", "FAKE_UV_FAIL", "VIRTUAL_ENV"):
+        for name in ("FAKE_CUDA", "FAKE_VLLM_IMPORT_ERROR", "FAKE_UV_FAIL", "FAKE_UV_SLOW",
+                     "VIRTUAL_ENV"):
             monkeypatch.delenv(name, raising=False)
 
     def install(self) -> int:
@@ -263,6 +268,42 @@ def test_a_rerun_after_an_install_cut_off_part_way_rebuilds_it_from_nothing(
 
 
 @needs_uv
+def test_an_install_whose_uv_pip_install_failed_is_built_again(
+    inst: Install, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The install is only finished once uv has filled the virtualenv: an attempt whose
+    `uv pip install` failed is not taken for a finished one on the rerun."""
+    monkeypatch.setenv("FAKE_UV_FAIL", "pip")
+    inst.stopped()
+    monkeypatch.delenv("FAKE_UV_FAIL")
+    inst.forget_calls()
+    assert inst.install() == 0
+    assert CHECK_LINE in capsys.readouterr().out
+    assert [c.split()[0] for c in inst.installs()] == ["venv", "pip"]
+
+
+@needs_uv
+def test_a_venv_installed_for_another_pin_is_built_again(
+    inst: Install, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A finished install counts only for the pin it installed: with another wheel pinned,
+    the virtualenv is built again from nothing, from the new wheel."""
+    assert inst.install() == 0
+    other = inst.tmp / "release-2" / WHEEL_NAME
+    other.parent.mkdir()
+    _build_wheel(other, extra={"vllm/_rebuilt.py": "PIN = 2\n"})
+    data = other.read_bytes()
+    inst.pin = dataclasses.replace(inst.pin, vllm_wheel_url=other.as_uri(),
+                                   vllm_wheel_sha256=hashlib.sha256(data).hexdigest(),
+                                   vllm_wheel_size=len(data))
+    inst.forget_calls()
+    assert inst.install() == 0
+    assert CHECK_LINE in capsys.readouterr().out
+    assert [c.split()[0] for c in inst.installs()] == ["venv", "pip"]
+    assert (inst.site_packages() / "vllm" / "_rebuilt.py").exists()
+
+
+@needs_uv
 def test_a_finished_install_whose_check_fails_is_not_installed_again(
     inst: Install, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -344,6 +385,36 @@ def test_the_command_line_prints_a_stop_with_uvs_own_words_and_no_traceback(
     assert done.returncode == 1, done.stdout
     assert "Traceback" not in done.stdout, done.stdout
     assert "planted uv failure, in uv's own words" in _after_stop(done.stdout), done.stdout
+
+
+@needs_uv
+def test_the_stop_button_during_the_install_stops_uv_too(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The helper passes the Stop button to the driver as SIGINT, and to the driver alone.
+    The driver must stop the uv command it is running, or uv goes on writing into the
+    virtualenv unseen while the next attempt removes and rebuilds it."""
+    inst = Install(tmp_path, monkeypatch)
+    pid_file = tmp_path / "uv-slow.pid"
+    proc = subprocess.Popen(
+        _driver("install-vllm", "--venv", str(inst.venv)),
+        env=_driver_env(FAKE_UV_SLOW="venv", UV_SLOW_PID=str(pid_file)),
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    )
+    child = 0
+    try:
+        _wait_for(lambda: pid_file.exists() and pid_file.read_text().strip() != "", 60)
+        child = int(pid_file.read_text())
+        proc.send_signal(signal.SIGINT)
+        out, _ = proc.communicate(timeout=60)
+        assert proc.returncode == 130, out
+        _wait_for(lambda: not _alive(child), 10)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait(timeout=30)
+        if child and _alive(child):
+            os.kill(child, signal.SIGKILL)
 
 
 # ---------------------------------------------------------------------------
@@ -481,9 +552,12 @@ def test_the_helpers_run_stops_with_the_commands_own_output_and_no_token(
     token in the clone's URL) appears nowhere."""
     ns = _helper()
     assert "run" in ns, "the helper cell defines no run() for the setup cells"
+    # The error is put together at run time, so it is on the command line in no form and
+    # only the command's own output can carry it into the STOP.
     failing = [sys.executable, "-c",
                "import sys; print('said on stdout'); "
-               "sys.stderr.write('fatal: planted failure near tok-123\\n'); sys.exit(3)"]
+               "sys.stderr.write('fatal: ' + 'planted failure near ' + sys.argv[1] + '\\n'); "
+               "sys.exit(3)", "tok-123"]
     with pytest.raises(SystemExit) as stop:
         ns["run"](failing, secret="tok-123")
     message = str(stop.value)
