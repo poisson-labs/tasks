@@ -138,7 +138,7 @@ def test_the_serve_flags_are_the_pinned_ones() -> None:
 
     assert "--enable-auto-tool-choice" in args
     assert value("--tool-call-parser") == "hermes"
-    assert value("--max-model-len") == str(pin.max_model_len) == "8192"
+    assert value("--max-model-len") == str(pin.max_model_len) == "16384"
     assert value("--generation-config") == "vllm"
     assert value("--chat-template") == "/tmp/t.jinja"
     assert value("--quantization") == "fp8"

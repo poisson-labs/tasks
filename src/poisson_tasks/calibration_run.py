@@ -120,6 +120,8 @@ __all__ = [
     "PHASE1_ARMS",
     "PROBE_DESIGN",
     "PROBE_ARMS",
+    "PROBE_CONTEXT_ARMS",
+    "card_status",
     "CARD_DESIGN",
     "CARD_ARMS",
     "FLOOR",
@@ -265,7 +267,7 @@ QWEN3_8B = ServePin(
     python="3.12",
     gpu="L4",
     quantization="fp8",
-    max_model_len=8192,
+    max_model_len=16384,
     tool_call_parser="hermes",
     stock_template_sha256="a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
     template_sha256="b4d28698abae82732da6a74bb08a623934fa81b775aea50908246e9fc1323333",
@@ -281,11 +283,16 @@ QWEN3_8B = ServePin(
 * `--quantization fp8`: the BF16 weights quantized at load, as TG-ADR-26 does for the pilot's
   Qwen on the same GPU.  About 9 GB of weights instead of 16.4, which leaves an L4 roughly
   three times the KV cache and so roughly three times the concurrent episodes.
-* `--max-model-len 8192`: model A's longest single prompt was 2,290 tokens and a Qwen prompt
-  spells the sixteen tool schemas out as JSON, so allow twice that plus the declared
-  2,048-token completion limit.  A prompt past the cap ends the episode as `context_length`,
-  a model stop and not an instrument failure, and the probe refuses to go on if one happens
-  or if prompts come within a quarter of the cap.
+* `--max-model-len 16384` (raised from 8192 on 2026-09-28): Qwen's chat template spells the
+  sixteen tool schemas out as JSON, and the two history controls (`depth:d1+h8`,
+  `depth:d2+h5`) open with five and eight seeded turns.  On Colab their prompts reached 6,129
+  and 6,081 tokens against the 6,144 that 8,192 leaves beside the declared 2,048-token
+  completion limit, and 38 episodes ended at the cap.  A prompt past the cap ends the episode
+  as `context_length` with the trace not ok, and the card counts that as an instrument
+  failure: the cap is a serving choice, not the model's difficulty.  So the cap has to clear
+  every arm, and the probe runs the history controls and refuses to go on if an episode
+  ends at the cap or a prompt passes 75% of the room it leaves.  Qwen3-8B's native context
+  is 32,768; the L4's KV cache (67,504 tokens at FP8) still holds four full-length requests.
 * `--enable-auto-tool-choice --tool-call-parser hermes`: Qwen3's `<tool_call>` JSON format.
 * `--generation-config vllm`: nothing from the repository's `generation_config.json`, whose
   `top_k: 20` would otherwise apply to every request unseen.  The request's declared decoding
@@ -740,7 +747,11 @@ PROBE_DESIGN = Design(seeds=_cal.seed_list()[:6], n=2, k_values=(1, 2))
 PROBE_ARMS: tuple[str, ...] = ("depth:d5", "depth:d8")
 """The hardest levels: `depth:d5` has model A's lowest strict pass@1 (0.177) and `depth:d8`
 the longest chain.  Six of the sixty eval seeds, first in the published order, two attempts:
-24 episodes, discarded after the verdict."""
+24 episodes, discarded after the verdict.  The floor is read on these alone."""
+PROBE_CONTEXT_ARMS: tuple[str, ...] = ("depth:d1+h8", "depth:d2+h5")
+"""The arms with the longest prompts: their seeded history comes before the task.  The probe
+runs them for the context checks and the instrument count, not the floor (a control is not a
+difficulty level).  Another 24 episodes."""
 CARD_DESIGN: Design | None = None
 """The card's design is the calibration module's own: S = 60, n = 5 (R6)."""
 CARD_ARMS: tuple[str, ...] | None = None
@@ -794,9 +805,12 @@ def probe_verdict(
     max_prompt_tokens: int,
     context_stops: int,
     prompt_cap: int,
+    floor_arms: _Sequence[str] | None = None,
 ) -> ProbeVerdict:
     """Whether phase 3 may start.  Pooled over the probe's episodes, because the question is
-    whether the model can do the hardest levels at all, not a level's number."""
+    whether the model can do the hardest levels at all, not a level's number.  With
+    `floor_arms`, strict and leaky (and so the floor) are read on those arms' episodes only;
+    instrument failures and the no-call share are read on every episode."""
     reasons: list[str] = []
     kept = _cal.scored(records)
     labelled = len(records) - len(kept)
@@ -805,10 +819,11 @@ def probe_verdict(
         reasons.append("the probe recorded no episode")
     if failures:
         reasons.append(f"{failures} instrument failure(s): the plumbing is not clean")
-    strict = sum(1 for r in kept if r.strict) / len(kept) if kept else 0.0
-    leaky = sum(1 for r in kept if r.leaky) / len(kept) if kept else 0.0
+    floor_kept = kept if floor_arms is None else [r for r in kept if r.arm_id in floor_arms]
+    strict = sum(1 for r in floor_kept if r.strict) / len(floor_kept) if floor_kept else 0.0
+    leaky = sum(1 for r in floor_kept if r.leaky) / len(floor_kept) if floor_kept else 0.0
     no_call = sum(1 for r in kept if r.sampled_calls == 0) / len(kept) if kept else 0.0
-    if kept and leaky <= FLOOR:
+    if floor_kept and leaky <= FLOOR:
         reasons.append(
             f"floor: leaky pass@1 {leaky:.3f} on the hardest levels is at or below {FLOOR}; "
             "the model cannot do them, so the depth axis would be saturated low"
@@ -821,7 +836,8 @@ def probe_verdict(
     if context_stops:
         reasons.append(
             f"{context_stops} episode(s) ended at the context cap: raise --max-model-len "
-            "before the card, or the cap is counted as the model's failure"
+            "before the card, or every episode the cap ends counts as an instrument failure "
+            "and the card refuses"
         )
     if max_prompt_tokens > HEADROOM * prompt_cap:
         reasons.append(
@@ -1100,12 +1116,13 @@ def cmd_probe(ctx: Context) -> int:
         _serving(ctx)
         started = _time.monotonic()
         with design(PROBE_DESIGN):
-            stop = _run_arms(ctx, "probe", PROBE_ARMS, budget_for=lambda _: _cal.DEFAULT_BUDGET)
+            probe_arms = (*PROBE_ARMS, *PROBE_CONTEXT_ARMS)
+            stop = _run_arms(ctx, "probe", probe_arms, budget_for=lambda _: _cal.DEFAULT_BUDGET)
             records: list[_cal.EpisodeRecord] = []
             tally: dict[str, int] = {}
             facts: dict[str, dict[str, int]] = {}
             per_arm: dict[str, _Any] = {}
-            for arm in PROBE_ARMS:
+            for arm in probe_arms:
                 rows, arm_tally, facts[arm] = _arm_rows(
                     ctx.local / "probe" / _arm_dir(arm), arm, ctx.pin.served_name
                 )
@@ -1124,12 +1141,13 @@ def cmd_probe(ctx: Context) -> int:
             records, tally,
             max_prompt_tokens=max((f["max_prompt_tokens"] for f in facts.values()), default=0),
             context_stops=sum(f["context_stops"] for f in facts.values()),
-            prompt_cap=cap,
+            prompt_cap=cap, floor_arms=PROBE_ARMS,
         )
         reasons = list(verdict.reasons) + ([f"stopped: {stop}"] if stop else [])
         proceed = verdict.proceed and stop is None
         report = {
-            "phase": "probe", "model": ctx.pin.served_name, "arms": list(PROBE_ARMS),
+            "phase": "probe", "model": ctx.pin.served_name, "arms": list(probe_arms),
+            "floor_arms": list(PROBE_ARMS),
             "seeds": list(PROBE_DESIGN.seeds), "n": PROBE_DESIGN.n, "proceed": proceed,
             "reasons": reasons, "floor": FLOOR, "headroom": HEADROOM,
             "strict": verdict.strict, "leaky": verdict.leaky, "no_call": verdict.no_call,
@@ -1207,8 +1225,17 @@ def cmd_phase3(ctx: Context, wall_clock_hours: float) -> int:
         }
         _write_json(report_path, report)
         _say(f"phase 3 {state}" + (f" (stop: {stop})" if stop else "")
-             + f"; card: {result['card']}; CAL24: {result['cal24']}")
+             + f"; card: {result['card']}; {card_status(result)}")
         return {"complete": 0, "stopped": 4, "refused": 5}[state]
+
+
+def card_status(result: _Mapping[str, _Any]) -> str:
+    """How `finalize` left the card, in words.  `result["cal24"]` is the historical name of
+    the field: it says published or refused whichever rule refused (the instrument-rate gate
+    or the no-call share), and `result["refusal"]` carries the rule's own sentence."""
+    if result.get("cal24") == "refused":
+        return f"refused: {result.get('refusal', 'no reason recorded')}"
+    return str(result.get("cal24"))
 
 
 # ---------------------------------------------------------------------------
@@ -1714,7 +1741,7 @@ def cmd_status(ctx: Context) -> int:
             _say(f"{name}: not yet")
             continue
         keys = ("passed", "proceed", "status", "stop", "reasons", "stack_version", "gpu",
-                "elapsed_s", "projected_remaining_s", "cal24")
+                "elapsed_s", "projected_remaining_s", "cal24", "refusal")
         short = {k: v for k, v in value.items() if k in keys} if isinstance(value, dict) else value
         if name == "status.json" and isinstance(value, dict):
             short = {k: v for k, v in value.get("phase3", {}).items() if k != "arms"}
