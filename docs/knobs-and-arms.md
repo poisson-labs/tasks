@@ -98,5 +98,4 @@ and G14 makes that id an injective function of the task seed: a seed whose first
 was one of the four had no way out, because generation's three degrees of freedom -- the
 prose, the designated slots and the entry-code draw -- do not reach the id. Knob `depth`
 was unaffected at every level throughout. Vocabulary v2 draws the lists disjoint from
-every tool name, which is what the spec's coverage item asked for, and closes it
-outright.
+every tool name, and closes it outright.

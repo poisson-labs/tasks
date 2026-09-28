@@ -1,7 +1,7 @@
-"""TG-M4, the verifiers export: a generated bundle packaged as a verifiers v1 taskset.
+"""The verifiers export: a generated bundle packaged as a verifiers v1 taskset.
 
-The spec is §2.4 -- X1 to X9, the Interface clauses X1 to X9 do not restate (`validate`
-and the toolset), and knob R's level axis.  Ten public names, in `__all__`'s order:
+The invariants are X1 to X9 (the `test_x*` cases in `tests/test_tg_m4_export.py`), plus
+`validate`, the toolset and knob R's level axis.  Ten public names, in `__all__`'s order:
 
 | name | what it is |
 |---|---|
@@ -14,14 +14,14 @@ and the toolset), and knob R's level axis.  Ten public names, in `__all__`'s ord
 | `task_from_bundle`, `bundle_from_data` | the two directions of X2 |
 | `MEASURED_HARNESS` | `"null"` (X9) |
 
-Four things about `verifiers==0.3.1` shape this file and are not obvious from §2.4.  Each
-was measured; the evidence is in the vault, under the TG-M4 sessions.
+Four things about `verifiers==0.3.1` shape this file and are not obvious from its
+documentation.  Each was measured against the installed wheel.
 
-**The bundle's seeded history is not `vf.Messages`.**  TG-M3 froze a D control's prompt in
+**The bundle's seeded history is not `vf.Messages`.**  `tasks.py` writes a D control's prompt in
 the OpenAI chat shape (`tool_calls[i].function.name`), and 0.3.1's `vf.ToolCall` is flat
 (`name`, `arguments`), so the wheel refuses the prompt as written.  The task data therefore
 carries the wheel's shape and `bundle_from_data` restores the OpenAI one; X2 is what holds
-both halves honest.  (A note at G13 is owed in the spec.)
+both halves honest.
 
 **The task data crosses a JSON wire.**  A launched tool server is handed its task as
 `model_dump_json`, rebuilt with `model_validate_json` on the data's own class, found by
@@ -30,18 +30,18 @@ restoring is in `bundle_from_data` and `_deep_tuple`, not in the field types alo
 
 **A tool body has to be total.**  FastMCP validates a call's arguments against the
 function's signature before the body runs, and a call refused there never reaches `apply`;
-the live counter would then trail TG-M1's `replay` by one and every later observation would
-differ.  `_EngineTool` hands the raw argument dict to the engine instead, so a bad call
-comes back as the engine's own numbered line (§2.4's "tool bodies call `apply`", E5).
+the live counter would then trail the engine's `replay` by one and every later observation
+would differ.  `_EngineTool` hands the raw argument dict to the engine instead, so a bad
+call comes back as the engine's own numbered line (tool bodies call `apply`, E5).
 
 **The advertised schema is the bundle's, byte for byte.**  `ToolManager.add_tool` derives a
 schema from a function's signature (a `title` per property, no `additionalProperties`),
 which is not the bundle's, and it is the manager's only public entry point; `register`
 therefore builds the `Tool` itself and puts it in the manager (X3).
 
-One reading the spec leaves open is not settled here, and the tests do not pin it: where a
-call the harness refused sorts (its tool message carries no `seq`, and it mutates nothing
-wherever it lands).  How `turn_limit_hit` is read was ruled on 2026-09-21: the stop reason,
+One question is not settled here, and the tests do not pin it: where a call the harness
+refused sorts (its tool message carries no `seq`, and it mutates nothing wherever it
+lands).  `turn_limit_hit` is read from the stop reason,
 `Trace.stop_condition == "max_turns"`, and not `is_truncated`, which is also true for a token
 limit (`_verdict`).
 """
@@ -92,7 +92,7 @@ MEASURED_HARNESS = "null"
 says what a run under another one costs."""
 
 # The reward's own format spec.  The pass predicate is decided before the format check
-# (TG-M3's decision 4) and the taskset does not know the serving pin's parser, so the
+# (`tasks.verify` orders them so) and the taskset does not know the serving pin's parser, so the
 # export scores with no markers and leaves `malformed_call` to the adapter's own `verify`.
 _EXPORT_FORMAT = _FormatSpec(name="export", markers=())
 
@@ -103,7 +103,7 @@ _EXPORT_FORMAT = _FormatSpec(name="export", markers=())
 
 
 class ExportTaskConfig(_vf.TaskConfig):
-    """§2.4: "the strictness and the arm id".
+    """The task's config: the strictness and the arm id.
 
     Every field is defaulted because 0.3.1 builds the declared config type with no
     arguments when a task is constructed without one.
@@ -114,12 +114,12 @@ class ExportTaskConfig(_vf.TaskConfig):
 
 
 class ExportTasksetConfig(_vf.TasksetConfig):
-    """§2.4: "the arm spec plus the declared seed list, which is finite in v0".
+    """The taskset's config: the arm spec plus the declared seed list, which is finite.
 
     `arm` is the six `ArmSpec` fields as a mapping rather than the dataclass, so the
     config stays a plain pydantic model on the wire and under `--env.taskset.arm.*`.
     The `task` config is derived from the arm when the caller gives none: it carries
-    exactly what §2.4 says it carries, and the arm already determines both fields.
+    exactly the strictness and the arm id, and the arm already determines both fields.
 
     `task` is re-declared here, narrower than the base's `SerializeAsAny[TaskConfig]`,
     and it has to be: the wheel dumps that field duck-typed (whatever subclass instance it
@@ -163,7 +163,7 @@ class ExportTasksetConfig(_vf.TasksetConfig):
         return data
 
     def arm_spec(self) -> _ArmSpec:
-        """The declared arm, as TG-M2's dataclass."""
+        """The declared arm, as `knobs.ArmSpec`."""
         if not self.arm:
             raise ValueError(
                 "this taskset config declares no arm: pass "
@@ -180,11 +180,11 @@ class ExportTasksetConfig(_vf.TasksetConfig):
 class ExportTaskData(_vf.TaskData):
     """The whole bundle.
 
-    §2.4 lists eight of the bundle's twenty-one fields, and X2, X4, X6, X7 and `validate`
-    between them need the rest: `task_id` is a content hash over every other field, so a
-    round trip that dropped one would not hash equal; `verify` derives the scenario from
-    `seed` and `split`; X6 and `validate` score `reference_calls`.  The list reads as
-    illustrative under every reading, and a correction to §2.4 is owed in the vault.
+    X2, X4, X6, X7 and `validate` between them need all twenty-one of the bundle's
+    fields, not only the eight a task's wire data would obviously carry: `task_id` is a
+    content hash over every other field, so a round trip that dropped one would not hash
+    equal; `verify` derives the scenario from `seed` and `split`; X6 and `validate` score
+    `reference_calls`.
 
     `prompt`, `system_prompt`, `idx` and the rest of `vf.TaskData` come from the base.
     Nothing here is a tuple: the wire is JSON, and `bundle_from_data` restores the
@@ -229,7 +229,7 @@ def _call_pair(pair: _Any) -> tuple[str, _Any]:
     """One `(name, arguments)` call, with the arguments as the engine wants them.
 
     A call's arguments are usually a JSON object and come back as a `dict`.  Clause 2 of
-    the format check needs arguments that are *not* an object, and TG-M3 generates a
+    the format check needs arguments that are *not* an object, and `tasks.py` generates a
     control whose arguments are a tuple; JSON has no tuple, so that one arrives as a
     list and is restored here.
     """
@@ -238,7 +238,7 @@ def _call_pair(pair: _Any) -> tuple[str, _Any]:
 
 
 def _to_wire_message(message: dict[str, _Any]) -> dict[str, _Any]:
-    """One seeded message, from TG-M3's OpenAI chat shape into the wheel's.
+    """One seeded message, from the bundle's OpenAI chat shape into the wheel's.
 
     Only an assistant message differs: 0.3.1's `vf.ToolCall` is flat, where OpenAI nests
     the name and the arguments under `function`.  An assistant message in the seeded
@@ -262,7 +262,7 @@ def _to_wire_message(message: dict[str, _Any]) -> dict[str, _Any]:
 
 
 def _from_wire_message(message: _Any) -> dict[str, _Any]:
-    """The other direction: one `vf` message back into TG-M3's chat shape."""
+    """The other direction: one `vf` message back into the bundle's chat shape."""
     if isinstance(message, _vf.AssistantMessage):
         return {
             "role": "assistant",
@@ -326,7 +326,7 @@ def bundle_from_data(data: ExportTaskData) -> _TaskBundle:
 
     The result is equal to the generated bundle, not merely equal under a canonical hash
     -- and the difference is load-bearing.  A rebuilt bundle whose state rows came back
-    as lists is refused by TG-M3's `verify` as a defective bundle (`verifier_error`), so
+    as lists is refused by `tasks.verify` as a defective bundle (`verifier_error`), so
     a consumer that rebuilds one needs the stronger statement.  Every tuple the bundle
     holds is restored here, the pin record's nested ones included; the tool schemas'
     `required` lists stay lists, because that is what the bundle has.
@@ -369,7 +369,7 @@ def bundle_from_data(data: ExportTaskData) -> _TaskBundle:
 
 
 # ---------------------------------------------------------------------------
-# the verdict: X4's ordering, then TG-M3's own verifier
+# the verdict: X4's ordering, then the task layer's own verifier
 # ---------------------------------------------------------------------------
 
 
@@ -419,7 +419,7 @@ def _sampled_calls(trace: _Any) -> list[tuple[int | None, tuple[str, _Any]]]:
 
 
 def _ordered_turns(trace: _Any) -> tuple[tuple[_Turn, ...], bool]:
-    """The sampled calls as TG-M3's turns, ordered by X4's key, and whether the episode
+    """The sampled calls as `tasks.Turn`s, ordered by X4's key, and whether the episode
     ended with a reply.
 
     X4 orders the calls "by the `seq` in the matching `Trace.tool_messages` content".  A
@@ -448,9 +448,9 @@ def _ordered_turns(trace: _Any) -> tuple[tuple[_Turn, ...], bool]:
 
 
 def _verdict(data: ExportTaskData, trace: _Any) -> _Verdict:
-    """TG-M3's verdict on the trace.  The reward is never its own expectation (X4).
+    """`tasks.verify`'s verdict on the trace.  The reward is never its own expectation (X4).
 
-    `turn_limit_hit` is the stop reason and nothing wider (ruled 2026-09-21): a trace the
+    `turn_limit_hit` is the stop reason and nothing wider: a trace the
     wheel stopped at `max_turns`.  `is_truncated` is also true for a token limit and for a
     length-finished reply, and neither is a turn limit -- an episode cut by one of those
     ended for a reason the verdict's five arguments cannot see, and is `verifier_error`.
@@ -471,7 +471,7 @@ def _verdict(data: ExportTaskData, trace: _Any) -> _Verdict:
 
 
 class ExportTask(_vf.Task[ExportTaskData, _vf.State, ExportTaskConfig]):
-    """§2.4's task: one reward, four metrics, the domain toolset and G4.
+    """The task: one reward, four metrics, the domain toolset and G4.
 
     The generic parameters are not decoration.  0.3.1 reads a task's data and config
     types off them, and a subclass that leaves them bare gets `vf.TaskData` back -- and
@@ -491,10 +491,11 @@ class ExportTask(_vf.Task[ExportTaskData, _vf.State, ExportTaskConfig]):
 
     @_vf.reward(weight=1.0)
     async def strict(self, task: ExportTaskData, trace: _vf.Trace) -> float:
-        """X4: 1.0 exactly when TG-M3's `verify` gives strict `passed`.
+        """X4: 1.0 exactly when `tasks.verify` gives strict `passed`.
 
-        The one reward, weighing 1.0.  The leaky verdict is descriptive (TG-ADR-08) and
-        must not reach `Trace.reward`, which is why `leaky_pass` below is a metric.
+        The one reward, weighing 1.0.  The leaky verdict is descriptive, not a second
+        pass predicate, and must not reach `Trace.reward`, which is why `leaky_pass` below
+        is a metric.
         """
         return 1.0 if _verdict(task, trace).strict_label == "passed" else 0.0
 
@@ -505,27 +506,26 @@ class ExportTask(_vf.Task[ExportTaskData, _vf.State, ExportTaskConfig]):
 
     @_vf.metric
     async def mutation_count(self, task: ExportTaskData, trace: _vf.Trace) -> float:
-        """§2.4's "mutation count": `len(Verdict.mutations)`, TG-M3's own count.
+        """The mutation count: `len(Verdict.mutations)`, the verifier's own count.
 
         It counts `(class, id, field)` triples, three to a successful transition, and it
-        still reports the audit field, because it is diagnostic and not the predicate
-        (TG-ADR-40).
+        still reports the audit field, because it is diagnostic and not the predicate.
         """
         return float(len(_verdict(task, trace).mutations))
 
     @_vf.metric
     async def sampled_calls(self, trace: _vf.Trace) -> float:
-        """§2.4's "sampled calls": tool calls on sampled assistant messages only."""
+        """Sampled calls: tool calls on sampled assistant messages only."""
         return float(sum(len(message.tool_calls or []) for message in trace.assistant_messages))
 
     @_vf.metric
     async def turns(self, trace: _vf.Trace) -> float:
-        """§2.4's "turns": the trace's own count of sampled nodes."""
+        """Turns: the trace's own count of sampled nodes."""
         return float(trace.num_turns)
 
     @classmethod
     def toolsets(cls, config: ExportTaskConfig) -> list[_vf.Toolset]:
-        """§2.4: "the domain toolset, which is task-scoped (per rollout)".
+        """The domain toolset, which is task-scoped (one per rollout).
 
         A new toolset on every call: two rollouts of one task must not share a record or
         a counter.  A classmethod, so a consumer can size placement before any task
@@ -557,7 +557,7 @@ class ExportTask(_vf.Task[ExportTaskData, _vf.State, ExportTaskConfig]):
 
 
 def task_from_bundle(bundle: _TaskBundle) -> ExportTask:
-    """One generated bundle as one task.  §2.5's model target calls this at its step 3.
+    """One generated bundle as one task.  `ExportTaskset.load` calls this once per seed.
 
     It does not re-check G4: generation already refuses a bundle that fails it, and
     `validate` is where the export says so.
@@ -574,12 +574,12 @@ def task_from_bundle(bundle: _TaskBundle) -> ExportTask:
 
 
 class ExportTaskset(_vf.Taskset[ExportTask, ExportTasksetConfig]):
-    """§2.4: finite, one task per declared seed, via `generate`.
+    """Finite: one task per declared seed, via `generate`.
 
     In the order declared, and in no other: nothing here reorders a measurement's tasks,
     and the module calls nothing named `shuffle` (X8).  `Taskset.shuffle` is an
     inherited view this class cannot remove, and `eval --shuffle` is the user's flag;
-    what the measurement path iterates is TG-M5's concern, not this class's.
+    what the measurement path iterates is the adapter's concern, not this class's.
     """
 
     INFINITE = False
@@ -605,11 +605,11 @@ class _EngineTool(_Tool):
     """A FastMCP tool that advertises the bundle's schema and is total over any call.
 
     `Tool.run` validates the arguments against the function's signature first, and a
-    call refused there never reaches the body.  TG-M1's `apply` is total and advances
+    call refused there never reaches the body.  The engine's `apply` is total and advances
     `seq` on every call, errors included (E5), so a call that fails its own schema has
     to come back as the engine's numbered line and not as a FastMCP error: otherwise the
     live counter trails `replay` by one and every later observation differs, which
-    TG-M5's replay check would read as an instrument failure.
+    the adapter's replay check would read as an instrument failure.
     """
 
     async def run(
@@ -625,12 +625,12 @@ class _EngineTool(_Tool):
 
 
 class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
-    """§2.4's toolset: the task's block, served over MCP, backed by TG-M1's engine.
+    """The toolset: the task's block, served over MCP, backed by the engine.
 
     `TOOL_PREFIX = None` advertises the names bare -- the block's names are the
     bundle's, and a `<server>_` prefix would rewrite the prompt's tool list.
 
-    The engine state lives on this instance and not in `vf.State` (TG-ADR-07): the
+    The engine state lives on this instance and not in `vf.State`: the
     wheel's state sync is last-write-wins around every call, and a chain of transitions
     does not compose under that.  Declaring a `State` subclass would also switch the
     sync on.
@@ -645,7 +645,7 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
         self._lock = _asyncio.Lock()
 
     async def setup_task(self, task: _Any) -> None:
-        """§2.4: "builds the engine state from the task data".
+        """Builds the engine state from the task data.
 
         `seq_start` included: a depth control's counter starts past 1, because its
         seeded history already spent the turns it stands in for.
@@ -656,7 +656,7 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
         )
 
     def register(self, mcp: _FastMCP) -> None:
-        """§2.4: the task's block, in slot order, "because `setup_task` runs first".
+        """The task's block, in slot order; the block is known because `setup_task` runs first.
 
         Not the base implementation: that discovers `@vf.tool`-decorated methods, and
         the block's names are not known until the task is.  Not `add_tool` either: it
@@ -671,7 +671,7 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
         description = str(spec["description"])
 
         async def body(arguments: _Any) -> str:
-            # The lock is §2.4's "under an in-process lock": `apply` is pure, and the
+            # An in-process lock: `apply` is pure, and the
             # counter lives in the state this coroutine reads and then writes, so two
             # calls that interleave between the two would take the same `seq` (E5).
             async with self._lock:

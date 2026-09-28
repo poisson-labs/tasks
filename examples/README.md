@@ -1,6 +1,6 @@
 # Examples
 
-Three, smallest first. Run them from the repository root with the virtual environment
+Four, smallest first. Run them from the repository root with the virtual environment
 the [README](../README.md) sets up.
 
 ## `one_task.py` -- one task, and every answer it ships with
@@ -34,6 +34,21 @@ different seeds -- and prints the three rows that catch it.
 No network, no model, no Proofload.
 
 Then read [docs/knobs-and-arms.md](../docs/knobs-and-arms.md).
+
+## `calibration_card.py` -- a published calibration card, recomputed from its records
+
+```
+python examples/calibration_card.py [DIR]
+```
+
+Reads the 4,200 per-episode records behind model A's calibration card
+(`calibration/gpt-5-nano-2025-08-07/episodes.jsonl`), rebuilds the machine-readable card
+from them alone, checks that it is byte-identical to the committed `artifact.json`, and
+prints the rendered card: the level tables, the control arms, cost, the level-to-level
+comparisons, the ordering and the provenance.
+
+No network, no model, no Proofload. The records were produced by real model calls; this
+only does the arithmetic. Read it with [docs/calibration-guide.md](../docs/calibration-guide.md).
 
 ## `proofload_sweep/run.py` -- the whole scripted path, end to end
 

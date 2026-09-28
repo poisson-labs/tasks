@@ -1,32 +1,31 @@
-"""TG-M6, difficulty calibration: what each difficulty level is worth to a named model.
+"""Difficulty calibration: what each difficulty level is worth to a named model.
 
-The spec is the calibration handoff, invariants CAL1 to CAL23 with Taylor's rulings R1 to
-R17 of 2026-09-22 folded in, and the frozen oracle is `tests/test_cal_calibration.py`.  CAL24
-and the plumbing gate are Taylor's rulings of 2026-09-25, pinned in
-`tests/test_cal_calibration_fix.py`.  A
-cell is `(arm, model)`; its records are `n` independent attempts at each of `S` generated
-tasks, and its numbers are pass@1 and pass@k under the export's own strict reward (X4), with
-the leaky predicate beside them (R15), a task-clustered interval (CAL9), a paired difference
-to the neighbouring level (CAL10, CAL11) and the cost the attempts burned (CAL15).
+The invariants are CAL1 to CAL23, tested in `tests/test_cal_calibration.py`, and CAL24 with
+the phase 1 plumbing gate, tested in `tests/test_cal_calibration_fix.py`; each test's name
+carries the invariant it checks.  A cell is `(arm, model)`; its records are `n` independent
+attempts at each of `S` generated tasks, and its numbers are pass@1 and pass@k under the
+export's own strict reward (X4), with the leaky predicate beside them, a task-clustered
+interval (CAL9), a paired difference to the neighbouring level (CAL10, CAL11) and the cost
+the attempts burned (CAL15).
 
-**This is not stage 0a's blind calibration.**  0a plants bugs in a scripted policy and asks
-whether the instrument detects them.  This asks what a level is worth to a model, and it
-shares a word with 0a and no arithmetic.
+**This is not a blind calibration of the instrument.**  That plants bugs in a scripted policy
+and asks whether the instrument detects them.  This asks what a level is worth to a model, and
+it shares a word with that and no arithmetic.
 
-**A21's distinct-instance rule does not apply to this module.**  Rev. 3.1's V-1 fix and A21
-exist so that no two of the pilot's replicates are the same instance.  Here the opposite is
-required: pass@k is defined over repeated attempts at the same task, so a cell's `n` attempts
-share `task_id`, `arm_id`, `seed`, `scenario_hash` and `generator_hash` (CAL3), and
-`check_attempts` refuses a cell whose attempts were salted apart.  A session that carries A21
-across by reflex computes something that is not pass@k.
+**A21, the pilot's distinct-instance rule, does not apply to this module.**  The Proofload
+pilot salts its replicates apart so that no two are the same instance.  Here the opposite is
+required: pass@k is defined over repeated attempts at the same task, so a cell's `n`
+attempts share `task_id`, `arm_id`, `seed`, `scenario_hash` and `generator_hash` (CAL3), and
+`check_attempts` refuses a cell whose attempts were salted apart.  Carrying the pilot's rule
+across computes something that is not pass@k.
 
 **Tasks is standalone.**  Nothing here imports Proofload or the Prove-gated adapter, and the
 whole module works with Proofload unimportable (CAL22).  The instrument labels the adapter
-would assign are read from the signals the trace already carries instead (R16,
-`label_from_signals`), and every published number recomputes from the per-episode records with
+would assign are read from the signals the trace already carries instead
+(`label_from_signals`), and every published number recomputes from the per-episode records with
 no model and no network (CAL19).
 
-Shapes decided here, where the oracle leaves them open
+Shapes decided here, where the tests leave them open
 ------------------------------------------------------
 
 * **A cell is a plain sequence of `EpisodeRecord`** and every estimator takes one.  Records
@@ -41,7 +40,7 @@ Shapes decided here, where the oracle leaves them open
   exactly.
 * **The seed list is derived, not typed.**  Sixty 32-bit seeds from a named derivation
   (`_SEED_DERIVATION`), sorted; the derivation is the declaration and the list is published
-  in the artifact with its hash (CAL1, R7).
+  in the artifact with its hash (CAL1).  The seeds come from the eval split.
 * **The pilot's seeds are a registry.**  The pilot's stages declare *salts* and Proofload
   derives their seeds at run time, which this module cannot import.  `pilot_seeds` returns
   what the pilot has registered, and today that is nothing: CAL1's disjointness holds in the
@@ -49,14 +48,14 @@ Shapes decided here, where the oracle leaves them open
   sixty.
 * **`instrument_rate` reads the tally first.**  A resume drops failed episodes and re-runs
   them, so the records under-count what happened; the tally written at the moment of failure
-  (R14) is the count, and the denominator is the scored records plus the tally.
+  is the count, and the denominator is the scored records plus the tally.
 * **The runner is the wheel's in-process eval body** with two things between episodes that
-  `run_eval` cannot do: the budget check before each episode (CAL20, R11) and the tally at
-  the moment of failure (R14).  Its config is `run_config_for`'s, which differs from the
+  `run_eval` cannot do: the budget check before each episode (CAL20) and the tally at the
+  moment of failure.  Its config is `run_config_for`'s, which differs from the
   documented command in exactly the seed list, `-r` and the declared sampling (CAL21), and
   its checkpoint is the wheel's own `traces.jsonl` plus `resume.load` (CAL23).
 * **A dollar figure needs a rate.**  A model whose provenance carries no rate publishes
-  `null` dollars, not zero: model B costs compute units, not dollars (R1, R3).
+  `null` dollars, not zero: a locally served model costs compute units, not dollars.
 * **A cell that measures whether the model starts refuses to publish (CAL24).**  Model A's
   first card had 72.5% of its episodes end on a first reply that asked for the record id
   and the entry code and called no tool, which is a statement about the prompt and not
@@ -74,13 +73,13 @@ Shapes decided here, where the oracle leaves them open
   (`overshoot`) and strict fails it; at the top level no stage lies above the goal.  Strict
   at the lower levels therefore includes a stop-at-the-goal test the top level cannot have,
   and leaky, which measures reaching the goal at every level, is shown beside it.  Strict
-  stays the headline (R15).
+  stays the headline.
 * **The two call counts are named for what they count.**  A record's `sampled_calls` is the
   export's metric of that name, the number of tool calls, and its `turns` is
-  `trace.num_turns`, the number of model calls.  The record keeps the oracle's field names;
+  `trace.num_turns`, the number of model calls.  The record keeps the tests' field names;
   the artifact publishes `tool_calls`, `model_calls` and `model_calls_median`.
 * **`docs/calibration.md` is one document with these sections in this order:** the level
-  tables per knob, the instrument arms (R9), cost, adjacent levels, ordering, provenance.
+  tables per knob, the instrument arms, cost, adjacent levels, ordering, provenance.
   The control arms appear only under the instrument heading.
 """
 
@@ -141,10 +140,10 @@ __all__ = [
     "INSTRUMENT_TABLE_HEADING",
     "HEADLINE_PREDICATE",
     "NO_CALL_THRESHOLD",
-    # phase 1's plumbing gate (ruling 3, 2026-09-25)
+    # phase 1's plumbing gate
     "plumbing_gate",
     "PlumbingVerdict",
-    # what runs (CAL1 to CAL5, CAL20 to CAL23, R11, R14, R16)
+    # what runs (CAL1 to CAL5, CAL20 to CAL23)
     "seed_list",
     "pilot_seeds",
     "arm_specs",
@@ -166,19 +165,19 @@ __all__ = [
 ]
 
 # ---------------------------------------------------------------------------
-# the declared design: every number Taylor ruled, in one place (handoff section 0)
+# the declared design: every number fixed before any run, in one place
 # ---------------------------------------------------------------------------
 
 S = 60
-"""Seeds per cell (R6)."""
+"""Seeds per cell."""
 N = 5
-"""Attempts per task (R6)."""
+"""Attempts per task."""
 DELTA_STAR = 0.15
-"""The resolution, in pass-rate points, declared before any run (R5)."""
+"""The resolution, in pass-rate points, declared before any run."""
 K_VALUES = (1, 2, 5)
-"""The `k` values on the card; every `k <= n` goes in the artifact (R17)."""
+"""The `k` values on the card; every `k <= n` goes in the artifact."""
 SPLIT = "eval"
-"""Calibrate on the eval split (R7)."""
+"""Calibrate on the eval split."""
 BOOTSTRAP_RESAMPLES = 2000
 """CAL9's resample count."""
 BOOTSTRAP_SEED = 20260922
@@ -188,14 +187,14 @@ SATURATION_HIGH = 0.95
 """CAL12's inclusive bounds."""
 INSTRUMENT_THRESHOLD = 0.02
 """CAL16's instrument-rate gate.  Declared here because a cell that exceeds it refuses to
-publish; the handoff records (open item 9) that nothing measured supports the number, and
-phase 1 is where it is first read against a real rate."""
+publish.  Nothing measured supports the number in advance; phase 1 is where it is first read
+against a real rate."""
 NO_CALL_THRESHOLD = 0.10
 """CAL24's gate: a cell in which more than this share of scored episodes made no tool call
-refuses to publish, because it measures whether the model starts and not the level.  Taylor's
-number (2026-09-25); after the prompt fix the probe showed 0 of 16."""
+refuses to publish, because it measures whether the model starts and not the level.  Declared
+before the rerun; after the prompt fix the probe showed 0 of 16."""
 MODEL_A = "gpt-5-nano-2025-08-07"
-"""Model A, pinned (R2)."""
+"""Model A, pinned to a dated snapshot."""
 DECODING: dict[str, _Any] = {
     "temperature": 1.0,
     "top_p": 1.0,
@@ -204,17 +203,17 @@ DECODING: dict[str, _Any] = {
 }
 """The declared decoding (CAL5): every `SamplingConfig` field pinned, and not deterministic.
 Temperature 1.0 is the value the reasoning family accepts; whether the endpoint honours it at
-all is the handoff's open item 5 and is measured for cents in phase 1.  The limit is declared
+all is an open question, measured for cents in phase 1.  The limit is declared
 under `SamplingConfig`'s field name and sent as `max_completion_tokens` (`run_config_for`)."""
 DEFAULT_BUDGET: dict[str, _Any] = {"tokens": 100_000_000, "wall_clock_seconds": 12 * 3600}
-"""The stop's declared limits (CAL20, R11): tokens and wall clock; the third limit is the
+"""The stop's declared limits (CAL20): tokens and wall clock; the third limit is the
 provider saying out of credit, which is read from the episode and needs no number."""
 GENERATOR_VERSION = "0"
 TASKSET_ID = "poisson-tasks"
 DOCUMENTED_SEEDS = (404, 55, 2121)
 """The seed list on the documented one-liner in `docs/verifiers-export.md` (CAL21)."""
 D_R = 2
-"""Knob R's fixed chain depth (2.2): a distractor arm's minimum calls."""
+"""Knob R's fixed chain depth (`knobs.py`): a distractor arm's minimum calls."""
 
 TOO_SMALL = "too small for this design to call"
 DISTINGUISHABLE = "distinguishable"
@@ -222,9 +221,9 @@ HEADLINE_PREDICATE = "strict"
 INSTRUMENT_TABLE_HEADING = "## Instrument arms (control arms, not difficulty levels)"
 
 STOP_REASONS = ("tokens", "wall_clock", "provider_exhausted")
-"""R11: the run stops on whichever arrives first."""
+"""The run stops on whichever arrives first."""
 
-# 2.3's closed outcome vocabulary, split as 2.3 splits it.
+# The task layer's closed outcome vocabulary (`tasks.py`), split into instrument and system.
 INSTRUMENT_LABELS = frozenset({"verifier_error", "replay_mismatch", "api_error", "wall_timeout"})
 SYSTEM_LABELS = frozenset(
     {"malformed_call", "turn_limit", "overshoot", "wrong_state", "collateral_mutation", "passed"}
@@ -232,23 +231,25 @@ SYSTEM_LABELS = frozenset(
 OUTCOME_LABELS = INSTRUMENT_LABELS | SYSTEM_LABELS
 _PASSED = "passed"
 
-# 2.2's four SamplingConfig fields.  Each defaults to `None` in the wheel and `wire_args`
+# The wheel's four SamplingConfig fields.  Each defaults to `None` in the wheel and `wire_args`
 # drops it, so an unset field is absent from the request and the provider's default applies.
 SAMPLING_FIELDS = ("temperature", "top_p", "reasoning_effort", "max_tokens")
 
-# R12: what a locally served model's provenance has to carry beyond `kind`.
+# What a locally served model's provenance has to carry beyond `kind`: the same weights
+# served differently give different numbers.
 SERVING_KINDS = ("hosted", "local")
 SERVING_FIELDS_LOCAL = ("stack", "stack_version", "flags", "gpu", "revision")
 _RATE_FIELDS = ("input_rate", "cached_input_rate", "output_rate")
 
-# The two control arms per knob (2.2), the same four `tests/test_tg_m5_standalone.py`
+# The two control arms per knob (`knobs.py`), the same four `tests/test_tg_m5_standalone.py`
 # parameterises over.  A control pair names two levels and is not derivable from the axis,
 # which is why these are declared and the plain arms are not.
 D_CONTROLS = ((1, 8), (2, 5))
 R_CONTROLS = ((0, 8), (2, 14))
 
 TALLY_FILE = "instrument-tally.jsonl"
-"""R14's append-only tally.  Deliberately not `traces.jsonl`, which `resume.load` rewrites."""
+"""The append-only instrument tally.  Deliberately not `traces.jsonl`, which `resume.load`
+rewrites."""
 TRACES_FILE = "traces.jsonl"
 RECORDS_FILE = "episodes.jsonl"
 
@@ -264,16 +265,17 @@ _KNOBS = (_DEPTH, _DISTRACTOR)
 
 @_dc.dataclass(frozen=True, kw_only=True)
 class EpisodeRecord:
-    """One scored episode: the compact row committed to the repository (handoff section 1).
+    """One scored episode: the compact row a published card is recomputed from.
 
     `strict` is `ExportTask.strict == 1.0` (X4) and `leaky` is the export's `leaky_pass`
-    metric; `label` is 2.3's outcome label, instrument or system.  The four token fields are
-    `vf.Usage`'s: `prompt_tokens` excludes cache reads and `cached_input_tokens` carries
-    them; `reasoning_tokens` is a subset of `completion_tokens` and is never added again.
+    metric; `label` is the task layer's outcome label, instrument or system.  The four token
+    fields are `vf.Usage`'s: `prompt_tokens` excludes cache reads and `cached_input_tokens`
+    carries them; `reasoning_tokens` is a subset of `completion_tokens` and is never added
+    again.
 
     `sampled_calls` is the number of **tool calls** the model made (the export's metric of
     that name) and `turns` is the number of **model calls** (`trace.num_turns`).  The names
-    are the oracle's and stay; the artifact publishes them as `tool_calls` and `model_calls`.
+    are the tests' and stay; the artifact publishes them as `tool_calls` and `model_calls`.
     """
 
     task_id: str
@@ -355,7 +357,7 @@ def scored(cell: Cell) -> list[EpisodeRecord]:
 def instrument_rate(cell: Cell, tally: _Mapping[str, int] | None = None) -> float:
     """The share of attempts that failed for instrument reasons.
 
-    R14: where a tally exists it is the count, because a resume has re-run what failed and
+    Where a tally exists it is the count, because a resume has re-run what failed and
     the records alone under-count.  The denominator is the scored records plus the failures,
     which is every attempt that ran.
     """
@@ -609,7 +611,7 @@ def ordering(cells: _Mapping[int, Cell], axis: _Sequence[int]) -> OrderingReport
 
 
 # ---------------------------------------------------------------------------
-# provenance (CAL18, R11, R12)
+# provenance (CAL18)
 # ---------------------------------------------------------------------------
 
 
@@ -630,9 +632,9 @@ class Provenance:
 
     `models` is one mapping per model with `id`, `revision` and `endpoint_host`, and either
     all three of `input_rate`, `cached_input_rate` and `output_rate` (dollars per million
-    tokens) or none.  `serving` is keyed by model id; a `local` entry carries R12's five
-    fields and a `hosted` one carries `endpoint_host`.  A model with no `serving` entry is
-    hosted at its `endpoint_host`.
+    tokens) or none.  `serving` is keyed by model id; a `local` entry carries the five
+    `SERVING_FIELDS_LOCAL` and a `hosted` one carries `endpoint_host`.  A model with no
+    `serving` entry is hosted at its `endpoint_host`.
     """
 
     package_version: str
@@ -1058,7 +1060,7 @@ def _pair_rows(
 def _ordering_rows(cells: _Mapping[CellKey, Cell]) -> list[dict[str, _Any]]:
     """CAL13 per model and knob, and the family agreement count where two models share a
     complete axis.  Each ordering row carries leaky pass@1 across the axis beside the strict
-    rates (ruling 5, 2026-09-25); the agreement count stays on the strict headline."""
+    rates; the agreement count stays on the strict headline."""
     rows: list[dict[str, _Any]] = []
     reports: dict[tuple[str, str], OrderingReport] = {}
     for model in sorted({model for _, model in cells}):
@@ -1101,7 +1103,7 @@ def build_artifact(
 
     Refuses: a seed list whose hash is not the list's; a cell holding two models (CAL14) or
     a model the block does not declare; a cell over the instrument threshold (CAL16); a
-    locally served model without its serving stack (R12, checked at `Provenance`).
+    locally served model without its serving stack (checked at `Provenance`).
     """
     tallies = {key: _cell_tally(key, cells, tally) for key in cells}
     for key, cell in cells.items():
@@ -1147,7 +1149,7 @@ def read_records(path: _pathlib.Path) -> list[EpisodeRecord]:
 
 
 # ---------------------------------------------------------------------------
-# the renderings (CAL13, CAL17, R9, R10, R13, R15, R17)
+# the renderings (CAL13, CAL17)
 # ---------------------------------------------------------------------------
 
 
@@ -1195,7 +1197,7 @@ def _plain(knob: str, level: int) -> _ArmSpec:
 
 
 def _depth_stop_note(axis: _Sequence[int]) -> str:
-    """Ruling 5's sentence, from the axis: every depth arm offers the whole stage ladder, so
+    """The depth ordering's note, from the axis: every depth arm offers the whole stage ladder, so
     below the top level strict also asks the model to stop at the goal, and at the top level
     no stage lies above it."""
     lower, top = list(axis[:-1]), axis[-1]
@@ -1211,7 +1213,7 @@ def _depth_stop_note(axis: _Sequence[int]) -> str:
 
 def render_document(artifact: Artifact) -> str:
     """`docs/calibration.md`: rendered from the artifact and never typed (CAL17).  Every
-    sentence is inside the spec's shape 2 template; nothing here ranks models or claims a
+    sentence is a single-model difficulty claim; nothing here ranks models or claims a
     rank statistic (CAL13, CAL14)."""
     prov = artifact.provenance
     k_values = list(prov.k_values)
@@ -1389,7 +1391,7 @@ def render_readme_lines(artifact: Artifact) -> str:
 
 
 # ---------------------------------------------------------------------------
-# phase 1's plumbing gate (ruling 3, 2026-09-25)
+# phase 1's plumbing gate
 # ---------------------------------------------------------------------------
 
 
@@ -1542,7 +1544,7 @@ def check_decoding(declared: _Mapping[str, _Any]) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# the stop (CAL20, R11)
+# the stop (CAL20)
 # ---------------------------------------------------------------------------
 
 
@@ -1561,7 +1563,7 @@ def within_budget(
     budget: _Mapping[str, _Any],
 ) -> BudgetVerdict:
     """Checked before each episode.  The run stops on whichever limit arrives first: the
-    token budget, the wall clock, or the provider saying out of credit (R11).  Every stop is
+    token budget, the wall clock, or the provider saying out of credit.  Every stop is
     the same clean stop: the episodes already paid for are kept and the cell is marked
     incomplete."""
     if tokens >= int(budget["tokens"]):
@@ -1574,7 +1576,7 @@ def within_budget(
 
 
 # ---------------------------------------------------------------------------
-# instrument labels from the trace's own signals (R16)
+# instrument labels from the trace's own signals, without importing the adapter
 # ---------------------------------------------------------------------------
 
 
@@ -1597,7 +1599,7 @@ _DEADLINE_WORDS = ("timeout", "timed out", "deadline")
 
 
 def label_from_signals(signals: EpisodeSignals) -> str | None:
-    """2.3's instrument label for an episode, or `None` when the outcome is the model's own.
+    """The instrument label for an episode, or `None` when the outcome is the model's own.
 
     A wall-clock deadline is `wall_timeout`.  An episode that did not finish cleanly for any
     other reason ended without a completed model response, which is `api_error`.  A clean
@@ -1616,7 +1618,7 @@ def label_from_signals(signals: EpisodeSignals) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# the tally (R14)
+# the tally
 # ---------------------------------------------------------------------------
 
 
@@ -1655,7 +1657,7 @@ def _tally_rows(run_dir: _pathlib.Path) -> list[dict[str, _Any]]:
 
 
 def read_tally(run_dir: _pathlib.Path) -> dict[str, int]:
-    """The counts per 2.3 instrument label."""
+    """The counts per instrument label."""
     out: dict[str, int] = {}
     for row in _tally_rows(run_dir):
         out[row["label"]] = out.get(row["label"], 0) + 1
@@ -1763,7 +1765,7 @@ def config_difference(documented: _Any, calibration: _Any) -> dict[str, _Any]:
 
 
 # ---------------------------------------------------------------------------
-# the runner (CAL20, CAL21, CAL23, R11, R14)
+# the runner (CAL20, CAL21, CAL23)
 # ---------------------------------------------------------------------------
 
 
@@ -1812,7 +1814,7 @@ _EXHAUSTED_WORDS = ("insufficient_quota", "quota", "billing", "credit", "balance
 
 
 def _provider_exhausted(episode: _Any) -> bool:
-    """The provider saying out of credit (R1, R11): a payment-required status, or a 429
+    """The provider saying out of credit: a payment-required status, or a 429
     whose message names the quota or the balance rather than the rate."""
     for error in _episode_errors(episode):
         status = getattr(error, "status_code", None)
@@ -1955,8 +1957,8 @@ def run_arm(
 
     The config is `run_config_for`'s (CAL21).  The run directory is `output_dir / <arm id>`,
     so a second call resumes the first: the failed rows on disk are tallied before the
-    wheel's resume prunes them (R14), the owed rollouts are re-run (CAL23), and the budget
-    is checked before each episode is dispatched (CAL20, R11).  Nothing is pushed.
+    wheel's resume prunes them, the owed rollouts are re-run (CAL23), and the budget is
+    checked before each episode is dispatched (CAL20).  Nothing is pushed.
     """
     _, config = run_config_for(
         spec, model=model, client=client, output_dir=output_dir,
@@ -1969,7 +1971,7 @@ def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecor
     """The per-episode records of a finished run, from its `traces.jsonl`.
 
     `strict` and `leaky` are what the wheel scored (X4's reward and the `leaky_pass`
-    metric); the outcome label is TG-M3's own verdict on the trace, re-read through the
+    metric); the outcome label is `tasks.verify`'s own verdict on the trace, re-read through the
     export so that one ordering of the sampled calls exists; an instrument label from the
     episode's signals overrides it.  Attempts are numbered by position in the file.
     """

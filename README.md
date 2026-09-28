@@ -61,23 +61,23 @@ using the tools it is given and nothing else.
 | the Proofload adapter, scripted path | **built** -- runs end to end against Proofload with no model, on an installed Proofload checkout |
 | the `verifiers` taskset export | **built** -- the task data, the task with its reward, the tool server, and a finite taskset over a declared list of seeds |
 | the model path, standalone | **built** -- the taskset id `poisson-tasks` resolves, and `eval` runs the measured harness against an OpenAI-compatible endpoint with no flag |
+| difficulty calibration | **built** -- pass@k per level with task-clustered intervals, paired level-to-level comparisons, cost, and the refusals that keep a card honest; **run for one model**, `gpt-5-nano` |
+| a second model's card | **prepared, not run** -- a Colab notebook that serves `Qwen3-8B` with vLLM on an L4 and runs the same card |
 
-"Built" means covered by the test suite: **1086 tests**, and `pytest -q` is the check.
+"Built" means covered by the test suite: **1390 tests**, and `python -m pytest -q` is the check.
 
 ---
 
 ## What Is Not Built, and What Is Not Claimed
 
-1. **No language model has been run against this repository.** The standalone model path
-   is built and tested -- the taskset loads by its id, and `eval` resolves to the measured
-   harness in a local subprocess -- but every test drives it against a stub or the `null`
-   harness. No number here was produced by a real model.
-2. **The pinned serving path is not built.** There is no vLLM serving stack, no serving
-   proxy, no forced output and no store mirror, so none of the pilot's controls exist yet.
-3. **Calibration has not been run.** No difficulty level here has been measured against a
-   real model, so nothing in this repository tells you what a given depth is worth. The
-   levels are candidates.
-4. **No pilot has been run**, so there are no results to report and none are claimed.
+1. **One model has been calibrated, not two.** `gpt-5-nano`'s card is in and is summarised
+   [below](#what-each-difficulty-level-is-worth). The second, `Qwen3-8B`, is prepared and not
+   yet run. Until it is, nothing here says whether a level's difficulty holds across model
+   families.
+2. **The pilot's pinned serving path is not built.** There is no serving proxy, no forced
+   output and no store mirror, so none of the pilot's controls exist yet. The model B
+   notebook serves one model with vLLM for calibration only.
+3. **No pilot has been run**, so there are no pilot results to report and none are claimed.
 
 ---
 
@@ -103,11 +103,14 @@ checked. Nothing else here touches the network, and the tokenizer itself never d
 Sanity check:
 
 ```bash
-.venv/bin/pytest -q
+.venv/bin/python -m pytest -q
 ```
 
-**1086 tests, 706 passed and 380 skipped.** The skipped ones are the Proofload adapter's,
-and they say so.
+Run it as `python -m pytest`, from the repository root: one test imports `tests.conftest`,
+which needs the root on the import path, and a bare `pytest` does not put it there.
+
+**1390 tests, 1008 passed and 382 skipped.** The skipped ones need Proofload -- the
+adapter's tests and the bridge between the two scorers -- and they say so.
 
 ### 2. Generate One Task, and Judge Every Answer It Ships With
 
@@ -174,10 +177,49 @@ not be and why, and the one row that reports rather than refuses. Then it builds
 deliberately broken contrast -- two arms generated from different seeds -- and prints the
 three rows that catch it.
 
-### 4. The Proofload Route, Optional
+### 4. Export Tasks in the verifiers Format
+
+`poisson_tasks.export` packages generated tasks as a
+[verifiers](https://github.com/willccbb/verifiers) v1 taskset: one task per declared seed,
+scored by the generator's own verifier, with the task's tools served over MCP.
+
+```python
+import dataclasses
+from poisson_tasks.knobs import ArmSpec
+from poisson_tasks.export import ExportTaskset, ExportTasksetConfig
+
+arm = ArmSpec(knob="depth", level=3, control=None, strictness="strict",
+              split="eval", generator_version="0")
+taskset = ExportTaskset(ExportTasksetConfig(arm=dataclasses.asdict(arm), seeds=[404, 55, 2121]))
+for task in taskset.load():
+    print(task.key, len(task.data.tools))
+```
+
+The reward is `strict`, 1.0 exactly when the verifier gives strict `passed`; `leaky_pass`,
+`mutation_count`, `sampled_calls` and `turns` are metrics beside it. The package itself is
+the taskset id `poisson-tasks`. [`docs/verifiers-export.md`](docs/verifiers-export.md) has the
+ten public names, the signals and the tool server.
+
+### 5. Run Them Against a Real Model
+
+One command, against any OpenAI-compatible endpoint serving a model that calls tools. Set
+`MODEL`, `MODEL_BASE_URL` and `MODEL_API_KEY`, then:
+
+```bash
+uv run eval poisson-tasks --model "$MODEL" --client.base-url "$MODEL_BASE_URL" --client.api-key-var MODEL_API_KEY --env.taskset.arm '{"knob": "depth", "level": 3, "control": null, "strictness": "strict", "split": "eval", "generator_version": "0"}' --env.taskset.seeds 404 55 2121 --no-push
+```
+
+It runs three `depth:d3` tasks through the `null` harness -- the model sees the task's
+prompt and tool block and nothing else -- in a local subprocess. `--no-push` keeps the run
+local; without it, verifiers pushes the finished run to its hub. Run against OpenAI with
+`MODEL=gpt-5-nano`, it served 3 of 3 episodes for about half a cent;
+[`docs/verifiers-export.md`](docs/verifiers-export.md) has the output and what to do if a
+run goes quiet.
+
+### 6. The Proofload Route, Optional
 
 Proofload is one of the two routes a generated task can be run down. It is an **optional
-optional route, not a dependency**, and **Proofload is not publicly available yet**, so
+route, not a dependency**, and **Proofload is not publicly available yet**, so
 there is no extra for it and no index to install it from: it comes from a checkout
 installed into the same environment. With one at `../proofload`:
 
@@ -201,13 +243,13 @@ outcomes, and runs a `proofload diff` of the two depth arms. Every episode comes
 seconds and writes about 80 KB under `examples/proofload_sweep/example-store`, which is
 git-ignored.
 
-With Proofload installed, `pytest -q` is **1086 passed, 0 skipped**.
+With Proofload installed, `python -m pytest -q` is **1390 passed, 0 skipped**.
 
 Without it, `import poisson_tasks` and every module under it work as they do with it.
 Only `poisson_tasks.adapter` needs Proofload, and importing it without Proofload raises
 a `ModuleNotFoundError` saying where it comes from.
 
-### 5. Types and Lint
+### 7. Types and Lint
 
 ```bash
 .venv/bin/mypy               # strict, over src/
@@ -216,13 +258,87 @@ a `ModuleNotFoundError` saying where it comes from.
 
 ---
 
+## What Each Difficulty Level Is Worth
+
+A level is a candidate until a model has been run against it. A **calibration card** says
+what each level of `depth` and `distractor` is worth to one named model: 60 generated tasks
+per level from the eval split, 5 independent attempts at each, run through the one-line
+`eval` path above with the `null` harness.
+[`docs/calibration-guide.md`](docs/calibration-guide.md) explains every column; in brief:
+
+- **strict pass@1** is the headline: the attempt reached the goal state exactly and ended
+  with a reply. **leaky pass@1**, beside it, also accepts going past the goal (overshoot) or
+  touching another record. Each rate carries a 95% interval that resamples tasks, and
+  pass@2 and pass@5 sit beside pass@1.
+- **no tool call** is the share of scored attempts that never called a tool, and **stopped
+  short** the share that called some tools but fewer than the task's minimum. **A level
+  where more than 10% of attempts made no tool call is not published, and neither is its
+  card**: it would measure whether the model starts, not how hard the level is. Stopping
+  short is a difficulty result and is printed, not gated.
+- Two neighbouring levels are **distinguishable** only when their paired interval excludes
+  zero *and* they differ by at least 0.15; otherwise the card says the difference is too
+  small for this design to call. A level at or below 0.05, or at or above 0.95, is
+  **saturated** and left out of every comparison.
+- Attempts that failed for a reason that is not the model's (an API error, a timeout) are
+  counted apart and leave the denominator. A card is pinned to the generator's hash and says
+  so when it is stale.
+
+### Model A: `gpt-5-nano-2025-08-07`
+
+4,200 episodes on 2026-09-25, all scored, no instrument failure, about $2.52. Strict pass@1
+per level, with its 95% interval [*source:*
+[`calibration/gpt-5-nano-2025-08-07/artifact.json`](calibration/gpt-5-nano-2025-08-07/artifact.json);
+`python examples/calibration_card.py` recomputes it from the 4,200 records and prints the
+whole card]:
+
+- `depth:d1`: gpt-5-nano-2025-08-07 strict pass@1 0.547 [0.473, 0.617] over 60 tasks at 5 attempts each
+- `depth:d2`: gpt-5-nano-2025-08-07 strict pass@1 0.397 [0.307, 0.483] over 60 tasks at 5 attempts each
+- `depth:d3`: gpt-5-nano-2025-08-07 strict pass@1 0.237 [0.167, 0.307] over 60 tasks at 5 attempts each
+- `depth:d5`: gpt-5-nano-2025-08-07 strict pass@1 0.177 [0.110, 0.247] over 60 tasks at 5 attempts each
+- `depth:d8`: gpt-5-nano-2025-08-07 strict pass@1 0.870 [0.823, 0.913] over 60 tasks at 5 attempts each
+- `distractor:r0@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.917 [0.883, 0.950] over 60 tasks at 5 attempts each
+- `distractor:r2@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.903 [0.863, 0.940] over 60 tasks at 5 attempts each
+- `distractor:r4@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.910 [0.863, 0.950] over 60 tasks at 5 attempts each
+- `distractor:r8@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.910 [0.870, 0.947] over 60 tasks at 5 attempts each
+- `distractor:r14@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.960 [0.937, 0.980] over 60 tasks at 5 attempts each
+
+What it shows:
+
+- **Depth works from d1 to d5.** Strict pass@1 falls at every step, 0.547 to 0.177. The
+  steps d1 to d2 and d2 to d3 are distinguishable; d3 to d5 is too small to call.
+- **d8 cannot overshoot.** Every depth level offers the whole eight-stage ladder, so below
+  d8 an attempt can carry the record past the goal and strict fails it; at d8 nothing lies
+  above the goal, and strict equals leaky at 0.870. The jump is that missing failure mode,
+  not d8 being easy.
+- **The distractor dial does not bite for `gpt-5-nano`.** Strict pass@1 stays between 0.90
+  and 0.92 from r0 to r8 and reaches 0.960, saturated, at r14. No adjacent pair is
+  distinguishable.
+
+### Model B: `Qwen3-8B`
+
+> **Not run yet. Placeholder: no results.** Model B is `Qwen/Qwen3-8B` at a pinned revision,
+> thinking off, served with vLLM on a Colab L4 by
+> [`notebooks/calibration_model_b.ipynb`](notebooks/calibration_model_b.ipynb), with the
+> same seeds, attempts and decoding as model A. Its card goes here when the run is in.
+
+<!-- MODEL-B: replace the block above with model B's lines and reading, from its committed artifact. -->
+
+---
+
 ## Repository Index & Artifacts
 
 - **The instrument:** [`docs/the-task.md`](docs/the-task.md) -- the domain, what a bundle
   carries, and the outcome vocabulary; [`docs/knobs-and-arms.md`](docs/knobs-and-arms.md)
   -- the two knobs, their control arms, the turn budget and the pin ledger.
-- **Examples:** [`examples/`](examples/) -- three, smallest first, with
+- **Running it:** [`docs/verifiers-export.md`](docs/verifiers-export.md) -- the verifiers
+  taskset, its signals, and the one-line run against a model.
+- **Calibration:** [`docs/calibration-guide.md`](docs/calibration-guide.md) -- how to read a
+  card, and what model A's shows; [`calibration/`](calibration/) -- each model's per-episode
+  records and machine-readable card; [`notebooks/calibration_model_b.ipynb`](notebooks/calibration_model_b.ipynb)
+  -- model B's run on a Colab GPU.
+- **Examples:** [`examples/`](examples/) -- four, smallest first, with
   [`examples/README.md`](examples/README.md) describing each.
+- **Changes:** [`CHANGELOG.md`](CHANGELOG.md).
 - **Known gaps:** [`gap-log.md`](gap-log.md) -- what is missing or unresolved, and what
   would close each one.
 - **Standard & hygiene:** [`docs/repo-hygiene.md`](docs/repo-hygiene.md).
@@ -233,7 +349,7 @@ a `ModuleNotFoundError` saying where it comes from.
 The test files under [`tests/`](tests/) are frozen: each module was built against tests
 written before it, and the suite is not edited to suit a build. Comments and docstrings
 in them may be corrected; assertions may not. [`tests/conftest.py`](tests/conftest.py) is
-outside that freeze and holds the skip for the Proofload adapter's 313 tests.
+outside that freeze and holds the skip for the 382 tests that need Proofload.
 
 ---
 

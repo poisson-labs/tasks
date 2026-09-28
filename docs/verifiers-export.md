@@ -56,7 +56,7 @@ half a cent. **`reward 0.67` is the model's score, not a fault in the run**: all
 episodes completed (`err 0.00`, every rollout `agent_completed`), and one of the three ended
 without the model calling a single tool, which scores 0 under `strict` as it should. Two of
 three at `depth:d3` is a measurement of `gpt-5-nano`, and what a level is worth is the
-calibration module's subject, not this page's.
+calibration card's subject, not this page's: see [the calibration guide](calibration-guide.md).
 
 Paths are elided above; nothing else is.
 
@@ -128,8 +128,8 @@ pin ledger carries was produced under it. The `null` harness gives the model the
 prompt and the task's tool block and nothing else.
 
 **Running under another harness is outside the pin ledger.** A harness brings its own tools
-and its own system prompt, and both of those are pinned quantities: N3 pins the system
-prompt byte for byte across the arms of a contrast, and the advertised block is pinned to
+and its own system prompt, and both of those are pinned quantities: pin-ledger row N3
+([knobs and arms](knobs-and-arms.md)) pins the system prompt byte for byte across the arms of a contrast, and the advertised block is pinned to
 the bundle's. A harness that prepends its own system prompt or adds a shell tool has
 changed the prompt the arms are supposed to share, so a difference measured across arms is
 no longer a difference in the knob. The numbers may still be interesting; they are not

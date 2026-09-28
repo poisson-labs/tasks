@@ -26,7 +26,7 @@ htmlcov/
 # Proofload run stores. The default store root is ./proofload-runs.
 proofload-runs/
 
-# Session notes: a symlink into the vault. No trailing slash, or the symlink gets through.
+# Local working notes: a symlink. No trailing slash, or the symlink gets through.
 notes
 
 # Agent tooling
@@ -44,7 +44,7 @@ src/poisson_tasks/data/*.tiktoken
 # The example sweep writes its registration, registry module and run store here.
 examples/**/example-store/
 
-# Devlogs live in the vault only (docs/repo-hygiene.md, section 2.7)
+# Devlogs are kept outside the repository (docs/repo-hygiene.md, section 2.7)
 devlog.md
 
 # Local secrets. Never committed, and the live smoke reads MODEL_API_KEY from here.

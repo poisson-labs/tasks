@@ -154,7 +154,7 @@ _PLANT_KEYS = ("step_fail_rate", "history_fail_rate", "overshoot_rate")
 _DIRECT = _FormatSpec(name="direct", markers=())
 _REPLY = _Turn(content="Done.", calls=(), finish_reason="stop")
 
-# `faulty`'s draw domain, the same shape as TG-M1's and TG-M3's separators, and left at
+# `faulty`'s draw domain, the same shape as the engine's and `tasks.py`'s separators, left at
 # the old spelling for the same reason: these bytes are hash input, not a name.
 _DRAW_DOMAIN = b"task-generator/adapter/faulty-draw/1\n"
 
