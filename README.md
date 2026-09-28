@@ -64,7 +64,7 @@ using the tools it is given and nothing else.
 | difficulty calibration | **built** -- pass@k per level with task-clustered intervals, paired level-to-level comparisons, cost, and the refusals that keep a card honest; **run for one model**, `gpt-5-nano` |
 | a second model's card | **prepared, not run** -- a Colab notebook that serves `Qwen3-8B` with vLLM on an L4 and runs the same card |
 
-"Built" means covered by the test suite: **1390 tests**, and `pytest -q` is the check.
+"Built" means covered by the test suite: **1390 tests**, and `python -m pytest -q` is the check.
 
 ---
 
@@ -103,8 +103,11 @@ checked. Nothing else here touches the network, and the tokenizer itself never d
 Sanity check:
 
 ```bash
-.venv/bin/pytest -q
+.venv/bin/python -m pytest -q
 ```
+
+Run it as `python -m pytest`, from the repository root: one test imports `tests.conftest`,
+which needs the root on the import path, and a bare `pytest` does not put it there.
 
 **1390 tests, 1008 passed and 382 skipped.** The skipped ones need Proofload -- the
 adapter's tests and the bridge between the two scorers -- and they say so.
@@ -240,7 +243,7 @@ outcomes, and runs a `proofload diff` of the two depth arms. Every episode comes
 seconds and writes about 80 KB under `examples/proofload_sweep/example-store`, which is
 git-ignored.
 
-With Proofload installed, `pytest -q` is **1390 passed, 0 skipped**.
+With Proofload installed, `python -m pytest -q` is **1390 passed, 0 skipped**.
 
 Without it, `import poisson_tasks` and every module under it work as they do with it.
 Only `poisson_tasks.adapter` needs Proofload, and importing it without Proofload raises
