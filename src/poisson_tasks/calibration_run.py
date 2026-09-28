@@ -100,6 +100,8 @@ __all__ = [
     "StepFailed",
     "INSTALL_RECORD",
     "wait_healthy",
+    "first_episode_error",
+    "DROPPED_ENV",
     "engine_error",
     "known_cause",
     "KNOWN_CAUSES",
@@ -896,6 +898,58 @@ def _say(message: str) -> None:
     print(message, flush=True)
 
 
+DROPPED_ENV = ("UV_SYSTEM_PYTHON",)
+"""Variables the driver removes from its own environment before anything runs, so no episode
+inherits them.  Colab's runtime sets `UV_SYSTEM_PYTHON`, which uv reads as `--system`.  The
+`null` harness prepares its program with `uv python find --script`, which uv 0.11.14 refuses
+with `--system`, so every episode failed in harness setup before reaching the model.  None of
+these decides anything about the model, the server or the decoding."""
+
+
+def _drop_env() -> None:
+    for name in DROPPED_ENV:
+        if _os.environ.pop(name, None) is not None:
+            _say(f"{name} removed from the driver's environment (it breaks the harness's setup)")
+
+
+def first_episode_error(run_dir: _pathlib.Path) -> str | None:
+    """The first error an episode in `run_dir` carries, as `type: message`, from the wheel's
+    `traces.jsonl`; `None` when no episode carries one."""
+    path = _pathlib.Path(run_dir) / _cal.TRACES_FILE
+    if not path.exists():
+        return None
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            row = _json.loads(line)
+        except ValueError:
+            continue
+        found = _first_error_in(row)
+        if found is not None:
+            return found
+    return None
+
+
+def _first_error_in(node: _Any) -> str | None:
+    """Depth first: an `errors` list with a message, on the episode or on any of its traces
+    (a failed model call or harness setup lands on the trace, not the episode)."""
+    if isinstance(node, dict):
+        for error in node.get("errors") or []:
+            if isinstance(error, dict) and error.get("message"):
+                kind = error.get("type")
+                message = str(error["message"])[:1500]
+                return f"{kind}: {message}" if kind else message
+        for value in node.values():
+            found = _first_error_in(value)
+            if found is not None:
+                return found
+    elif isinstance(node, list):
+        for value in node:
+            found = _first_error_in(value)
+            if found is not None:
+                return found
+    return None
+
+
 def _arm_rows(
     run_dir: _pathlib.Path, arm: str, served: str
 ) -> tuple[list[_cal.EpisodeRecord], dict[str, int], dict[str, int]]:
@@ -1008,6 +1062,11 @@ def cmd_phase1(ctx: Context) -> int:
                 for label, count in arm_tally.items():
                     tally[label] = tally.get(label, 0) + count
             verdict = _cal.plumbing_gate(records, tally)
+            first_error = next(
+                (found for arm in PHASE1_ARMS
+                 if (found := first_episode_error(ctx.local / "phase1" / _arm_dir(arm)))),
+                None,
+            )
         passed = verdict.passed and stop is None
         report = {
             "phase": 1, "model": ctx.pin.served_name, "arms": list(PHASE1_ARMS),
@@ -1016,11 +1075,14 @@ def cmd_phase1(ctx: Context) -> int:
             "no_call": verdict.no_call, "reached_minimum": verdict.reached_minimum,
             "per_episode": list(verdict.per_episode), "tally": tally,
             "elapsed_seconds": round(_time.monotonic() - started, 1),
+            "first_error": first_error,
             **_phase_summary(records, facts),
         }
         _write_json(report_path, report)
         _say(_json.dumps({k: report[k] for k in ("passed", "reasons", "episodes", "scored",
                                                     "tool_calls", "max_prompt_tokens")}))
+        if first_error is not None:
+            _say(f"first episode error: {first_error}")
         return 0 if passed else 2
 
 
@@ -1721,6 +1783,7 @@ def build_parser() -> _argparse.ArgumentParser:
 
 def main(argv: _Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(list(_sys.argv[1:] if argv is None else argv))
+    _drop_env()
     try:
         if args.command == "install-vllm":
             return cmd_install_vllm(args.venv, dry_run=args.dry_run)
