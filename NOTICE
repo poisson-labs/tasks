@@ -56,9 +56,8 @@ License:   NONE FOUND, re-checked on 2026-09-21 and recorded below. The terms un
 
            A pointer from the data to a repository whose license covers that
            repository's software is not a license for the data. Reading it as one would
-           be a guess, and this file does not make it. The measurements behind the four
-           points above are filed in the vault, under
-           projects/task-generator/evidence/tg-publish-prep/encoding-licence/.
+           be a guess, and this file does not make it. The four points above were
+           checked on 2026-09-21.
 
 Code copied from tiktoken
 -------------------------
@@ -87,8 +86,7 @@ Checked:   On 2026-09-21 the two lists were tested against six public word lists
            satisfies. That no public list was ever consulted is not a thing this check
            can establish, and this NOTICE does not claim it: it claims only that none is
            recorded as a source and that none of the obvious candidates can be one. The
-           measurements, the candidate lists and the scripts are in the vault, under
-           projects/task-generator/evidence/tg-publish-prep/word-lists/.
+           check was made on 2026-09-21 and is not part of this repository.
 
 The Qwen3-8B chat template -- a test fixture
 -------------------------------------------
