@@ -66,6 +66,7 @@ import importlib.metadata as _metadata
 import json as _json
 import os as _os
 import pathlib as _pathlib
+import re as _re
 import shutil as _shutil
 import signal as _signal
 import socket as _socket
@@ -99,6 +100,9 @@ __all__ = [
     "StepFailed",
     "INSTALL_RECORD",
     "wait_healthy",
+    "engine_error",
+    "known_cause",
+    "KNOWN_CAUSES",
     "check_server",
     "check_thinking_off",
     "gpu_facts",
@@ -146,9 +150,10 @@ _THINK_OFF = "    {{- '<think>\\n\\n</think>\\n\\n' }}\n"
 class ServePin:
     """Everything that decides what model B's numbers are measured on, in one place.
 
-    `flags()` is what the provenance block records: the serve arguments without the host
-    and port (where the server listens changes no number) and with the chat template named
-    by its sha256 instead of a path on one runtime's disk."""
+    `flags()` is what the provenance block records: the environment settings the server is
+    started with, as `NAME=value`, then the serve arguments without the host and port (where
+    the server listens changes no number) and with the chat template named by its sha256
+    instead of a path on one runtime's disk."""
 
     model: str
     revision: str
@@ -167,6 +172,7 @@ class ServePin:
     template_sha256: str
     host: str = "127.0.0.1"
     port: int = 8000
+    env: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self) -> None:
         if len(self.revision) != 40 or any(c not in "0123456789abcdef" for c in self.revision):
@@ -210,7 +216,12 @@ class ServePin:
         ]
 
     def flags(self) -> list[str]:
-        return self._flags(f"<chat template sha256:{self.template_sha256}>")
+        settings = [f"{name}={value}" for name, value in self.env]
+        return settings + self._flags(f"<chat template sha256:{self.template_sha256}>")
+
+    def serve_env(self, base: _Mapping[str, str]) -> dict[str, str]:
+        """The server's environment: the caller's, with the pin's settings on top."""
+        return {**base, **dict(self.env)}
 
     def model_entry(self, port: int | None = None) -> dict[str, _Any]:
         """The provenance block's model entry.  No rate: model B costs Colab compute units,
@@ -226,6 +237,7 @@ class ServePin:
             "stack": "vllm",
             "stack_version": stack_version,
             "flags": self.flags(),
+            "env": dict(self.env),
             "gpu": gpu_name,
             "revision": self.revision,
             "served_model_name": self.served_name,
@@ -255,6 +267,7 @@ QWEN3_8B = ServePin(
     tool_call_parser="hermes",
     stock_template_sha256="a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
     template_sha256="b4d28698abae82732da6a74bb08a623934fa81b775aea50908246e9fc1323333",
+    env=(("VLLM_USE_FLASHINFER_SAMPLER", "0"),),
 )
 """Model B, pinned 2026-09-25.
 
@@ -276,6 +289,12 @@ QWEN3_8B = ServePin(
   `top_k: 20` would otherwise apply to every request unseen.  The request's declared decoding
   is the whole decoding.
 * `--chat-template`: `no_think_template` of the revision's own template.
+* `VLLM_USE_FLASHINFER_SAMPLER=0` (added 2026-09-28): vLLM samples with its own PyTorch
+  top-k/top-p sampler, not FlashInfer's.  FlashInfer compiles its sampling kernel at warmup,
+  which needs `ninja` and a CUDA compiler on the server's path; on Colab it found no `ninja`
+  and the engine died before it was healthy.  With the setting the same L4 served healthy.  It
+  moves no number: at temperature 1.0 and top_p 1.0 both samplers draw from the same
+  distribution.
 """
 
 EXPECTED_GENERATOR_HASH = "3a379aa5bc4e2bc9e1d2c97357b2dfbcd4bc42e12d64e158fc2af1416c326fd4"
@@ -1453,6 +1472,45 @@ def _stock_template(vllm: str, tokenizer_config: _pathlib.Path | None, pin: Serv
     return template
 
 
+_EXCEPTION_LINE = _re.compile(r"\b([A-Za-z_][\w.]*(?:Error|Exception|Exit)\b(?::.*)?)$")
+_ENGINE_ERROR = _re.compile(r"^\(EngineCore[^)]*\) ERROR ")
+
+KNOWN_CAUSES: tuple[tuple[str, str], ...] = (
+    ("No such file or directory: 'ninja'",
+     "FlashInfer compiled a kernel at startup and found no `ninja`.  The pin turns FlashInfer's "
+     "sampler off with VLLM_USE_FLASHINFER_SAMPLER=0; if this start did not have it, the "
+     "server was not started by this driver's pinned stack."),
+    ("CUDA out of memory",
+     "the GPU ran out of memory: another process may hold it (nvidia-smi), or the runtime is "
+     "not the pinned GPU."),
+)
+"""Causes seen on a real runtime, each with what to do about it."""
+
+
+def engine_error(log: str) -> str | None:
+    """The exception a failed vLLM start died of, from its log: the engine process's own, when
+    it logged one, since the API server's traceback only says "see root cause above"; else the
+    last exception line in the log; else `None`."""
+    engine: str | None = None
+    last: str | None = None
+    for line in log.splitlines():
+        found = _EXCEPTION_LINE.search(line.rstrip())
+        if found is None or line.lstrip().startswith(("File ", "raise ")):
+            continue
+        if _ENGINE_ERROR.match(line) and ":" in found.group(1) and engine is None:
+            engine = found.group(1)
+        last = found.group(1)
+    return engine if engine is not None else last
+
+
+def known_cause(error: str) -> str | None:
+    """What to do about an engine error seen before, or `None`."""
+    for marker, hint in KNOWN_CAUSES:
+        if marker in error:
+            return hint
+    return None
+
+
 def _pid_alive(pid: int) -> bool:
     try:
         _os.kill(pid, 0)
@@ -1480,15 +1538,19 @@ def cmd_serve(
 
         def alive() -> bool:
             return _pid_alive(pid)
+
+        start = 0
     else:
         derived = no_think_template(_stock_template(vllm, tokenizer_config, ctx.pin), ctx.pin)
         template = ctx.local / "qwen3-8b-no-think.jinja"
         template.write_text(derived, encoding="utf-8")
         argv = [vllm, *ctx.pin.serve_args(str(template), port=ctx.port)]
-        _say("$ " + " ".join(argv))
-        log = (ctx.local / "vllm.log").open("ab")
+        _say("$ " + " ".join([*(f"{n}={v}" for n, v in ctx.pin.env), *argv]))
+        log_path = ctx.local / "vllm.log"
+        start = log_path.stat().st_size if log_path.exists() else 0
+        log = log_path.open("ab")
         proc = _subprocess.Popen(argv, stdout=log, stderr=_subprocess.STDOUT,
-                                 start_new_session=True)
+                                 env=ctx.pin.serve_env(_os.environ), start_new_session=True)
         pid = proc.pid
         pid_file.write_text(str(pid))
 
@@ -1498,9 +1560,20 @@ def cmd_serve(
         waited = wait_healthy(ctx.base_url, timeout_s=timeout_s, alive=alive)
     except (RuntimeError, TimeoutError) as error:
         log_path = ctx.local / "vllm.log"
-        tail = log_path.read_text(encoding="utf-8", errors="replace")[-3000:] \
-            if log_path.exists() else ""
-        _say(f"STOP: {error}\n--- vllm.log (tail) ---\n{tail}")
+        this_start = ""
+        if log_path.exists():
+            with log_path.open("rb") as handle:
+                handle.seek(start)
+                this_start = handle.read().decode("utf-8", errors="replace")
+        lines = [f"STOP: {error}"]
+        cause = engine_error(this_start)
+        if cause is not None:
+            lines.append(f"the engine's error: {cause}")
+            hint = known_cause(cause)
+            if hint is not None:
+                lines.append(hint)
+        lines.append(f"--- vllm.log (this start, tail) ---\n{this_start[-3000:]}")
+        _say("\n".join(lines))
         return 1
     _say(f"healthy after {waited:.0f} s (pid {pid})")
     facts = check_server(ctx.pin, ctx.base_url)
