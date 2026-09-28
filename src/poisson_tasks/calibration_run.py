@@ -44,6 +44,13 @@ The pieces
   so the dollar figure is null.  `bundle` gathers the small files and a sha256 manifest into
   one zip; `verify` checks the manifest and recomputes the artifact from the records before
   anything is copied into the vault.
+* **A cell run again.**  Every step can be run again in the same runtime.  `install-vllm`
+  writes `INSTALL_RECORD` into the virtualenv as its last act: a finished install is never
+  repeated, and a virtualenv without the record is an install that did not finish, which is
+  removed and built again from nothing (uv will not create a virtualenv over one).  `serve`
+  run again while the server it started is still loading waits for it.  A command that fails
+  ends its step with a STOP that carries the command's own output (`StepFailed`), so the
+  notebook shows the reason and not only an exit status.
 
 Nothing here imports Proofload or the adapter (CAL22).
 """
@@ -71,6 +78,7 @@ import urllib.error as _urlerror
 import urllib.request as _urlrequest
 import zipfile as _zipfile
 from collections import Counter as _Counter
+from collections import deque as _deque
 from collections.abc import Callable as _Callable
 from collections.abc import Iterator as _Iterator
 from collections.abc import Mapping as _Mapping
@@ -88,6 +96,8 @@ __all__ = [
     "EXPECTED_GENERATOR_HASH",
     "no_think_template",
     "ServingMismatch",
+    "StepFailed",
+    "INSTALL_RECORD",
     "wait_healthy",
     "check_server",
     "check_thinking_off",
@@ -300,6 +310,63 @@ def no_think_template(stock: str, pin: ServePin = QWEN3_8B) -> str:
 
 class ServingMismatch(RuntimeError):
     """The server, the GPU or the run's recorded stack is not the pinned one."""
+
+
+class StepFailed(RuntimeError):
+    """A step cannot go on.  Either a command it ran failed, and the message carries the end
+    of that command's own output, or it found something that is not its own at a path it
+    would replace."""
+
+
+_TAIL_LINES = 40
+"""How much of a failed command's output its STOP repeats: the end, where the reason is."""
+
+
+def _failure(argv: _Sequence[str], code: int, output: str) -> StepFailed:
+    lines = output.rstrip("\n").splitlines()[-_TAIL_LINES:]
+    said = "\n".join(lines) if lines else "(it printed nothing)"
+    return StepFailed(f"`{' '.join(argv)}` exited with {code}; the end of its output:\n{said}")
+
+
+def _run(argv: _Sequence[str]) -> None:
+    """Run one command, printing its output and errors as they come, in order (uv reports
+    progress and errors on stderr).  A non-zero exit raises `StepFailed` with the last lines
+    it printed.  An interrupt stops the command too, so nothing goes on writing unseen."""
+    _say("$ " + " ".join(argv))
+    try:
+        proc = _subprocess.Popen(list(argv), stdout=_subprocess.PIPE,
+                                 stderr=_subprocess.STDOUT, text=True, bufsize=1)
+    except FileNotFoundError as error:
+        raise StepFailed(f"`{argv[0]}` was not found on this runtime's PATH") from error
+    tail: _deque[str] = _deque(maxlen=_TAIL_LINES)
+    try:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            print(line, end="", flush=True)
+            tail.append(line)
+        code = proc.wait()
+    except BaseException:
+        proc.kill()
+        proc.wait()
+        raise
+    if code != 0:
+        raise _failure(argv, code, "".join(tail))
+
+
+def _output(argv: _Sequence[str], *, timeout: float | None = None) -> str:
+    """Run one command and return its standard output, for reading.  A non-zero exit raises
+    `StepFailed` with the end of what it printed, its errors included."""
+    _say("$ " + " ".join(argv))
+    try:
+        done = _subprocess.run(list(argv), capture_output=True, text=True, check=False,
+                               timeout=timeout)
+    except FileNotFoundError as error:
+        raise StepFailed(f"`{argv[0]}` was not found") from error
+    except _subprocess.TimeoutExpired as error:
+        raise StepFailed(f"`{' '.join(argv)}` did not finish in {timeout:.0f} s") from error
+    if done.returncode != 0:
+        raise _failure(argv, done.returncode, done.stdout + done.stderr)
+    return done.stdout
 
 
 def _root(base_url: str) -> str:
@@ -1254,50 +1321,110 @@ def cmd_verify(bundle: _pathlib.Path, into: _pathlib.Path | None) -> int:
 # ---------------------------------------------------------------------------
 
 
-def cmd_install_vllm(venv: _pathlib.Path, *, dry_run: bool, pin: ServePin = QWEN3_8B) -> int:
-    """The pinned vLLM in a virtualenv of its own, so its pins cannot collide with the
-    wheel's or the notebook's (spec 2.5): the release's wheel, checked against its sha256
-    before it is installed, with the PyTorch build for the same CUDA."""
-    venv = _pathlib.Path(venv)
-    python = venv / "bin" / "python"
-    wheel = venv.parent / pin.vllm_wheel_name
-    steps = [
-        ["uv", "venv", "--python", pin.python, str(venv)],
-        ["download", pin.vllm_wheel_url, str(wheel), f"sha256 {pin.vllm_wheel_sha256}",
-         f"{pin.vllm_wheel_size} bytes"],
-        ["uv", "pip", "install", "--python", str(python), str(wheel),
-         "--torch-backend", pin.torch_backend],
-        [str(python), "-c", "import vllm, torch; print(vllm.__version__, torch.__version__, "
-         "torch.version.cuda, torch.cuda.is_available())"],
-    ]
-    for step in steps:
-        _say("$ " + " ".join(step))
-    if dry_run:
-        return 0
-    if python.exists():
-        done = _subprocess.run(steps[3], check=False, capture_output=True, text=True)
-        fields = done.stdout.split()
-        if done.returncode == 0 and fields and fields[0].startswith(pin.vllm_version) \
-                and fields[-1] == "True":
-            _say(f"already installed: {done.stdout.strip()}")
-            return 0
-    _subprocess.run(steps[0], check=True)
-    if not (wheel.exists() and _sha256_file(wheel) == pin.vllm_wheel_sha256):
-        partial = wheel.with_name(wheel.name + ".part")
+INSTALL_RECORD = "poisson-install.json"
+"""What `install-vllm` writes into the virtualenv as its last act, naming the pinned wheel it
+installed.  A virtualenv without it, or with another pin's, is an install that did not
+finish, however much of it is there, and is built again from nothing."""
+
+_VENV_ENTRIES = frozenset({
+    "bin", "lib", "lib64", "include", "share", "pyvenv.cfg", ".gitignore", "CACHEDIR.TAG",
+    ".lock", INSTALL_RECORD,
+})
+"""What uv puts in a virtualenv: all an unfinished one can hold, even before its
+`pyvenv.cfg` is written."""
+
+
+def _install_record(pin: ServePin) -> dict[str, _Any]:
+    return {"vllm_wheel": pin.vllm_wheel_name, "vllm_wheel_sha256": pin.vllm_wheel_sha256,
+            "torch_backend": pin.torch_backend, "python": pin.python}
+
+
+def _installed(venv: _pathlib.Path, pin: ServePin) -> bool:
+    try:
+        return bool(_read_json(venv / INSTALL_RECORD) == _install_record(pin))
+    except (OSError, ValueError):
+        return False
+
+
+def _clear_unfinished(venv: _pathlib.Path) -> None:
+    """Remove an install that did not finish, so it is built again from nothing.  Only a
+    virtualenv (it has `pyvenv.cfg`), or a directory holding nothing but what uv puts in one,
+    is removed.  Anything else at that path is not this step's: the step stops and leaves it
+    alone."""
+    if not _os.path.lexists(venv):
+        return
+    if venv.is_dir() and not venv.is_symlink():
+        names = {entry.name for entry in venv.iterdir()}
+        if "pyvenv.cfg" in names or names <= _VENV_ENTRIES:
+            _say(f"{venv} holds an install that did not finish: removing it to build it again")
+            _shutil.rmtree(venv)
+            return
+    raise StepFailed(f"{venv} exists and is not a virtualenv this step made; move it away "
+                     "or pass another --venv")
+
+
+def _fetch_wheel(pin: ServePin, wheel: _pathlib.Path) -> None:
+    """The release's wheel at `wheel`, checked against its pinned sha256.  A copy already
+    there is kept if it checks.  A download goes to a `.part` file and is renamed into place
+    only once it checks, so a download cut off part way is never taken for the wheel."""
+    if wheel.exists() and _sha256_file(wheel) == pin.vllm_wheel_sha256:
+        _say(f"the pinned wheel is already here, its sha256 checked: {wheel}")
+        return
+    _say(f"$ download {pin.vllm_wheel_url} to {wheel}")
+    partial = wheel.with_name(wheel.name + ".part")
+    try:
         with _urlrequest.urlopen(pin.vllm_wheel_url, timeout=60) as response, \
                 partial.open("wb") as handle:
             _shutil.copyfileobj(response, handle, length=1 << 20)
-        got = _sha256_file(partial)
-        if got != pin.vllm_wheel_sha256:
-            partial.unlink()
-            raise ServingMismatch(f"the downloaded wheel's sha256 is {got}, not the pinned one")
-        _os.replace(partial, wheel)
-    _subprocess.run(steps[2], check=True)
-    done = _subprocess.run(steps[3], check=True, capture_output=True, text=True)
-    _say(done.stdout.strip())
-    fields = done.stdout.split()
+    except OSError as error:
+        raise StepFailed(f"the download of {pin.vllm_wheel_url} failed: {error}") from error
+    got = _sha256_file(partial)
+    if got != pin.vllm_wheel_sha256:
+        partial.unlink()
+        raise ServingMismatch(f"the downloaded wheel's sha256 is {got}, not the pinned "
+                              f"{pin.vllm_wheel_sha256}")
+    _os.replace(partial, wheel)
+
+
+def cmd_install_vllm(venv: _pathlib.Path, *, dry_run: bool, pin: ServePin = QWEN3_8B) -> int:
+    """The pinned vLLM in a virtualenv of its own, so its pins cannot collide with the
+    wheel's or the notebook's (spec 2.5): the release's wheel, checked against its sha256
+    before it is installed, with the PyTorch build for the same CUDA.
+
+    Run again, it keeps a finished install and never repeats it; the check still runs, and
+    stops with its own output if the runtime cannot use the stack.  A virtualenv the install
+    did not finish (`INSTALL_RECORD` missing, or another pin's) is removed and built again
+    from nothing: uv 0.11.14 exits 2 rather than create a virtualenv over an existing one,
+    and nothing half installed is trusted."""
+    venv = _pathlib.Path(venv)
+    python = venv / "bin" / "python"
+    wheel = venv.parent / pin.vllm_wheel_name
+    create = ["uv", "venv", "--python", pin.python, str(venv)]
+    install = ["uv", "pip", "install", "--python", str(python), str(wheel),
+               "--torch-backend", pin.torch_backend]
+    check = [str(python), "-c", "import vllm, torch; print(vllm.__version__, torch.__version__, "
+             "torch.version.cuda, torch.cuda.is_available())"]
+    if dry_run:
+        download = ["download", pin.vllm_wheel_url, str(wheel), f"sha256 {pin.vllm_wheel_sha256}",
+                    f"{pin.vllm_wheel_size} bytes"]
+        for step in (create, download, install, check):
+            _say("$ " + " ".join(step))
+        return 0
+    if _installed(venv, pin):
+        _say(f"the pinned vLLM is installed in {venv}, and a finished install is not repeated "
+             f"(delete {venv} to force one)")
+    else:
+        _clear_unfinished(venv)
+        _run(["uv", "--version"])
+        _run(create)
+        _fetch_wheel(pin, wheel)
+        _run(install)
+        _write_json(venv / INSTALL_RECORD, _install_record(pin))
+    found = _output(check).strip()
+    _say(found)
+    fields = found.split()
     if not fields or not fields[0].startswith(pin.vllm_version) or fields[-1] != "True":
-        raise ServingMismatch(f"the installed stack is not usable: {done.stdout.strip()}")
+        raise ServingMismatch(f"the installed stack is not usable: {found}")
     return 0
 
 
@@ -1319,9 +1446,8 @@ def _stock_template(vllm: str, tokenizer_config: _pathlib.Path | None, pin: Serv
             f"print(hf_hub_download({pin.model!r}, 'tokenizer_config.json', "
             f"revision={pin.revision!r}))"
         )
-        done = _subprocess.run([str(python), "-c", code], check=True, capture_output=True,
-                               text=True, timeout=600)
-        tokenizer_config = _pathlib.Path(done.stdout.strip().splitlines()[-1])
+        found = _output([str(python), "-c", code], timeout=600)
+        tokenizer_config = _pathlib.Path(found.strip().splitlines()[-1])
     data = _json.loads(tokenizer_config.read_text(encoding="utf-8"))
     template: str = data["chat_template"]
     return template
@@ -1340,11 +1466,20 @@ def _pid_alive(pid: int) -> bool:
 def cmd_serve(
     ctx: Context, *, vllm: str, tokenizer_config: _pathlib.Path | None, timeout_s: float
 ) -> int:
-    """Start the pinned server in the background, wait until it is healthy, check it."""
+    """Start the pinned server in the background, wait until it is healthy, check it.
+
+    Run again while the server this runtime started is alive (an interrupted `serve` leaves
+    vLLM loading in a session of its own), it starts no second server and waits for that
+    one."""
     ctx.local.mkdir(parents=True, exist_ok=True)
     pid_file = ctx.local / "vllm.pid"
     if pid_file.exists() and _pid_alive(int(pid_file.read_text())):
-        _say(f"a server this runtime started is running (pid {pid_file.read_text().strip()})")
+        pid = int(pid_file.read_text())
+        _say(f"a server this runtime started is running (pid {pid}): waiting until it is "
+             "healthy")
+
+        def alive() -> bool:
+            return _pid_alive(pid)
     else:
         derived = no_think_template(_stock_template(vllm, tokenizer_config, ctx.pin), ctx.pin)
         template = ctx.local / "qwen3-8b-no-think.jinja"
@@ -1354,16 +1489,20 @@ def cmd_serve(
         log = (ctx.local / "vllm.log").open("ab")
         proc = _subprocess.Popen(argv, stdout=log, stderr=_subprocess.STDOUT,
                                  start_new_session=True)
-        pid_file.write_text(str(proc.pid))
-        try:
-            waited = wait_healthy(
-                ctx.base_url, timeout_s=timeout_s, alive=lambda: proc.poll() is None
-            )
-        except (RuntimeError, TimeoutError) as error:
-            tail = (ctx.local / "vllm.log").read_text(encoding="utf-8", errors="replace")[-3000:]
-            _say(f"STOP: {error}\n--- vllm.log (tail) ---\n{tail}")
-            return 1
-        _say(f"healthy after {waited:.0f} s (pid {proc.pid})")
+        pid = proc.pid
+        pid_file.write_text(str(pid))
+
+        def alive() -> bool:
+            return proc.poll() is None
+    try:
+        waited = wait_healthy(ctx.base_url, timeout_s=timeout_s, alive=alive)
+    except (RuntimeError, TimeoutError) as error:
+        log_path = ctx.local / "vllm.log"
+        tail = log_path.read_text(encoding="utf-8", errors="replace")[-3000:] \
+            if log_path.exists() else ""
+        _say(f"STOP: {error}\n--- vllm.log (tail) ---\n{tail}")
+        return 1
+    _say(f"healthy after {waited:.0f} s (pid {pid})")
     facts = check_server(ctx.pin, ctx.base_url)
     _say(_json.dumps(facts))
     return 0
@@ -1552,7 +1691,7 @@ def main(argv: _Sequence[str] | None = None) -> int:
         _say("interrupted: everything finished is on the durable folder; run the same cell "
              "again to resume")
         return 130
-    except (ServingMismatch, LockHeld) as error:
+    except (ServingMismatch, LockHeld, StepFailed) as error:
         _say(f"STOP: {error}")
         return 1
     raise AssertionError(args.command)
