@@ -4,7 +4,8 @@ The package is also the verifiers taskset ``poisson-tasks``.  At ``verifiers==0.
 taskset id names the top-level module the wheel's own transformation gives it (``owner/``
 and ``@version`` stripped, ``-`` to ``_``, lower-cased), so ``poisson-tasks`` resolves to
 this package, and the wheel then reads ``__all__`` and looks each name up: exactly one
-``Taskset`` subclass and exactly one ``Env`` subclass, and no ``Harness`` (VN-8, VN-9).
+``Taskset`` subclass and exactly one ``Env`` subclass, and no ``Harness`` (read at source in
+the wheel's loader).
 
 The two names are exported lazily (PEP 562): ``import poisson_tasks`` imports no
 ``verifiers``, so the generator's own users pay nothing for the export, and the loader's

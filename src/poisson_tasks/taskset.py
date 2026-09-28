@@ -1,16 +1,17 @@
 """The taskset the id ``poisson-tasks`` names, and the ``Env`` that makes ``eval`` run the
 measured harness with no flag.
 
-Layer 1 of the model path (Handoff Model Path, MP1 to MP9; TG-ADR-46, the two items TG-M4
-handed here).  A stranger installs the package, names an OpenAI-compatible endpoint and runs
-``uv run eval poisson-tasks ...``: the wheel resolves the id to the package root, whose
-``__all__`` points here, and finds one ``Taskset`` and one ``Env``.
+The model path's first layer: a hosted model over an API, no GPU (the MP1 to MP9 cases in
+`tests/test_tg_m5_standalone.py`).  A stranger installs the package, names an
+OpenAI-compatible endpoint and runs ``uv run eval poisson-tasks ...``: the wheel resolves
+the id to the package root, whose ``__all__`` points here, and finds one ``Taskset`` and one
+``Env``.
 
-The taskset is TG-M4's ``ExportTaskset``, re-exported and unchanged: one task per declared
-seed, scored by the export's own ``strict`` reward (X4).  The ``Env`` is the wheel's
+The taskset is ``poisson_tasks.export.ExportTaskset``, re-exported and unchanged: one task
+per declared seed, scored by the export's own ``strict`` reward (X4).  The ``Env`` is the wheel's
 single-agent env with a config that pins what the section below lists, because at 0.3.1 a
-taskset's default harness is ``bash`` unless its own ``Env`` says otherwise (VN-8), and
-``AgentConfig.runtime`` defaults to a hosted sandbox (VN-3).
+taskset's default harness is ``bash`` unless its own ``Env`` says otherwise, and
+``AgentConfig.runtime`` defaults to a hosted sandbox (both read at source in the wheel).
 
 Pins
 ----
@@ -19,12 +20,12 @@ listed here, one line each, with the reason (MP4).  Nothing else is pinned: a st
 differs from a plain ``eval`` of this taskset in exactly these, each shows in the run's saved
 config, and a flag on the command line overrides either (MP5).
 
-- `agent.harness.id` = `null` -- the measured harness; the default is otherwise `bash` (X9)
-  (ruled 2026-09-21, TG-ADR-46).  Every number the pin ledger carries was produced under the
+- `agent.harness.id` = `null` -- the measured harness; the default is otherwise `bash` (X9).
+  Every number the pin ledger carries was produced under the
   `null` harness: it adds no system prompt and no tools of its own, and a run under `bash`
   measures something the ledger cannot be compared with.
-- `agent.runtime.type` = `subprocess` -- the harness program runs on the caller's machine (VN-3)
-  (A11, MP8).  ``AgentConfig.runtime`` defaults to Prime's hosted sandbox, which a stranger
+- `agent.runtime.type` = `subprocess` -- the harness program runs on the caller's machine
+  (MP8).  ``AgentConfig.runtime`` defaults to Prime's hosted sandbox, which a stranger
   has no account for, and which would make the run's outbound connections something other
   than the endpoint they named.
 
