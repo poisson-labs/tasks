@@ -90,6 +90,7 @@ from poisson_tasks import calibration as _cal
 from poisson_tasks.knobs import ArmSpec as _ArmSpec
 from poisson_tasks.knobs import arm_id as _arm_id
 from poisson_tasks.tasks import generate as _generate
+from poisson_tasks.taskset import MAX_MODEL_CALLS as _MAX_MODEL_CALLS
 
 __all__ = [
     "ServePin",
@@ -126,6 +127,7 @@ __all__ = [
     "CARD_ARMS",
     "FLOOR",
     "HEADROOM",
+    "CARD_MAX_MODEL_CALLS",
     "ProbeVerdict",
     "probe_verdict",
     "trace_facts",
@@ -759,6 +761,9 @@ CARD_ARMS: tuple[str, ...] | None = None
 
 FLOOR = _cal.SATURATION_LOW
 """The probe floors when leaky pass@1 over its episodes is at or below CAL12's low bound."""
+CARD_MAX_MODEL_CALLS = _MAX_MODEL_CALLS
+"""The turn limit the taskset's env config imposes on every episode of the run, recorded on
+the card (`poisson_tasks.taskset.MAX_MODEL_CALLS`)."""
 HEADROOM = 0.75
 """The probe stops if any prompt reached this share of the room the context cap leaves."""
 
@@ -1294,6 +1299,7 @@ def finalize(
             )},
             rate_read_date=str(serving.get("date", _now()[:10])),
             budget=budget, no_call_threshold=no_call, instrument_threshold=instrument,
+            max_model_calls=CARD_MAX_MODEL_CALLS,
         )
 
     keyed = {(arm, served): tally for arm, tally in tallies.items() if (arm, served) in cells}

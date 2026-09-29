@@ -23,6 +23,11 @@ level's number for one model says nothing about what it is worth to another.
   the model sees the task's prompt and its tool block, and nothing else.
 - **Scoring.** The export's own reward: `strict` is 1.0 when the generator's verifier gives
   strict `passed`, and `leaky_pass` is recorded beside it.
+- **Turn limit.** An episode ends after 32 model calls, the taskset's own default (see [the
+  verifiers export](verifiers-export.md)). An episode that reaches it is scored `turn_limit`,
+  the model's failure, and the card prints the cap in its provenance. Model A's run predates
+  the default and had no limit; its longest episode was 18 calls, so its card is what it
+  would be under the cap.
 - **Stopping.** A run stops on whichever comes first: its token budget, its wall-clock
   limit, or the provider saying the account is out of credit. A stopped run keeps every
   episode already paid for and marks the cell incomplete; it never quietly publishes a

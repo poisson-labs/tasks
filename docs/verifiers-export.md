@@ -58,7 +58,8 @@ without the model calling a single tool, which scores 0 under `strict` as it sho
 three at `depth:d3` is a measurement of `gpt-5-nano`, and what a level is worth is the
 calibration card's subject, not this page's: see [the calibration guide](calibration-guide.md).
 
-Paths are elided above; nothing else is.
+Paths are elided above; nothing else is. That run predates the turn limit described below,
+which is why its limits line reads "no turn cap"; a run today shows the 32-call cap there.
 
 **If the run goes quiet, it has not hung on the model.** At 0.3.1 a run's env server is a
 child process, and if it dies during startup -- a config it refuses, a missing dependency --
@@ -137,9 +138,19 @@ comparable with the pinned ones, and they are not what the ledger says.
 
 **`eval poisson-tasks` runs `null` with no flag.** At 0.3.1 a taskset's default harness is
 `bash` unless the taskset's own environment says otherwise, and this one's does: its
-environment pins `agent.harness.id` to `null` and `agent.runtime.type` to `subprocess`, and
-nothing else. **A harness named on the command line still wins** (`--env.agent.harness.id
-bash`), and a run under it is outside the pin ledger, as above.
+environment pins `agent.harness.id` to `null`, `agent.runtime.type` to `subprocess` and
+`agent.max_turns` to 32, and nothing else. **A harness named on the command line still wins**
+(`--env.agent.harness.id bash`), and a run under it is outside the pin ledger, as above.
+
+**An episode ends after 32 model calls.** The wheel sets no turn limit of its own, so a model
+that never stops would keep calling tools until its context filled, costing tokens on every
+call, and the run would report the end as a setup failure. At 32 calls the episode stops as
+`max_turns` and is scored `turn_limit`: the model's own failure, named as one. The number is
+four times the deepest task's minimum (eight calls, at `depth:d8`). Ordinary episodes of both
+calibrated models end within 18 calls, and in the arms where Qwen3-8B looped, moving the cap
+anywhere from 24 to 50 changes 1 episode in 900, so the cap binds only an episode that does
+not stop. It shows in the run's saved config, and `--env.agent.max-turns N` overrides it; a
+run with another cap is not comparable with the calibration cards.
 
 **`eval` needs `--no-push` to stay local.** Without it a finished run is pushed to the
 verifiers hub. Nothing in a generated task is secret, but a pilot's runs are pre-registered
