@@ -18,7 +18,7 @@ Pins
 Every field this module's env config sets away from the wheel's own single-agent default is
 listed here, one line each, with the reason (MP4).  Nothing else is pinned: a stranger's run
 differs from a plain ``eval`` of this taskset in exactly these, each shows in the run's saved
-config, and a flag on the command line overrides either (MP5).
+config, and a flag on the command line overrides any of them (MP5).
 
 - `agent.harness.id` = `null` -- the measured harness; the default is otherwise `bash` (X9).
   Every number the pin ledger carries was produced under the
@@ -28,6 +28,12 @@ config, and a flag on the command line overrides either (MP5).
   (MP8).  ``AgentConfig.runtime`` defaults to Prime's hosted sandbox, which a stranger
   has no account for, and which would make the run's outbound connections something other
   than the endpoint they named.
+- `agent.max_turns` = `32` -- an episode ends after 32 model calls, four times the deepest
+  task's minimum (eight, at `depth:d8`).  The wheel sets no turn limit by default, so a model
+  that never stops calls tools until its context fills, and the run reports that as a setup
+  failure while it burns tokens.  At the cap it stops as `max_turns`, which the verdict labels
+  `turn_limit`, the model's own failure.  Ordinary episodes of both calibrated models end
+  within 18 calls, so the cap binds only an episode that does not stop.
 
 Nothing here imports Proofload: the standalone path needs no extra (MP6).
 """
@@ -41,11 +47,14 @@ import verifiers.v1 as _vf
 from poisson_tasks.export import MEASURED_HARNESS as _MEASURED_HARNESS
 from poisson_tasks.export import ExportTaskset
 
-__all__ = ["ExportTaskset", "PoissonTasksEnvConfig", "PoissonTasksEnv"]
+__all__ = ["ExportTaskset", "PoissonTasksEnvConfig", "PoissonTasksEnv", "MAX_MODEL_CALLS"]
+
+MAX_MODEL_CALLS = 32
+"""The pinned turn limit: four times the deepest task's minimum (the module docstring)."""
 
 
 class PoissonTasksEnvConfig(_vf.SingleAgentEnvConfig):
-    """The single-agent config with the two pins the module docstring lists.
+    """The single-agent config with the pins the module docstring lists.
 
     A pinned ``harness`` narrows to the harness's own config type when the config is built,
     and a role's partial CLI data deep-merges onto this declared instance, which is what
@@ -53,7 +62,8 @@ class PoissonTasksEnvConfig(_vf.SingleAgentEnvConfig):
     """
 
     agent: _vf.AgentConfig = _vf.AgentConfig(
-        harness={"id": _MEASURED_HARNESS}, runtime={"type": "subprocess"}
+        harness={"id": _MEASURED_HARNESS}, runtime={"type": "subprocess"},
+        max_turns=MAX_MODEL_CALLS,
     )
 
 

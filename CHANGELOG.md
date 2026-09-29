@@ -5,6 +5,25 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### An episode ends after 32 model calls
+
+- **The taskset now pins a turn limit**, `agent.max_turns = 32`, beside the measured harness,
+  so the documented `eval` command and the calibration run behave the same.
+  `--env.agent.max-turns N` overrides it.
+- **Why:** verifiers sets no turn limit by default. On model B's second calibration run,
+  Qwen3-8B looped in the two long-history control arms: 20 episodes in each made 107 to 112
+  model calls on tasks that need one or two. They ended only when the 16,384-token context
+  filled, which reads as a setup failure, and the card refused to publish.
+- **The number:** four times the deepest task's minimum, eight calls at `depth:d8`. Ordinary
+  episodes of both calibrated models end within 18 calls. In the three arms where Qwen
+  looped, any cap from 24 to 50 changes 1 episode in 900. An episode that reaches the cap
+  is scored `turn_limit`, the model's own failure.
+- **The card prints the cap.** Model A's run had none. Its longest episode was 18 calls, so
+  its card is what it would be under the cap, and its committed data recomputes byte for
+  byte.
+- **Added after the fact, and said so:** the limit was added after a run showed the looping.
+  The refused runs are kept as evidence.
+
 ### Calibration: what each difficulty level is worth
 
 - **`poisson_tasks.calibration`**, a module that measures what each level of `depth` and

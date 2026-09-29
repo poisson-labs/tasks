@@ -210,7 +210,9 @@ uv run eval poisson-tasks --model "$MODEL" --client.base-url "$MODEL_BASE_URL" -
 ```
 
 It runs three `depth:d3` tasks through the `null` harness -- the model sees the task's
-prompt and tool block and nothing else -- in a local subprocess. `--no-push` keeps the run
+prompt and tool block and nothing else -- in a local subprocess. An episode ends after 32
+model calls: a model that never stops is scored `turn_limit` instead of calling tools until
+its context runs out, and `--env.agent.max-turns N` changes the cap. `--no-push` keeps the run
 local; without it, verifiers pushes the finished run to its hub. Run against OpenAI with
 `MODEL=gpt-5-nano`, it served 3 of 3 episodes for about half a cent;
 [`docs/verifiers-export.md`](docs/verifiers-export.md) has the output and what to do if a

@@ -660,6 +660,9 @@ class Provenance:
     serving: _Mapping[str, _Mapping[str, _Any]]
     budget: _Mapping[str, _Any]
     no_call_threshold: float = NO_CALL_THRESHOLD
+    max_model_calls: int | None = None
+    """The run's turn limit, when it had one.  Model A's run had none; a run through the
+    taskset's own config has `poisson_tasks.taskset.MAX_MODEL_CALLS`."""
 
     def __post_init__(self) -> None:
         for name in ("package_version", "engine_hash", "generator_hash", "vocabulary_hash",
@@ -728,6 +731,9 @@ class Provenance:
 
     def as_dict(self) -> dict[str, _Any]:
         out: dict[str, _Any] = _json.loads(_json.dumps(_dc.asdict(self)))
+        if out.get("max_model_calls") is None:
+            # A run with no turn limit serialises exactly as it did before the field existed.
+            out.pop("max_model_calls", None)
         return out
 
     def rates_for(self, model: str) -> _Mapping[str, _Any] | None:
@@ -753,6 +759,7 @@ class Provenance:
         budget: _Mapping[str, _Any] | None = None,
         instrument_threshold: float = INSTRUMENT_THRESHOLD,
         no_call_threshold: float = NO_CALL_THRESHOLD,
+        max_model_calls: int | None = None,
     ) -> Provenance:
         """The block for a real run, with every hash and version read from the package and
         the wheel rather than typed."""
@@ -783,6 +790,7 @@ class Provenance:
             serving={key: dict(value) for key, value in serving.items()},
             budget=dict(DEFAULT_BUDGET if budget is None else budget),
             no_call_threshold=no_call_threshold,
+            max_model_calls=max_model_calls,
         )
 
 
@@ -1361,6 +1369,11 @@ def render_document(artifact: Artifact) -> str:
         "clock, or the provider out of credit, whichever first",
         f"- rates read on {prov.rate_read_date}",
     ]
+    if prov.max_model_calls is not None:
+        lines.append(
+            f"- each episode capped at {prov.max_model_calls} model calls; an episode that "
+            "reaches the cap ends as `turn_limit`, the model's own failure"
+        )
     for model_id, entry in prov.serving.items():
         if entry.get("kind") == "local":
             lines.append(
