@@ -1,0 +1,103 @@
+# The default suite, ruff and mypy on every push and pull request, twice: once without Prove,
+# where the tests that drive Prove are skipped by name (tests/conftest.py), and once with Prove
+# installed, where they run. Each job first checks that Prove is, or is not, importable, so a
+# job's name always says what it ran against.
+#
+# Third-party actions are pinned to a commit, with the release it is in beside it.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  without-prove:
+    name: suite, ruff and mypy, without Prove
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: tasks
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          path: tasks
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.11"
+      # The `null` harness launches its program through uv, and the tests that run it skip
+      # when uv is missing. This is the uv the suite is known green on.
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          version: "0.11.14"
+          enable-cache: false
+      - name: Install
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -e ".[dev]"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: Fetch the reference tokenizer's encoding file
+        run: python -m poisson_tasks.fetch_encoding
+      - name: Prove is not installed
+        run: python -c "import importlib.util, sys; sys.exit(importlib.util.find_spec('proofload') is not None)"
+      - name: Ruff
+        run: ruff check .
+      - name: Mypy
+        run: mypy
+      # `python -m pytest`, not `pytest`: the tests import one another as `tests.<module>`,
+      # which needs the repository root on the import path, and `python -m` puts it there.
+      - name: Tests
+        run: python -m pytest -q
+
+  with-prove:
+    name: suite, ruff and mypy, with Prove
+    # Prove is not public, so this job checks it out with a read-only token kept in the
+    # PROVE_READ_TOKEN secret. A pull request from a fork is given no secrets; there this job
+    # is skipped, and shows as skipped, rather than failing on a checkout it cannot make.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: tasks
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          path: tasks
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: poisson-labs/prove
+          # The Prove commit the suite is known green against; moved deliberately, never floating.
+          ref: 98dc6af0e8b66f733c98d3867035e21bba5c219d
+          token: ${{ secrets.PROVE_READ_TOKEN }}
+          path: prove
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          version: "0.11.14"
+          enable-cache: false
+      # The order the README gives: Prove from its checkout, then this package.
+      - name: Install
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -e ../prove
+          .venv/bin/python -m pip install -e ".[dev]"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: Fetch the reference tokenizer's encoding file
+        run: python -m poisson_tasks.fetch_encoding
+      - name: Prove is installed
+        run: python -c "import proofload; print('proofload', proofload.__version__, proofload.__file__)"
+      - name: Ruff
+        run: ruff check .
+      - name: Mypy
+        run: mypy
+      - name: Tests
+        run: python -m pytest -q
