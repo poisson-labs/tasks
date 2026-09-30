@@ -1,11 +1,12 @@
 """Model B's calibration card, run from a notebook against a model served locally by vLLM.
 
-Taylor's decisions of 2026-09-25: model B is Qwen3-8B with thinking off, served by vLLM on a
-Colab L4 with his existing Colab credits.  The run passes phase 1's plumbing gate, then
+Model B is Qwen3-8B with thinking off, served by vLLM on a Colab L4 and paid for in Colab
+compute units.  The run passes phase 1's plumbing gate, then
 probes the hardest levels and stops there if the model floors, and only then runs phase 3:
 model A's design, 14 arms x 60 eval-split seeds x 5 attempts, through the gate and CAL24.
 A Colab runtime drops, so every step checkpoints to a durable folder and resumes from it
-(R4, CAL23), and the card records the serving stack (R12).
+(CAL23), and the card records the serving stack, since the same weights served differently
+give different numbers.
 
 This module is what the notebook calls, one subcommand per cell, and everything it does
 is reachable without a GPU: the serve step starts whatever `vllm` executable it is given.
@@ -24,7 +25,7 @@ The pieces
   revision's own (`no_think_template`): the one `enable_thinking` switch is replaced by the
   branch it takes when thinking is off, so the served prompt is byte for byte what the stock
   template renders with thinking off, and the request body stays the one model A was sent.
-* **The checkpoint.**  The wheel's own `traces.jsonl` and the R14 tally are the checkpoint
+* **The checkpoint.**  The wheel's own `traces.jsonl` and the instrument tally are the checkpoint
   (CAL23); they live on the runtime's local disk, where `resume.load` can rewrite them
   atomically, and `Mirror` copies them to the durable folder (Google Drive on Colab) every
   few seconds and on every exit it gets to run.  A `.jsonl` is copied only up to its last
@@ -33,17 +34,17 @@ The pieces
   more than `n` per task.
 * **The lock and the run manifest.**  `RunLock` keeps two runtimes from writing one run.
   `check_run_manifest` records the stack a run started on and refuses a resume on another
-  GPU, vLLM build, flag set, template or generator (A14, KC12 carried over).
+  GPU, vLLM build, flag set, template or generator.
 * **The probe** (`probe_verdict`).  Depth 5 and depth 8, the lowest strict level on model A's
   card and the longest chain, six seeds, two attempts.  It stops the run if the model floors
   there (leaky pass@1 at or below CAL12's low saturation bound), if more than CAL24's
   threshold never call a tool, if any instrument failure occurs, or if the context cap cut an
   episode or prompts came within a quarter of it.  It never switches models.
 * **The card.**  `finalize` builds the artifact and the document from the per-episode records
-  with `Provenance.for_run`, the served name as the model and R12's serving block; no rate,
+  with `Provenance.for_run`, the served name as the model and the serving block; no rate,
   so the dollar figure is null.  `bundle` gathers the small files and a sha256 manifest into
   one zip; `verify` checks the manifest and recomputes the artifact from the records before
-  anything is copied into the vault.
+  anything is copied out of the bundle.
 * **A cell run again.**  Every step can be run again in the same runtime.  `install-vllm`
   writes `INSTALL_RECORD` into the virtualenv as its last act: a finished install is never
   repeated, and a virtualenv without the record is an install that did not finish, which is
@@ -139,7 +140,7 @@ __all__ = [
 ]
 
 # ---------------------------------------------------------------------------
-# the pin (R12, N18)
+# the pin (N18)
 # ---------------------------------------------------------------------------
 
 _THINK_SWITCH = (
@@ -183,7 +184,7 @@ class ServePin:
     def __post_init__(self) -> None:
         if len(self.revision) != 40 or any(c not in "0123456789abcdef" for c in self.revision):
             raise ValueError(
-                f"revision must be a 40-character commit hash (N18): {self.revision!r}"
+                f"revision must be a 40-character commit hash: {self.revision!r}"
             )
 
     @property
@@ -231,12 +232,12 @@ class ServePin:
 
     def model_entry(self, port: int | None = None) -> dict[str, _Any]:
         """The provenance block's model entry.  No rate: model B costs Colab compute units,
-        not dollars, so its dollar figure is null (R1, R3)."""
+        not dollars, so its dollar figure is null."""
         return {"id": self.served_name, "revision": self.revision,
                 "endpoint_host": self.endpoint_host(port)}
 
     def serving_entry(self, *, stack_version: str, gpu_name: str) -> dict[str, _Any]:
-        """R12's block for a locally served model: the stack and its version as the server
+        """The serving block for a locally served model: the stack and its version as the server
         reports it, the flags, the GPU as the runtime reports it, and the revision."""
         return {
             "kind": "local",
@@ -279,11 +280,11 @@ QWEN3_8B = ServePin(
 
 * `Qwen/Qwen3-8B` at `b968826d`, the repository's head since 2025-07-26 (8.19B parameters,
   BF16, Apache-2.0).
-* vLLM 0.29.0, the version the pilot's stack is specified at (spec section 0, build step 7b),
+* vLLM 0.29.0, the version the pilot's serving stack is pinned to,
   as the release's CUDA 12.9 wheel: PyPI's default wheel pulls torch's CUDA 13 build, which
   needs a newer driver than a runtime may have, and CUDA 12.9 runs on both.
-* `--quantization fp8`: the BF16 weights quantized at load, as TG-ADR-26 does for the pilot's
-  Qwen on the same GPU.  About 9 GB of weights instead of 16.4, which leaves an L4 roughly
+* `--quantization fp8`: the BF16 weights quantized at load, as the pilot's serving stack does
+  for its Qwen on the same GPU.  About 9 GB of weights instead of 16.4, which leaves an L4 roughly
   three times the KV cache and so roughly three times the concurrent episodes.
 * `--max-model-len 16384` (raised from 8192 on 2026-09-28): Qwen's chat template spells the
   sixteen tool schemas out as JSON, and the two history controls (`depth:d1+h8`,
@@ -310,7 +311,7 @@ QWEN3_8B = ServePin(
 
 EXPECTED_GENERATOR_HASH = "3a379aa5bc4e2bc9e1d2c97357b2dfbcd4bc42e12d64e158fc2af1416c326fd4"
 """The generator model A's published card (v2) was run at.  Model B's card is only comparable
-on the same generator (R10), so preflight refuses a package whose generator differs."""
+on the same generator, so preflight refuses a package whose generator differs."""
 
 
 def no_think_template(stock: str, pin: ServePin = QWEN3_8B) -> str:
@@ -505,7 +506,7 @@ def gpu_facts() -> dict[str, str] | None:
 
 
 # ---------------------------------------------------------------------------
-# the checkpoint: mirror, lock and manifest (R4, CAL23)
+# the checkpoint: mirror, lock and manifest (CAL23)
 # ---------------------------------------------------------------------------
 
 
@@ -755,7 +756,7 @@ PROBE_CONTEXT_ARMS: tuple[str, ...] = ("depth:d1+h8", "depth:d2+h5")
 runs them for the context checks and the instrument count, not the floor (a control is not a
 difficulty level).  Another 24 episodes."""
 CARD_DESIGN: Design | None = None
-"""The card's design is the calibration module's own: S = 60, n = 5 (R6)."""
+"""The card's design is the calibration module's own: S = 60, n = 5."""
 CARD_ARMS: tuple[str, ...] | None = None
 """The card's arms are `arm_specs()`, all fourteen (CAL2)."""
 
@@ -785,7 +786,7 @@ def _arm_dir(arm: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# the probe (Taylor, 2026-09-25)
+# the probe
 # ---------------------------------------------------------------------------
 
 
@@ -835,8 +836,9 @@ def probe_verdict(
         )
     if no_call > _cal.NO_CALL_THRESHOLD:
         reasons.append(
-            f"{no_call:.3f} of the probe's episodes made no tool call, above CAL24's "
-            f"{_cal.NO_CALL_THRESHOLD}: every cell like it would refuse to publish"
+            f"{no_call:.3f} of the probe's episodes made no tool call, above the card's "
+            f"no-call threshold of {_cal.NO_CALL_THRESHOLD}: every cell like it would refuse "
+            "to publish"
         )
     if context_stops:
         reasons.append(
@@ -1164,8 +1166,9 @@ def cmd_probe(ctx: Context) -> int:
         _say(_json.dumps({k: report[k] for k in ("proceed", "reasons", "strict", "leaky",
                                                     "no_call", "max_prompt_tokens")}))
         if not proceed:
-            _say("STOP: the probe says the card should not run on this model.  Report it; the "
-                 "next run is a ruling (Qwen3-14B), not an automatic switch.")
+            _say("STOP: the probe says the card should not run on this model.  Report it; a "
+                 "step up to a larger model (Qwen3-14B) is a separate run, decided on its own, "
+                 "never an automatic switch.")
         return 0 if proceed else 3
 
 
@@ -1337,7 +1340,7 @@ MANIFEST = "MANIFEST.sha256"
 
 
 def make_bundle(durable: _pathlib.Path) -> _pathlib.Path:
-    """The files the vault keeps, flattened out of `card/`, with a sha256 manifest, zipped.
+    """The run's card, reports and logs, flattened out of `card/`, with a sha256 manifest, zipped.
     Phase 3's raw traces are not in it; they stay in the durable folder."""
     durable = _pathlib.Path(durable)
     staging = durable / "bundle"
@@ -1736,8 +1739,8 @@ def cmd_preflight(ctx: Context) -> int:
     bundle = _generate(_cal.arm_specs()[0], _cal.seed_list()[0])
     if bundle.generator_hash != EXPECTED_GENERATOR_HASH:
         _say(f"STOP: this package's generator is {bundle.generator_hash}; model A's card was "
-             f"run at {EXPECTED_GENERATOR_HASH} and a card on another generator is not "
-             "comparable (R10)")
+             f"run at {EXPECTED_GENERATOR_HASH}, and a card on another generator is not "
+             "comparable with it")
         return 1
     server = check_server(ctx.pin, ctx.base_url)
     thinking = check_thinking_off(ctx.pin, ctx.base_url)
@@ -1826,14 +1829,18 @@ def build_parser() -> _argparse.ArgumentParser:
     p = sub.add_parser("phase3", help="the card: 14 arms x 60 seeds x 5 attempts, resumable")
     run_args(p)
     p.add_argument("--wall-clock-hours", type=float, required=True,
-                   help="the compute allowance, in hours, across every resume (R11)")
+                   help="the compute allowance, in hours, across every resume; the run "
+                        "stops cleanly at whichever of this, the token budget or the "
+                        "provider's credit comes first")
 
     p = sub.add_parser("finalize", help="rebuild the card from a durable folder, no GPU")
     p.add_argument("--durable", type=_pathlib.Path, required=True)
     p.add_argument("--out", type=_pathlib.Path, required=True)
     p.add_argument("--port", type=int, default=QWEN3_8B.port)
 
-    run_args(sub.add_parser("bundle", help="zip the files the vault keeps, with a manifest"))
+    run_args(sub.add_parser(
+        "bundle", help="zip the card, the reports and vLLM's log with a sha256 manifest, "
+                       "for downloading and `verify`"))
 
     p = sub.add_parser("verify", help="check a bundle's manifest and recompute its artifact")
     p.add_argument("bundle", type=_pathlib.Path)
