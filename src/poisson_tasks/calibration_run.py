@@ -1369,10 +1369,36 @@ def make_bundle(durable: _pathlib.Path) -> _pathlib.Path:
     return archive
 
 
+def _first_mismatch(stored: _Any, rebuilt: _Any, where: str) -> str | None:
+    """Where the stored artifact and the rebuilt one first disagree, or `None`.  Every value
+    the stored artifact carries is checked; a figure the card gained after it was written
+    is not.  Lists compare whole, so a missing cell or row is a mismatch."""
+    if isinstance(stored, dict):
+        if not isinstance(rebuilt, dict):
+            return f"{where} is not a mapping in the rebuild"
+        for key in sorted(stored):
+            if key not in rebuilt:
+                return f"{where}.{key} is not in the rebuild"
+            found = _first_mismatch(stored[key], rebuilt[key], f"{where}.{key}")
+            if found is not None:
+                return found
+        return None
+    if isinstance(stored, list):
+        if not isinstance(rebuilt, list) or len(stored) != len(rebuilt):
+            return f"{where} has {len(stored)} entries and the rebuild a different number"
+        for index, (mine, theirs) in enumerate(zip(stored, rebuilt, strict=True)):
+            found = _first_mismatch(mine, theirs, f"{where}[{index}]")
+            if found is not None:
+                return found
+        return None
+    return None if stored == rebuilt else f"{where} is {stored!r}; it recomputes to {rebuilt!r}"
+
+
 def verify_bundle(path: _pathlib.Path, *, recompute: bool = True) -> dict[str, _Any]:
-    """Every file in the manifest has its digest, and (when the bundle carries a card) the
-    artifact recomputes from `episodes.jsonl` and `tallies.json` under its own provenance
-    (CAL19).  Refuses otherwise."""
+    """Every file in the manifest has its digest, and (when the bundle carries a card) every
+    figure the artifact carries recomputes from `episodes.jsonl` and `tallies.json` under its
+    own provenance (CAL19).  A bundle written before the card gained a figure still verifies
+    on the figures it has.  Refuses otherwise."""
     root = _pathlib.Path(path)
     lines = (root / MANIFEST).read_text(encoding="utf-8").splitlines()
     checked = 0
@@ -1394,9 +1420,10 @@ def verify_bundle(path: _pathlib.Path, *, recompute: bool = True) -> dict[str, _
             cells.setdefault((row.arm_id, row.model), []).append(row)
         tallies = _json.loads((root / "tallies.json").read_text(encoding="utf-8"))
         keyed = {key: tallies.get(key[0], {}) for key in cells}
-        rebuilt = _cal.build_artifact(cells, prov, tally=keyed)
-        if _json.dumps(rebuilt.as_dict(), sort_keys=True) != _json.dumps(stored, sort_keys=True):
-            raise ValueError("artifact.json does not recompute from episodes.jsonl (CAL19)")
+        rebuilt = _json.loads(_json.dumps(_cal.build_artifact(cells, prov, tally=keyed).as_dict()))
+        mismatch = _first_mismatch(stored, rebuilt, "artifact")
+        if mismatch is not None:
+            raise ValueError(f"artifact.json does not recompute from episodes.jsonl: {mismatch}")
         out["recomputed"] = True
     return out
 
