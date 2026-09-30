@@ -5,7 +5,8 @@ gave the record id and the entry code as bare English words, the model did not r
 values, and in 3,045 of 4,200 episodes its first reply asked for them and called no tool.
 Quoting the two values fixed it in a probe: 16 of 16 first replies made the reference call.
 
-These tests pin Taylor's rulings of 2026-09-25, and are written before the change:
+These tests pin the decisions of 2026-09-25, numbered as the test names below number them,
+and are written before the change:
 
 1. The prompt template puts the record id and the entry code in double quotes.  The entry
    codes stay the vocabulary table's words, and `template_id` stays `ledger-chain/v1`.
@@ -16,13 +17,13 @@ These tests pin Taylor's rulings of 2026-09-25, and are written before the chang
    publish.
 5. Knob D's ordering is shown on the leaky rate beside the strict one, with a note that
    strict at every depth below the top includes a stop-at-the-goal test the top cannot have.
-   Strict stays the headline (R15).
+   Strict stays the headline rate.
 
 Also pinned: the two figures that were named for the wrong thing.  The records' `sampled_calls`
 counts tool calls and their `turns` counts model calls, so the artifact and the card name them
 `tool_calls` and model calls.
 
-`tests/test_cal_calibration.py` is the frozen oracle and is not edited here.  No test in this
+`tests/test_cal_calibration.py` is frozen and is not edited here.  No test in this
 file calls a model, loads a key or leaves loopback.
 """
 
@@ -140,7 +141,7 @@ def columns_of(line: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# ruling 1: the record id and the entry code go out in quotes
+# item 1: the record id and the entry code go out in quotes
 # ---------------------------------------------------------------------------
 
 
@@ -155,7 +156,7 @@ def user_text(prompt: Any) -> str:
 
 @pytest.mark.parametrize("spec", cal.arm_specs(), ids=lambda spec: arm_id(spec))
 def test_fix1_1_every_arms_prompt_quotes_the_record_id_and_the_entry_code(spec: ArmSpec) -> None:
-    """Ruling 1, at every one of the fourteen arms: the value the model has to copy is
+    """Item 1, at every one of the fourteen arms: the value the model has to copy is
     delimited, so it cannot be read as a word of the sentence."""
     for seed in cal.DOCUMENTED_SEEDS:
         bundle = generate(spec, seed)
@@ -166,7 +167,7 @@ def test_fix1_1_every_arms_prompt_quotes_the_record_id_and_the_entry_code(spec: 
 
 
 def test_fix1_2_the_slots_carry_the_bare_values_and_the_template_id_is_unchanged() -> None:
-    """Ruling 1's other half and ruling 2: the quotes are the template's, not the value's.
+    """Item 1's other half: the quotes are the template's, not the value's.
     The slot is what G15 masks and what the ledger checks, so it stays the bare word, and
     `template_id` stays `ledger-chain/v1` (the generator hash records the change)."""
     bundle = generate(spec_of("depth", 3), 404)
@@ -262,7 +263,7 @@ def test_fix1_3_the_served_task_carries_the_record_id_and_the_entry_code_in_quot
 
 
 # ---------------------------------------------------------------------------
-# ruling 3: the plumbing gate
+# item 3: the plumbing gate
 # ---------------------------------------------------------------------------
 
 
@@ -289,7 +290,7 @@ def todays_phase1() -> list[cal.EpisodeRecord]:
 
 
 def test_fix3_1_todays_phase1_fails_the_gate() -> None:
-    """Ruling 3's own motivating case: 5 of 6 episodes made no tool call.  Every one was
+    """Item 3's own motivating case: 5 of 6 episodes made no tool call.  Every one was
     scored and none carried an instrument label, so the old gate passed it."""
     rows = todays_phase1()
     assert all(row.label not in cal.INSTRUMENT_LABELS for row in rows)
@@ -374,7 +375,7 @@ def test_fix3_7_the_verdict_lists_each_episodes_calls_against_its_minimum() -> N
 
 
 # ---------------------------------------------------------------------------
-# ruling 4: CAL24, the no-call and stopped-short columns and the publish refusal
+# item 4: CAL24, the no-call and stopped-short columns and the publish refusal
 # ---------------------------------------------------------------------------
 
 
@@ -419,7 +420,7 @@ def test_cal24_3_the_share_is_over_scored_episodes() -> None:
 
 
 def test_cal24_4_the_threshold_is_declared_and_carried_in_the_provenance() -> None:
-    """0.10 is Taylor's number (ruling 4).  It is carried in the block, like CAL16's, so a
+    """0.10 is the number item 4 set.  It is carried in the block, like CAL16's, so a
     card says what it was held to, and it is a rate."""
     assert cal.NO_CALL_THRESHOLD == 0.10
     block = provenance()
@@ -435,7 +436,8 @@ def test_cal24_4_the_threshold_is_declared_and_carried_in_the_provenance() -> No
 
 def test_cal24_5_the_card_prints_both_shares_in_their_columns() -> None:
     """The two columns are on every level row and every instrument-arm row, read by the
-    position the header gives them, not by searching the row (the lesson of m56)."""
+    position the header gives them, not by searching the row (a deliberately broken build once
+    passed a card test that searched the row)."""
     cells = {}
     for spec in cal.arm_specs():
         arm = arm_id(spec)
@@ -465,7 +467,7 @@ def test_cal24_5_the_card_prints_both_shares_in_their_columns() -> None:
 
 
 # ---------------------------------------------------------------------------
-# ruling 5: knob D's ordering on the leaky rate beside the strict one
+# item 5: knob D's ordering on the leaky rate beside the strict one
 # ---------------------------------------------------------------------------
 
 # Per depth level: (strict passes, leaky passes) per task, of N.  Strict dips then rises at
@@ -508,7 +510,7 @@ def test_fix5_1_the_depth_ordering_row_carries_the_leaky_rates() -> None:
 
 
 def test_fix5_2_the_card_shows_leaky_beside_strict_with_the_stop_at_goal_note() -> None:
-    """On the card: the strict line first (R15's headline), the leaky line beside it, and a
+    """On the card: the strict line first (the headline rate), the leaky line beside it, and a
     sentence saying strict below the top depth includes a stop-at-the-goal test the top
     cannot have."""
     document = cal.render_document(cal.build_artifact(depth_cells(), provenance()))

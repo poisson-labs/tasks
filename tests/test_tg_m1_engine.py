@@ -1,9 +1,8 @@
-"""The frozen tests for TG-M1, the domain engine: E1-E10, P1, T1-T3, VT1-VT4.
+"""The tests for the domain engine, engine.py: E1-E10, P1, T1-T3, VT1-VT4.
 
-Frozen on 2026-09-11 against spec v0 rev. 3.2 with the amendments of that date
-(TG-ADR-35 and TG-ADR-36). The module is written against this file, which is not
-edited to suit it. Where the spec's text could not be used as written, this
-docstring is authoritative.
+Written on 2026-09-11, before the module. The module is written against this
+file, which is not edited to suit it. Where the design could not be used as
+written, this docstring is authoritative.
 
 The public surface these tests pin
 ----------------------------------
@@ -15,36 +14,35 @@ The public surface these tests pin
 
     reference_encoding  count_tokens
 
-Shapes the spec names but does not define
------------------------------------------
+Shapes the design names but does not define
+-------------------------------------------
 * ``Scenario(records, token_key, visible_items)``, frozen, with a public
   constructor this file calls by hand.  ``records`` maps ``(qualifier, record_id)``
   to the stage-1 entry code that record accepts.  ``token_key`` is the key for
   E3's keyed hash.  ``visible_items`` are the catalogue item codes reads can see.
-  It draws nothing from a seed: that is TG-M2's (finding 15).
-* ``DomainState`` has ``.records`` and ``.next_seq`` (TG-ADR-35).  ``.records``
+  It draws nothing from a seed: that is knobs.py's.
+* ``DomainState`` has ``.records`` and ``.next_seq``.  ``.records``
   maps ``(qualifier, record_id)`` to a record with ``.stage`` (0-8), ``.token``
   (the chain token the last successful transition emitted, or ``None`` at stage
-  0) and ``.audit`` (the ``seq`` of that transition, 0 before any: TG-ADR-36).
+  0) and ``.audit`` (the ``seq`` of that transition, 0 before any).
 * A ``call`` is the 2-tuple ``(tool_name, args)`` with ``args`` a ``dict``.
   ``apply`` is total over any such pair, including names outside the block and
-  malformed arguments (finding 5).
+  malformed arguments.
 * An ``observation`` is an ASCII ``str`` of exactly ``L_obs`` bytes.
 * ``EngineSpec.load(path=None)`` and ``EngineSpec.from_mapping(mapping)`` build a
   spec; neither is public, so neither is in ``__all__``.  ``init_state`` and
-  ``apply`` take no spec argument, exactly as the spec writes them, so the spec
-  reaches them through the module and not through a file read inside ``apply``
-  (finding 11).
+  ``apply`` take no spec argument, by design, so the spec reaches them through
+  the module and not through a file read inside ``apply``.
 * ``mutations`` returns ``(class, id, field)`` triples in sorted order.  Sorted,
   because E1 makes every output deterministic and this is the one natural order;
   the class is in the key because E7's cross-class clause cannot be stated
-  without it (TG-ADR-36).
+  without it.
 
 What is deliberately not tested here
 ------------------------------------
 E8's live half.  ``replay`` is checked against the left fold of ``apply``, which
-is all TG-M1 can see.  The comparison against the live toolset is A8, run per
-episode in TG-M5 (finding 7).
+is all the engine can see.  The comparison against the live toolset is A8, run
+per episode in the Proofload adapter (adapter.py).
 """
 
 from __future__ import annotations
@@ -82,7 +80,7 @@ ENGINE_EXPORTS = (
 )
 TOKENIZER_EXPORTS = ("reference_encoding", "count_tokens")
 
-# E9, finding 13.  Checked case-insensitively, as a substring.  DENY applies to
+# E9.  Checked case-insensitively, as a substring.  DENY applies to
 # every authored table string except the ones that must carry digits; DENY_NAMES
 # is this file's extension and applies to the stage names and tool names only.
 DENY = (
@@ -194,7 +192,7 @@ def records_bytes(state, audit: bool = True) -> bytes:
 
 def make_scenario(n_records: int = 4, token_key: bytes = b"oracle-key-a", *,
                   split: str = "eval", shared_id: bool = False, n_items: int = 4):
-    """Build a Scenario by hand.  No seed is drawn: that is TG-M2's (finding 15)."""
+    """Build a Scenario by hand.  No seed is drawn: that is knobs.py's."""
     from poisson_tasks.engine import Scenario
 
     words = TABLE["record_id_words"][split]
@@ -225,7 +223,7 @@ def advance(state, scenario, cls, rid, upto):
 
     The scenario is passed in rather than read back off the state: this file
     already holds it, and asking DomainState for it would invent a surface the
-    spec does not name.
+    public API does not name.
     """
     from poisson_tasks.engine import apply
 
@@ -262,10 +260,10 @@ def rejected_calls(scenario, at_stage_1, at_stage_0):
     takes a record still at stage 0; and `not_ready` needs one whose precondition
     fails.
 
-    Precedence, which the spec leaves open and these tests therefore fix: the
+    Precedence, which the design leaves open and these tests therefore fix: the
     stage precondition is decided before the argument.  A stage-3 tool aimed at a
     record standing at stage 1 is `not_ready` whatever token it carries, because
-    no token could have been right for it (TG-ADR-36).
+    no token could have been right for it.
     """
     cls1, rid1 = at_stage_1
     cls0, rid0 = at_stage_0
@@ -363,7 +361,7 @@ def test_e1_two_processes_agree_byte_for_byte():
     """E1: two runs over the same inputs are byte-identical.
 
     Two fresh interpreters at different PYTHONHASHSEED values, so set and dict
-    iteration order cannot leak into the bytes (finding 11).
+    iteration order cannot leak into the bytes.
     """
     import poisson_tasks.engine as engine
 
@@ -397,7 +395,7 @@ def test_e1_repeat_within_one_process_agrees():
     test_e1_two_processes_agree_byte_for_byte and on E10's "only if" direction,
     not on this test.  It is here because it is the only clause that catches a
     module-level counter, which two fresh processes agree on and therefore
-    cannot see (finding 11, and Taylor's review of 2026-09-11).
+    cannot see.
     """
     from poisson_tasks.engine import apply, init_state
 
@@ -427,7 +425,7 @@ def test_e1_engine_source_has_no_impurity():
     module may not reach a clock, a random source, the filesystem, the process
     environment or the network.  So it may not import or bind any of the names in
     FORBIDDEN_MODULES, and may not call any of FORBIDDEN_CALLS.  The table is
-    loaded into an EngineSpec once and `apply` opens no file (finding 11).
+    loaded into an EngineSpec once and `apply` opens no file.
     """
     import poisson_tasks.engine as engine
 
@@ -437,7 +435,7 @@ def test_e1_engine_source_has_no_impurity():
         "urllib", "http", "requests", "subprocess", "uuid", "platform", "getpass",
     }
     # Reached only where the table is read, which is EngineSpec.load and nowhere
-    # else: finding 11 says the table is loaded into EngineSpec once, so a blanket
+    # else: the table is loaded into EngineSpec once, so a blanket
     # ban would make the loader unwritable. `apply` must not touch these, and must
     # not call the loader either.
     FILESYSTEM_MODULES = {"pathlib", "io", "shutil", "tempfile", "importlib"}
@@ -514,7 +512,7 @@ def test_e2_observation_token_count_in_band(payload_seed):
     """E2: the token count under the reference tokenizer lies in the declared band.
 
     The band is a frozen literal minted at step zero on a 300k sample and checked
-    on a disjoint 300k sample (standing rule 8).  This test draws fresh payloads,
+    on a disjoint 300k sample.  This test draws fresh payloads,
     so it is a third sample and can disagree with both.
     """
     from poisson_tasks.engine import apply, init_state
@@ -560,7 +558,7 @@ def test_e2_l_obs_holds_across_tool_families():
 def test_e3_chain_requires_the_previous_stage_token():
     """E3: stage i+1 succeeds only with stage i's token, on a record at stage i.
 
-    The stage precondition is TG-ADR-36 (finding 3): without it a stage-3 call
+    The stage precondition moves a record forward one stage at a time: without it a stage-3 call
     carrying stage 2's token would succeed on a stage-5 record and rewind it,
     which `overshoot` and G5 both rule out by assumption.
     """
@@ -701,7 +699,7 @@ def test_e3_no_token_appears_in_the_tool_block():
             assert tok not in rid and tok not in cls
 
 # --------------------------------------------------------------------------
-# E4 Rejected calls don't mutate the records  (TG-ADR-35)
+# E4 Rejected calls don't mutate the records  (the records only; the counter is E5's)
 # --------------------------------------------------------------------------
 
 
@@ -740,7 +738,7 @@ def test_e4_error_calls_advance_next_seq_by_one(data):
             assert state.next_seq == before.next_seq + 1, (call, obs)
 
 # --------------------------------------------------------------------------
-# E5 Sequence numbers  (TG-ADR-35)
+# E5 Sequence numbers  (the counter advances on every call, errors included)
 # --------------------------------------------------------------------------
 
 
@@ -789,7 +787,7 @@ def test_e5_seq_start_is_an_argument_not_a_scenario_field():
 
     One scenario under two seq_starts gives observations that differ in the seq
     field and nowhere else.  This is what lets N14 vary seq_start by arm while N1
-    holds the scenario equal (TG-ADR-35).
+    holds the scenario equal.
     """
     from poisson_tasks.engine import Scenario, apply, init_state
 
@@ -812,9 +810,8 @@ def test_e5_seq_start_is_an_argument_not_a_scenario_field():
     # every record field but the audit is untouched by seq_start
     assert a_rec == b_rec
     # and the audit field, being a seq, moves with seq_start by exactly the offset.
-    # TG-M3 inherits this: expected_final_state is arm-dependent through seq_start,
-    # or the verdict excludes the audit field. See the spec's open question and
-    # gap-log entry PG-16.
+    # tasks.py inherits this: expected_final_state is arm-dependent through seq_start,
+    # or the verdict excludes the audit field. See gap-log entry PG-16.
     assert b_audit - a_audit == 499
     for x, y in zip(a_obs, b_obs):
         assert obs_fields(x)[1:] == obs_fields(y)[1:]
@@ -822,10 +819,10 @@ def test_e5_seq_start_is_an_argument_not_a_scenario_field():
 
 
 def test_e5_replay_numbers_in_list_order():
-    """E5: replay numbers calls in list order from seq_start (finding 7).
+    """E5: replay numbers calls in list order from seq_start.
 
     The caller sorts the sampled calls by the seq in their tool messages (X4, in
-    TG-M3 and TG-M4); replay numbers what it is handed, in the order it is handed.
+    tasks.py and export.py); replay numbers what it is handed, in the order it is handed.
     """
     from poisson_tasks.engine import replay
 
@@ -937,7 +934,7 @@ def test_e6_error_observations_echo_no_input():
         assert name not in obs and "payload-to-echo" not in obs
 
 # --------------------------------------------------------------------------
-# E7 Scope of effect  (TG-ADR-36)
+# E7 Scope of effect  (records are keyed by class and id)
 # --------------------------------------------------------------------------
 
 
@@ -982,7 +979,7 @@ def test_e7_transition_touches_one_record_and_three_fields():
             continue
         b, a = before.records[key], after.records[key]
         assert (b.stage, b.token, b.audit) == (a.stage, a.token, a.audit), key
-    # the audit field is the seq of the last successful transition (TG-ADR-36)
+    # the audit field is the seq of the last successful transition
     assert after.records[(cls, rid)].audit == obs_seq(obs) == 30
     assert before.records[(cls, rid)].audit == 0
 
@@ -991,7 +988,7 @@ def test_e7_calls_are_never_redirected_across_classes():
     """E7: a transition on another ledger class mutates that record, not the target.
 
     Uses a scenario where one id lives in two classes, which is the only shape
-    that can expose a redirect (finding 4).
+    that can expose a redirect.
     """
     from poisson_tasks.engine import apply, init_state, mutations
 
@@ -1057,17 +1054,17 @@ def test_mutations_against_hand_built_state_pairs():
     assert mutations(base, bumped) == []
 
 # --------------------------------------------------------------------------
-# E8 Replay equals live  (TG-M1's half; the live half is A8, in TG-M5)
+# E8 Replay equals live  (the engine's half; the live half is A8, in adapter.py)
 # --------------------------------------------------------------------------
 
 
 @given(data=st.data())
 @SLOW
 def test_e8_replay_equals_the_left_fold_of_apply(data):
-    """E8 at TG-M1: replay is the left fold of apply from init_state.
+    """E8 in the engine: replay is the left fold of apply from init_state.
 
-    The comparison against the live toolset is A8, run per episode in TG-M5
-    (finding 7).  Nothing in this file can see a live toolset.
+    The comparison against the live toolset is A8, run per episode in the Proofload
+    adapter (adapter.py).  Nothing in this file can see a live toolset.
     """
     from poisson_tasks.engine import apply, init_state, replay
 
@@ -1176,7 +1173,7 @@ def test_e10_hash_is_stable_across_everything_else():
     """E10's "only if": nothing but the spec, table or version moves the hash.
 
     Not the process, not PYTHONHASHSEED, not the insertion order of a spec built
-    two ways, and not the path the table was loaded from (finding 12).
+    two ways, and not the path the table was loaded from.
     """
     from poisson_tasks.engine import EngineSpec, engine_hash
 
@@ -1268,7 +1265,7 @@ def test_t2_tokenizer_builds_with_sockets_disabled(tmp_path):
 
     tiktoken 0.14.0's read_file_cached writes a copy under the cache directory for
     a *local* path too, and load_tiktoken_bpe goes through it, so neither may be
-    used (finding 9).  A get_encoding fallback raises on the patched socket.
+    used.  A get_encoding fallback raises on the patched socket.
 
     Run in a fresh interpreter, not in this one.  The encoding is expensive, so
     any sane tokenizer caches it; an earlier test in the same interpreter would then
@@ -1289,8 +1286,8 @@ def test_t2_tokenizer_builds_with_sockets_disabled(tmp_path):
 def test_t3_offline_counts_match_the_pinned_pairs():
     """T3: the offline counts equal pairs minted from get_encoding at step zero.
 
-    An independent source, not this encoder's own output read back (standing rule
-    8).  No test here touches the network.
+    An independent source, not this encoder's own output read back.  No test here
+    touches the network.
     """
     from poisson_tasks.tokenizer import count_tokens
 
@@ -1303,7 +1300,7 @@ def test_t3_offline_counts_match_the_pinned_pairs():
 
 
 def test_vt1_table_meets_the_required_coverage():
-    """VT1: spec 2.1's required-coverage list, item by item, and ASCII."""
+    """VT1: the table's required-coverage list, item by item, and ASCII."""
     from poisson_tasks.engine import EngineSpec
 
     spec = EngineSpec.load()

@@ -2,39 +2,39 @@
 and the adapter's strict label (`to_episode`, through `_judge`) agree on `passed` -- frozen
 as tests.
 
-Ruled 2026-09-21 (question 5 of the model path spec): the two must agree on `passed`.  Nothing
-pinned it before: X4 is frozen against TG-M3's `verify` on turns the test built, the adapter's
-verdict against its own scripted runs, and no test had put them on one trace.  This file does.
-It needs the Proofload extra, because `to_episode` returns a `proofload.Episode` and
+Decided 2026-09-21 for the standalone model path: the two must agree on `passed`.  Nothing
+pinned it before: X4 is frozen against the task layer's `verify` on turns the test built, the
+adapter's verdict against its own scripted runs, and no test had put them on one trace.  This
+file does.  It needs the Proofload extra, because `to_episode` returns a `proofload.Episode` and
 `poisson_tasks.adapter` imports Proofload at import, which is why it is not in
 `tests/test_tg_m5_standalone.py`: `tests/conftest.py` skips it whole without the extra, the way
-it skips the scripted path's file.  **Frozen 2026-09-22** with the standalone file, on Taylor's
-approval of the mapping and his ruling that MP10 stays in this file.
+it skips the scripted path's file.  **Frozen 2026-09-22** with the standalone file, once the
+mapping was approved and MP10 was settled to stay in this file.
 
-The traces are synthetic, built as the `null` harness at 0.3.1 leaves one (TG-M4's decision 6):
-the seeded prompt, one sampled assistant message per call with its tool message, then a reply.
-A call whose arguments are not a JSON object, or whose name is outside the block, gets the
-harness's own `error: ...` line and no `seq`, because it never reached the engine (VN-7).
-The `Run` is built here, from the trace, by the rule layer 2's mapping will be held to (MP11):
-the sampled calls in the order they were made, each with the tool message it got back,
-`ended_with_reply` from the last sampled message, `turn_limit_hit` from
-`stop_condition == "max_turns"` (ruled 2026-09-21), the export's own empty format spec.
+The traces are synthetic, built as the `null` harness at 0.3.1 leaves one (the harness
+the export is measured under): the seeded prompt, one sampled assistant message per call with
+its tool message, then a reply.  A call whose arguments are not a JSON object, or whose name
+is outside the block, gets the harness's own `error: ...` line and no `seq`, because it never
+reached the engine.  The `Run` is built here, from the trace, by the rule layer 2's mapping
+will be held to: the sampled calls in the order they were made, each with the tool message it
+got back, `ended_with_reply` from the last sampled message, `turn_limit_hit` from
+`stop_condition == "max_turns"` (decided 2026-09-21), the export's own empty format spec.
 
 Shapes decided here
 -------------------
 
 **1. A8 replays what reached the engine, and not what the harness answered itself: shape
-(b).**  The Handoff named three shapes and asked for a measurement before the choice.  Measured
-on the whole scripted oracle first (`evidence/model-path-session-a/probes/shape_b_measurement.txt`):
-with `_judge` replaying every call except those whose tool message is the harness's own
-`error: ...` line, every scripted case stays green -- every scripted observation comes from
-`apply`, which numbers every call (E5), so no scripted run has such a message.  A count
+(b).**  Three shapes were on the table, and the choice waited on a measurement.  Measured
+on the whole scripted test file first: with `_judge` replaying every call except those whose
+tool message is the harness's own `error: ...` line, every scripted case stays green -- every
+scripted observation comes from `apply`, which numbers every call (E5), so no scripted run has
+such a message.  A count
 difference is a mismatch as before, and every message that is not the harness's shape is
 replayed and compared byte for byte as before.  The first cut of the edit, "replay the calls
 whose message opens with a `seq`", was measured too and failed 15 cases: a corrupted `seq`
 was skipped instead of detected, which is the wrong way round.  `Run` keeps its six fields
 (`test_sf4` stands) and `to_episode` its signature.  *Escape hatch:* shape (a), a seventh
-field on `Run`, on a scripted-path retrofit branch (Taylor, 2026-09-21: allowed if (b) had not
+field on `Run`, on a scripted-path retrofit branch (allowed on 2026-09-21 if (b) had not
 held).  The tests here pin the label and would survive it.
 
 **2. The invariant is about `passed`, on traces the harness could have left.**  A genuine
@@ -46,8 +46,8 @@ control rather than an agreement.
 Open, and not settled here
 --------------------------
 
-1. **Where a harness-refused call sorts under X4** (TG-M4's open point 4).  Such a call
-   mutates nothing wherever it sorts, and no test here depends on the answer.
+1. **Where a harness-refused call sorts under X4** (left open when the export was built).  Such a
+   call mutates nothing wherever it sorts, and no test here depends on the answer.
 """
 
 from __future__ import annotations
@@ -155,7 +155,7 @@ def deep_tuple(value: Any) -> Any:
 
 
 def run_of(trace: Any) -> Any:
-    """The `Run` layer 2's mapping will build (MP11), written here from the trace: sampled
+    """The `Run` layer 2's mapping will build, written here from the trace: sampled
     calls in the order made, each paired with the tool message that answered it."""
     calls: list[tuple[str, tuple[str, Any]]] = []
     messages: list[str] = []
@@ -236,8 +236,8 @@ def test_mp10_1_the_reward_is_one_exactly_when_the_strict_label_is_passed(spec, 
 
 @pytest.mark.parametrize("spec", ALL_SPECS, ids=SPEC_IDS)
 def test_mp10_2_the_two_live_rows_a_harness_refused_call_inside_a_pass(spec):
-    """MP12's two rows, seen from the bridge: the reward is 1.0 (the pass predicate is
-    decided before the format check, TG-M3's decision 4) and the adapter must agree -- which
+    """The two live rows, seen from the bridge: the reward is 1.0 (the pass predicate is
+    decided before the format check, in the task layer) and the adapter must agree -- which
     it can only do if it does not replay the call the engine never saw (A8, shape (b)).  The
     clause is reported by both."""
     bundle = generate(spec, SEEDS[0])
@@ -254,7 +254,7 @@ def test_mp10_2_the_two_live_rows_a_harness_refused_call_inside_a_pass(spec):
 
 @pytest.mark.parametrize("spec", (D_SPECS[0], D_SPECS[5], R_SPECS[4], R_SPECS[6]), ids=arm_id)
 def test_mp10_3_the_controls_own_label_is_malformed_call_and_not_replay_mismatch(spec):
-    """The same hole from the label's side (A8's warning in 2.5): a clause 2 or clause 3
+    """The same hole from the label's side (the warning in A8): a clause 2 or clause 3
     control that falls short of `passed` is `malformed_call`, a system label, and never
     `replay_mismatch`, an instrument one."""
     bundle = generate(spec, SEEDS[0])

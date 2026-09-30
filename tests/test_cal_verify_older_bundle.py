@@ -4,7 +4,7 @@
 When the card gains a figure, as it did with the overshoot share, the leaky interval and depth's
 comparisons on reaching the goal, the rebuild carries figures an older artifact never had.
 Comparing whole files would then call every earlier bundle broken, including the model B run
-filed in the vault, though every number it holds still recomputes.  So `verify` checks every
+already filed, though every number it holds still recomputes.  So `verify` checks every
 number the stored artifact carries, and only those.
 """
 

@@ -1,9 +1,9 @@
-"""The frozen tests for TG-M2, knobs, control arms and the pin ledger: N1-N18.
+"""The frozen tests for knobs.py, knobs, control arms and the pin ledger: N1-N18.
 
-Frozen on 2026-09-13 against spec v0 rev. 3.2 with the amendments of 2026-09-11
-(TG-ADR-35, TG-ADR-36) and 2026-09-13 (TG-ADR-37).  The module is written against
-this file, which is not edited to suit it.  Where the spec's text could not be used
-as written, this docstring is authoritative.
+Frozen on 2026-09-13, with the design amendments of 2026-09-11 and 2026-09-13
+included.  The module is written against this file, which is not edited to suit it.
+Where a written requirement could not be used as written, this docstring is
+authoritative.
 
 The public surface these tests pin
 ----------------------------------
@@ -12,20 +12,20 @@ The public surface these tests pin
     ArmSpec  PinRow  PinRecord  PinReport
     arm_id  levels  pin_ledger  measure_pins  check_pins
 
-That is spec 2.2's Interface list plus the three type names its signatures use.
-Nothing else is public: the arm transforms 3 step 2 names are reached through
+That is the knobs module's interface plus the three type names its signatures use.
+Nothing else is public: the internal arm transforms are reached through
 `ArmSpec`'s derived values and through `check_pins`, never as their own symbols.
 
-Shapes the spec names but does not define
------------------------------------------
+Shapes these tests define
+-------------------------
 * ``ArmSpec(knob, level, control, strictness, split, generator_version)``, frozen,
-  the six fields 2.2 lists.  ``control`` is **not a flag**: it is the reference
+  the six fields of an arm.  ``control`` is **not a flag**: it is the reference
   level the control arm stands in for (8 in ``depth:d1+h8`` and in
   ``distractor:r0+len(r8)@k16``), and ``None`` on a plain arm.  The arm id formats
   are the reason - each control id renders exactly that one extra number.
 * ``ArmSpec.reference_turns`` is the reference solution's turn count: one call per
   turn plus the reply turn (N16).  ``ArmSpec.max_turns(slack)`` takes the slack
-  because ``S`` is a cfg axis (2.5) and is not one of the arm spec's six fields,
+  because ``S`` is a cfg axis and is not one of the arm spec's six fields,
   while A5 writes ``max_turns(arm)`` as though it were nullary.
 * ``PinRow(row_id, held, measured, tolerance, on_violation, stage, applies_to)``,
   frozen.  ``stage`` is where the row is enforced - ``generation``, ``engine``,
@@ -35,20 +35,21 @@ Shapes the spec names but does not define
   its measured value for one bundle; ``unmeasured`` maps a row id to the reason it
   cannot be measured from a bundle at generation time.  Every ledger row appears in
   exactly one of the two.
-* ``PinReport(knob, refused, violations, reported, records)``, frozen.  2.2 writes
-  ``check_pins(...) -> PinReport | refusal``; a refusal is a ``PinReport`` whose
+* ``PinReport(knob, refused, violations, reported, records)``, frozen.  The contract
+  is ``check_pins(...) -> PinReport | refusal``; a refusal is a ``PinReport`` whose
   ``refused`` is true, not an exception, because the ledger's job is to report and
   the *On violation* column says **generation** refuses.  ``violations`` and
   ``reported`` are tuples of ``(row_id, detail)``.
 * ``check_pins`` raises ``ValueError`` when the arms it is handed do not share one
   knob.  That is a caller error and not a pin violation, so it is not a refusal.
-* A **bundle** is anything carrying the fields ``measure_pins`` reads.  TG-M3 owns
+* A **bundle** is anything carrying the fields ``measure_pins`` reads.  tasks.py owns
   ``TaskBundle`` and does not exist yet, so this file builds bundle-shaped objects
-  by hand, the way TG-M1's tests built ``Scenario`` by hand.  The fields are
-  2.3's, plus three these tests need and 2.3 does not name - ``template_id``,
-  ``prompt_slots`` and ``reference_observations``.  **Those three are a drafted
-  amendment to 2.3, not a decision**.  They are the other halves
-  of fields 2.3 already names, and without them N6 and N9 have no measurement.
+  by hand, the way the engine's tests built ``Scenario`` by hand.  The fields are
+  the task layer's, plus three these tests need and it does not name -
+  ``template_id``, ``prompt_slots`` and ``reference_observations``.  **Those three
+  are a drafted amendment to the task layer, not a decision**.  They are the other
+  halves of fields the task layer already names, and without them N6 and N9 have no
+  measurement.
 * Seeded history is the OpenAI chat shape, since N18 pins the endpoint type to
   OpenAI-compatible chat completions: ``{"role": "assistant", "tool_calls":
   [{"function": {"name": ..., "arguments": "<compact json>"}}]}`` followed by
@@ -56,23 +57,24 @@ Shapes the spec names but does not define
 
 What is deliberately not tested here
 ------------------------------------
-* **N17's scripted `diff`.**  The spec's test for N17 is a Proofload ``diff`` of the
-  lowest arm against the highest, reporting zero truncated rows.  TG-M2 may import
-  only ``Episode`` and ``Rollout`` from Proofload, so the ``diff`` half
-  runs in TG-M5 against A5.  What is tested here is the arithmetic N17 rests on:
-  ``H = max(max_turns)`` over the arm set, one ``H`` for every arm of a knob.
+* **N17's scripted `diff`.**  The written test for N17 is a Proofload ``diff`` of the
+  lowest arm against the highest, reporting zero truncated rows.  knobs.py may import
+  only ``Episode`` and ``Rollout`` from Proofload, so the ``diff`` half runs in the
+  Proofload adapter's tests against A5.  What is tested here is the arithmetic N17
+  rests on: ``H = max(max_turns)`` over the arm set, one ``H`` for every arm of a knob.
 * **N10 and N13's measurements.**  Both are run-time: N10 compares a serving pin
   across a model's runs and N13 reads server-reported usage from the trace.  A
   bundle carries neither, so these tests pin that ``measure_pins`` *declares* them
   unmeasured with a reason, and that the ledger still carries their rows.
 * **N18's revision predicate.**  N18's own *Test:* line assigns it to "the
-  pre-registration validator", which is 4 stage 4 and is built in TG-M5.  No model
-  string reaches a bundle or an arm spec, so TG-M2 declares the row through N10 and
-  validates nothing.  **This and N17's `diff` half are two named gaps owed to
-  TG-M5's tests**, and neither is covered by any other module's tests today.
+  pre-registration validator", which is built in the Proofload adapter.  No model
+  string reaches a bundle or an arm spec, so knobs.py declares the row through N10
+  and validates nothing.  **This and N17's `diff` half are two named gaps owed to
+  the Proofload adapter's tests**, and neither is covered by any other module's tests
+  today.
 * **The band N9 refuses on, as a property of a real generator.**  This file pins
-  the band's value and the shape of the comparison.  Whether TG-M3's generator can
-  always land inside it is G16's structure-census question.
+  the band's value and the shape of the comparison.  Whether the task layer's
+  generator can always land inside it is G16's structure-census question.
 """
 
 from __future__ import annotations
@@ -109,7 +111,7 @@ KNOBS_EXPORTS = (
 # rather than forbidding the import - which would be a style rule dressed as a pin.
 FUTURE_NAMES = ("annotations",)
 
-# 2.2, TG-ADR-16 and TG-ADR-03.  Candidate levels, not the pilot defaults.
+# Candidate levels, not the pilot defaults: the pilot's choice lives in its pre-registration.
 DEPTH_LEVELS = (1, 2, 3, 5, 8)
 DISTRACTOR_LEVELS = (0, 2, 4, 8, 14)
 K_D = 16
@@ -122,7 +124,7 @@ LEDGER_ROWS = tuple(f"N{i}" for i in range(1, 14))
 # table's *On violation* column: "generation refuses" -> generation/refuse,
 # "reported" -> generation/report, "engine test fails" -> engine/engine_test,
 # "the adapter stops the run" and "the adapter refuses to start" -> adapter,
-# "the contrast is void (KC3)" -> analysis.
+# "the contrast is void" -> analysis.
 ROW_STAGE = {
     "N1": "generation", "N2": "generation", "N3": "generation", "N4": "generation",
     "N5": "generation", "N6": "generation", "N7": "generation", "N8": "engine",
@@ -159,7 +161,7 @@ REPORTING_ROWS = ("N5",)
 # N9's declared band, in reference-tokenizer tokens, over the aggregate.
 #
 # Minted 2026-09-13.  A seeded pair and a chain pair are each (call name + compact
-# JSON arguments + observation).  Measured against the frozen table and TG-M1 at
+# JSON arguments + observation).  Measured against the frozen table and the engine at
 # 4b7b84a, with chain tokens the engine emitted under two disjoint token keys:
 #
 #   chain pair totals      [47, 65], mean 55.7, 1792 pairs, two disjoint scenarios
@@ -171,18 +173,17 @@ REPORTING_ROWS = ("N5",)
 #   best achievable |seeded - expected| over 256 blocks of 7 pairs: 0, every block
 #
 # So the declared band is +/- 2 against a measured residual of 0 - the same shape
-# and the same two-token margin as TG-M1's observation band, and for the same
+# and the same two-token margin as the engine's observation band, and for the same
 # reason: the read pair's reachable set is consecutive, so every integer in its
 # 7-pair range is a sum, and the only way to miss is a target outside that range.
 # 3.0% of chain pairs (53 of 1792) are below the read floor of 51, and on arguments
-# alone 51.4% are, which is why this is an aggregate band and not a per-pair one
-# (TG-ADR-37).
+# alone 51.4% are, which is why this is an aggregate band and not a per-pair one.
 N9_BAND = 2
 N9_MEASURED_RESIDUAL = 0
 N9_CHAIN_PAIR_RANGE = (47, 65)
 N9_READ_PAIR_RANGE = (51, 66)
 
-# 2.2's four arm id formats, as the spec writes them.
+# The four arm id formats, exactly as written.
 ARM_ID_CASES = (
     (("depth", 3, None), "depth:d3"),
     (("depth", 1, 8), "depth:d1+h8"),
@@ -245,15 +246,15 @@ def spec(knob="depth", level=3, control=None, strictness="strict", split="eval")
 
 @dataclasses.dataclass(frozen=True)
 class Verifier:
-    """2.3's `VerifierSpec`, reduced to the one field N11 reads."""
+    """The task layer's `VerifierSpec`, reduced to the one field N11 reads."""
 
     strictness: str
 
 
 @dataclasses.dataclass(frozen=True)
 class Bundle:
-    """A bundle-shaped object, built by hand.  2.3's fields that TG-M2 reads, plus
-    the three named in this file's docstring as a drafted amendment."""
+    """A bundle-shaped object, built by hand.  The task layer's fields that knobs.py
+    reads, plus the three named in this file's docstring as a drafted amendment."""
 
     arm_id: str
     seed: int
@@ -347,7 +348,7 @@ def bundle(arm, *, seed=7, scenario_hash="s0", system_prompt="sys", prompt="do t
            tools=None, seq_start=1, template_id="depth.v1", prompt_slots=(("goal", "bundle"),),
            engine_hash="e0", generator_hash="g0", level=None, control_pairs=None):
     """A bundle for `arm`.  Every default is shared across arms, so a test that wants
-    a pin to differ has to say so; standing rule 7."""
+    a pin to differ has to say so."""
     k = knobs()
     a = arm if isinstance(arm, str) else k.arm_id(arm)
     lvl = level if level is not None else (arm.level if not isinstance(arm, str) else 1)
@@ -478,7 +479,7 @@ def control_with_residual(arms: dict, low: int, high: int, residual: int) -> Bun
 
     The control runs pairs 1..dL itself, so its seeded block stands in for the high
     arm's pairs dL+1..H - every one of them a chain pair, which is why the single
-    cheap stage-1 call cancels out of N9 (TG-ADR-37).
+    cheap stage-1 call cancels out of N9's aggregate comparison.
     """
     k = knobs()
     control_id = k.arm_id(spec(level=low, control=high))
@@ -511,7 +512,7 @@ def module_tree() -> ast.Module:
 
 def imported_names() -> set[str]:
     """Every module name the module imports, at any depth.  An `ast` walk, never a
-    substring match on source (standing rule 9)."""
+    substring match on source."""
     names: set[str] = set()
     for node in ast.walk(module_tree()):
         if isinstance(node, ast.Import):
@@ -527,12 +528,12 @@ def imported_names() -> set[str]:
 
 
 def test_sf1_all_is_exactly_the_specs_interface_list():
-    """SF1: `__all__` is 2.2's Interface list plus its three type names, in order."""
+    """SF1: `__all__` is the documented interface plus its three type names, in order."""
     assert tuple(knobs().__all__) == KNOBS_EXPORTS
 
 
 def test_sf2_no_public_symbol_beyond_all():
-    """SF2: nothing public leaks past `__all__`.  An extra public symbol is a spec
+    """SF2: nothing public leaks past `__all__`.  An extra public symbol is a contract
     violation, so the module's non-underscore names are exactly `__all__` plus
     whatever it imports under a private alias."""
     m = knobs()
@@ -542,7 +543,7 @@ def test_sf2_no_public_symbol_beyond_all():
 
 
 def test_sf3_the_four_types_are_frozen():
-    """SF3: `ArmSpec` is frozen in 2.2's own words, and the three record types carry
+    """SF3: `ArmSpec` is frozen by its own definition, and the three record types carry
     measurements that a caller must not edit after the fact."""
     m = knobs()
     for name in ("ArmSpec", "PinRow", "PinRecord", "PinReport"):
@@ -552,26 +553,26 @@ def test_sf3_the_four_types_are_frozen():
 
 
 def test_sf4_arm_spec_carries_exactly_the_six_fields():
-    """SF4: 2.2 writes an arm spec as `(knob, level, control, strictness, split,
-    generator version)`.  Six, and no seventh: `S` is a cfg axis (2.5) and
-    `seq_start` rides `init_state` (TG-ADR-35), so neither may appear here."""
+    """SF4: an arm spec is written `(knob, level, control, strictness, split,
+    generator version)`.  Six, and no seventh: `S` is a cfg axis and
+    `seq_start` rides `init_state`, so neither may appear here."""
     fields = tuple(f.name for f in dataclasses.fields(knobs().ArmSpec))
     assert fields == ("knob", "level", "control", "strictness", "split",
                       "generator_version")
 
 
 def test_sf5_generation_imports_no_network_and_no_verifiers():
-    """SF5: TG-M1 to TG-M3 make no model call and no network call, import neither
-    `verifiers` nor any network library, and from `proofload` import only `Episode`
-    and `Rollout`.  TG-M2 needs none of those, so the list is empty."""
+    """SF5: the engine, knobs.py and tasks.py make no model call and no network call,
+    import neither `verifiers` nor any network library, and from `proofload` import only
+    `Episode` and `Rollout`.  knobs.py needs none of those, so the list is empty."""
     banned = {"verifiers", "openai", "requests", "httpx", "urllib", "urllib3",
               "socket", "aiohttp", "http", "proofload", "random", "time", "datetime"}
     assert imported_names() & banned == set()
 
 
 def test_sf6_n8_cites_tg_m1s_literals_and_does_not_re_mint_them():
-    """SF6: "`L_obs` and the token band are pin-ledger literals.  TG-M2's N8 cites
-    them and doesn't re-mint them" (TG-M1's inherited constraints).  So
+    """SF6: `L_obs` and the token band are pin-ledger literals; knobs.py's N8 cites
+    them and doesn't re-mint them (a constraint carried over from the engine).  So
     N8's tolerance carries the frozen table's numbers, and the module contains no
     second copy of them as literals of its own."""
     row = {r.row_id: r for r in knobs().pin_ledger("depth")}["N8"]
@@ -633,18 +634,18 @@ def test_p3_measure_pins_does_not_mutate_its_bundle():
 
 
 def test_id1_arm_id_renders_the_specs_four_formats():
-    """ID1: the four formats 2.2 writes, exactly."""
+    """ID1: the four documented formats, exactly."""
     k = knobs()
     for (knob, level, control), expected in ARM_ID_CASES:
         assert k.arm_id(spec(knob=knob, level=level, control=control)) == expected
 
 
 def test_id2_arm_id_is_canonical_over_the_fields_it_does_not_render():
-    """ID2: 2.2 calls `arm_id` canonical.  Canonical means one id per
+    """ID2: `arm_id` is canonical.  Canonical means one id per
     `(knob, level, control)`: strictness, split and generator version are pinned by
     N11, G12 and N12 and do not enter the id, so two arms differing only there share
     an id.  Stated as a test because the opposite reading - an id that renders all
-    six fields - would silently break `diff`'s cell matching (TG-ADR-06)."""
+    six fields - would silently break `diff`'s cell matching."""
     k = knobs()
     base = spec(knob="depth", level=3)
     for strictness in STRICTNESS:
@@ -668,7 +669,7 @@ def test_id3_arm_id_is_injective_over_knob_level_and_control():
 
 
 def test_id4_an_unknown_knob_is_refused():
-    """ID4: 2.2 defines two knobs and 7 defers tool count.  A third knob name is not
+    """ID4: there are two knobs, and tool count is deferred.  A third knob name is not
     a level question, so it raises rather than rendering an id nothing can consume."""
     k = knobs()
     for bad in ("tools", "depth ", "Depth", "", "toolcount"):
@@ -680,8 +681,8 @@ def test_id4_an_unknown_knob_is_refused():
 
 
 def test_id5_levels_are_the_specs_candidate_sets():
-    """ID5: `levels(knob)` is the candidate set, not the pilot default.  TG-ADR-16
-    picks {1, 3, 8} for the pilot out of depth's five candidates, and the pilot's
+    """ID5: `levels(knob)` is the candidate set, not the pilot default.  The pilot
+    picks {1, 3, 8} out of depth's five candidates, and the pilot's
     choice lives in the pre-registration, not here."""
     k = knobs()
     assert k.levels("depth") == DEPTH_LEVELS
@@ -695,7 +696,7 @@ def test_id5_levels_are_the_specs_candidate_sets():
 
 def test_nrows_1_the_ledger_is_thirteen_rows_in_order_for_both_knobs():
     """N-rows: "Every row above has a frozen test."  First the table itself: thirteen
-    rows, N1 to N13, in the order 2.2 prints them, for each knob.  The same ledger is
+    rows, N1 to N13, in the ledger's own order, for each knob.  The same ledger is
     used for both knobs, so the row set does not vary with the knob."""
     k = knobs()
     for knob in ("depth", "distractor"):
@@ -782,7 +783,7 @@ def test_n1_2_a_differing_scenario_hash_refuses():
 def test_n2_1_required_tool_slots_are_read_from_the_reference_calls():
     """N2: "slot indices per seed, across arms".  The required tools are the ones the
     reference solution calls, so their slot indices are their positions in `tools`.
-    Measured that way, N2 needs no field 2.3 does not already name."""
+    Measured that way, N2 needs no field the task layer does not already name."""
     k = knobs()
     b = bundle(spec(level=3))
     rec = k.measure_pins(b)
@@ -865,8 +866,8 @@ def test_n4_1_knob_ds_tool_block_is_identical_at_every_level():
 
 
 def test_n4_2_the_ledgers_n4_row_states_the_fixed_block_size():
-    """N4: "`K_D` = 16 tools, identical at every level".  TG-M3 builds the block, so
-    what TG-M2 can pin is the number the row holds it to.  The fixture agrees, and that
+    """N4: "`K_D` = 16 tools, identical at every level".  tasks.py builds the block, so
+    what knobs.py can pin is the number the row holds it to.  The fixture agrees, and that
     half is green the moment the fixture is committed - it is written down here so it
     is not read as evidence."""
     k = knobs()
@@ -914,7 +915,7 @@ def test_n5_2_n5_does_not_fire_on_knob_d():
 
 
 def test_n6_1_a_different_template_id_refuses():
-    """N6: "template id equal".  One fixed template per knob (2.2's *Prompt*), so two
+    """N6: "template id equal".  One fixed template per knob, so two
     arms on two templates are two prompts, whatever their token counts say."""
     k = knobs()
     arms = depth_contrast()
@@ -926,7 +927,7 @@ def test_n6_1_a_different_template_id_refuses():
 def test_n6_2_a_slot_whose_token_count_differs_refuses():
     """N6: "token count of the variable slots under the reference tokenizer", equal.
     The only slot that varies with `d` is the goal stage name, and stage names have an
-    equal token count by construction (2.1's coverage list), so a difference here
+    equal token count by construction (the engine's coverage list), so a difference here
     means the table's equal-count guarantee has been broken or a slot was added."""
     k = knobs()
     arms = depth_contrast()
@@ -973,7 +974,7 @@ def test_n7_2_a_prompt_that_names_a_tool_in_one_arm_only_refuses():
 def test_n8_1_observation_size_is_cited_from_the_engines_frozen_literals():
     """N8: "`L_obs` exact; tokens in band", measured by E2.  The bundle's reference
     observations are engine output, so the row is measurable here; what it must not do
-    is mint a second `L_obs` (TG-M1's inherited constraint)."""
+    is mint a second `L_obs` (a constraint carried over from the engine)."""
     k = knobs()
     b = bundle(spec(level=3))
     rec = k.measure_pins(b)
@@ -999,7 +1000,7 @@ def test_n8_2_an_observation_of_the_wrong_width_refuses():
 
 
 def test_n9_1_the_seeded_history_is_compared_as_an_aggregate_not_per_pair():
-    """N9: TG-ADR-37.  The comparison is the sum over the `H - dL` pairs against the
+    """N9: an aggregate band.  The comparison is the sum over the `H - dL` pairs against the
     sum over the chain pairs they stand in for, and **not** a per-pair equality.  A
     per-pair equality cannot be satisfied: 51.4% of chain calls are cheaper on
     arguments than any read call, and 3.0% of chain *pairs* are below the read pair
@@ -1024,7 +1025,7 @@ def test_n9_1_the_seeded_history_is_compared_as_an_aggregate_not_per_pair():
 def test_n9_2_the_declared_band_is_two_tokens_on_the_aggregate():
     """N9: the band this file freezes.  Minted at a measured residual of 0 over 256
     blocks of seven pairs across two disjoint scenarios, declared at +/- 2 - the same
-    two-token margin, and the same empirical footing, as TG-M1's observation band."""
+    two-token margin, and the same empirical footing, as the engine's observation band."""
     k = knobs()
     row = {r.row_id: r for r in k.pin_ledger("depth")}["N9"]
     assert str(N9_BAND) in row.tolerance
@@ -1083,7 +1084,7 @@ def test_n10_1_the_serving_pin_is_declared_unmeasurable_at_generation():
 
 def test_n11_1_a_strictness_difference_refuses_the_start():
     """N11: "Verifier strictness, from the arm spec, equal".  Both predicates are always
-    computed (2.3), so a strictness that varies by arm would change which label the
+    computed (by the task layer), so a strictness that varies by arm would change which label the
     confirmatory event uses mid-contrast."""
     k = knobs()
     arms = depth_contrast()
@@ -1109,7 +1110,7 @@ def test_n12_1_the_engine_and_generator_hashes_are_held_equal():
 
 def test_n13_1_realised_input_tokens_are_declared_unmeasurable_at_generation():
     """N13: "server-reported usage from the trace, per episode", against a
-    pre-registered band, and a violation voids the contrast under KC3.  Nothing about
+    pre-registered band, and a violation voids the contrast.  Nothing about
     it exists before a run, so generation declares it rather than guessing."""
     k = knobs()
     rec = k.measure_pins(bundle(spec()))
@@ -1167,7 +1168,7 @@ def test_n14_3_a_control_that_moves_a_field_outside_its_list_refuses():
 
 def test_n14_4_knob_r_changes_only_the_designated_slots():
     """N14: "knob R: the contents of the designated slots".  The required tools' slots
-    are a function of the seed only (2.2's *Slots*), so an R level that moved one is
+    are a function of the seed only, so an R level that moved one is
     an N2 refusal, and the ledger says so rather than N14 needing its own machinery."""
     k = knobs()
     arms = {}
@@ -1217,7 +1218,7 @@ def _shape(arm_id_str: str) -> str:
 def test_n15_2_the_control_is_total_over_the_knobs_levels():
     """N15: "total" means the constructor is defined for every level the knob offers,
     against every higher level.  A control that existed only at the pilot's `d1+h8`
-    would make TG-ADR-16's "there is no cut order" false."""
+    would tie the control to the pilot's levels, and the candidates have no cut order."""
     k = knobs()
     for knob in ("depth", "distractor"):
         lv = k.levels(knob)
@@ -1291,8 +1292,8 @@ def test_n16_3_one_slack_takes_one_value_across_the_batch():
 
 def test_n17_1_the_horizon_is_the_maximum_max_turns_over_the_arm_set():
     """N17: "`H = max(max_turns)` over the pre-registered arms", one `H` for every arm
-    of the knob, never the arm's own `max_turns` (TG-ADR-22, 2.5's episode mapping).
-    The scripted `diff` half of the spec's test is TG-M5's, against A5."""
+    of the knob, never the arm's own `max_turns` (the horizon Proofload cuts at).
+    The scripted `diff` half of N17's test is the Proofload adapter's, against A5."""
     slack = 4
     arms = [spec(level=lvl) for lvl in (1, 3, 8)] + [spec(level=1, control=8)]
     horizon = max(a.max_turns(slack) for a in arms)
@@ -1304,7 +1305,7 @@ def test_n17_1_the_horizon_is_the_maximum_max_turns_over_the_arm_set():
 def test_n17_2_the_control_does_not_lower_the_horizon():
     """N17: the failure this row exists to stop.  `diff` truncates at the smaller
     horizon, so a control arm declaring its own `max_turns` as the horizon would delete
-    every `d8` pass that lands after turn 6 (2.0, PG-9)."""
+    every `d8` pass that lands after turn 6 (PG-9)."""
     slack = 4
     control = spec(level=1, control=8)
     high = spec(level=8)
@@ -1313,7 +1314,7 @@ def test_n17_2_the_control_does_not_lower_the_horizon():
 
 def test_n18_1_the_serving_pin_row_carries_n18s_requirements():
     """N18 is an invariant and not a ledger row; the ledger reaches it through N10,
-    whose *Held fixed* text opens with "model id and revision (N18)".  So TG-M2's
+    whose *Held fixed* text opens with "model id and revision (N18)".  So knobs.py's
     obligation is that the row states what the pin covers and where it is enforced."""
     k = knobs()
     rows = {r.row_id: r for r in k.pin_ledger("depth")}
@@ -1324,13 +1325,13 @@ def test_n18_1_the_serving_pin_row_carries_n18s_requirements():
 
 
 def test_n18_2_tg_m2_holds_no_revision_predicate_and_the_ledger_says_who_does():
-    """N18: the spec's own test for it is "the pre-registration validator refuses a
-    revision that isn't 40 hex characters", and the pre-registration is 4 stage 4,
-    built in TG-M5.  Nothing about a model reaches a bundle, so TG-M2 declares the row
+    """N18: the written test for it is "the pre-registration validator refuses a
+    revision that isn't 40 hex characters", and the pre-registration is built in the
+    adapter.  Nothing about a model reaches a bundle, so knobs.py declares the row
     and validates nothing - asserted here so that a build does not quietly add a
     half-validator, and so the gap is visible rather than assumed covered.
 
-    **The predicate itself is a named gap owed to TG-M5's tests**, together with
+    **The predicate itself is a named gap owed to the adapter's tests**, together with
     N17's scripted `diff`.  Both are in this file's docstring.
     """
     k = knobs()
@@ -1339,7 +1340,7 @@ def test_n18_2_tg_m2_holds_no_revision_predicate_and_the_ledger_says_who_does():
     rec = k.measure_pins(bundle(spec()))
     assert "N10" in rec.unmeasured
     # No public symbol validates a model string; SF2 pins the surface, this pins the
-    # consequence.  A model id never enters TG-M2, so the 40-hex check cannot live here.
+    # consequence.  A model id never enters knobs.py, so the 40-hex check cannot live here.
     assert not any("model" in name.lower() for name in KNOBS_EXPORTS)
     assert all(len(rev) == 40 and set(rev) <= set("0123456789abcdef")
                for rev in [GOOD_MODEL.split("@", 1)[1]]), "the fixture is a valid pin"
@@ -1348,7 +1349,7 @@ def test_n18_2_tg_m2_holds_no_revision_predicate_and_the_ledger_says_who_does():
 
 def _valid_revision(rev: str) -> bool:
     """N18's predicate, written here so the fixture above can be trusted.  It is *not*
-    the implementation: TG-M5's pre-registration validator owns that."""
+    the implementation: the adapter's pre-registration validator owns that."""
     return len(rev) == 40 and set(rev) <= set("0123456789abcdef")
 
 
@@ -1358,7 +1359,7 @@ def _valid_revision(rev: str) -> bool:
 
 
 def test_cp1_arms_from_two_knobs_raise_rather_than_refuse():
-    """CP1: 2.2 writes `check_pins(bundles_by_arm)` over the arms of one knob - the
+    """CP1: `check_pins(bundles_by_arm)` runs over the arms of one knob - the
     ledger holds things fixed "across a contrast's arms".  Two knobs in one call is a
     caller error, not a pin violation, so it raises and does not come back as a report
     that a reader would file as a failed pin."""

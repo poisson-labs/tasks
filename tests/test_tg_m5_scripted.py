@@ -1,15 +1,15 @@
-"""TG-M5's scripted path: the arm targets, the two scripted policies, the outcome map and the
-pre-registration validator, frozen as tests.
+"""The Proofload adapter's scripted path: the arm targets, the two scripted policies, the
+outcome map and the pre-registration validator, frozen as tests.
 
-The invariants this file is built against are A1-A9 and A12 in the spec's 2.5, the two
-coverage gaps 2.5 says these tests inherit (N17's scripted `diff`, N18's revision
-predicate), and knob R's level axis, which TG-M3's build found uncovered.  The model
-path (A10, A11, A13-A21) is for a later set of tests.  The spec is not edited here: where it is
-silent this docstring decides, and it is authoritative for the build wherever the spec's text
-could not be used as written.  Every decision below carries its reason and an escape hatch.
+The invariants this file is built against are A1-A9 and A12, the two coverage gaps these
+tests inherit from knobs.py's tests (N17's scripted `diff`, N18's revision predicate), and
+knob R's level axis, which the task layer's build found uncovered.  The model path is for a
+later set of tests.  The written requirements are not edited here: where they are silent
+this docstring decides, and it is authoritative for the build wherever their text could not
+be used as written.  Every decision below carries its reason and an escape hatch.
 
-**The tests drive Proofload's real CLI.**  Build step 4 is "run against Proofload end to
-end".  A lazily built module-level `world()` builds both registries and runs seventeen real
+**The tests drive Proofload's real CLI.**  The scripted path must "run against Proofload end
+to end".  A lazily built module-level `world()` builds both registries and runs seventeen real
 `proofload sweep`s once (every arm of both knobs, two `faulty` arms over two plant cells, and
 one run under another salt); the first test that needs a registered target builds it.
 `test_a2_*`, `test_a3_*`, `test_a5_1`, `test_a5_2`, `test_a6_3` and `test_f8` read what those
@@ -23,12 +23,12 @@ Decisions
 ---------
 
 **1. The module is `poisson_tasks.adapter`, with five public names.**  `ArmRegistry`,
-`load_registry`, `validate_preregistration`, `Run` and `to_episode`.  2.5's Interface names
-arm targets, a registry built from the pre-registration file, an outcome map and (through
+`load_registry`, `validate_preregistration`, `Run` and `to_episode`.  The written interface
+names arm targets, a registry built from the pre-registration file, an outcome map and (through
 N18) a pre-registration validator; each name is one an invariant cannot be tested without.
 Every imported name is underscore-aliased, as `knobs.py` and `tasks.py` do, so SF2 holds.
-The module imports no `verifiers` (build step 4: "no verifiers dependency and no model") and
-no network module; the model path puts what needs `verifiers` in modules of its own.
+The module imports no `verifiers` (the scripted path has "no verifiers dependency and no
+model") and no network module; the model path puts what needs `verifiers` in modules of its own.
 *Escape hatch:* rename any of the five; SF1, SF6 and the `adapter()` helper move.
 
 **2. The registration file is TOML and the lock is over its bytes.**  Top level: `knob`,
@@ -36,20 +36,21 @@ no network module; the model path puts what needs `verifiers` in modules of its 
 canonical arm ids), and optionally `[[models]]` tables of `model`, `vllm_version` and
 `endpoint_type`.  Fields nobody here reads are tolerated, because the model path
 adds the serve command, the decoding dict and the GPU type to the same file.  One shape
-serves as the stage-4 pre-registration *and* as the calibration registration stage 0a needs,
-since stage 0a runs before any pre-registration exists.  `load_registry(path, *, sha256,
-sealed=None)` hashes the file's raw bytes and compares the whole digest, then validates, then
-builds; a registry *module* is `REGISTRY = load_registry(...)` followed by
-`globals().update(REGISTRY.targets)`, which is what "compiled in" means (A7).  A mismatch is a
-`RuntimeError` naming both hashes, one of the four types `proofload sweep` turns into "cannot
-resolve --target" and exit 2, before any episode is stored.  *Escape hatch:* a different file
-format changes `toml_text` and the tomllib calls in this file and nothing else.
+serves as the study's pre-registration *and* as the registration the scripted calibration
+stage needs, since that stage runs before any pre-registration exists.
+`load_registry(path, *, sha256, sealed=None)` hashes the file's raw bytes and compares the
+whole digest, then validates, then builds; a registry *module* is
+`REGISTRY = load_registry(...)` followed by `globals().update(REGISTRY.targets)`, which is
+what "compiled in" means (A7).  A mismatch is a `RuntimeError` naming both hashes, one of the
+four types `proofload sweep` turns into "cannot resolve --target" and exit 2, before any
+episode is stored.  *Escape hatch:* a different file format changes `toml_text` and the
+tomllib calls in this file and nothing else.
 
 **3. A target is registered as `<policy>_<arm id>` with every run of non-alphanumeric
 characters made one underscore.**  `depth:d1+h8` under `reference` is `reference_depth_d1_h8`,
 and `distractor:r0+len(r8)@k16` is `reference_distractor_r0_len_r8_k16`.  An arm id holds
 `:`, `+`, `(`, `)` and `@`, and `--target module:attr` refuses an attribute with a colon in
-it, so 2.5's "one module-level callable per arm" needs a rule for the name; the two policies
+it, so "one module-level callable per arm" needs a rule for the name; the two policies
 are `reference` and `faulty`, and `faulty` exists only when `load_registry` is given a sealed
 file.  Pinned by literals in `test_a7_7` and not by the helper the rest of the file uses.
 *Escape hatch:* any injective rule; `attr_of` and `test_a7_6`/`test_a7_7` move.
@@ -59,41 +60,41 @@ file.  Pinned by literals in `test_a7_7` and not by the helper the rest of the f
 `config_hash`), and each must equal the registration's or the generator's, else `ValueError`
 naming the key: "the adapter refuses to start" has no start hook to live in, so a rollout
 that raises is the only refusal Proofload can store.  A cfg that carries a knob level under
-`level`, `depth`, `distractor`, `knob`, `arm`, `arm_id` or `max_turns` is refused too (A3,
-TG-ADR-06): a key like that moves `config_hash` and breaks pairing silently, which a target
+`level`, `depth`, `distractor`, `knob`, `arm`, `arm_id` or `max_turns` is refused too (A3):
+a key like that moves `config_hash` and breaks pairing silently, which a target
 that ignored it would hide.  **Every other key is tolerated and inert**, `model`,
-`serving_pin`, `temperature` and `plant_cell` included: A21 runs the scripted `reference`
-target on the model's real sweep file.  Integral floats are accepted, because `inspect`
+`serving_pin`, `temperature` and `plant_cell` included: the model path runs the scripted
+`reference` target on the model's real sweep file.  Integral floats are accepted, because `inspect`
 prints a stored config with every number a float and A6 replays it.  *Escape hatch:* the
 refusal set is one tuple; a cfg test moves with it.
 
 **5. `t` is the number of assistant turns.**  A reply is a turn that makes no call, so a
 reference episode of `d` calls has `t = d + 1`, N16's own count, and the wrong-state control
-(one call fewer, then a reply) has `t = d`.  This is `Trace.num_turns` (2.5) for a run with no
-trace.  `Run` carries `turns` (TG-M3's `Turn`s), `tool_messages`, `ended_with_reply`,
+(one call fewer, then a reply) has `t = d`.  This is `Trace.num_turns` for a run with no
+trace.  `Run` carries `turns` (the task layer's `Turn`s), `tool_messages`, `ended_with_reply`,
 `turn_limit_hit`, `fmt` and an optional `instrument`; the model path builds one from a
 verifiers trace.  `Run` is a plain record and validates nothing at construction (`test_sf8`),
 because a structurally invalid trace has to reach `to_episode` to become a `verifier_error`.
 
 **6. The outcome map's order.**  `to_episode(arm, bundle, run, *, slack, horizon, meta=None)`
-assigns, in this order and first match wins (2.3): an exception in its own verification (the
+assigns, in this order and first match wins: an exception in its own verification (the
 replay or the verdict) is `verifier_error`; a replay that does not equal the trace's tool
 messages byte for byte is `replay_mismatch`; the harness's `instrument` signal, `api_error` or
 `wall_timeout`, is that label; otherwise the outcome is `verify`'s label under the arm's
 strictness.  The signal outranks the verdict whatever state the trace shows (A4), and the
 adapter never *infers* an instrument label: an unfinished episode with no signal is
-TG-M3's `verifier_error` (`test_a4_7`).  On an episode the adapter labelled itself,
+the task layer's `verifier_error` (`test_a4_7`).  On an episode the adapter labelled itself,
 `leaky_pass` is `False` and `strict_label` is the label.  *Escape hatch:* none needed; the
 order is the outcome table's.
 
 **7. `meta`** carries `arm_id`, `knob`, `level`, `control` (a bool: the control flag),
 `task_id`, `scenario_hash`, `pins` (the bundle's `PinRecord`, JSON-normalised), `leaky_pass`,
-`strict_label`, `sampled_calls`, `format_clause` (the one clause `verify` reports: TG-M3's
-decision 8 made 2.5's "clauses that fired" the lowest), `engine_hash`, `generator_hash` and the
-caller's own keys (the scripted targets add `policy`).  The two hashes stand for 2.5's "engine
-and generator versions": N12 records hashes per task, and a hash moves with any version change.
-What only a model run has (input tokens, the verifiers trace id and path, the verifiers version
-and the serving-pin hash) is the model path's to add.
+`strict_label`, `sampled_calls`, `format_clause` (the one clause `verify` reports: the task
+layer reports the lowest of "the clauses that fired"), `engine_hash`, `generator_hash` and the
+caller's own keys (the scripted targets add `policy`).  The two hashes stand for the "engine
+and generator versions" asked for: N12 records hashes per task, and a hash moves with any
+version change.  What only a model run has (input tokens, the verifiers trace id and path,
+the verifiers version and the serving-pin hash) is the model path's to add.
 
 **8. `to_episode` refuses what would break A5 or A3.**  An `arm` that is not the bundle's, an
 `instrument` outside the closed vocabulary, more turns than `max_turns(arm)` and a `horizon`
@@ -104,8 +105,8 @@ below it each raise `ValueError` naming the offending value, and the boundaries 
 **9. The scripted targets look the outcome map up by module global, at call time.**  A9
 says both paths share the verdict -> Episode code, so `test_a9_2` replaces
 `poisson_tasks.adapter.to_episode` and expects both scripted targets to reach it, the way
-TG-M3 fault-injects `verify` and `_check_pins`.  A target that built its own Episode or
-captured the function when the registry was built fails it.  The model path's tests add
+the task layer's tests fault-inject `verify` and `_check_pins`.  A target that built its own
+Episode or captured the function when the registry was built fails it.  The model path's tests add
 the same seam for model targets.  *Escape hatch:* any other injectable seam; `test_a9_2` and
 `test_a9_3` move.
 
@@ -118,51 +119,52 @@ a non-empty id and a revision of 40 hex characters; models on different `vllm_ve
 refused.  N15's pre-registration half, which nothing held ("a sweep of a knob without its
 control arm is a pre-registration error"): at least one control arm.  N17's declared number:
 `horizon` equals `max(max_turns)` over the arms, from `slack` by N16.  Also: `split` is `eval`
-(G12, "v0 emits `eval` only", which TG-M3's decision 6 left to the pre-registration),
+(G12, "v0 emits `eval` only", which the task layer left to the pre-registration),
 `strictness` is `strict` or `leaky`, `arms` are canonical, distinct arm ids of the
 registration's knob, and `slack` is a non-negative integer.  **Deliberately not pinned:**
-whether an *uppercase* 40-hex revision is accepted (2.5's "40 hex characters" reads either
-way, and A13 compares strings byte for byte at run time).  *Escape hatch:* each clause is one
-parametrised test.
+whether an *uppercase* 40-hex revision is accepted ("40 hex characters" reads either
+way, and the model path compares strings byte for byte at run time).  *Escape hatch:* each
+clause is one parametrised test.
 
-**11. `faulty` and its sealed file.**  2.5 says `faulty` "takes planted parameters from a
+**11. `faulty` and its sealed file.**  `faulty` "takes planted parameters from a
 sealed calibration file, selected by `cfg["plant_cell"]`", is "fully deterministic" from the
 seed and "reads history from the bundle's prompt `Messages` plus its own calls".  The sealed
 file is TOML: `[cells.<name>]` tables of `step_fail_rate`, `history_fail_rate` and
 `overshoot_rate`, each a number in [0, 1], all defaulting to 0, refused *at load* when a key is
 unknown or a value is out of range (a mistyped parameter would otherwise be a plant that
 silently does nothing).  A `plant_cell` the file does not name is refused, and a cell with no
-plant behaves as the reference target exactly.  The three plants are the spec's three:
+plant behaves as the reference target exactly.  The three plants are the required three:
 **depth** fails each required call independently at `step_fail_rate`; **history** fails a
 required call with probability `min(1, history_fail_rate * history tokens)`, the tokens being
 those of the seeded prompt messages plus the policy's own calls and observations so far,
 counted under the reference tokenizer; **leaky** makes one further stage call past the goal
-with probability `overshoot_rate` when the block holds a tool that can (TG-M3's own rule for
+with probability `overshoot_rate` when the block holds a tool that can (the task layer's rule for
 an `overshoot` control).  A *failed* call is made with a wrong token, the engine rejects it,
 and the policy replies: two turns, one sampled call, target below its goal.  The tests
 exercise the extremes (rates 0 and 1) exactly and a half rate statistically, with margins many
 standard deviations wide, so no test depends on which keyed draw a build uses.  These are the
-least spec-anchored decisions in the file; the plants' *scoring* is stage 0a's and is not here.
+least anchored decisions in the file; the plants' *scoring* is the calibration stage's and is
+not here.
 *Escape hatch:* the plant semantics are `test_f3` to `test_f7`.
 
-**12. Inherited coverage: knob R's level axis.**  TG-M3's tests build one contrast, `r0`
-against `r8`, at three seeds, and four of the mutation rows run against TG-M3's build
+**12. Inherited coverage: knob R's level axis.**  The task layer's tests build one contrast,
+`r0` against `r8`, at three seeds, and four of the mutation rows run against its build
 survived its 235 tests for that reason.  Every test here that checks what a knob R arm
 generates, stores or labels runs over `levels("distractor")` and both R controls, or over
 every stored run; the tests of a *rule* (`test_cfg2` to `test_cfg7`, `test_map1`, `test_a4_2`,
 `test_a4_6`, `test_a4_7`, `test_a5_7`, `test_a5_8`, `test_a8_5`) fix one to four arms,
-`SPEC_D3` and `SPEC_R4` mainly, and claim no level.  `test_ct*` reach TG-M3's ledger through
-the registered arm sets, `test_ct5` on one pair, `r0` against `r14`, at a dense spread.
+`SPEC_D3` and `SPEC_R4` mainly, and claim no level.  `test_ct*` reach the task layer's ledger
+through the registered arm sets, `test_ct5` on one pair, `r0` against `r14`, at a dense spread.
 `test_ct3` and `test_ct4` did the same on the seeds whose first record-id word a tool name
 carried, until vocabulary v2 left them no such seed and `45d0f49` retired them; the three
-TG-M3 rows only `test_ct3` caught are pinned in `tests/test_tg_m3_tasks.py`.  **The open gap
-(TG-ADR-42) is wider than recorded**: measured here at 60 seeds per word, `city` (eval),
+task-layer rows only `test_ct3` caught are pinned in `tests/test_tg_m3_tasks.py`.  **The open
+record-id gap is wider than recorded**: measured here at 60 seeds per word, `city` (eval),
 `grad` and `port` (train) refuse a knob R contrast at `r14` at every seed, and so does `disc`
 (train) at 43 of 60, which the record does not name; `face` and `elect` refuse none, and
 nothing below `r14` refuses for any of the six.  The four are excluded from any contrast
 that holds `r14` and asserted nowhere: pinning a known defect would need a retrofit the day
 it closes.  Every `test_ct*`, `test_a5_6`, `test_a1_3` and `test_h1` are **green before and
-after** (standing rule 12).
+after**.
 
 What this file does not freeze
 ------------------------------
@@ -219,13 +221,13 @@ from poisson_tasks.tasks import (
 )
 
 # ---------------------------------------------------------------------------
-# independent constants: every number below is the spec's, written here again on purpose,
-# so that no test compares a build's value with the build's own arithmetic (rule 8)
+# independent constants: every number below is a requirement's, written here again on purpose,
+# so that no test compares a build's value with the build's own arithmetic
 # ---------------------------------------------------------------------------
 
 GEN_VERSION = "0"
-SLACK = 4  # S, rev. 3's confirmed value
-D_R = 2  # knob R's fixed chain depth (2.2)
+SLACK = 4  # S, the confirmed slack
+D_R = 2  # knob R's fixed chain depth
 SALT = "0123456789abcdef"
 OTHER_SALT = "fedcba9876543210"
 MAX_MDE = "0.99"  # the gate's own refusal at N = 8 needs a looser value; it must be in (0, 1)
@@ -341,7 +343,7 @@ def bundle_of(spec: ArmSpec, seed: int) -> Any:
 
 # ---------------------------------------------------------------------------
 # seeds: a spread over the 32-bit space, and the seeds whose first record-id word is one
-# some tool name carries (measured against TG-M3's build), which `test_ct3` and `test_ct4`
+# some tool name carries (measured against the task layer's build), which `test_ct3` and `test_ct4`
 # used until `45d0f49` retired them.  Vocabulary v2 draws no such word, so `RISKY_WORDS`
 # and the helpers that read it find no seed and are unused; `GAP_WORDS` still filters
 # `test_ct2`'s and `test_ct5`'s seeds.
@@ -356,7 +358,7 @@ def spaced(count: int, offset: int = 7) -> tuple[int, ...]:
 SPREAD = (0, 1, 2, 55, 404, 2121, 65535, 2**24, 2**31 - 1, 2**32 - 1)
 SPACED = spaced(24)
 RISKY_WORDS = {"eval": ("city", "face"), "train": ("disc", "elect", "grad", "port")}
-# TG-ADR-42's open gap: these words refuse a knob R contrast that holds `r14`.  TG-M3's
+# The open record-id gap: these words refuse a knob R contrast that holds `r14`.  The gap's
 # record names three (`city`, `grad`, `port`); measured here at 60 seeds per word, a fourth
 # does too -- `disc` refuses 43 of 60 -- while `face` and `elect` refuse none, and nothing
 # below `r14` refuses for any of the six.  They are excluded from any contrast that holds
@@ -433,8 +435,8 @@ def sealed_text(cells: Mapping[str, Mapping[str, float]]) -> str:
 
 
 def sweep_text(horizon: int, plant_cells: Iterable[str] | None = None) -> str:
-    """One sweep file per knob, with every axis single-valued (the spec's cfg shape); the
-    two-cell variant adds `plant_cell`, which is stage 0a's way of naming a plant."""
+    """One sweep file per knob, with every axis single-valued (the required cfg shape); the
+    two-cell variant adds `plant_cell`, which is the calibration stage's way of naming a plant."""
     text = (
         'target_id = "tg-m5-scripted@test"\n'
         't_unit = "turns"\n'
@@ -569,7 +571,7 @@ def make_run(
 
 def controls_of(bundle: Any) -> dict[str, tuple[Any, bool, bool]]:
     """Every episode shape the bundle can express: label -> (calls, reply, turn_limit_hit).
-    `passed` is the reference itself; the rest are TG-M3's negative controls."""
+    `passed` is the reference itself; the rest are the task layer's negative controls."""
     out: dict[str, tuple[Any, bool, bool]] = {"passed": (bundle.reference_calls, True, False)}
     for label, calls in bundle.negative_controls.items():
         if label == "turn_limit":
@@ -730,9 +732,9 @@ PUBLIC = ["ArmRegistry", "load_registry", "validate_preregistration", "Run", "to
 
 
 def test_sf1_all_is_exactly_the_five_names_in_order():
-    """2.5's Interface names arm targets, a registry built from the pre-registration file, a
+    """The written interface names arm targets, a registry built from the pre-registration file, a
     pre-registration validator (N18) and an episode mapping.  Five public names carry them;
-    an extra public symbol is a spec violation, so each is justified in the module docstring."""
+    an extra public symbol is a contract violation, so each is justified in the module docstring."""
     assert list(adapter().__all__) == PUBLIC
 
 
@@ -787,7 +789,7 @@ def adapter_tree() -> ast.Module:
 
 def imports_of(tree: ast.AST) -> list[tuple[str, list[str], int]]:
     """Every import as (module, imported names, relative level).  An `ast` walk, never a
-    substring match on source (standing rule 9)."""
+    substring match on source."""
     found: list[tuple[str, list[str], int]] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -798,8 +800,8 @@ def imports_of(tree: ast.AST) -> list[tuple[str, list[str], int]]:
 
 
 def test_sf7_the_scripted_path_has_no_verifiers_and_no_network():
-    """Build step 4: the scripted path runs "with no verifiers dependency and no model", and
-    2.5's A11 keeps every episode off the network.  The model path puts anything
+    """The scripted path runs "with no verifiers dependency and no model", and no episode
+    may touch the network.  The model path puts anything
     that needs `verifiers` in its own modules, so this module stays free of it."""
     banned = {"verifiers", "socket", "urllib", "http", "requests", "httpx", "aiohttp", "openai"}
     roots = {module.split(".")[0] for module, _names, _level in imports_of(adapter_tree())}
@@ -864,7 +866,7 @@ def test_a1_2_the_walker_sees_the_import_the_adapter_must_make():
     ],
 )
 def test_a1_3_the_walker_flags_every_shape_that_is_not_the_one_permitted(source):
-    """Green before and after (standing rule 12): it tests this file's own walker, which is
+    """Green before and after: it tests this file's own walker, which is
     what makes A1.1 able to fail."""
     assert proofload_violations(ast.parse(source)) != []
     assert proofload_violations(ast.parse("from proofload import Episode, Rollout")) == []
@@ -909,7 +911,7 @@ def test_cfg2_a_cfg_missing_a_required_key_is_refused_by_name(missing):
 
 @pytest.mark.parametrize("key", LEVEL_KEYS)
 def test_cfg3_a_cfg_that_carries_a_knob_level_is_refused_by_name(key):
-    """A3: "cfg carries no knob level", and TG-ADR-06: the level lives in the target, because
+    """A3: "cfg carries no knob level": the level lives in the target, because
     a cfg key moves `config_hash`, which moves seeds and breaks `diff`'s cell matching.  A
     target that ignored such a key would look fine while its arms could not pair."""
     for spec in (SPEC_D3, SPEC_R4):
@@ -932,9 +934,9 @@ def test_cfg4_a_cfg_that_disagrees_with_the_registration_is_refused_by_name(key,
 
 
 def test_cfg5_model_path_keys_are_tolerated_and_change_nothing():
-    """A21 runs "the scripted `reference` target on that run's sweep file" — the model's
-    real one, which carries `model`, `serving_pin`, `harness`, `temperature` and the token
-    limits.  The scripted path does not read them, and must not refuse them."""
+    """The model path runs "the scripted `reference` target on that run's sweep file" — the
+    model's real one, which carries `model`, `serving_pin`, `harness`, `temperature` and the
+    token limits.  The scripted path does not read them, and must not refuse them."""
     for spec in (SPEC_D3, SPEC_R4):
         plain = target_of("reference", spec)(cfg_of(spec), 2121)
         wide = target_of("reference", spec)(cfg_of(spec, **EXTRA_CFG, plant_cell="anything"), 2121)
@@ -1004,7 +1006,8 @@ def test_a2_1_every_depth_arm_pairs_on_seed_and_scenario():
 
 def test_a2_2_every_distractor_level_pairs_on_seed_and_scenario():
     """The same over **every** knob R level and both R controls, and not over one pair: this
-    is the coverage gap filed against TG-M3's build, whose tests contrasted `r0` with `r8` alone."""
+    is the coverage gap filed against the task layer's build, whose tests contrasted `r0` with
+    `r8` alone."""
     assert_pairs({aid(s): rows_of("reference", s) for s in R_SPECS})
 
 
@@ -1076,7 +1079,7 @@ def test_a3_3_the_recorded_task_is_the_generators_task_at_the_proofload_seed():
     """A3's third clause, and G12's "the task seed is the Proofload seed itself, with no
     remapping": the `task_id` an episode records is the one `generate(arm, seed)` gives for an
     arm spec built here and the seed the store holds.  `task_id` covers every other bundle
-    field (TG-M3's G1.4), so this is the whole bundle, and it is what makes two arms fed
+    field (the task layer's G1.4), so this is the whole bundle, and it is what makes two arms fed
     the same `(cfg, seed)` differ only in the fields N14 names."""
     for _policy, spec, _run_id, rows in every_run():
         for row in rows:
@@ -1096,9 +1099,9 @@ REQUIRED_META = {
 
 
 def test_a3_4_meta_carries_every_field_2_5_names_that_a_scripted_episode_has():
-    """2.5's `meta` list, less what only a model run has (input tokens, the verifiers trace
+    """The required `meta` list, less what only a model run has (input tokens, the verifiers trace
     id and path, the serving-pin hash).  `format_clause` is the singular clause `verify`
-    reports: TG-M3's decision 8 made "the clauses that fired" the lowest one."""
+    reports: the task layer reports the lowest of "the clauses that fired"."""
     for _policy, _spec, _run_id, rows in every_run():
         for row in rows:
             meta = row["meta"]
@@ -1193,7 +1196,7 @@ def test_a5_6_a_per_arm_horizon_would_truncate_and_this_diff_can_see_it(tmp_path
     """The known-positive control for A5.4 and A5.5, run before either is believed: "zero
     truncated rows" from a `diff` that could not truncate would mean nothing.  Two scripted
     targets that declare a per-arm horizon lose every high-arm row, and two that declare one
-    common horizon lose none.  Green before and after (standing rule 12): it exercises
+    common horizon lose none.  Green before and after: it exercises
     Proofload, and no adapter code."""
     store = tmp_path / "store"
     (tmp_path / "toyh.py").write_text(
@@ -1329,9 +1332,10 @@ def test_a9_1_every_shape_the_bundle_can_express_gets_the_verifiers_label(spec):
 
 
 def test_a9_2_both_scripted_targets_reach_the_outcome_map_through_the_module_global(monkeypatch):
-    """A9's seam, named like TG-M3's `_check_pins`: the scripted targets look `to_episode` up
-    in the module at call time.  A target that built its own Episode, or that captured the
-    function when the registry was built, would leave the model path a second outcome path."""
+    """A9's seam, named like the task layer's `_check_pins`: the scripted targets look
+    `to_episode` up in the module at call time.  A target that built its own Episode, or that
+    captured the function when the registry was built, would leave the model path a second
+    outcome path."""
     from proofload import Episode
 
     mod, spec = adapter(), SPEC_D3
@@ -1367,7 +1371,7 @@ def test_a9_3_the_targets_episode_is_the_maps_pure_function_of_what_it_was_hande
 
 @pytest.mark.parametrize("control", ["overshoot", "collateral_mutation"])
 def test_a9_4_the_arms_strictness_decides_the_label_and_both_predicates_are_recorded(control):
-    """2.5: "`outcome` = the verdict label under the arm's strictness", with the leaky verdict
+    """The rule: "`outcome` = the verdict label under the arm's strictness", with the leaky verdict
     in `meta` (PG-5).  The same episode is `overshoot` or `collateral_mutation` under a strict
     arm and `passed` under a leaky one, and both record `leaky_pass` and the strict label."""
     strict, leaky = spec_of("depth", 3), spec_of("depth", 3, strictness="leaky")
@@ -1383,7 +1387,7 @@ def test_a9_4_the_arms_strictness_decides_the_label_and_both_predicates_are_reco
 
 
 def test_a9_5_the_runs_format_spec_is_what_the_verifier_reads_its_markers_from():
-    """2.3's clause 1: "The content carries `fmt`'s call markers, but the turn has no parsed
+    """Format clause 1: "The content carries `fmt`'s call markers, but the turn has no parsed
     call."  `fmt` is part of the serving pin and rides the run, so the same content is a
     `malformed_call` under the family whose markers it carries and not under one that has
     none.  A map that used a format spec of its own would pass every other test in this file."""
@@ -1396,7 +1400,7 @@ def test_a9_5_the_runs_format_spec_is_what_the_verifier_reads_its_markers_from()
     under_qwen = episode_of(spec, bundle, dataclasses.replace(body, fmt=qwen))
     under_direct = episode_of(spec, bundle, dataclasses.replace(body, fmt=DIRECT))
     # a marker in a turn that made no call is a format failure, but the episode still reached
-    # its goal: TG-M3's decision 4 makes it `passed`, with the clause named
+    # its goal: the task layer decides pass before format, so it is `passed`, clause named
     assert under_qwen.meta["format_clause"] == 1 and under_direct.meta["format_clause"] is None
     assert under_qwen.outcome == under_direct.outcome == "passed"
 
@@ -1456,8 +1460,8 @@ def test_a4_3_the_adapter_never_assigns_an_instrument_label_of_its_own_accord():
 
 
 def test_a4_4_replay_mismatch_precedes_the_two_instrument_signals():
-    """2.3: "The first label that matches wins", and `replay_mismatch` is listed above
-    `api_error` and `wall_timeout`."""
+    """The outcome table: "The first label that matches wins", and `replay_mismatch` is
+    listed above `api_error` and `wall_timeout`."""
     spec = SPEC_D3
     bundle = bundle_of(spec, 404)
     good = make_run(bundle, bundle.reference_calls)
@@ -1500,7 +1504,7 @@ def test_a4_6_an_exception_inside_the_adapters_verification_is_verifier_error(st
 def test_a4_7_an_unfinished_episode_with_no_signal_is_not_guessed_to_be_an_instrument_failure(spec):
     """An episode that neither replied nor hit the turn limit fits no system label, and the
     adapter must not infer `api_error` or `wall_timeout` from that: only the harness knows
-    *why* a run stopped.  TG-M3's OV4 makes it `verifier_error`, and so it stays, on both a
+    *why* a run stopped.  The task layer's OV4 makes it `verifier_error`, and so it stays, on both a
     short run and one that used every turn it had."""
     bundle = bundle_of(spec, 404)
     limit = expected_max_turns(spec)
@@ -1577,7 +1581,7 @@ def test_a8_3_byte_for_byte_means_no_normalisation(edit):
 @pytest.mark.parametrize("spec", [s for s in D_SPECS if s.control is not None], ids=lambda s: aid(s))
 def test_a8_4_a_control_episode_numbers_its_observations_from_the_arms_seq_start(spec):
     """The D control seeds `1 ... (H - dL)`, after which the live server starts at `seq_start =
-    H - dL + 1` (2.2), so its genuine observations are numbered from there.  A trace
+    H - dL + 1`, so its genuine observations are numbered from there.  A trace
     numbered from 1 — the plain arm's — is not the control's and must not replay clean; the
     control's own is a `passed` (A8.1's control), so a replay run from `seq_start = 1` would
     have flagged every genuine control episode instead."""
@@ -1641,9 +1645,10 @@ def test_a8_7_the_replay_is_of_the_calls_actually_made_and_not_of_the_reference(
      "malformed_call_clause_4", "turn_limit"],
 )
 def test_a8_8_a_replay_mismatch_outranks_every_system_label_too(control):
-    """2.3: "The first label that matches wins", and `replay_mismatch` is listed above all six
-    system labels.  A trace that failed *and* does not replay is a mismatch: a check that ran
-    only on episodes that would otherwise pass would let every failure hide one."""
+    """The outcome table: "The first label that matches wins", and `replay_mismatch` is
+    listed above all six system labels.  A trace that failed *and* does not replay is a
+    mismatch: a check that ran only on episodes that would otherwise pass would let every
+    failure hide one."""
     spec = SPEC_D3
     bundle = bundle_of(spec, 404)
     calls, reply, limit = controls_of(bundle)[control]
@@ -1720,7 +1725,7 @@ def test_a5_7_a_trace_longer_than_max_turns_or_a_horizon_below_it_is_refused(spe
 
 
 def test_a5_8_t_is_the_number_of_turns_and_not_the_number_of_calls():
-    """`t = Trace.num_turns` (2.5): a reply is a turn that makes no call, so a reference
+    """`t = Trace.num_turns`: a reply is a turn that makes no call, so a reference
     episode of `d` calls takes `d + 1`, and the wrong-state control (one call fewer, then a
     reply) takes `d`."""
     for spec in (SPEC_D3, SPEC_R4):
@@ -1914,7 +1919,7 @@ def test_a7_11_a_compiled_hash_that_differs_in_one_character_is_refused(tmp_path
 
 
 def test_h1_the_registration_writer_round_trips_through_tomllib():
-    """Green before and after (standing rule 12): the writer every registry test relies on.  A
+    """Green before and after: the writer every registry test relies on.  A
     writer that rendered a document wrongly would turn a registry test's failure into a
     question about the writer."""
     for doc in (reg_doc("depth", D_SPECS), reg_doc("distractor", R_SPECS), reg_doc("depth", PILOT, models=())):
@@ -2059,7 +2064,7 @@ def model(revision: str = GOOD_REVISION, **over: Any) -> dict[str, Any]:
 def test_val1_the_pilots_own_registration_and_a_calibration_one_are_valid():
     """The controls for every refusal below: a validator that refused everything would pass
     them.  The pilot's two real models; the same with one; a knob R registration; and a
-    calibration registration with no models at all (stage 0a has no model)."""
+    calibration registration with no models at all (the scripted calibration stage has none)."""
     assert validate(reg_doc("depth", PILOT)) is None
     assert validate(with_models(model())) is None
     assert validate(reg_doc("distractor", R_SPECS)) is None
@@ -2138,7 +2143,7 @@ def test_n18_6_a_model_table_may_carry_fields_this_path_does_not_read():
                                          ("distractor", (spec_of("distractor", 0), spec_of("distractor", 8)))])
 def test_n15_1_a_sweep_of_a_knob_without_its_control_arm_is_refused(knob, specs):
     """N15: "Asking for a sweep of a knob without its control arm is a pre-registration
-    error."  TG-M2's tests hold the constructor's totality; nothing held this half."""
+    error."  knobs.py's tests hold the constructor's totality; nothing held this half."""
     refused(reg_doc(knob, specs), "control")
     with_control = (*specs, spec_of(knob, specs[0].level, 14 if knob == "distractor" else 8))
     assert validate(reg_doc(knob, with_control)) is None
@@ -2173,8 +2178,8 @@ def test_n17_2_the_horizon_follows_the_slack_and_the_arm_set():
 # names the slack; `"13"` and `None` are refused by the horizon's type clause and again by N17's equality
 # clause, and both messages name `horizon`.  Neither can be isolated by any document, because a string, a
 # `None` and a non-integral float can never compare equal to N17's integer -- what isolates the type clause is
-# a value that is not an `int` and *does* compare equal, which is what `4.0` and `13.0` are.  Measured: `4.0`
-# is accepted by `m133` and `m97f` and refused by every other row, and `13.0` by `m143`, `m143a` and `m97f`.
+# a value that is not an `int` and *does* compare equal, which is what `4.0` and `13.0` are.  Measured in the
+# mutation pass: `4.0` is accepted by two mutants and refused by every other row, and `13.0` by three.
 @pytest.mark.parametrize(
     "field, value, horizon",
     [("horizon", "13", 13), ("horizon", None, 13), ("horizon", 13.0, 13), ("slack", "4", 13), ("slack", -1, 8),
@@ -2195,8 +2200,8 @@ def test_val2_every_field_the_registry_reads_is_required(field):
 
 
 def test_val3_v0_emits_the_eval_split_only():
-    """G12: "v0 emits `eval` only."  TG-M3's `generate` offers both splits and leaves "eval only"
-    to the pre-registration (its decision 6); this is where it is held."""
+    """G12: "v0 emits `eval` only."  The task layer's `generate` offers both splits and leaves
+    "eval only" to the pre-registration; this is where it is held."""
     refused(reg_doc("depth", PILOT, split="train"), "split")
     refused(reg_doc("depth", PILOT, split="test"), "split")
 
@@ -2228,7 +2233,7 @@ def test_val4_strictness_and_knob_are_from_the_closed_sets():
 def test_val5_an_arm_must_be_a_canonical_distinct_arm_id_of_the_registrations_knob(arms, needle, horizon):
     """Every arm names itself as `arm_id` renders it — one id per `(knob, level, control)`,
     which is what keeps two registered targets from being one arm — belongs to the
-    registration's knob, and is listed once.  TG-M2's constructor refuses `d3+h3` and
+    registration's knob, and is listed once.  knobs.py's constructor refuses `d3+h3` and
     `d8+h1` (N15); here the same refusal is reached from a registration file.
 
     Where the listed arms are all valid, `horizon` is N17's number for them: 6 for the
@@ -2257,7 +2262,7 @@ def test_val6_arms_is_a_non_empty_list_of_strings(arms):
 
 
 def test_val7_a_non_canonical_distractor_id_is_refused_because_its_k_is_fixed():
-    """`@k16` is fixed by 2.2 and the renderer is the only thing that writes it, so `@k8` is
+    """`@k16` is fixed and the renderer is the only thing that writes it, so `@k8` is
     not another arm: it is an id `arm_id` would never produce.
 
     `distractor:r4@k8` takes the place of `distractor:r4@k16`, the arm it renders as, rather
@@ -2305,9 +2310,10 @@ def strip_policy(episode: Any) -> dict[str, Any]:
 
 
 def test_f1_a_plant_cell_with_no_plant_behaves_as_the_reference_target():
-    """2.5's `faulty` reads its planted parameters from a sealed file, selected by
-    `cfg["plant_cell"]`; stage 0a plants one of two cells so that "naming can be scored", and
-    the other cell is the one with none.  It must then be the reference target exactly."""
+    """`faulty` reads its planted parameters from a sealed file, selected by
+    `cfg["plant_cell"]`; the scripted calibration stage plants one of two cells so that
+    "naming can be scored", and the other cell is the one with none.  It must then be the
+    reference target exactly."""
     for spec in ALL_SPECS:
         for seed in (0, 404, 2**32 - 1):
             plain = target_of("reference", spec)(cfg_of(spec), seed)
@@ -2383,7 +2389,7 @@ def test_f5_the_history_plant_fires_on_the_history_the_policy_can_see(spec):
 def test_f6_the_leaky_plant_overshoots_where_the_block_allows_and_only_there(spec):
     """"A leaky-only plant. The policy overshoots at a fixed rate. Leaky passes these
     episodes and strict fails them."  At rate 1 it overshoots whenever the block holds a tool
-    that carries the target past its goal — which TG-M3 states as the presence of an
+    that carries the target past its goal — which the task layer states as the presence of an
     `overshoot` negative control — and otherwise is the reference."""
     for seed in (404, 2121):
         bundle = bundle_of(spec, seed)
@@ -2456,15 +2462,15 @@ def test_f9_a_sealed_file_that_cannot_be_read_as_plants_is_refused_at_load(tmp_p
 
 
 # ===========================================================================
-# CT · inherited coverage: TG-M3's knob R level axis, at the contrast the adapter pairs.
+# CT · inherited coverage: the task layer's knob R level axis, at the contrast the adapter pairs.
 #
-# TG-M3's tests build one knob R contrast, `r0` against `r8`, at three seeds, and four rows
-# of the mutation pass against TG-M3's build survive its whole 235-test suite for that reason.  These
-# tests are TG-M3 behaviour reached through the registered arm sets — the arms this adapter
+# The task layer's tests build one knob R contrast, `r0` against `r8`, at three seeds, and four rows
+# of the mutation pass against its build survive its whole 235-test suite for that reason.  These
+# tests are task-layer behaviour reached through the registered arm sets — the arms this adapter
 # runs against one salt and compares — over every level, both splits, and the seeds whose
-# first record-id word a tool name carries.  Every one is **green before and after**
-# (standing rule 12): none of them imports the adapter.  The open gap (TG-ADR-42: `city`,
-# `disc`, `grad` and `port` refuse a contrast that holds `r14`) is excluded and not asserted.
+# first record-id word a tool name carries.  Every one is **green before and after**:
+# none of them imports the adapter.  The open record-id gap (`city`, `disc`, `grad` and
+# `port` refuse a contrast that holds `r14`) is excluded and not asserted.
 # ===========================================================================
 
 
@@ -2497,9 +2503,9 @@ def test_ct2_every_registered_distractor_arm_holds_the_ledger_across_the_seed_sp
 
 def test_ct5_the_top_level_holds_the_ledger_across_a_dense_spread_of_seeds():
     """`r14` keeps no read tool at all, so the prose and the entry-code draw are all that
-    hold N7's set still there.  the mutation pass against TG-M3's build measured 248 of 1,216 refusals against 0 with
-    the prose rule off, and 10 with the entry-code rule off, all at `r14`: a sample this size
-    sees both."""
+    hold N7's set still there.  The mutation pass against the task layer's build measured
+    248 of 1,216 refusals against 0 with the prose rule off, and 10 with the entry-code rule
+    off, all at `r14`: a sample this size sees both."""
     seeds = [s for s in spaced(160, offset=3) if first_word(s, "eval") not in GAP_WORDS["eval"]]
     assert len(seeds) >= 150
     assert contrast_ok(R_TOP, seeds) == len(seeds)

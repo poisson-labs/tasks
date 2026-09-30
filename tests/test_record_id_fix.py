@@ -2,37 +2,37 @@
 contrast holds at every first word.
 
 **The comparison that breaks.**  N7 holds the prompt-to-tool-name overlap *set* equal
-across the arms of one knob (spec 2.2), measured as a substring over the user
+across the arms of one knob, measured as a substring over the user
 instruction's reference-tokenizer tokens.  Knob R's block loses read tools and gains
 other classes' stage tools as `r` rises, so any instruction token some tool name carries
 can enter or leave that set with the level.  Generation holds the set still in the three
 places it has freedom -- the prompt's prose, the designated slots and the entry-code draw
-(TG-ADR-42) -- and has none in the fourth: G14 makes the record id an injective function
+(see `tasks.py`) -- and has none in the fourth: G14 makes the record id an injective function
 of the task seed, so a seed whose **first** record-id word a tool name carries puts that
 word into the set and `generate_contrast` refuses.  Six of the 512 words are carried by
 some tool name and four of them refuse, all at `r14`, the one level whose block keeps no
 orthogonal read tool at all: `city` (`eval`) at 60 of 60 seeds, `grad` and `port`
-(`train`) at 60 of 60, and `disc` (`train`) at 43 of 60 (TG-ADR-44; `face` and `elect`
-refuse none, and nothing below `r14` refuses for any of the six).
+(`train`) at 60 of 60, and `disc` (`train`) at 43 of 60 (measured at 60 seeds per word;
+`face` and `elect` refuse none, and nothing below `r14` refuses for any of the six).
 
-**The fix the spec names.**  Spec 2.1's coverage item, TG-ADR-42's escape hatch and
-TG-ADR-44 all say the same thing: it closes outright the day a vocabulary version draws
-its record-id word lists disjoint from every tool name.  `RI1` is that check -- the
-one-time check 2.1 says nobody will think to run -- and `RI2` to `RI4` are the
-comparison itself, at the contrast and the density the record measured.
+**The fix.**  The table's coverage requirements, the entry-code draw's escape hatch and
+the measurement all say the same thing: it closes outright the day a vocabulary version
+draws its record-id word lists disjoint from every tool name.  `RI1` is that check -- a
+one-time check nobody will think to run unless it is written down -- and `RI2` to `RI4`
+are the comparison itself, at the contrast and the density first measured.
 
-**Which of TG-ADR-42's two counts this file is written against.**  The spec carries the
-record's six shapes and `tasks.py`'s docstring's six, and they differ by one: the record
-counts the entry-code draw, the docstring counts opaque slot values masked by slot name
-and documents the draw under `_drawable_entry_codes` instead.  This file is written
-against **the record's six**.  The entry-code draw is the same invariant one table field
+**Which of two counts this file is written against.**  The task layer's six design
+choices can be counted two ways, and the counts differ by one: one counts the entry-code
+draw, `tasks.py`'s docstring counts opaque slot values masked by slot name and documents
+the draw under `_drawable_entry_codes` instead.  This file is written against **the six
+that count the entry-code draw**.  The entry-code draw is the same invariant one table field
 away -- *draw only from strings no tool name carries* -- and it is the rule this fix
 generalises from the 32 entry codes to the 512 record-id words, so it is the shape `RI1`
 stands beside and the docstring this fix has to rewrite.  The docstring's sixth, opaque
 slot values, is about G15's fingerprint and not about N7's overlap set, and nothing here
-reaches it.  Which count the record should carry is not settled and is not settled here.
+reaches it.  Which count is the right one is not settled and is not settled here.
 
-**Green before and after** (standing rule 12): `RI5` alone.  It is a guard, not
+**Green before and after**: `RI5` alone.  It is a guard, not
 coverage -- it holds on the table as frozen and on the revised one -- and it is here so
 that the new coverage item cannot be met by breaking VT2's.
 """
@@ -60,7 +60,7 @@ TABLE = json.loads(TABLE_PATH.read_text())
 SPLITS = ("eval", "train")
 GEN_VERSION = "tg-m3-v1"
 
-# TG-ADR-44's table: the six record-id words some tool name carries as a substring, and
+# The measured table: the six record-id words some tool name carries as a substring, and
 # the four of them that refuse a knob R contrast holding `r14`.  Named here so that the
 # fix is stated against the measurement it closes and not against itself.
 CARRIED = {"eval": ("city", "face"), "train": ("disc", "elect", "grad", "port")}
@@ -127,15 +127,15 @@ SPREAD = (0, 1, 2, 55, 404, 2121, 65535, 2**24, 2**31 - 1, 2**32 - 1)
 
 
 # ===========================================================================
-# RI1 · the coverage item spec 2.1 owes any future vocabulary version
+# RI1 · the coverage item any future vocabulary version owes
 # ===========================================================================
 
 
 @pytest.mark.parametrize("split", SPLITS)
 def test_ri1_no_record_id_word_is_carried_by_a_tool_name(split):
-    """RI1: 2.1's coverage item, as the one-time check it asks for.
+    """RI1: the coverage item, as a one-time check over the whole table.
 
-    Stated over the whole list and not over the six the record names: a revision that
+    Stated over the whole list and not over the six the measurement names: a revision that
     swapped one collision for another would satisfy a test written about `city` and
     leave the gap open.
     """
@@ -149,7 +149,7 @@ def test_ri1_no_record_id_word_is_carried_by_a_tool_name(split):
 
 
 def test_ri1_2_the_six_words_the_record_names_are_gone_and_their_places_are_filled():
-    """RI1.2: the edit itself, against TG-ADR-44's table.
+    """RI1.2: the edit itself, against the measured table.
 
     `RI1` is the invariant and this is the change that establishes it, so a later reader
     can see which words moved without diffing the table.
@@ -161,7 +161,7 @@ def test_ri1_2_the_six_words_the_record_names_are_gone_and_their_places_are_fill
 
 
 # ===========================================================================
-# RI2-RI4 · the comparison, at the contrast and the densities the record measured
+# RI2-RI4 · the comparison, at the contrast and the densities first measured
 # ===========================================================================
 
 
@@ -183,7 +183,7 @@ def test_ri2_the_top_contrast_holds_at_every_first_word(split):
 
 @pytest.mark.parametrize("split", SPLITS)
 def test_ri3_the_top_contrast_holds_across_a_dense_spread_with_nothing_excluded(split):
-    """RI3: TG-M5's `test_ct5` shape with its exclusion removed.
+    """RI3: `test_ct5`'s shape (tests/test_tg_m5_scripted.py) with its exclusion removed.
 
     `test_ct5` drops the seeds whose first word is one of the four before it counts.
     This is the same spread with nothing dropped, which is what "the comparison is
@@ -195,9 +195,9 @@ def test_ri3_the_top_contrast_holds_across_a_dense_spread_with_nothing_excluded(
 
 @pytest.mark.parametrize("split", SPLITS)
 def test_ri4_sixty_seeds_per_replaced_word_refuse_nothing(split):
-    """RI4: TG-ADR-44's density, over the words that took the six places.
+    """RI4: the original measurement's density, over the words that took the six places.
 
-    The record measured 60 seeds per word over this contrast and wrote the table
+    The original measurement took 60 seeds per word over this contrast and wrote the table
     `city` 60/60, `grad` 60/60, `port` 60/60, `disc` 43/60, `face` 0/60, `elect` 0/60.
     The same measurement over the replacements is the row that supersedes it.
     """
