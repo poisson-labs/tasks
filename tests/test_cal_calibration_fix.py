@@ -268,7 +268,8 @@ def test_fix1_3_the_served_task_carries_the_record_id_and_the_entry_code_in_quot
 
 
 def todays_phase1() -> list[cal.EpisodeRecord]:
-    """The six records of the decoding fix's phase 1 re-run (2026-09-25, `8470a1a`), as they
+    """The six records of the decoding fix's phase 1 re-run (2026-09-25, at the commit that
+    sent the token limit as `max_completion_tokens`), as they
     were written to its `episodes.jsonl`: depth d3, seeds 404, 55 and 2121, two attempts
     each.  Five replies asked for the record id and the entry code and called no tool; the
     sixth made 8 calls and overshot.  It passed the gate it had, which checked scoring and
