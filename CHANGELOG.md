@@ -5,6 +5,30 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### Model B's card: Qwen3-8B
+
+- **The second calibration card is in:** `Qwen/Qwen3-8B` at `b968826d`, thinking off, served
+  with vLLM 0.29.0 on a Colab L4 (FP8, a 16,384-token context, vLLM's own sampler), each
+  episode capped at 32 model calls.
+  - 4,200 episodes, all scored, no instrument failure; it published.
+  - Records, artifact and instrument tally are in `calibration/qwen3-8b-b968826d/`.
+  - `examples/calibration_card.py` now rebuilds any committed card under the provenance its run
+    recorded. A test holds both cards to recomputing byte for byte.
+- **What it shows:**
+  - **Depth runs the opposite way to `gpt-5-nano`:** strict pass@1 rises from 0.000 at d1 to
+    0.997 at d8. Qwen reaches the goal at every level (leaky 0.97 or more) but, low on the
+    ladder, carries the record past it.
+  - **The distractor dial is saturated at every level.**
+  - **Seeded history** is what lowers Qwen's leaky rate, to 0.77 and 0.73.
+- **Getting it to run took four fixes on Colab, each test-first:**
+  - vLLM's FlashInfer sampler could not build its kernel there (no `ninja`), so the pin turns it
+    off.
+  - Colab's `UV_SYSTEM_PYTHON` broke the harness's setup, so the driver drops it.
+  - Long seeded histories outgrew 8,192 tokens, so the context is now 16,384.
+  - Qwen looped, so every episode is now capped at 32 model calls.
+  - Failures now print the engine's own error and the first episode error. The notebook creates
+    its Drive folder.
+
 ### An episode ends after 32 model calls
 
 - **The taskset now pins a turn limit**, `agent.max_turns = 32`, beside the measured harness,

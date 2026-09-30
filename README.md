@@ -61,19 +61,20 @@ using the tools it is given and nothing else.
 | the Proofload adapter, scripted path | **built** -- runs end to end against Proofload with no model, on an installed Proofload checkout |
 | the `verifiers` taskset export | **built** -- the task data, the task with its reward, the tool server, and a finite taskset over a declared list of seeds |
 | the model path, standalone | **built** -- the taskset id `poisson-tasks` resolves, and `eval` runs the measured harness against an OpenAI-compatible endpoint with no flag |
-| difficulty calibration | **built** -- pass@k per level with task-clustered intervals, paired level-to-level comparisons, cost, and the refusals that keep a card honest; **run for one model**, `gpt-5-nano` |
-| a second model's card | **prepared, not run** -- a Colab notebook that serves `Qwen3-8B` with vLLM on an L4 and runs the same card |
+| difficulty calibration | **built** -- pass@k per level with task-clustered intervals, paired level-to-level comparisons, cost, and the refusals that keep a card honest; **run for two models**, `gpt-5-nano` and `Qwen3-8B` |
+| a locally served model's card | **built and run** -- a Colab notebook that serves `Qwen3-8B` with vLLM on an L4 and runs the same card, resumable after a dropped runtime |
 
-"Built" means covered by the test suite: **1390 tests**, and `python -m pytest -q` is the check.
+"Built" means covered by the test suite: **1450 tests**, and `python -m pytest -q` is the check.
 
 ---
 
 ## What Is Not Built, and What Is Not Claimed
 
-1. **One model has been calibrated, not two.** `gpt-5-nano`'s card is in and is summarised
-   [below](#what-each-difficulty-level-is-worth). The second, `Qwen3-8B`, is prepared and not
-   yet run. Until it is, nothing here says whether a level's difficulty holds across model
-   families.
+1. **A level's difficulty does not carry across models.** Two models from two families are
+   calibrated [below](#what-each-difficulty-level-is-worth), and on the `depth` knob they
+   disagree in direction: `gpt-5-nano` finds deeper levels harder, `Qwen3-8B` finds them
+   easier, because at shallow depth it rarely stops at the goal. A level's number is one
+   model's, and none is claimed for a model that has not been run.
 2. **The pilot's pinned serving path is not built.** There is no serving proxy, no forced
    output and no store mirror, so none of the pilot's controls exist yet. The model B
    notebook serves one model with vLLM for calibration only.
@@ -109,7 +110,7 @@ Sanity check:
 Run it as `python -m pytest`, from the repository root: one test imports `tests.conftest`,
 which needs the root on the import path, and a bare `pytest` does not put it there.
 
-**1390 tests, 1008 passed and 382 skipped.** The skipped ones need Proofload -- the
+**1450 tests, 1068 passed and 382 skipped.** The skipped ones need Proofload -- the
 adapter's tests and the bridge between the two scorers -- and they say so.
 
 ### 2. Generate One Task, and Judge Every Answer It Ships With
@@ -245,7 +246,7 @@ outcomes, and runs a `proofload diff` of the two depth arms. Every episode comes
 seconds and writes about 80 KB under `examples/proofload_sweep/example-store`, which is
 git-ignored.
 
-With Proofload installed, `python -m pytest -q` is **1390 passed, 0 skipped**.
+With Proofload installed, `python -m pytest -q` is **1450 passed, 0 skipped**.
 
 Without it, `import poisson_tasks` and every module under it work as they do with it.
 Only `poisson_tasks.adapter` needs Proofload, and importing it without Proofload raises
@@ -318,12 +319,44 @@ What it shows:
 
 ### Model B: `Qwen3-8B`
 
-> **Not run yet. Placeholder: no results.** Model B is `Qwen/Qwen3-8B` at a pinned revision,
-> thinking off, served with vLLM on a Colab L4 by
-> [`notebooks/calibration_model_b.ipynb`](notebooks/calibration_model_b.ipynb), with the
-> same seeds, attempts and decoding as model A. Its card goes here when the run is in.
+`Qwen/Qwen3-8B` at revision `b968826d`, thinking off, served with vLLM 0.29.0 on a Colab L4 by
+[`notebooks/calibration_model_b.ipynb`](notebooks/calibration_model_b.ipynb): the same tasks,
+seeds, attempts and decoding as model A. 4,200 episodes on 2026-09-30, all scored, no
+instrument failure; phase 3 took 1.6 hours on the L4. Strict pass@1 per level, with its 95% interval
+[*source:*
+[`calibration/qwen3-8b-b968826d/artifact.json`](calibration/qwen3-8b-b968826d/artifact.json);
+`python examples/calibration_card.py calibration/qwen3-8b-b968826d` recomputes it]:
 
-<!-- MODEL-B: replace the block above with model B's lines and reading, from its committed artifact. -->
+- `depth:d1`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.000 [0.000, 0.000] over 60 tasks at 5 attempts each
+- `depth:d2`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.397 [0.300, 0.500] over 60 tasks at 5 attempts each
+- `depth:d3`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.823 [0.753, 0.890] over 60 tasks at 5 attempts each
+- `depth:d5`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.860 [0.787, 0.923] over 60 tasks at 5 attempts each
+- `depth:d8`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.997 [0.990, 1.000] over 60 tasks at 5 attempts each
+- `distractor:r0@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 1.000 [1.000, 1.000] over 60 tasks at 5 attempts each
+- `distractor:r2@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.990 [0.980, 1.000] over 60 tasks at 5 attempts each
+- `distractor:r4@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.993 [0.983, 1.000] over 60 tasks at 5 attempts each
+- `distractor:r8@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.980 [0.957, 0.997] over 60 tasks at 5 attempts each
+- `distractor:r14@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.997 [0.990, 1.000] over 60 tasks at 5 attempts each
+
+What it shows:
+
+- **Depth runs the other way, and the reason is stopping.** Leaky pass@1 is 0.97 or more at
+  every depth: Qwen reaches the goal almost always. What it rarely does at shallow depth is
+  stop there. At d1 all 300 attempts carried the record past the goal, typically nine calls
+  on a task that needs one. So strict pass@1 climbs with depth (0.000, 0.397, 0.823, 0.860,
+  0.997) as the goal nears the top of the ladder and less is left to overshoot. d2 to d3 is
+  distinguishable; d3 to d5 is too small to call; d1 and d8 are saturated.
+- **The distractor dial does not bite for Qwen either.** Every level scores 0.98 or more and
+  is saturated, so no comparison can be made.
+- **A seeded history is what makes Qwen fail to reach the goal.** In the two history controls
+  leaky pass@1 falls to 0.773 and 0.733 (from 1.000 on the plain arms), and 46 attempts were
+  scored `turn_limit` at the 32-call cap.
+
+**The two cards together.** Both models were run on one generator and one design, so the
+cards compare. They agree that the distractor dial, as built, does not make tasks harder.
+They disagree on depth: `gpt-5-nano`'s strict rate falls from d1 to d5 and Qwen's rises. On
+strict, a depth level measures chain length and stopping at the goal at once, and the two
+models fail on different halves of that.
 
 ---
 
@@ -335,7 +368,7 @@ What it shows:
 - **Running it:** [`docs/verifiers-export.md`](docs/verifiers-export.md) -- the verifiers
   taskset, its signals, and the one-line run against a model.
 - **Calibration:** [`docs/calibration-guide.md`](docs/calibration-guide.md) -- how to read a
-  card, and what model A's shows; [`calibration/`](calibration/) -- each model's per-episode
+  card, and what each model's shows; [`calibration/`](calibration/) -- each model's per-episode
   records and machine-readable card; [`notebooks/calibration_model_b.ipynb`](notebooks/calibration_model_b.ipynb)
   -- model B's run on a Colab GPU.
 - **Examples:** [`examples/`](examples/) -- four, smallest first, with
