@@ -133,6 +133,8 @@ __all__ = [
     "build_artifact",
     "render_document",
     "render_readme_lines",
+    "render_combined_document",
+    "agreement_rows",
     "write_artifact",
     "read_records",
     "write_records",
@@ -2133,3 +2135,160 @@ def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecor
             cost=float(usage.cost) if usage and usage.cost is not None else None,
         ))
     return out
+
+
+# ---------------------------------------------------------------------------
+# one page for every calibrated model
+# ---------------------------------------------------------------------------
+
+_COMPARABLE = (
+    "generator_hash", "engine_hash", "vocabulary_hash", "seed_list_hash", "S", "n",
+    "decoding", "harness_id", "delta_star", "saturation_high", "saturation_low",
+    "bootstrap_resamples", "bootstrap_seed",
+)
+"""What two cards must share to be read side by side: the same tasks, the same attempts and
+decoding, and the same rule for calling a difference.  Serving, budget, rates and the turn cap
+are each model's own and are printed on each card."""
+
+AGREE = "agree"
+DISAGREE = "disagree"
+CANNOT_TELL = "cannot tell"
+
+
+def _models_of(artifact: Artifact) -> list[str]:
+    return sorted({cell["model"] for cell in artifact.cells})
+
+
+def _comparable(artifacts: _Sequence[Artifact]) -> list[Artifact]:
+    """The artifacts in model order, after refusing a set that was not measured the same way
+    or that holds one model twice."""
+    if not artifacts:
+        raise ValueError("no card to render")
+    first = artifacts[0].provenance
+    for artifact in artifacts[1:]:
+        for name in _COMPARABLE:
+            if getattr(artifact.provenance, name) != getattr(first, name):
+                raise ValueError(
+                    f"these cards were not measured the same way ({name} differs), so they "
+                    "cannot be read side by side"
+                )
+    seen: dict[str, int] = {}
+    for index, artifact in enumerate(artifacts):
+        for model in _models_of(artifact):
+            if model in seen:
+                raise ValueError(f"model {model!r} has more than one card here")
+            seen[model] = index
+    return sorted(artifacts, key=lambda artifact: _models_of(artifact))
+
+
+def agreement_rows(artifacts: _Sequence[Artifact]) -> list[dict[str, _Any]]:
+    """Per knob, predicate and adjacent pair of levels, each model's own comparison and whether
+    the models agree.  They agree when every card calls the pair distinguishable in the same
+    direction, and disagree when every card calls it distinguishable but not all in one
+    direction; otherwise at least one card cannot call it.  A raw sign is never counted."""
+    ordered = _comparable(artifacts)
+    tables: list[tuple[str, str, list[dict[str, _Any]]]] = []
+    for knob in _KNOBS:
+        if knob == _DEPTH:
+            tables.append((knob, "leaky", [row for a in ordered for row in a.reach_pairs]))
+        tables.append((knob, "strict",
+                       [row for a in ordered for row in a.pairs if row["knob"] == knob]))
+    rows: list[dict[str, _Any]] = []
+    models = [model for artifact in ordered for model in _models_of(artifact)]
+    for knob, predicate, pairs in tables:
+        axis = _levels(knob)
+        for a, b in zip(axis, axis[1:], strict=False):
+            per_model = {row["model"]: row for row in pairs
+                         if (row["level_a"], row["level_b"]) == (a, b)}
+            if set(per_model) != set(models):
+                continue
+            called = [per_model[m] for m in models if per_model[m]["verdict"] == DISTINGUISHABLE]
+            if len(called) < len(models):
+                agreement = CANNOT_TELL
+            elif len({_sign(row["delta"]) for row in called}) == 1:
+                agreement = AGREE
+            else:
+                agreement = DISAGREE
+            rows.append({
+                "knob": knob, "predicate": predicate, "level_a": a, "level_b": b,
+                "models": {m: {key: per_model[m][key]
+                               for key in ("delta", "low", "high", "verdict", "reason")}
+                           for m in models},
+                "agreement": agreement,
+            })
+    return rows
+
+
+def _table_title(knob: str, predicate: str) -> str:
+    if predicate == "leaky":
+        return f"{knob}, on reaching the goal (leaky pass@1)"
+    return f"{knob}, strict pass@1"
+
+
+def render_combined_document(artifacts: _Sequence[Artifact]) -> str:
+    """`docs/calibration.md`: every calibrated model's card in full, and before them where the
+    models' difficulty orderings agree, read from each card's own verdicts.  Rendered from the
+    artifacts and never typed (CAL17); nothing here ranks models."""
+    ordered = _comparable(artifacts)
+    prov = ordered[0].provenance
+    models = [model for artifact in ordered for model in _models_of(artifact)]
+    rows = agreement_rows(ordered)
+    lines: list[str] = [
+        "# What each difficulty level is worth",
+        "",
+        f"Calibration cards for {len(models)} models, measured the same way: generator "
+        f"`{prov.generator_hash}`, the same {prov.S} tasks from the {SPLIT} split (seed list "
+        f"`{prov.seed_list_hash}`), {prov.n} attempts per task, the same decoding, and a "
+        f"difference called only when its paired 95% interval excludes zero and it is at "
+        f"least {prov.delta_star:.2f}. Each model's own card follows in full.",
+        "",
+        "Every number is one model's. This page does not rank models or pool their numbers: "
+        "it says where their difficulty orderings agree.",
+        "",
+        "## Where the models agree",
+        "",
+        f"For each pair of adjacent levels, each model's own comparison. The models *{AGREE}* "
+        "when every card calls the pair distinguishable in the same direction, and "
+        f"*{DISAGREE}* when every card calls it distinguishable but not in one direction. "
+        f"Otherwise at least one card cannot call it (*{CANNOT_TELL}*): a level is saturated "
+        "for that model, or the difference is too small for this design. A difference is "
+        "level a minus level b. Depth is read on reaching the goal; the strict comparison also "
+        "asks the model to stop at the goal.",
+    ]
+    header = ["levels"]
+    for model in models:
+        header += [f"{model} delta", f"{model} verdict"]
+    header.append("agreement")
+    for knob in _KNOBS:
+        for predicate in (("leaky", "strict") if knob == _DEPTH else ("strict",)):
+            table = [row for row in rows
+                     if row["knob"] == knob and row["predicate"] == predicate]
+            if not table:
+                continue
+            title = _table_title(knob, predicate)
+            counts = {kind: sum(1 for row in table if row["agreement"] == kind)
+                      for kind in (AGREE, DISAGREE, CANNOT_TELL)}
+            lines += [
+                "",
+                f"### {title}",
+                "",
+                f"{title}: the models {AGREE} on {counts[AGREE]}, {DISAGREE} on "
+                f"{counts[DISAGREE]}, and {CANNOT_TELL} on {counts[CANNOT_TELL]}, of "
+                f"{len(table)} adjacent pairs.",
+                "",
+                "| " + " | ".join(header) + " |",
+                "|" + "---|" * len(header),
+            ]
+            for row in table:
+                values = [f"{row['level_a']} vs {row['level_b']}"]
+                for model in models:
+                    mine = row["models"][model]
+                    values += [_fmt(mine["delta"]), mine["verdict"]]
+                values.append(row["agreement"])
+                lines.append("| " + " | ".join(values) + " |")
+    for artifact in ordered:
+        card = render_document(artifact)
+        nested = "\n".join("##" + line if line.startswith("#") else line
+                            for line in card.splitlines())
+        lines += ["", f"## {', '.join(_models_of(artifact))}", "", nested]
+    return "\n".join(lines) + "\n"

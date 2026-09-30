@@ -122,14 +122,15 @@ def test_the_page_counts_agreement_per_table() -> None:
     assert "agree on 1" in summary and "disagree on 1" in summary and "of 4" in summary
 
 
-@pytest.mark.parametrize("field, value", [
-    ("generator_hash", "x" * 64), ("engine_hash", "x" * 64), ("vocabulary_hash", "x" * 64),
-    ("n", 4), ("delta_star", 0.2), ("decoding", {**cal.DECODING, "temperature": 0.7}),
-])
-def test_cards_measured_differently_do_not_share_a_page(field: str, value: Any) -> None:
+@pytest.mark.parametrize("change", [
+    {"generator_hash": "x" * 64}, {"engine_hash": "x" * 64}, {"vocabulary_hash": "x" * 64},
+    {"n": 4, "k_values": [1, 2]}, {"delta_star": 0.2},
+    {"decoding": {**cal.DECODING, "temperature": 0.7}},
+], ids=["generator", "engine", "vocabulary", "attempts", "resolution", "decoding"])
+def test_cards_measured_differently_do_not_share_a_page(change: dict[str, Any]) -> None:
     a = _artifact("a", A_STRICT)
     b = _artifact("b", B_STRICT)
-    changed = dataclasses.replace(b, provenance=dataclasses.replace(b.provenance, **{field: value}))
+    changed = dataclasses.replace(b, provenance=dataclasses.replace(b.provenance, **change))
     with pytest.raises(ValueError):
         cal.render_combined_document([a, changed])
 
