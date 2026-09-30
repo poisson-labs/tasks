@@ -56,7 +56,7 @@ using the tools it is given and nothing else.
 |---|---|
 | the domain engine | **built** -- a pure state machine over a twelve-class ledger |
 | the reference tokenizer | **built** -- o200k_base, offline |
-| knobs, arms and the pin ledger | **built** -- two knobs, their control arms, thirteen rows |
+| knobs, arms and the pin ledger | **built** -- two knobs, their control arms, thirteen rows; the `distractor` knob is **experimental** (below) |
 | task and verifier generation | **built** -- `generate`, `verify`, the outcome vocabulary, the negative controls |
 | the Proofload adapter, scripted path | **built** -- runs end to end against Proofload with no model, on an installed Proofload checkout |
 | the `verifiers` taskset export | **built** -- the task data, the task with its reward, the tool server, and a finite taskset over a declared list of seeds |
@@ -64,17 +64,19 @@ using the tools it is given and nothing else.
 | difficulty calibration | **built** -- pass@k per level with task-clustered intervals, paired level-to-level comparisons, cost, and the refusals that keep a card honest; **run for two models**, `gpt-5-nano` and `Qwen3-8B` |
 | a locally served model's card | **built and run** -- a Colab notebook that serves `Qwen3-8B` with vLLM on an L4 and runs the same card, resumable after a dropped runtime |
 
-"Built" means covered by the test suite: **1450 tests**, and `python -m pytest -q` is the check.
+"Built" means covered by the test suite: **1485 tests**, and `python -m pytest -q` is the check.
 
 ---
 
 ## What Is Not Built, and What Is Not Claimed
 
-1. **A level's difficulty does not carry across models.** Two models from two families are
-   calibrated [below](#what-each-difficulty-level-is-worth), and on the `depth` knob they
-   disagree in direction: `gpt-5-nano` finds deeper levels harder, `Qwen3-8B` finds them
-   easier, because at shallow depth it rarely stops at the goal. A level's number is one
-   model's, and none is claimed for a model that has not been run.
+1. **Neither knob is claimed as a difficulty dial that holds across models.** Two models
+   from two families are calibrated [below](#what-each-difficulty-level-is-worth). On
+   reaching the goal, the `gpt-5-nano` card can call one step of depth, and it runs the
+   wrong way; `Qwen3-8B` reaches the goal at every depth. Whether the model stops at the
+   goal changes with depth for both, and not in the same way. The `distractor` knob does not make tasks harder for either, and is
+   experimental. A level's number is one model's, and none is claimed for a model that has
+   not been run.
 2. **The pilot's pinned serving path is not built.** There is no serving proxy, no forced
    output and no store mirror, so none of the pilot's controls exist yet. The model B
    notebook serves one model with vLLM for calibration only.
@@ -110,7 +112,7 @@ Sanity check:
 Run it as `python -m pytest`, from the repository root: one test imports `tests.conftest`,
 which needs the root on the import path, and a bare `pytest` does not put it there.
 
-**1450 tests, 1068 passed and 382 skipped.** The skipped ones need Proofload -- the
+**1485 tests, 1103 passed and 382 skipped.** The skipped ones need Proofload -- the
 adapter's tests and the bridge between the two scorers -- and they say so.
 
 ### 2. Generate One Task, and Judge Every Answer It Ships With
@@ -246,7 +248,7 @@ outcomes, and runs a `proofload diff` of the two depth arms. Every episode comes
 seconds and writes about 80 KB under `examples/proofload_sweep/example-store`, which is
 git-ignored.
 
-With Proofload installed, `python -m pytest -q` is **1450 passed, 0 skipped**.
+With Proofload installed, `python -m pytest -q` is **1485 passed, 0 skipped**.
 
 Without it, `import poisson_tasks` and every module under it work as they do with it.
 Only `poisson_tasks.adapter` needs Proofload, and importing it without Proofload raises
@@ -267,12 +269,20 @@ A level is a candidate until a model has been run against it. A **calibration ca
 what each level of `depth` and `distractor` is worth to one named model: 60 generated tasks
 per level from the eval split, 5 independent attempts at each, run through the one-line
 `eval` path above with the `null` harness.
-[`docs/calibration-guide.md`](docs/calibration-guide.md) explains every column; in brief:
+[`docs/calibration.md`](docs/calibration.md) holds every card in full and where the models
+agree; [`docs/calibration-guide.md`](docs/calibration-guide.md) explains every column. In
+brief:
 
-- **strict pass@1** is the headline: the attempt reached the goal state exactly and ended
-  with a reply. **leaky pass@1**, beside it, also accepts going past the goal (overshoot) or
-  touching another record. Each rate carries a 95% interval that resamples tasks, and
-  pass@2 and pass@5 sit beside pass@1.
+- **strict pass@1** is first in every table: the attempt reached the goal state exactly and
+  ended with a reply. **leaky pass@1**, beside it, also accepts going past the goal or
+  touching another record. **overshoot** is the share that reached the goal and carried the
+  record past it. Rates carry a 95% interval that resamples tasks.
+- **Depth is read on reaching the goal (leaky pass@1), with stopping shown beside it.**
+  Every depth level offers the whole eight-stage ladder, so below the top level the strict
+  rate also asks the model to stop at the goal. The two skills are reported apart, because
+  the two calibrated models do not fail them the same way.
+- **The distractor dial is experimental.** On both calibrated models it does not make tasks
+  harder, so it is not a difficulty setting; `eval --help` says so beside the option.
 - **no tool call** is the share of scored attempts that never called a tool, and **stopped
   short** the share that called some tools but fewer than the task's minimum. **A level
   where more than 10% of attempts made no tool call is not published, and neither is its
@@ -280,83 +290,87 @@ per level from the eval split, 5 independent attempts at each, run through the o
   short is a difficulty result and is printed, not gated.
 - Two neighbouring levels are **distinguishable** only when their paired interval excludes
   zero *and* they differ by at least 0.15; otherwise the card says the difference is too
-  small for this design to call. A level at or below 0.05, or at or above 0.95, is
-  **saturated** and left out of every comparison.
+  small for this design to call. A level at or below 0.05, or at or above 0.95, on the rate
+  being compared, is **saturated** and left out of the comparison.
 - Attempts that failed for a reason that is not the model's (an API error, a timeout) are
   counted apart and leave the denominator. A card is pinned to the generator's hash and says
   so when it is stale.
 
 ### Model A: `gpt-5-nano-2025-08-07`
 
-4,200 episodes on 2026-09-25, all scored, no instrument failure, about $2.52. Strict pass@1
-per level, with its 95% interval [*source:*
+4,200 episodes on 2026-09-25, all scored, no instrument failure, about $2.52 [*source:*
 [`calibration/gpt-5-nano-2025-08-07/artifact.json`](calibration/gpt-5-nano-2025-08-07/artifact.json);
 `python examples/calibration_card.py` recomputes it from the 4,200 records and prints the
 whole card]:
 
-- `depth:d1`: gpt-5-nano-2025-08-07 strict pass@1 0.547 [0.473, 0.617] over 60 tasks at 5 attempts each
-- `depth:d2`: gpt-5-nano-2025-08-07 strict pass@1 0.397 [0.307, 0.483] over 60 tasks at 5 attempts each
-- `depth:d3`: gpt-5-nano-2025-08-07 strict pass@1 0.237 [0.167, 0.307] over 60 tasks at 5 attempts each
-- `depth:d5`: gpt-5-nano-2025-08-07 strict pass@1 0.177 [0.110, 0.247] over 60 tasks at 5 attempts each
-- `depth:d8`: gpt-5-nano-2025-08-07 strict pass@1 0.870 [0.823, 0.913] over 60 tasks at 5 attempts each
-- `distractor:r0@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.917 [0.883, 0.950] over 60 tasks at 5 attempts each
-- `distractor:r2@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.903 [0.863, 0.940] over 60 tasks at 5 attempts each
-- `distractor:r4@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.910 [0.863, 0.950] over 60 tasks at 5 attempts each
-- `distractor:r8@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.910 [0.870, 0.947] over 60 tasks at 5 attempts each
-- `distractor:r14@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.960 [0.937, 0.980] over 60 tasks at 5 attempts each
+- `depth:d1`: gpt-5-nano-2025-08-07 strict pass@1 0.547 [0.473, 0.617], leaky pass@1 0.993, overshoot 0.447, over 60 tasks at 5 attempts each
+- `depth:d2`: gpt-5-nano-2025-08-07 strict pass@1 0.397 [0.307, 0.483], leaky pass@1 0.957, overshoot 0.560, over 60 tasks at 5 attempts each
+- `depth:d3`: gpt-5-nano-2025-08-07 strict pass@1 0.237 [0.167, 0.307], leaky pass@1 0.667, overshoot 0.427, over 60 tasks at 5 attempts each
+- `depth:d5`: gpt-5-nano-2025-08-07 strict pass@1 0.177 [0.110, 0.247], leaky pass@1 0.713, overshoot 0.537, over 60 tasks at 5 attempts each
+- `depth:d8`: gpt-5-nano-2025-08-07 strict pass@1 0.870 [0.823, 0.913], leaky pass@1 0.870, overshoot 0.000, over 60 tasks at 5 attempts each
+- `distractor:r0@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.917 [0.883, 0.950], leaky pass@1 0.917, overshoot 0.000, over 60 tasks at 5 attempts each
+- `distractor:r2@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.903 [0.863, 0.940], leaky pass@1 0.953, overshoot 0.000, over 60 tasks at 5 attempts each
+- `distractor:r4@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.910 [0.863, 0.950], leaky pass@1 0.957, overshoot 0.000, over 60 tasks at 5 attempts each
+- `distractor:r8@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.910 [0.870, 0.947], leaky pass@1 0.963, overshoot 0.000, over 60 tasks at 5 attempts each
+- `distractor:r14@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.960 [0.937, 0.980], leaky pass@1 0.977, overshoot 0.000, over 60 tasks at 5 attempts each
 
 What it shows:
 
-- **Depth works from d1 to d5.** Strict pass@1 falls at every step, 0.547 to 0.177. The
-  steps d1 to d2 and d2 to d3 are distinguishable; d3 to d5 is too small to call.
-- **d8 cannot overshoot.** Every depth level offers the whole eight-stage ladder, so below
-  d8 an attempt can carry the record past the goal and strict fails it; at d8 nothing lies
-  above the goal, and strict equals leaky at 0.870. The jump is that missing failure mode,
-  not d8 being easy.
-- **The distractor dial does not bite for `gpt-5-nano`.** Strict pass@1 stays between 0.90
-  and 0.92 from r0 to r8 and reaches 0.960, saturated, at r14. No adjacent pair is
-  distinguishable.
+- **On reaching the goal, the card can call one step of depth, and it runs the wrong way.**
+  Reaching falls from 0.957 at d2 to 0.667 at d3, but d2 is at or above the 0.95 saturation
+  bound, so the design leaves that step out. d3 to d5 is too small to call (0.667 against
+  0.713), and d5 to d8 is distinguishable the other way: d8 reaches the goal more often
+  (0.870).
+- **What varies is stopping.** Between 0.43 and 0.56 of its attempts at d1 to d5 reach the
+  goal and carry the record past it. At d8 no stage lies above the goal, so nothing can
+  overshoot, and strict equals leaky. On strict, which asks for both, pass@1 falls from
+  0.547 at d1 to 0.177 at d5.
+- **The distractor dial does not bite:** strict pass@1 stays between 0.90 and 0.96 from r0
+  to r14, and no adjacent pair is distinguishable.
 
 ### Model B: `Qwen3-8B`
 
 `Qwen/Qwen3-8B` at revision `b968826d`, thinking off, served with vLLM 0.29.0 on a Colab L4 by
 [`notebooks/calibration_model_b.ipynb`](notebooks/calibration_model_b.ipynb): the same tasks,
-seeds, attempts and decoding as model A. 4,200 episodes on 2026-09-30, all scored, no
-instrument failure; phase 3 took 1.6 hours on the L4. Strict pass@1 per level, with its 95% interval
+seeds, attempts and decoding as model A, each episode capped at 32 model calls. 4,200
+episodes on 2026-09-30, all scored, no instrument failure; phase 3 took 1.6 hours on the L4
 [*source:*
 [`calibration/qwen3-8b-b968826d/artifact.json`](calibration/qwen3-8b-b968826d/artifact.json);
 `python examples/calibration_card.py calibration/qwen3-8b-b968826d` recomputes it]:
 
-- `depth:d1`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.000 [0.000, 0.000] over 60 tasks at 5 attempts each
-- `depth:d2`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.397 [0.300, 0.500] over 60 tasks at 5 attempts each
-- `depth:d3`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.823 [0.753, 0.890] over 60 tasks at 5 attempts each
-- `depth:d5`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.860 [0.787, 0.923] over 60 tasks at 5 attempts each
-- `depth:d8`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.997 [0.990, 1.000] over 60 tasks at 5 attempts each
-- `distractor:r0@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 1.000 [1.000, 1.000] over 60 tasks at 5 attempts each
-- `distractor:r2@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.990 [0.980, 1.000] over 60 tasks at 5 attempts each
-- `distractor:r4@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.993 [0.983, 1.000] over 60 tasks at 5 attempts each
-- `distractor:r8@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.980 [0.957, 0.997] over 60 tasks at 5 attempts each
-- `distractor:r14@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.997 [0.990, 1.000] over 60 tasks at 5 attempts each
+- `depth:d1`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.000 [0.000, 0.000], leaky pass@1 1.000, overshoot 1.000, over 60 tasks at 5 attempts each
+- `depth:d2`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.397 [0.300, 0.500], leaky pass@1 1.000, overshoot 0.600, over 60 tasks at 5 attempts each
+- `depth:d3`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.823 [0.753, 0.890], leaky pass@1 0.993, overshoot 0.170, over 60 tasks at 5 attempts each
+- `depth:d5`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.860 [0.787, 0.923], leaky pass@1 0.973, overshoot 0.113, over 60 tasks at 5 attempts each
+- `depth:d8`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.997 [0.990, 1.000], leaky pass@1 0.997, overshoot 0.000, over 60 tasks at 5 attempts each
+- `distractor:r0@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 1.000 [1.000, 1.000], leaky pass@1 1.000, overshoot 0.000, over 60 tasks at 5 attempts each
+- `distractor:r2@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.990 [0.980, 1.000], leaky pass@1 0.997, overshoot 0.000, over 60 tasks at 5 attempts each
+- `distractor:r4@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.993 [0.983, 1.000], leaky pass@1 1.000, overshoot 0.000, over 60 tasks at 5 attempts each
+- `distractor:r8@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.980 [0.957, 0.997], leaky pass@1 1.000, overshoot 0.000, over 60 tasks at 5 attempts each
+- `distractor:r14@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.997 [0.990, 1.000], leaky pass@1 1.000, overshoot 0.000, over 60 tasks at 5 attempts each
 
 What it shows:
 
-- **Depth runs the other way, and the reason is stopping.** Leaky pass@1 is 0.97 or more at
-  every depth: Qwen reaches the goal almost always. What it rarely does at shallow depth is
-  stop there. At d1 all 300 attempts carried the record past the goal, typically nine calls
-  on a task that needs one. So strict pass@1 climbs with depth (0.000, 0.397, 0.823, 0.860,
-  0.997) as the goal nears the top of the ladder and less is left to overshoot. d2 to d3 is
-  distinguishable; d3 to d5 is too small to call; d1 and d8 are saturated.
-- **The distractor dial does not bite for Qwen either.** Every level scores 0.98 or more and
-  is saturated, so no comparison can be made.
+- **On reaching the goal, depth does not separate the levels at all.** Leaky pass@1 is
+  0.97 or more at every depth, saturated everywhere.
+- **What varies is stopping, and it improves with depth.** Qwen carries the record past the
+  goal on every attempt at d1, on 0.600 at d2, 0.170 at d3, 0.113 at d5 and none at d8,
+  where nothing lies above the goal. So its strict rate climbs with depth, from 0.000 to
+  0.997.
+- **The distractor dial is saturated at every level** (0.98 or more).
 - **A seeded history is what makes Qwen fail to reach the goal.** In the two history controls
   leaky pass@1 falls to 0.773 and 0.733 (from 1.000 on the plain arms), and 46 attempts were
   scored `turn_limit` at the 32-call cap.
 
-**The two cards together.** Both models were run on one generator and one design, so the
-cards compare. They agree that the distractor dial, as built, does not make tasks harder.
-They disagree on depth: `gpt-5-nano`'s strict rate falls from d1 to d5 and Qwen's rises. On
-strict, a depth level measures chain length and stopping at the goal at once, and the two
-models fail on different halves of that.
+### The two cards together
+
+Both models were run on one generator and one design, so their cards compare. Across the 12
+pairs of adjacent levels in [`docs/calibration.md`](docs/calibration.md) (depth on reaching
+the goal, depth on strict, and the distractor dial), the models agree on none and disagree on
+one: depth 2 against 3 on strict, where `gpt-5-nano` falls and Qwen rises. Every other pair
+is one that at least one card cannot call. As built, neither knob orders difficulty the same
+way for both models. Depth's measurable effect for both is on stopping at the goal, and a
+level's number is one model's.
 
 ---
 
@@ -367,8 +381,9 @@ models fail on different halves of that.
   -- the two knobs, their control arms, the turn budget and the pin ledger.
 - **Running it:** [`docs/verifiers-export.md`](docs/verifiers-export.md) -- the verifiers
   taskset, its signals, and the one-line run against a model.
-- **Calibration:** [`docs/calibration-guide.md`](docs/calibration-guide.md) -- how to read a
-  card, and what each model's shows; [`calibration/`](calibration/) -- each model's per-episode
+- **Calibration:** [`docs/calibration.md`](docs/calibration.md) -- every card in full, and
+  where the models agree; [`docs/calibration-guide.md`](docs/calibration-guide.md) -- how to
+  read a card, and what each model's shows; [`calibration/`](calibration/) -- each model's per-episode
   records and machine-readable card; [`notebooks/calibration_model_b.ipynb`](notebooks/calibration_model_b.ipynb)
   -- model B's run on a Colab GPU.
 - **Examples:** [`examples/`](examples/) -- four, smallest first, with

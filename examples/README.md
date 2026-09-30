@@ -39,13 +39,20 @@ Then read [docs/knobs-and-arms.md](../docs/knobs-and-arms.md).
 
 ```
 python examples/calibration_card.py [DIR]
+python examples/calibration_card.py --page
 ```
 
 Reads the 4,200 per-episode records behind model A's calibration card
 (`calibration/gpt-5-nano-2025-08-07/episodes.jsonl`), rebuilds the machine-readable card
-from them alone, checks that it is byte-identical to the committed `artifact.json`, and
-prints the rendered card: the level tables, the control arms, cost, the level-to-level
+from them alone under the provenance its run recorded, checks that it is byte-identical to
+the committed `artifact.json`, says whether the card is current for the installed generator,
+and prints the rendered card: the level tables, the control arms, cost, the level-to-level
 comparisons, the ordering and the provenance.
+
+DIR is one model's folder under `calibration/`: model A's by default, or
+`calibration/qwen3-8b-b968826d` for model B's. `--page` rebuilds every committed card and
+prints the one page for all of them, where the models agree and then each card in full,
+which is what `docs/calibration.md` holds.
 
 No network, no model, no Proofload. The records were produced by real model calls; this
 only does the arithmetic. Read it with [docs/calibration-guide.md](../docs/calibration-guide.md).

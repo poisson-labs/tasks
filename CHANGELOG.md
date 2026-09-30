@@ -5,6 +5,40 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### Depth read on reaching the goal, one page for every card, and plain words
+
+- **Depth is read on reaching the goal, with stopping at the goal shown beside it.** Every
+  depth level offers the whole stage ladder, so below the top level the strict rate also
+  asks the model to stop at the goal, and the two calibrated models do not fail these the
+  same way. So:
+  - every cell now carries its overshoot share and an interval on leaky pass@1;
+  - depth's adjacent levels are also compared on leaky pass@1;
+  - the card reads depth on that comparison, with the overshoot column beside it.
+
+  Strict stays computed, published and first in every table. Both committed cards were
+  rebuilt from their records, with no new model calls and every earlier figure unchanged.
+  What it shows:
+  - on reaching the goal, depth does not order difficulty for either model: saturated
+    everywhere for Qwen3-8B, and for gpt-5-nano only d5 against d8 is distinguishable, with
+    d8 higher (its fall from d2 to d3 starts at a saturated level, so it is not called);
+  - what depth changes for both models is stopping at the goal.
+- **`docs/calibration.md`**, one page for every calibrated model, rendered from the cards:
+  where their difficulty orderings agree, read from each card's own verdicts, then each card
+  in full. `examples/calibration_card.py --page` prints it. Of 12 adjacent pairs of levels,
+  the two models agree on none and disagree on one. Cards measured differently refuse to
+  share a page.
+- **The distractor dial is experimental.** It does not make tasks harder for either
+  calibrated model, so it is not a difficulty setting. `eval --help` says so beside the arm
+  option.
+- **`verify` accepts a bundle written before a card gained a figure,** checking every figure
+  it carries. A missing cell or a changed number is still refused.
+- **Plain words.** The card, the calibration module's and the Colab driver's messages and
+  help, the notebook, the engine, knobs and adapter modules, the tests' comments and
+  docstrings, and `gap-log.md` (one recorded exception to its append-only rule) no longer
+  cite internal decision ids, specification sections, private notes or people.
+- `LICENSE` reads "Copyright (c) 2026 Taylor Kolasinski / Poisson Labs". `outputs/`, where
+  `eval` writes its runs, is ignored.
+
 ### Model B's card: Qwen3-8B
 
 - **The second calibration card is in:** `Qwen/Qwen3-8B` at `b968826d`, thinking off, served

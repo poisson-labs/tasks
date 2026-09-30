@@ -10,11 +10,18 @@ the pin ledger is what makes that a measurement rather than a hope.
 
 **`depth`** -- how many chained stage calls the goal is away. Levels `1, 2, 3, 5, 8`. A
 depth-*d* task needs *d* calls plus a reply turn, and the chain token makes them
-genuinely sequential: no model can skip to the end.
+genuinely sequential: no model can skip to the end. Every depth level offers the whole
+eight-stage ladder, so below the top level a model can also carry the record past the goal;
+a calibration card reads depth on reaching the goal and shows overshoot beside it
+([calibration](calibration.md)).
 
 **`distractor`** -- how many of the sixteen tools in the block are irrelevant. Levels
 `0, 2, 4, 8, 14`. Every arm needs the same number of calls, so a difference in outcome
-across these arms is a difference in *selection*, not in reasoning depth.
+across these arms is a difference in *selection*, not in reasoning depth. **Experimental:**
+on both calibrated models it does not make tasks harder, so it is not a difficulty setting
+for current models ([calibration](calibration.md)). A distractor tool is named for its
+ledger class and stage, so choosing the right tool is close to a string match with the
+class the prompt names.
 
 `levels(knob)` returns the candidate levels. Which of them a study actually sweeps is a
 pre-registration decision, not a property of the generator.
