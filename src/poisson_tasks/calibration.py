@@ -230,6 +230,7 @@ SYSTEM_LABELS = frozenset(
 )
 OUTCOME_LABELS = INSTRUMENT_LABELS | SYSTEM_LABELS
 _PASSED = "passed"
+_OVERSHOOT = "overshoot"
 
 # The wheel's four SamplingConfig fields.  Each defaults to `None` in the wheel and `wire_args`
 # drops it, so an unset field is absent from the request and the provider's default applies.
@@ -297,18 +298,18 @@ class EpisodeRecord:
     def __post_init__(self) -> None:
         if self.label not in OUTCOME_LABELS:
             raise ValueError(
-                f"{self.label!r} is not a label 2.3 defines; the vocabulary is closed: "
+                f"{self.label!r} is not an outcome label; the vocabulary is closed: "
                 + ", ".join(sorted(OUTCOME_LABELS))
             )
         if self.strict != (self.label == _PASSED):
             raise ValueError(
                 f"strict is {self.strict} but the label is {self.label!r}: the strict "
-                "indicator is 1.0 exactly when the strict label is `passed` (X4)"
+                "indicator is 1.0 exactly when the strict label is `passed`"
             )
         if self.strict and not self.leaky:
-            raise ValueError("a strict pass is a leaky pass (G6)")
+            raise ValueError("a strict pass is a leaky pass: strict=True needs leaky=True")
         if self.label in INSTRUMENT_LABELS and self.leaky:
-            raise ValueError("an instrument failure never wears a pass (G10)")
+            raise ValueError("an instrument failure is not a pass: leaky must be False")
         for name in ("attempt", "turns", "sampled_calls", "prompt_tokens",
                      "cached_input_tokens", "completion_tokens", "reasoning_tokens"):
             if getattr(self, name) < 0:
@@ -343,7 +344,7 @@ def _blocks(cell: Cell) -> list[list[EpisodeRecord]]:
         ):
             raise ValueError(
                 f"the records of task {row.task_id} do not share one seed, arm and model; "
-                "attempts are attempts at one task (CAL3)"
+                "attempts are attempts at one task"
             )
         block.append(row)
     return list(grouped.values())
@@ -515,11 +516,17 @@ def paired_delta(
     resamples: int,
     seed: int,
     provenance: Provenance | None = None,
+    predicate: str = "strict",
 ) -> PairedDelta:
     """CAL10: resample the shared seeds once, recompute both cells on that resample, and take
     the difference, so the pairing is inside the interval.  Two cells with different seed sets
     refuse, naming the symmetric difference.  With a provenance block, a saturated cell
-    refuses (CAL12)."""
+    refuses (CAL12).  `predicate` is `strict` (the headline) or `leaky` (reaching the goal),
+    and saturation is read on the rate being compared."""
+    if predicate not in ("strict", "leaky"):
+        raise ValueError(f"predicate is {predicate!r}; it is 'strict' or 'leaky'")
+    indicator = _strict if predicate == "strict" else _leaky
+    rate_of = pass_at_1 if predicate == "strict" else _leaky_at_1
     left, right = _by_seed(a), _by_seed(b)
     if set(left) != set(right):
         symmetric = sorted(set(left) ^ set(right))
@@ -529,19 +536,19 @@ def paired_delta(
         )
     if provenance is not None:
         for name, cell in (("a", a), ("b", b)):
-            rate = pass_at_1(cell)
+            rate = rate_of(cell)
             if saturated(rate, provenance):
                 raise ValueError(
-                    f"cell {name} is saturated at pass@1 = {rate:.3f} and appears in no "
-                    "distinguishability claim (CAL12)"
+                    f"cell {name} is saturated at {predicate} pass@1 = {rate:.3f} and appears "
+                    "in no distinguishability claim"
                 )
     order = sorted(left)
     differences = [
-        _block_rate(left[key], _strict) - _block_rate(right[key], _strict) for key in order
+        _block_rate(left[key], indicator) - _block_rate(right[key], indicator) for key in order
     ]
     distribution = _resampled_means(differences, resamples=resamples, seed=seed)
     return PairedDelta(
-        point=pass_at_1(a) - pass_at_1(b),
+        point=rate_of(a) - rate_of(b),
         low=_quantile(distribution, 0.025),
         high=_quantile(distribution, 0.975),
     )
@@ -672,7 +679,7 @@ class Provenance:
         if self.harness_id != _MEASURED_HARNESS:
             raise ValueError(
                 f"harness_id is {self.harness_id!r}; every pinned measurement is under "
-                f"{_MEASURED_HARNESS!r} (X9)"
+                f"{_MEASURED_HARNESS!r}"
             )
         if self.S < 1 or self.n < 1:
             raise ValueError("S and n are at least 1")
@@ -724,7 +731,7 @@ class Provenance:
                 revision = str(entry["revision"])
                 if len(revision) != 40 or any(c not in "0123456789abcdef" for c in revision):
                     raise ValueError(
-                        f"serving[{model_id!r}].revision must be a 40-character commit hash (N18)"
+                        f"serving[{model_id!r}].revision must be a 40-character commit hash"
                     )
             else:
                 _require_keys(entry, ("endpoint_host",), f"serving[{model_id!r}] (hosted)")
@@ -831,11 +838,16 @@ class Artifact:
     pairs: list[dict[str, _Any]]
     orderings: list[dict[str, _Any]]
     provenance: Provenance
+    reach_pairs: list[dict[str, _Any]] = _dc.field(default_factory=list)
+    """Depth's adjacent levels compared on leaky pass@1, reaching the goal.  Every depth arm
+    offers the whole ladder, so strict below the top level also asks the model to stop at the
+    goal; depth is read on these, with each cell's overshoot share beside them."""
 
     def as_dict(self) -> dict[str, _Any]:
         return {
             "cells": _json.loads(_json.dumps(self.cells)),
             "pairs": _json.loads(_json.dumps(self.pairs)),
+            "reach_pairs": _json.loads(_json.dumps(self.reach_pairs)),
             "orderings": _json.loads(_json.dumps(self.orderings)),
             "provenance": self.provenance.as_dict(),
         }
@@ -927,7 +939,7 @@ def _check_cell(
         raise ValueError(
             f"cell {key} refuses to publish: {share:.3f} of its scored episodes made no tool "
             f"call, above the declared {provenance.no_call_threshold}; it measures whether "
-            "the model starts, not the level (CAL24)"
+            "the model starts, not the level"
         )
 
 
@@ -947,6 +959,9 @@ def _cell_figures(
     interval_1 = cluster_bootstrap(
         kept, pass_at_1, resamples=provenance.bootstrap_resamples, seed=provenance.bootstrap_seed
     )
+    leaky_interval = cluster_bootstrap(
+        kept, _leaky_at_1, resamples=provenance.bootstrap_resamples, seed=provenance.bootstrap_seed
+    )
     pass_k = {str(k): pass_at_k(kept, k) for k in range(1, n_min + 1)}
     leaky_k = {str(k): _leaky_at_k(kept, k) for k in range(1, n_min + 1)}
     pass_k_interval: dict[str, list[float]] = {}
@@ -964,6 +979,8 @@ def _cell_figures(
     minimum = _minimum_calls(arm)
     no_call = sum(1 for row in kept if _made_no_call(row))
     short = sum(1 for row in kept if _stopped_short(row, minimum))
+    # Reached the goal and carried the record past it: a stop-at-the-goal failure.
+    overshoot = sum(1 for row in kept if row.label == _OVERSHOOT)
     completion = sum(row.completion_tokens for row in kept)
     reasoning = sum(row.reasoning_tokens for row in kept)
     prompt = sum(row.prompt_tokens for row in kept)
@@ -984,7 +1001,10 @@ def _cell_figures(
         "pass_at_k": pass_k,
         "pass_at_k_interval": pass_k_interval,
         "leaky_at_1": _leaky_at_1(kept),
+        "leaky_at_1_interval": [leaky_interval[0], leaky_interval[1]],
         "leaky_at_k": leaky_k,
+        "overshoot_count": overshoot,
+        "overshoot_share": overshoot / len(kept),
         "saturated": saturated(strict_1, provenance),
         "outcome_mix": {label: sum(1 for row in cell if row.label == label)
                         for label in sorted(OUTCOME_LABELS)
@@ -1065,6 +1085,52 @@ def _pair_rows(
     return rows
 
 
+def _reach_pair_rows(
+    cells: _Mapping[CellKey, Cell],
+    figures: _Mapping[CellKey, dict[str, _Any]],
+    provenance: Provenance,
+) -> list[dict[str, _Any]]:
+    """Depth's adjacent plain levels compared on leaky pass@1, reaching the goal, by the same
+    pairing and two-clause rule as the strict comparisons, with saturation read on the leaky
+    rate.  The distractor knob has none: every level needs the same calls, and its question
+    is choosing the tool, not stopping."""
+    rows: list[dict[str, _Any]] = []
+    axis = _levels(_DEPTH)
+    for model in sorted({model for _, model in cells}):
+        for a, b in zip(axis, axis[1:], strict=False):
+            key_a = (_arm_id(_plain(_DEPTH, a)), model)
+            key_b = (_arm_id(_plain(_DEPTH, b)), model)
+            if key_a not in cells or key_b not in cells:
+                continue
+            row: dict[str, _Any] = {
+                "model": model, "knob": _DEPTH, "level_a": a, "level_b": b,
+                "arm_a": key_a[0], "arm_b": key_b[0], "predicate": "leaky",
+                "delta": None, "low": None, "high": None,
+            }
+            saturated_arms = [key[0] for key in (key_a, key_b)
+                              if saturated(figures[key]["leaky_at_1"], provenance)]
+            if saturated_arms:
+                row["verdict"] = "excluded"
+                row["reason"] = "saturated on leaky: " + ", ".join(saturated_arms)
+                rows.append(row)
+                continue
+            try:
+                delta = paired_delta(
+                    scored(cells[key_a]), scored(cells[key_b]), predicate="leaky",
+                    resamples=provenance.bootstrap_resamples, seed=provenance.bootstrap_seed,
+                )
+            except ValueError as error:
+                row["verdict"] = "refused"
+                row["reason"] = str(error)
+                rows.append(row)
+                continue
+            row.update(delta=delta.point, low=delta.low, high=delta.high)
+            row["verdict"] = call_pair(delta, provenance)
+            row["reason"] = None
+            rows.append(row)
+    return rows
+
+
 def _ordering_rows(cells: _Mapping[CellKey, Cell]) -> list[dict[str, _Any]]:
     """CAL13 per model and knob, and the family agreement count where two models share a
     complete axis.  Each ordering row carries leaky pass@1 across the axis beside the strict
@@ -1130,6 +1196,7 @@ def build_artifact(
         pairs=_pair_rows(cells, figures, provenance),
         orderings=_ordering_rows(cells),
         provenance=provenance,
+        reach_pairs=_reach_pair_rows(cells, figures, provenance),
     )
 
 
@@ -1178,7 +1245,8 @@ def _interval(value: _Sequence[float] | None) -> str:
 
 
 def _level_header(k_values: _Sequence[int]) -> tuple[str, str]:
-    columns = ["arm", "model", "strict pass@1", "95% interval", "leaky pass@1"]
+    columns = ["arm", "model", "strict pass@1", "95% interval", "leaky pass@1",
+               "leaky 95% interval", "overshoot"]
     columns += [f"strict pass@{k}" for k in k_values if k != 1]
     columns += ["min calls", "no tool call", "stopped short", "saturated", "instrument",
                 "incomplete"]
@@ -1189,6 +1257,7 @@ def _level_row(cell: _Mapping[str, _Any], k_values: _Sequence[int]) -> str:
     values = [
         f"`{cell['arm_id']}`", cell["model"], _fmt(cell["pass_at_1"]),
         _interval(cell["pass_at_1_interval"]), _fmt(cell["leaky_at_1"]),
+        _interval(cell["leaky_at_1_interval"]), _fmt(cell["overshoot_share"]),
     ]
     values += [_fmt(cell["pass_at_k"].get(str(k))) for k in k_values if k != 1]
     values += [
@@ -1215,7 +1284,8 @@ def _depth_stop_note(axis: _Sequence[int]) -> str:
         "depth arm offers the whole stage ladder, so below the top level the model can carry "
         f"the record past the goal (overshoot), and at d{top} no stage lies above the goal. "
         "Leaky measures reaching the goal at every level and is comparable across the whole "
-        "axis. Strict stays the headline."
+        "axis, so depth is read on leaky, with the overshoot column showing how often the model "
+        "did not stop at the goal."
     )
 
 
@@ -1236,10 +1306,10 @@ def render_document(artifact: Artifact) -> str:
         f"(seed list `{prov.seed_list_hash}`) at n = {prov.n} independent attempts per task.",
         "",
         "**This card is pinned to the generator hash above and is stale the moment "
-        "`tasks.py` changes.** It is not regenerated automatically (R10); a card whose "
+        "`tasks.py` changes.** It is not regenerated automatically; a card whose "
         "generator hash differs from the package's is stale and says so here.",
         "",
-        "**A resumed run is the same run in this sense and no other (R13).** A run that was "
+        "**A resumed run is the same run in this sense and no other.** A run that was "
         "interrupted and resumed serves the same tasks, each with its full number of "
         "attempts, none run twice and none skipped. It does not reproduce the interrupted "
         "attempts byte for byte: the decoding is deliberately not deterministic, so a resumed "
@@ -1251,7 +1321,7 @@ def render_document(artifact: Artifact) -> str:
         "## Levels",
         "",
         "The **strict** rate is the headline: the episode reached the goal state exactly and "
-        "ended with a reply (X4). The **leaky** rate beside it also accepts overshoot and "
+        "ended with a reply. The **leaky** rate beside it also accepts overshoot and "
         "collateral damage. They are two different difficulty claims and both are published, "
         "so a rate is never read without knowing which one it is. The interval is a "
         "task-clustered bootstrap at "
@@ -1259,10 +1329,17 @@ def render_document(artifact: Artifact) -> str:
         "the structural minimum, which needs no model. *no tool call* is the share of scored "
         "episodes that ended without a single tool call, and *stopped short* the share that "
         "started and made fewer calls than the minimum; the two are disjoint. A cell whose "
-        f"no-call share is above {prov.no_call_threshold} is not published at all (CAL24), "
+        f"no-call share is above {prov.no_call_threshold} is not published at all, "
         "because it would measure whether the model starts rather than the level; stopping "
         "short is a difficulty result and is printed, not gated. A saturated level is one "
         "this model cannot see past and it appears in no claim below.",
+        "",
+        "*overshoot* is the share of scored episodes that reached the goal and carried the "
+        "record past it, and the *leaky 95% interval* is the same task-clustered bootstrap on "
+        "the leaky rate. **Depth is read on leaky pass@1, reaching the goal.** Every depth "
+        "level offers the whole stage ladder, so below the top level the strict rate also asks "
+        "the model to stop at the goal; the overshoot column shows how often it did not. The "
+        "strict rate is published beside it and is first in each table.",
     ]
     level_cells = [cell for cell in artifact.cells if not cell["control"]]
     control_cells = [cell for cell in artifact.cells if cell["control"]]
@@ -1277,7 +1354,7 @@ def render_document(artifact: Artifact) -> str:
         "",
         INSTRUMENT_TABLE_HEADING,
         "",
-        "These are instrument arms (R9). A control such as `depth:d1+h8` exists to separate "
+        "These are instrument arms. A control such as `depth:d1+h8` exists to separate "
         "depth from history, not to be a difficulty level, and it must not be read as one.",
         "",
         header,
@@ -1314,6 +1391,29 @@ def render_document(artifact: Artifact) -> str:
         f"*{DISTINGUISHABLE}* only when its paired 95% interval excludes zero **and** the "
         f"difference is at least delta* = {prov.delta_star:.2f} pass-rate points; otherwise "
         f"it reads *{TOO_SMALL}*, with its difference and interval shown.",
+    ]
+    if artifact.reach_pairs:
+        lines += [
+            "",
+            "### depth, on reaching the goal (leaky pass@1)",
+            "",
+            "How depth is read. The same pairing and rule, on the leaky rate, with saturation "
+            "judged on that rate.",
+            "",
+            "| model | knob | levels | delta leaky pass@1 | 95% paired interval | verdict |",
+            "|---|---|---|---|---|---|",
+        ]
+        for pair in artifact.reach_pairs:
+            verdict = pair["verdict"]
+            if pair["reason"] is not None:
+                verdict = f"{verdict}: {pair['reason']}"
+            interval = None if pair["low"] is None else (pair["low"], pair["high"])
+            lines.append(
+                f"| {pair['model']} | {pair['knob']} | {pair['level_a']} vs {pair['level_b']} | "
+                f"{_fmt(pair['delta'])} | {_interval(interval)} | {verdict} |"
+            )
+        lines += ["", "### every knob, strict pass@1"]
+    lines += [
         "",
         "| model | knob | levels | delta strict pass@1 | 95% paired interval | verdict |",
         "|---|---|---|---|---|---|",
@@ -1396,7 +1496,8 @@ def render_readme_lines(artifact: Artifact) -> str:
         low, high = cell["pass_at_1_interval"]
         out.append(
             f"- `{cell['arm_id']}`: {cell['model']} strict pass@1 {cell['pass_at_1']:.3f} "
-            f"[{low:.3f}, {high:.3f}] over {cell['S_observed']} tasks at "
+            f"[{low:.3f}, {high:.3f}], leaky pass@1 {cell['leaky_at_1']:.3f}, overshoot "
+            f"{cell['overshoot_share']:.3f}, over {cell['S_observed']} tasks at "
             f"{artifact.provenance.n} attempts each"
             + (" (incomplete)" if cell["incomplete"] else "")
         )
@@ -1529,7 +1630,7 @@ def check_attempts(cell: Cell, *, S: int, n: int) -> bool:
         raise ValueError(
             f"a cell holds S = {S} tasks with n = {n} attempts at the same task each; this "
             f"one groups to {len(blocks)} task(s).  Attempts are repeated attempts at one "
-            "task, and A21's distinct-instance rule does not apply here."
+            "task, never salted apart into distinct instances."
         )
     for block in blocks:
         if len(block) != n:
