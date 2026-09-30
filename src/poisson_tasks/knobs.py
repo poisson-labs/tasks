@@ -275,7 +275,10 @@ def _parse_arm_id(rendered: str) -> _ParsedArm:
         return _ParsedArm(
             _DISTRACTOR, int(distractor.group(1)), None if high is None else int(high)
         )
-    raise ValueError(f"{rendered!r} is not an arm id 2.2 defines")
+    raise ValueError(
+        f"{rendered!r} is not an arm id: an arm id is depth:d<level>, depth:d<level>+h<level>, "
+        "distractor:r<level>@k<tools> or distractor:r<level>+len(r<level>)@k<tools>"
+    )
 
 
 def arm_id(spec: ArmSpec) -> str:
@@ -364,8 +367,7 @@ def pin_ledger(knob: str) -> list[PinRow]:
             held="User prompt",
             measured=(
                 "template id equal; token count of the variable slots under the reference "
-                "tokenizer, both read from the bundle's `template_id` and `prompt_slots` "
-                "(2.3, TG-ADR-38)"
+                "tokenizer, both read from the bundle's `template_id` and `prompt_slots`"
             ),
             tolerance="equal; the slot values are free and the goal stage name is the knob",
             on_violation=_REFUSE,
@@ -388,7 +390,10 @@ def pin_ledger(knob: str) -> list[PinRow]:
         PinRow(
             row_id="N8",
             held="Observation size",
-            measured="E2, over the bundle's `reference_observations` (2.3, TG-ADR-38)",
+            measured=(
+                "the engine's observation size, in bytes and reference-tokenizer tokens, "
+                "over the bundle's `reference_observations`"
+            ),
             tolerance=(
                 f"L_obs == {_L_OBS} bytes exact; tokens in [{_BAND_LO}, {_BAND_HI}].  A "
                 "per-arm property: d1 and d8 carry different numbers of observations, so "
@@ -404,12 +409,12 @@ def pin_ledger(knob: str) -> list[PinRow]:
             measured=(
                 "reference-tokenizer tokens of the seeded pairs vs the expected (H - dL) "
                 "stage pairs, which are the bundle's `reference_calls` paired with its "
-                "`reference_observations` (2.3, TG-ADR-38)"
+                "`reference_observations`"
             ),
             tolerance=(
                 f"declared band of +/- {_N9_BAND} tokens on the **aggregate** over the "
                 "(H - dL) pairs, at a measured residual of 0.  Never a per-pair equality: "
-                "that is unsatisfiable against this table (TG-ADR-37)"
+                "that is unsatisfiable against this table"
             ),
             on_violation=_REFUSE,
             stage=_GENERATION,
@@ -418,7 +423,7 @@ def pin_ledger(knob: str) -> list[PinRow]:
         PinRow(
             row_id="N10",
             held=(
-                "The serving pin (A14): model id and revision (N18); vLLM version and "
+                "The serving pin: model id and revision (N18, the exact commit); vLLM version and "
                 "serve flags (parser, reasoning parser, quantization, --max-model-len, "
                 "--language-model-only); thinking mode; decoding settings; GPU type.  Also "
                 "the harness id and version, endpoint type, slack S, horizon H, token "
@@ -446,8 +451,8 @@ def pin_ledger(knob: str) -> list[PinRow]:
             row_id="N12",
             held="Engine, vocabulary and generator hashes",
             measured=(
-                "recorded per task.  The vocabulary is inside `engine_hash` by E10, so two "
-                "bundle fields carry three hashes"
+                "recorded per task.  The vocabulary is part of `engine_hash`, so two bundle "
+                "fields carry three hashes"
             ),
             tolerance="equal",
             on_violation=_REFUSE_START,
