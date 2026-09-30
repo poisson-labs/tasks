@@ -44,6 +44,10 @@ src/poisson_tasks/data/*.tiktoken
 # The example sweep writes its registration, registry module and run store here.
 examples/**/example-store/
 
+# `eval` writes each run's folder (configs, traces, logs) into the working directory,
+# `--dry-run` included.
+outputs/
+
 # Devlogs are kept outside the repository (docs/repo-hygiene.md, section 2.7)
 devlog.md
 
