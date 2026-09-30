@@ -142,20 +142,71 @@ comparable across the whole axis, and it is not monotone either: 0.993, 0.957, 0
 Strict pass@1 stays between 0.90 and 0.92 from r0 to r8 and rises to 0.960 at r14, which is
 saturated and so drops out of every comparison. Every adjacent pair that can be compared is
 too small for this design to call. For this model, adding distractor tools to the block does
-not make the task harder. Whether it does for a different model is what the second card is
-for.
+not make the task harder. Model B's card says the same for Qwen3-8B.
 
 ## Model B: `Qwen3-8B`
 
-> **Not run yet. This section is a placeholder and holds no results.**
->
-> Model B is an open-weights model from a different family: `Qwen/Qwen3-8B` at revision
-> `b968826d9c46dd6066d109eabc6255188de91218`, thinking off, served with vLLM 0.29.0 (FP8,
-> 8,192-token context, the `hermes` tool parser) on a Colab L4, through
-> [`notebooks/calibration_model_b.ipynb`](../notebooks/calibration_model_b.ipynb). Same seeds,
-> same attempts, same decoding as model A. Its card and its reading go here once the run is in.
+An open-weights model from a different family: `Qwen/Qwen3-8B` at revision
+`b968826d9c46dd6066d109eabc6255188de91218`, thinking off, served with vLLM 0.29.0 on a Colab
+L4 through [`notebooks/calibration_model_b.ipynb`](../notebooks/calibration_model_b.ipynb):
+FP8 weights, a 16,384-token context, the `hermes` tool parser and vLLM's own sampler. Same
+tasks, seeds, attempts and decoding as model A, each episode capped at 32 model calls. Run on
+2026-09-30: **4,200 episodes, all scored, no instrument failure**; phase 3 took 1.6 hours on
+the L4. There is no dollar figure: the run cost Colab compute units, not API spend. The records
+and the artifact are in
+[`calibration/qwen3-8b-b968826d/`](../calibration/qwen3-8b-b968826d/), and
+`python examples/calibration_card.py calibration/qwen3-8b-b968826d` rebuilds the artifact,
+checks it byte for byte and prints the card.
 
-<!-- MODEL-B: replace the block above with model B's reading, from its committed artifact. -->
+**No cell came near the no-call refusal:** every attempt made at least one tool call.
+
+### `depth` runs the other way, because Qwen does not stop at the goal
+
+| level | strict pass@1 | 95% interval | leaky pass@1 | median model calls |
+|---|---|---|---|---|
+| `d1` | 0.000 | [0.000, 0.000] | 1.000 | 9 |
+| `d2` | 0.397 | [0.300, 0.500] | 1.000 | 9 |
+| `d3` | 0.823 | [0.753, 0.890] | 0.993 | 4 |
+| `d5` | 0.860 | [0.787, 0.923] | 0.973 | 6 |
+| `d8` | 0.997 | [0.990, 1.000] | 0.997 | 9 |
+
+Leaky pass@1 is 0.97 or more at every level: Qwen reaches the goal almost every time. It
+rarely stops there when the goal is low on the ladder. At d1 all 300 attempts carried the
+record past the goal, typically all the way up the eight stages (a median of nine model calls
+on a task that needs one). The higher the goal, the less ladder is left to overshoot, so
+strict pass@1 rises with depth. d3 scores 0.427 above d2 (paired interval 0.323 to 0.527), which
+is distinguishable, in the opposite direction to model A's; d3 to d5 (0.037) is too small for
+this design to call; d1 and d8 are saturated and appear in no comparison.
+
+### The distractor dial does not bite for Qwen either
+
+Strict pass@1 is between 0.980 and 1.000 at every level from r0 to r14, and every level is
+saturated, so no difference can be called.
+
+### What the control arms add
+
+The history controls are where Qwen fails to reach the goal at all. Leaky pass@1 is 0.773
+for `depth:d1+h8` and 0.733 for `depth:d2+h5`, against 1.000 for plain `d1` and `d2`. These
+two arms account for 46 of the 49 attempts, out of 4,200, scored `turn_limit` at the
+32-call cap. The two
+distractor controls are saturated at 1.000.
+
+## The two cards together
+
+Both cards were measured on one generator (`3a379aa5…`), one seed list and one decoding, so
+they compare level for level.
+
+- **They agree on the distractor dial.** As built, adding distractor tools does not make the
+  task harder for either model. The dial needs rework before it can be sold as a difficulty
+  knob.
+- **They disagree on depth.** `gpt-5-nano`'s strict rate falls from d1 to d5 (0.547 to 0.177)
+  and Qwen's rises (0.000 to 0.860). On the strict predicate a depth level asks two things at
+  once: carry the record through the chain, and stop at the goal. The two models fail on
+  different halves. Leaky pass@1, which asks only the first, is flat near 1.0 for Qwen and
+  dips at d3 and d5 for `gpt-5-nano`.
+
+So a level's worth is one model's, as every card says. Before choosing a level for a model,
+calibrate that model.
 
 ## Running a card of your own
 
