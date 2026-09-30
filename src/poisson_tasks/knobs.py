@@ -1,16 +1,15 @@
-"""TG-M2, the knobs, control arms and the pin ledger: a declared ledger, and the two
-measurements a bundle supports.
+"""The knobs, control arms and the pin ledger: a declared ledger, and the two measurements
+a bundle supports.
 
-The invariants this file is built against are N1-N18 in the spec's 2.2, as amended on
-2026-09-11 by TG-ADR-35 and TG-ADR-36 and on 2026-09-13 by TG-ADR-37 and TG-ADR-38.  The
-frozen test file is `tests/test_tg_m2_knobs.py`, and where the spec's text could not be used
-as written that file's module docstring is authoritative.
+The invariants this file is built against are N1-N18, tested in `tests/test_tg_m2_knobs.py`;
+where a requirement could not be used as written, that file's module docstring is
+authoritative.
 
-The public surface is 2.2's Interface list plus the three type names its signatures use,
-and nothing else.  2.2 names "both knobs' transforms"; they are reached through
-`ArmSpec`'s derived values and through `check_pins`, never as symbols of their own.
+The public surface is the interface's names plus the three type names its signatures use,
+and nothing else.  "Both knobs' transforms" are reached through `ArmSpec`'s derived values
+and through `check_pins`, never as symbols of their own.
 
-Shapes the spec names but does not define, decided here:
+Shapes the requirements name but do not define, decided here:
 
 * **`ArmSpec.control` is the reference level, not a flag.**  It holds the level the
   control stands in for -- `8` in `depth:d1+h8` and in `distractor:r0+len(r8)@k16` -- and
@@ -19,12 +18,12 @@ Shapes the spec names but does not define, decided here:
 * **Validation lives in `ArmSpec.__post_init__`.**  N15's own words are that `d3+h3` and
   `d8+h1` are "construction errors rather than arms that generate and then fail a pin", so
   an arm spec that cannot be rendered cannot be built.  The knob and the control relation
-  are checked; **the level is not checked against `levels(knob)`**, because 2.2 calls
-  those the *candidate* levels and TG-ADR-16 puts the choice among them in the
-  pre-registration, not here.  The escape hatch, if a later module wants an arm spec it
+  are checked; **the level is not checked against `levels(knob)`**, because those are the
+  *candidate* levels, and the choice among them belongs to a study's pre-registration, not
+  here.  The escape hatch, if a later module wants an arm spec it
   validates itself, is to move both checks into `arm_id` -- which every test that exercises
   them already calls.
-* **A refusal is a `PinReport` that says so.**  2.2 writes
+* **A refusal is a `PinReport` that says so.**  The interface is
   `check_pins(...) -> PinReport | refusal`; the ledger's job is to report and the *On
   violation* column says **generation** refuses, so `refused` is a field and not an
   exception.  `check_pins` raises `ValueError` only for a caller error -- arms from two
@@ -41,8 +40,8 @@ Shapes the spec names but does not define, decided here:
 
 `measure_pins` is a read: it never writes to the bundle it is handed (P3).  Every entry
 point is pure -- no clock, no RNG, no IO beyond the frozen vocabulary table the engine
-already loads, and no network (SF5).  `L_obs` and the token band are TG-M1's literals,
-cited here and never re-minted (SF6).
+already loads, and no network (SF5).  `L_obs` and the token band are the engine's
+literals, cited here and never re-minted (SF6).
 """
 
 from __future__ import annotations
@@ -71,7 +70,7 @@ __all__ = [
     "check_pins",
 ]
 
-# TG-M1's frozen literals, cited and not re-minted (SF6).  `L_obs` and the token band are
+# The engine's frozen literals, cited and not re-minted (SF6).  `L_obs` and the token band are
 # properties of the vocabulary table; a second copy here would be a number read back and
 # compared with itself.
 _SPEC = _EngineSpec.load()
@@ -82,23 +81,23 @@ _DEPTH = "depth"
 _DISTRACTOR = "distractor"
 _KNOBS = (_DEPTH, _DISTRACTOR)
 
-# 2.2 and TG-ADR-16.  Candidate levels, not the pilot defaults: TG-ADR-16 picks {1, 3, 8}
-# for depth, and that choice lives in the pre-registration.
+# Candidate levels, not the pilot defaults: the pilot picks {1, 3, 8} for depth, and that
+# choice lives in its pre-registration.
 _DEPTH_LEVELS = (1, 2, 3, 5, 8)
 _DISTRACTOR_LEVELS = (0, 2, 4, 8, 14)
 _LEVELS = {_DEPTH: _DEPTH_LEVELS, _DISTRACTOR: _DISTRACTOR_LEVELS}
 
-# 2.2's fixed block sizes, and knob R's fixed chain depth.
+# The fixed block sizes, and knob R's fixed chain depth.
 _K_D = 16
 _K_R = 16
 _D_R = 2
 
 # N9's declared band, in reference-tokenizer tokens, over the aggregate.  Minted with
 # the tests, at a measured residual of 0 over 256 blocks of seven pairs across two disjoint
-# scenarios; the same two-token margin, and the same empirical footing, as TG-M1's
+# scenarios; the same two-token margin, and the same empirical footing, as the engine's
 # observation band.  It is an aggregate and explicitly not a per-pair equality: 51.4% of
 # chain calls are cheaper on arguments than any read call and 3.0% of chain pairs fall
-# below the read pair floor, so a per-pair equality could never pass (TG-ADR-37).
+# below the read pair floor, so a per-pair equality could never pass.
 _N9_BAND = 2
 
 _REFUSE = "refuse"
@@ -120,7 +119,7 @@ _DISTRACTOR_ID = _re.compile(r"^distractor:r(\d+)(?:\+len\(r(\d+)\))?@k(\d+)$")
 
 
 class _Verifier(_Protocol):
-    """2.3's `VerifierSpec`, reduced to the one field N11 reads."""
+    """`tasks.VerifierSpec`, reduced to the one field N11 reads."""
 
     strictness: str
 
@@ -128,9 +127,9 @@ class _Verifier(_Protocol):
 class _Bundle(_Protocol):
     """The bundle fields the ledger reads.
 
-    TG-M3 owns `TaskBundle` and does not exist yet, so this states the shape rather than
-    naming the type.  `template_id`, `prompt_slots` and `reference_observations` are
-    TG-ADR-38's three fields: without them N6 and N9 have no measurement.
+    `tasks.py` owns `TaskBundle` and imports this module, so this states the shape rather
+    than naming the type.  Without `template_id`, `prompt_slots` and
+    `reference_observations`, N6 and N9 have no measurement.
     """
 
     arm_id: str
@@ -149,10 +148,10 @@ class _Bundle(_Protocol):
 
 @_dataclass(frozen=True)
 class ArmSpec:
-    """2.2's `(knob, level, control, strictness, split, generator version)`.
+    """An arm: `(knob, level, control, strictness, split, generator version)`.
 
-    Six fields and no seventh: `S` is a cfg axis (2.5) and `seq_start` is an argument to
-    `init_state` (TG-ADR-35), so neither belongs here.
+    Six fields and no seventh: `S` is a run's configuration axis and `seq_start` is an
+    argument to `init_state`, so neither belongs here.
     """
 
     knob: str
@@ -186,7 +185,7 @@ class ArmSpec:
     def max_turns(self, slack: int) -> int:
         """N16's budget: the needed turns plus one slack constant `S`.
 
-        `S` is a cfg axis (2.5) and not one of the six fields, so it is an argument here;
+        `S` is a run's configuration axis and not one of the six fields, so it is an argument here;
         A5 writes `max_turns(arm)` as though it were nullary.
         """
         return self.reference_turns + slack
@@ -197,7 +196,7 @@ class PinRow:
     """One ledger row.
 
     `stage` is where the row is enforced and `on_violation` is what happens when it
-    fails; the spec's table states both in one prose column, and a caller cannot act on
+    fails; the ledger's table states both in one prose column, and a caller cannot act on
     prose.  `applies_to` is the knobs the row constrains.
     """
 
@@ -251,7 +250,7 @@ class _ParsedArm:
 
 
 def _render_arm_id(knob: str, level: int, control: int | None) -> str:
-    """2.2's four formats, and the only place any of them is written."""
+    """The four arm id formats, and the only place any of them is written."""
     if knob == _DEPTH:
         return f"depth:d{level}" if control is None else f"depth:d{level}+h{control}"
     if control is None:
@@ -263,8 +262,8 @@ def _parse_arm_id(rendered: str) -> _ParsedArm:
     """The inverse of `_render_arm_id`.
 
     A bundle carries an arm id and no arm spec, so `check_pins` reads the knob and the
-    `(dL, H)` pair off the key.  The `@k` field is parsed and not enforced: 2.2 fixes it
-    at 16 and the renderer is the only thing that writes it.
+    `(dL, H)` pair off the key.  The `@k` field is parsed and not enforced: the block is
+    fixed at 16 and the renderer is the only thing that writes it.
     """
     depth = _DEPTH_ID.match(rendered)
     if depth is not None:
@@ -284,7 +283,7 @@ def arm_id(spec: ArmSpec) -> str:
 
     Canonical means one id per `(knob, level, control)`.  Strictness, split and generator
     version are pinned by N11, G12 and N12 and do not enter the id: an id that rendered
-    all six fields would silently break `diff`'s cell matching (TG-ADR-06).
+    all six fields would silently break `diff`'s cell matching.
     """
     return _render_arm_id(spec.knob, spec.level, spec.control)
 
@@ -297,7 +296,7 @@ def levels(knob: str) -> tuple[int, ...]:
 
 
 def pin_ledger(knob: str) -> list[PinRow]:
-    """The thirteen rows, in the order 2.2 prints them.
+    """The thirteen rows, in the ledger's order.
 
     The same ledger is used for both knobs, so the row set does not vary with the knob;
     what varies is `applies_to`, which `check_pins` reads to decide whether a row is
@@ -488,7 +487,7 @@ def _pair_tokens(name: str, arguments: _Any, observation: str) -> int:
 
 
 def _messages(prompt: object) -> tuple[_Any, ...]:
-    """The prompt as `Messages`, or empty when it is a plain string (2.3's `str | Messages`)."""
+    """The prompt as `Messages`, or empty when it is a plain string (`str | Messages`)."""
     if isinstance(prompt, (list, tuple)):
         return tuple(prompt)
     return ()
@@ -756,7 +755,7 @@ def _check_n9(
 
     The control runs pairs 1..dL itself, so its seeded block stands in for the high arm's
     pairs dL+1..H, every one of them a chain pair -- which is why the single cheap stage-1
-    call cancels out of the comparison (TG-ADR-37).  The comparison is over sums and never
+    call cancels out of the comparison.  The comparison is over sums and never
     per pair; the band is `_N9_BAND` tokens in both directions.
     """
     offenders = []

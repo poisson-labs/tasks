@@ -1,21 +1,19 @@
-"""TG-M1, the domain engine: a deterministic state machine over one record domain.
+"""The domain engine: a deterministic state machine over one record domain.
 
-The invariants this file is built against are E1-E10 in the spec's 2.1, as amended on
-2026-09-11 by TG-ADR-35 and TG-ADR-36.  The frozen test file is
-`tests/test_tg_m1_engine.py`, and where the spec's text could not be used as written
-that file's module docstring is authoritative.
+The invariants this file is built against are E1-E10, tested in `tests/test_tg_m1_engine.py`;
+where a requirement could not be used as written, that file's module docstring is
+authoritative.
 
-Three shapes the spec names but does not define, decided here:
+Three shapes the requirements name but do not define, decided here:
 
-* **`DomainState` carries the scenario.**  2.1 writes `apply(state, call)` with no
+* **`DomainState` carries the scenario.**  The interface is `apply(state, call)`, with no
   scenario and no spec argument, and stage 1 has to check the entry code the scenario
   gave a record while every transition has to derive a token from the scenario's token
   key.  Neither is reachable from the records alone, so the state carries the scenario
   it was initialised from.  The tests anticipate the field: their hand-built state pairs
   rebuild a `DomainState` by carrying over every dataclass field beyond `records` and
   `next_seq`.  The escape hatch, if a later module wants the state free of it, is to
-  pass an `EngineSpec`-like context to `apply` -- which changes 2.1's signature and so
-  costs an amendment.
+  pass an `EngineSpec`-like context to `apply` -- which changes the interface's signature.
 * **Precedence: the stage precondition is decided before the argument.**  A stage-3
   tool aimed at a record standing at stage 1 is `not_ready` whatever token it carries,
   because no token could have been right for it.  The record must be addressable first,
@@ -88,7 +86,7 @@ class Scenario:
 
     `records` maps `(class, id)` to the stage-1 entry code that record accepts.
     `token_key` keys E3's hash.  `visible_items` are the catalogue item codes the read
-    tools can see.  Nothing here is drawn from a seed: drawing a scenario is TG-M2's,
+    tools can see.  Nothing here is drawn from a seed: drawing a scenario is `knobs.py`'s,
     and `seq_start` is an argument to `init_state`, never a field here (N1's scope).
     """
 
@@ -99,7 +97,7 @@ class Scenario:
 
 @dataclass(frozen=True)
 class DomainState:
-    """The records beside the sequence counter (TG-ADR-35), plus the scenario.
+    """The records beside the sequence counter, plus the scenario.
 
     E4 is a statement about `records`; E5 is a statement about `next_seq`.  Keeping
     them apart is what stops the two invariants contradicting each other.  `scenario`
@@ -372,7 +370,7 @@ def init_state(scenario: Scenario, seq_start: int) -> DomainState:
     """The state a scenario starts in: every record at stage 0, the counter at `seq_start`.
 
     `seq_start` is its own argument and never a scenario field, so N14 can vary it by
-    arm while N1 holds the scenario equal across arms (TG-ADR-35).
+    arm while N1 holds the scenario equal across arms.
     """
     records = {key: _Record(stage=0, token=None, audit=0) for key in scenario.records}
     return DomainState(records=records, next_seq=seq_start, scenario=scenario)
@@ -399,7 +397,7 @@ def replay(
 
     Calls are numbered `seq_start, seq_start + 1, ...` in list order.  The caller sorts
     the sampled calls by the `seq` in their tool messages before calling this (X4, in
-    TG-M3 and TG-M4); `replay` numbers what it is handed, in the order it is handed.
+    `tasks.py` and the export); `replay` numbers what it is handed, in the order it is handed.
     """
     state = init_state(scenario, seq_start)
     observations: list[str] = []
@@ -414,7 +412,7 @@ def mutations(state_a: DomainState, state_b: DomainState) -> list[tuple[str, str
 
     The class is in the key because E7's cross-class clause cannot be stated without it:
     a call names a class through its tool's qualifier and is never redirected, so
-    TG-M3's `collateral_mutation` has to be able to tell a mutation in another ledger
+    the verifier's `collateral_mutation` has to be able to tell a mutation in another ledger
     class from one in the target's.  A record present in one state and absent from the
     other counts as differing in every field; the engine never adds or drops a record,
     so that case only arises between states built by hand.
