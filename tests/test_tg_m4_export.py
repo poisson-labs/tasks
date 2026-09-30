@@ -1,14 +1,14 @@
-"""TG-M4, the verifiers export: bundles packaged as a verifiers v1 taskset -- data, task,
+"""The verifiers export (export.py): bundles packaged as a verifiers v1 taskset -- data, task,
 toolset and rewards -- frozen as tests.
 
-The invariants this file is built against are X1-X9 in the spec's 2.4, the clauses of 2.4's
-Interface that X1-X9 do not restate (`validate`, the toolset's `setup_task`, `register` and
-its tool bodies), and knob R's level axis, which 2.4 and 2.5 say these tests inherit.  The
-spec is not edited here.  Where it names a thing and gives it no shape, this docstring gives
-it one, with the reason and an escape hatch.  **Where it is ambiguous, or disagrees with
-itself or with the pinned wheel, nothing here settles it**: the test pins only what every
-reading shares, the open point is listed under *Open, and not settled here*, and the handoff
-carries it for a ruling.
+The invariants this file is built against are X1-X9, the clauses of the export's written
+interface that X1-X9 do not restate (`validate`, the toolset's `setup_task`, `register` and
+its tool bodies), and knob R's level axis, which the export's and the model path's
+requirements say these tests inherit.  The requirements are not edited here.  Where they
+name a thing and give it no shape, this docstring gives it one, with the reason and an
+escape hatch.  **Where they are ambiguous, or disagree with themselves or with the pinned
+wheel, nothing here settles it**: the test pins only what every reading shares, and the
+open point is listed under *Open, and not settled here*.
 
 **No test here needs Proofload.**  The task generator is standalone and Proofload is an
 optional extra, so this file imports neither `proofload` nor `poisson_tasks.adapter`, and
@@ -23,38 +23,39 @@ Shapes decided here
 
 **1. The module is `poisson_tasks.export`, with ten public names.**  `ExportTasksetConfig`,
 `ExportTaskConfig`, `ExportTaskData`, `ExportTask`, `ExportTaskset`, `DomainToolsetConfig`,
-`DomainToolset`, `task_from_bundle`, `bundle_from_data` and `MEASURED_HARNESS`.  2.4's
-Interface names five classes and spells none; 0 says a name not verified there is a
-spec-level name that may be renamed one for one.  The two functions are the two directions
-X2 cannot be tested without, and `task_from_bundle` is also 2.5's model-target step 3
-("build the TG-M4 task").  Every imported name is underscore-aliased, as in `knobs.py`,
+`DomainToolset`, `task_from_bundle`, `bundle_from_data` and `MEASURED_HARNESS`.  The
+written interface names five classes and spells none, and a name not on the verified-names
+list is a placeholder that may be renamed one for one.  The two functions are the two
+directions X2 cannot be tested without, and `task_from_bundle` is also the model path's
+step that builds the export task.  Every imported name is underscore-aliased, as in `knobs.py`,
 `tasks.py` and `adapter.py`, so SF2 holds.  *Escape hatch:* rename any of the ten; SF1 and
 the `export()` helper move.
 
 **2. `ExportTasksetConfig(arm=..., seeds=[...])`.**  `arm` takes the six `ArmSpec` fields as
 a mapping (`dataclasses.asdict(spec)`), `seeds` is the declared list, and the `task` config
-is derived from the arm when the caller does not give one: its `arm_id` is TG-M2's
+is derived from the arm when the caller does not give one: its `arm_id` is knobs.py's
 `arm_id(spec)` and its `strictness` the arm's.  A declared list that repeats a seed is
 refused with a `ValueError`, somewhere between building the config and the end of
 `load()`: X7 (unique keys) and X8 (`len(list(load()))` equals the list's
 length) cannot both hold for it, so the refusal is forced and only its place is open.
 *Escape hatch:* the field names live in `taskset_config()`.
 
-**3. The task data carries the whole bundle, not only the eight fields 2.4 lists.**  See
+**3. The task data carries the whole bundle, not only the eight fields listed.**  See
 *Open* item 1: this is forced by X2, X4, X6 and X7 under every reading, and the tests reach
-the data only through `bundle_from_data`, `model_dump_json` and four fields 2.4 does name
+the data only through `bundle_from_data`, `model_dump_json` and four fields the list does name
 (`prompt`, `system_prompt`, `tools`, `seq_start`).
 
 **4. X2 is measured three ways.**  `bundle_from_data(task.data) == bundle` (dataclass
 equality, the strongest statement and the one a consumer needs: a rebuilt bundle whose
 state rows came back as lists is refused by `verify` as a defective bundle); the same after
 the data has crossed the JSON wire, because `model_dump_json` then `model_validate_json` is
-how 0.3.1 hands a launched toolset its task; and equality of a canonical hash, 2.4's own
-word, under TG-M3's canonical form restated in this file.  *Escape hatch:* if "hashes equal"
-is read as the ceiling, `test_x2_1` and `test_x2_2` relax to `test_x2_3`'s form.
+how 0.3.1 hands a launched toolset its task; and equality of a canonical hash, the
+requirement's own word, under the task layer's canonical form restated in this file.
+*Escape hatch:* if "hashes equal" is read as the ceiling, `test_x2_1` and `test_x2_2` relax
+to `test_x2_3`'s form.
 
 **5. A D control's seeded prompt is converted, because the wheel refuses it as written.**
-TG-M3 froze the seeded history in the OpenAI chat shape (`tool_calls[i].function.name`),
+The task layer froze the seeded history in the OpenAI chat shape (`tool_calls[i].function.name`),
 and `verifiers==0.3.1`'s `vf.ToolCall` is flat (`name`, `arguments`), so
 `vf.TaskData(prompt=bundle.prompt)` raises a validation error (measured).  The task data's
 `prompt` is therefore `vf.Messages`, and `bundle_from_data` restores the OpenAI shape
@@ -68,13 +69,13 @@ engine's counter does not move.  Every other call gets the live engine's observa
 helper `live_observations` reproduces that.  The trace's seeded (prompt-supplied) messages
 are nodes with `sampled=False`, which is the wheel's own provenance signal.
 
-**7. X4's expected value is TG-M3's `verify`, called by the test on turns built straight
-from the calls.**  The module under test is never the source of its own expectation.
+**7. X4's expected value is the task layer's `verify`, called by the test on turns built
+straight from the calls.**  The module under test is never the source of its own expectation.
 `leaky_pass` is held to `verify`'s `leaky_pass` on every trace that ends with a reply, and
 on a reference trace (X6).
 
 **8. The diagnostic metrics are named `mutation_count`, `sampled_calls` and `turns`.**
-`mutation_count` is `len(Verdict.mutations)`, the only public count TG-M3 offers;
+`mutation_count` is `len(Verdict.mutations)`, the only public count tasks.py offers;
 `sampled_calls` is the number of tool calls on sampled assistant messages; `turns` is
 `Trace.num_turns`.  *Escape hatch:* `METRICS` and `test_x6_2`.
 
@@ -90,11 +91,12 @@ And once for real: `verifiers.v1.mcp.serve` starts the toolset's module as a chi
 which fetches its task over the `/task` channel the way a rollout's server does, and the
 tools are listed over MCP (`test_x3_5`).  That needs the module to run as `__main__`.
 
-**11. The tool bodies are total.**  2.4 says a tool body calls `apply`, and TG-M1's `apply`
+**11. The tool bodies are total.**  A tool body calls `apply`, and the engine's `apply`
 is total and advances `seq` on every call (E5).  FastMCP validates arguments against the
 function's signature before the body runs unless the build prevents it, and a call refused
-there never reaches `apply`: the live counter then trails TG-M3's replay by one and every
-later observation differs, which TG-M5's replay check (A8) would label `replay_mismatch`.
+there never reaches `apply`: the live counter then trails the task layer's replay by one and
+every later observation differs, which the adapter's replay check (A8) would label
+`replay_mismatch`.
 So a call that fails its own schema must come back as the engine's observation
 (`test_ts2`).
 
@@ -102,10 +104,10 @@ So a call that fails its own schema must come back as the engine's observation
 and `docs/verifiers-export.md` states the three things X9 lists.  See *Open* item 2: this
 is the least the clause can mean, and whether it should mean more is not settled here.
 
-Open, and not settled here (each is in the handoff, for a ruling)
-----------------------------------------------------------------
+Open, and not settled here (each waits on a decision)
+-----------------------------------------------------
 
-1. **2.4's list of task-data fields is eight of the bundle's twenty-one**, and X2, X4, X6,
+1. **The written list of task-data fields is eight of the bundle's twenty-one**, and X2, X4, X6,
    X7 and `validate` between them need the rest (`task_id` covers every other field;
    `verify` needs `seed` and `split`; X6 needs `reference_calls`).  The tests need only that
    the round trip holds.  **Not pinned:** whether altered task data yields an altered
@@ -122,8 +124,8 @@ Open, and not settled here (each is in the handoff, for a ruling)
    `seq` (decision 6).  Such a call mutates nothing wherever it is placed, so the verdict
    does not depend on the answer; the tests need only that the reward returns 0.0 and does
    not raise.  **Not pinned:** where such a call sorts.
-5. **How `turn_limit_hit` is read off a `vf.Trace`.**  0 verifies `is_truncated`, which is
-   also true for a token limit or a length-finished reply.  `strict` cannot depend on it
+5. **How `turn_limit_hit` is read off a `vf.Trace`.**  The verified list has `is_truncated`,
+   which is also true for a token limit or a length-finished reply.  `strict` cannot depend on it
    (`passed` needs a reply), `leaky_pass` can.  **Not pinned:** `leaky_pass` on a trace that
    does not end with a reply.
 6. **Whether a `TasksetConfig.system_prompt` override is refused.**  It rewrites N3's pinned
@@ -132,9 +134,9 @@ Open, and not settled here (each is in the handoff, for a ruling)
    Nothing reads the task config's strictness for a reward.  **Not pinned.**
 
 What this file does not freeze: anything that needs a model, an interception server or a
-harness run (`Env.run_episode`, the `null` harness's own program, `eval`); TG-M5's model
-path (A10, A11, A13-A21) and its replay check A8; and X8's "`shuffle` is never on the
-measurement path" beyond the module's own source, because the measurement path is TG-M5's.
+harness run (`Env.run_episode`, the `null` harness's own program, `eval`); the adapter's
+model path and its replay check A8; and X8's "`shuffle` is never on the measurement path"
+beyond the module's own source, because the measurement path is the adapter's.
 """
 
 from __future__ import annotations
@@ -172,11 +174,11 @@ THIS_FILE = Path(__file__).resolve()
 EXPORT_DOC = REPO / "docs" / "verifiers-export.md"
 
 # --------------------------------------------------------------------------
-# literals, each from the spec or from a frozen module below this one
+# literals, each from a written requirement or from a frozen module below this one
 # --------------------------------------------------------------------------
 
 GEN_VERSION = "0"
-PINNED_VERIFIERS = "0.3.1"  # 0, TG-ADR-09
+PINNED_VERIFIERS = "0.3.1"  # the one verifiers release the export is pinned to
 
 PUBLIC = (
     "ExportTasksetConfig",
@@ -191,9 +193,9 @@ PUBLIC = (
     "MEASURED_HARNESS",
 )
 
-# 0's table, name by name.  `State` is the one addition: 2.4 and TG-ADR-07 name `vf.State`,
-# 0's rows name it only as the `StateT` parameter, and a `vf.Task` subclass that gives its
-# config type has to give its state type first.
+# The verified-names table, name by name.  `State` is the one addition: the export's design
+# names `vf.State`, the table's rows name it only as the `StateT` parameter, and a `vf.Task`
+# subclass that gives its config type has to give its state type first.
 VERIFIED_NAMES = frozenset({
     "Taskset", "Task", "TaskData", "TaskConfig", "TasksetConfig",
     "Toolset", "ToolsetConfig", "SharedToolsetConfig",
@@ -211,7 +213,7 @@ R_PLAIN = levels("distractor")
 D_CONTROLS = ((1, 8), (2, 5))
 R_CONTROLS = ((0, 8), (2, 14))
 
-# Seeds: the three TG-M3's own tests build a knob R contrast at, the two ends of the 32-bit
+# Seeds: the three the task layer's own tests build a knob R contrast at, the two ends of the 32-bit
 # space, and two more.  Every arm below is generated at every one of them.
 SEEDS = (0, 55, 404, 2121, 77_777, 2**32 - 1)
 
@@ -230,8 +232,8 @@ def spec_of(knob: str, level: int, control: int | None = None, strictness: str =
 D_SPECS = tuple(spec_of("depth", lvl) for lvl in D_PLAIN) + tuple(
     spec_of("depth", lvl, ctl) for lvl, ctl in D_CONTROLS
 )
-# Knob R's level axis (2.4, 2.5): every level of `levels("distractor")` and both R controls,
-# never the one `r0`-against-`r8` pair TG-M3's tests build.
+# Knob R's level axis: every level of `levels("distractor")` and both R controls,
+# never the one `r0`-against-`r8` pair the task layer's tests build.
 R_SPECS = tuple(spec_of("distractor", lvl) for lvl in R_PLAIN) + tuple(
     spec_of("distractor", lvl, ctl) for lvl, ctl in R_CONTROLS
 )
@@ -279,9 +281,9 @@ def task_of(bundle: TaskBundle) -> Any:
 
 
 def canon(value: Any) -> Any:
-    """TG-M3's canonical form, written again: dataclasses by field, mappings by sorted key,
+    """The task layer's canonical form, written again: dataclasses by field, mappings by sorted key,
     sequences in order.  A tuple and a list are the same thing here, which is what makes
-    `test_x2_3` the spec's "hashes equal" and `test_x2_1` the stronger statement."""
+    `test_x2_3` the requirement's "hashes equal" and `test_x2_1` the stronger statement."""
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return {f.name: canon(getattr(value, f.name)) for f in dataclasses.fields(value)}
     if isinstance(value, dict):
@@ -307,7 +309,7 @@ def turns_of(calls: Iterable[tuple[str, Any]], reply: bool) -> tuple[Turn, ...]:
 
 
 def expected_verdict(bundle: TaskBundle, calls: Iterable[tuple[str, Any]], reply: bool) -> Any:
-    """TG-M3's own verdict, on turns built straight from the calls (decision 7)."""
+    """The task layer's own verdict, on turns built straight from the calls (decision 7)."""
     return verify(
         bundle, turns_of(calls, reply), ended_with_reply=reply, turn_limit_hit=not reply,
         fmt=NO_MARKERS,
@@ -461,7 +463,7 @@ def imported_modules(tree: ast.Module) -> set[str]:
 def unverified_verifiers_names(tree: ast.Module) -> set[str]:
     """X1's walker.  The rule, in prose: the module may take names from `verifiers` only as
     attributes of `verifiers.v1` -- `import verifiers.v1 as x` then `x.Name`, or `from
-    verifiers.v1 import Name` -- and every such `Name` is in 0's table.  Any other
+    verifiers.v1 import Name` -- and every such `Name` is in the verified-names table.  Any other
     `verifiers` module, a star import, a bare `import verifiers`, and a `getattr` on the
     alias are each reported, since each would let an unverified name through unseen."""
     bad: set[str] = set()
@@ -516,7 +518,7 @@ def test_sf2_no_public_symbol_beyond_all():
 
 
 def test_sf3_each_class_is_the_verifiers_type_2_4_names():
-    """2.4's Interface, class by class.  Fixture could disagree: yes, each base is
+    """The written interface, class by class.  Fixture could disagree: yes, each base is
     separate."""
     m = export()
     assert issubclass(m.ExportTasksetConfig, vf.TasksetConfig)
@@ -561,7 +563,7 @@ def needs_proofload(modules: set[str]) -> set[str]:
 
 
 def test_pv1_the_export_imports_no_proofload_and_no_adapter():
-    """Ruled 2026-09-21: the task generator is standalone and Proofload is an optional
+    """Decided 2026-09-21: the task generator is standalone and Proofload is an optional
     extra.  The rule, in prose: no import in the export module names `proofload` or
     `poisson_tasks.adapter`, by an `ast` walk that also reads `import_module` strings."""
     assert needs_proofload(imported_modules(export_source())) == set()
@@ -595,14 +597,14 @@ def test_pv3_the_walker_sees_each_shape_of_import():
 
 
 def test_x1_1_the_installed_wheel_is_the_pinned_one():
-    """TG-ADR-09.  Green before and after: it reads the environment, not the module."""
+    """The pinned release.  Green before and after: it reads the environment, not the module."""
     assert importlib.metadata.version("verifiers") == PINNED_VERIFIERS
 
 
 @pytest.mark.parametrize("name", sorted(VERIFIED_NAMES))
 def test_x1_2_each_verified_name_imports_from_the_pinned_wheel(name):
     """X1's "a CI test imports each one from the pinned 0.3.1 wheel".  Green before and
-    after.  Fixture could disagree: yes, the list is 0's and the wheel is PyPI's."""
+    after.  Fixture could disagree: yes, the list is ours and the wheel is PyPI's."""
     assert hasattr(vf, name), name
     assert name in vf.__all__, name
 
@@ -666,7 +668,7 @@ def test_x2_3_the_rebuilt_bundle_hashes_equal(spec):
 
 @pytest.mark.parametrize("spec", ALL_SPECS, ids=spec_ids(ALL_SPECS))
 def test_x2_4_the_rebuilt_bundle_is_one_verify_accepts(spec):
-    """A rebuilt bundle is only worth having if TG-M3 will take it: `verify` refuses a
+    """A rebuilt bundle is only worth having if the task layer will take it: `verify` refuses a
     bundle whose stored initial state is not the derivation's, as `verifier_error`."""
     bundle = generate(spec, 404)
     data = task_of(bundle).data
@@ -718,7 +720,7 @@ def listed(mcp: FastMCP) -> list[Any]:
 
 @pytest.mark.parametrize("spec", ALL_SPECS, ids=spec_ids(ALL_SPECS))
 def test_x3_1_the_names_are_the_bundles_in_slot_order(spec):
-    """TG-ADR-12: the order is fixed per seed.  Fixture could disagree: yes, and the last
+    """The tool order is fixed per seed.  Fixture could disagree: yes, and the last
     line checks the seeds do not all share one order, or order would be pinned by nothing."""
     orders = set()
     for seed in SEEDS:
@@ -749,7 +751,7 @@ def test_x3_3_the_parameter_schemas_are_the_bundles_exactly(spec):
 
 
 def test_x3_4_the_toolset_advertises_bare_names():
-    """VN-6: tool names get a `<server>_` prefix unless `TOOL_PREFIX = None`."""
+    """Tool names get a `<server>_` prefix unless `TOOL_PREFIX = None`."""
     m = export()
     assert m.DomainToolset.TOOL_PREFIX is None
     assert m.DomainToolset(m.DomainToolsetConfig()).server_name == ""
@@ -815,7 +817,7 @@ def test_x3_5_a_real_launch_advertises_the_block_and_runs_the_reference(spec):
 
 
 # --------------------------------------------------------------------------
-# TS - the toolset's behaviour, from 2.4's Interface
+# TS - the toolset's behaviour, from the written interface
 # --------------------------------------------------------------------------
 
 
@@ -834,7 +836,7 @@ def test_ts1_the_live_tools_return_the_reference_observations(spec):
 @pytest.mark.parametrize("spec", ALL_SPECS, ids=spec_ids(ALL_SPECS))
 def test_ts2_a_call_that_fails_its_schema_still_reaches_the_engine(spec):
     """Decision 11.  Every control whose calls the `null` harness would pass on -- each one
-    names a tool in the block with a JSON object -- is run live and compared with TG-M1's
+    names a tool in the block with a JSON object -- is run live and compared with the engine's
     `replay`, byte for byte.  `malformed_call_clause_4` is the one that bites: its arguments
     miss a required parameter, and the engine's answer is a numbered `bad_args` line."""
     bundle = generate(spec, 55)
@@ -859,7 +861,7 @@ def test_ts2_a_call_that_fails_its_schema_still_reaches_the_engine(spec):
 
 @pytest.mark.parametrize("spec", ALL_SPECS, ids=spec_ids(ALL_SPECS))
 def test_ts6_every_advertised_tool_is_the_engines_tool_of_that_name(spec):
-    """Each tool in the block, called once under its own name, answers as TG-M1's `replay`
+    """Each tool in the block, called once under its own name, answers as the engine's `replay`
     does.  The reference and the controls only ever call the target class's stage tools, so
     nothing else here reaches a read tool or a distractor twin -- and knob R's block is made
     of those, more of them at every level.  The arguments are the first reference call's
@@ -908,8 +910,8 @@ def test_ts4_each_rollout_gets_its_own_engine_state():
 
 
 def test_ts5_the_engine_state_is_not_in_vf_state():
-    """TG-ADR-07: the engine state lives in the server instance, because `vf.State` sync is
-    last-write-wins (VN-4).  After live calls the toolset's `vf.State` is still the empty
+    """The engine state lives in the server instance, because `vf.State` sync is
+    last-write-wins.  After live calls the toolset's `vf.State` is still the empty
     base type."""
     bundle = generate(spec_of("depth", 2), 2121)
     toolset, mcp = started_toolset(task_of(bundle))
@@ -918,15 +920,15 @@ def test_ts5_the_engine_state_is_not_in_vf_state():
 
 
 # --------------------------------------------------------------------------
-# X4 - the reward equals the TG-M3 verifier
+# X4 - the reward equals the task layer's verifier
 # --------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("spec", ALL_SPECS, ids=spec_ids(ALL_SPECS))
 def test_x4_1_strict_is_one_exactly_when_verify_says_passed(spec):
     """Every generated control and the reference, under both strictnesses, at three seeds.
-    `turn_limit` runs with no reply, as TG-M3 runs it.  Fixture could disagree: yes -- the
-    expectation is TG-M3's `verify` on turns the module never sees."""
+    `turn_limit` runs with no reply, as the task layer runs it.  Fixture could disagree: yes --
+    the expectation is the task layer's `verify` on turns the module never sees."""
     ones = zeros = 0
     for seed in SEEDS[:3]:
         for arm in (spec, leaky(spec)):
@@ -1039,7 +1041,7 @@ def test_x4_6_prompt_supplied_stage_calls_earn_nothing(spec):
 
 @pytest.mark.parametrize("spec", ALL_SPECS, ids=spec_ids(ALL_SPECS))
 def test_x4_7_the_reference_calls_without_a_reply_are_not_passed(spec):
-    """2.3: `passed` needs the episode to have ended with a reply."""
+    """`passed` needs the episode to have ended with a reply."""
     bundle = generate(spec, 0)
     task = task_of(bundle)
     trace = scored(task, trace_of(task, bundle, bundle.reference_calls, reply=False))
@@ -1047,8 +1049,8 @@ def test_x4_7_the_reference_calls_without_a_reply_are_not_passed(spec):
 
 
 def test_x4_8_strict_is_the_one_reward_and_weighs_one():
-    """2.4: `@vf.reward strict` (weight 1.0), and `leaky_pass` a metric: the leaky verdict
-    is descriptive (TG-ADR-08), so it must not reach `Trace.reward`."""
+    """`@vf.reward strict` (weight 1.0), and `leaky_pass` a metric: the leaky verdict
+    is descriptive, so it must not reach `Trace.reward`."""
     bundle = generate(spec_of("depth", 5), 404)
     task = task_of(bundle)
     (overshoot,) = [calls for label, calls in bundle.negative_controls.items() if label == "overshoot"]
@@ -1105,7 +1107,8 @@ def test_x6_1_the_reference_trace_scores_one_on_both_signals(spec):
 
 @pytest.mark.parametrize("spec", ALL_SPECS, ids=spec_ids(ALL_SPECS))
 def test_x6_2_the_diagnostics_on_a_reference_trace(spec):
-    """Decision 8.  `mutation_count`'s expectation is TG-M3's, never a number written here."""
+    """Decision 8.  `mutation_count`'s expectation is the task layer's, never a number
+    written here."""
     bundle = generate(spec, 2121)
     task = task_of(bundle)
     trace = scored(task, trace_of(task, bundle, bundle.reference_calls))
@@ -1136,7 +1139,7 @@ def test_x7_2_keys_are_unique_within_a_taskset():
 
 def test_x7_3_keys_are_stable_across_loads_and_across_processes():
     """"Stable across runs": a second load, and two fresh interpreters under different
-    `PYTHONHASHSEED`s, which is how TG-M1 tests E1."""
+    `PYTHONHASHSEED`s, which is how the engine's tests check E1."""
     spec = spec_of("depth", 3, None)
     seeds = [0, 55, 404, 2121]
     here = [task.key for task in taskset(spec, seeds).load()]
@@ -1196,7 +1199,7 @@ def test_x8_4_a_repeated_seed_is_refused():
 @pytest.mark.parametrize("spec", (spec_of("depth", 3, 8, "leaky"), spec_of("distractor", 2, 14)),
                          ids=("depth:d3+h8-leaky", "distractor:r2+len(r14)@k16"))
 def test_x8_5_the_task_config_carries_the_arms_id_and_strictness(spec):
-    """2.4: `task` is a `vf.TaskConfig` subclass carrying the strictness and the arm id."""
+    """`task` is a `vf.TaskConfig` subclass carrying the strictness and the arm id."""
     config = taskset_config(spec, [1])
     assert isinstance(config.task, export().ExportTaskConfig)
     assert (config.task.arm_id, config.task.strictness) == (arm_id(spec), spec.strictness)

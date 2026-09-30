@@ -1,17 +1,17 @@
-"""TG-M5's scripted path: the arm targets, the two scripted policies, the outcome map and the
-pre-registration validator.
+"""The Proofload adapter's scripted path: the arm targets, the two scripted policies, the
+outcome map and the pre-registration validator.
 
-The invariants this file is built against are A1-A9 and A12 in the spec's 2.5, the two
-coverage gaps 2.5 says the adapter inherits (N17's scripted `diff`, N18's revision
-predicate) and knob R's level axis.  The frozen test file is `tests/test_tg_m5_scripted.py`;
-where the spec's text could not be used as written, that file's module docstring is
-authoritative and this file follows it.  Its twelve decisions are implemented as written
+The invariants this file is built against are A1-A9 and A12, tested in
+`tests/test_tg_m5_scripted.py`, together with the two coverage gaps the adapter inherits
+(N17's scripted `diff`, N18's revision predicate) and knob R's level axis.  Where a
+requirement could not be used as written, that file's module docstring is authoritative and
+this file follows it.  Its twelve decisions are implemented as written
 and are not restated here: the five public names, the TOML registration locked over its
 bytes, the `<policy>_<arm>` target names, the cfg contract, `t` as the number of turns,
 the outcome map's order, `meta`, what `to_episode` refuses, the module-global seam, the
-validator's three clauses and `faulty`'s sealed file.  The model path (A10, A11, A13-A21)
-is not here: it puts what needs `verifiers` in modules of its own and hands `to_episode` a
-`Run` built from a trace.
+validator's three clauses and `faulty`'s sealed file.  The model path is not here: it puts
+what needs `verifiers` in modules of its own and hands `to_episode` a `Run` built from a
+trace.
 
 Every entry point is a pure function of its arguments and the registration it was loaded
 from: no clock, no RNG but a keyed hash of the Proofload seed, no model, no network, and
@@ -29,7 +29,8 @@ Each carries its escape hatch.  The tests pin none of them beyond what is said h
   `_draw`'s key to make arms independent; `test_f4`'s margins hold either way.
 * **History is counted in N9's unit.**  A call's tokens are its tool name bare, its
   arguments as one compact JSON object and its observation as it stands, under the
-  reference tokenizer: TG-M2's `_pair_tokens`, written again because it is private there.
+  reference tokenizer: `knobs.py`'s `_pair_tokens`, written again because it is private
+  there.
   The seeded history is a bundle prompt's assistant `tool_calls` and `tool` messages, and
   never its user message, which is the task and not history: a plain arm's prompt is a
   string and holds none, so its first call sees no history at all.  *Escape hatch:* one
@@ -41,11 +42,11 @@ Each carries its escape hatch.  The tests pin none of them beyond what is said h
 * **The harness's signal is one of two labels.**  `api_error` or `wall_timeout`; a signal
   that is any other label, `passed` and the adapter's own two included, is refused, not
   only one outside the ten.  An import-time check ties all four labels this module names
-  to TG-M3's `OUTCOMES`.
+  to `tasks.py`'s `OUTCOMES`.
 * **An uppercase revision is refused.**  N18's "40 hex characters" reads either way.  A
   Hugging Face commit hash is lowercase, and an uppercase spelling of one commit would be a
-  second string for A13 to compare byte for byte.  *Escape hatch:* the character class of
-  `_REVISION`.
+  second string for the model path's serving pin to compare byte for byte.  *Escape
+  hatch:* the character class of `_REVISION`.
 * **The generator hash is checked after generation.**  A registration freezes a generator
   *version*; the hash is over `tasks.py`'s own source, so only a bundle can say what it is,
   and a cfg's `generator_hash` is compared with the bundle about to be run.
@@ -116,7 +117,7 @@ __all__ = [
 # frozen literals
 # ---------------------------------------------------------------------------
 
-# 2.2's two knobs, the same strings TG-M2's arm ids render.
+# The two knobs, the same strings `knobs.py`'s arm ids render.
 _DEPTH = "depth"
 _DISTRACTOR = "distractor"
 _KNOBS = (_DEPTH, _DISTRACTOR)
@@ -127,14 +128,14 @@ _EVAL = "eval"  # G12: "v0 emits `eval` only"
 _REFERENCE = "reference"
 _FAULTY = "faulty"
 
-# The labels this module assigns or accepts, in 2.3's spelling.  `verifier_error` and
+# The labels this module assigns or accepts, in the verifier's spelling.  `verifier_error` and
 # `replay_mismatch` are the adapter's own; `api_error` and `wall_timeout` are the only two
 # a harness can signal.  `_check_labels` ties all four to the vocabulary at import.
 _VERIFIER_ERROR = "verifier_error"
 _REPLAY_MISMATCH = "replay_mismatch"
 _INSTRUMENT_SIGNALS = ("api_error", "wall_timeout")
 
-# A3, TG-ADR-06: a cfg key that names a level moves `config_hash` and breaks pairing.
+# A3: a cfg key that names a level moves `config_hash` and breaks pairing.
 _LEVEL_KEYS = ("level", "depth", "distractor", "knob", "arm", "arm_id", "max_turns")
 # N10, N11, N12, N17: the sweep file declares these so that they enter `config_hash`.
 _REQUIRED_CFG = ("slack", "horizon", "strictness", "generator_hash")
@@ -143,7 +144,7 @@ _REQUIRED_FIELDS = ("knob", "strictness", "split", "generator_version", "slack",
 _MODEL_PINS = ("vllm_version", "endpoint_type")
 _REVISION = _re.compile(r"[0-9a-f]{40}")
 
-# The four arm id formats 2.2 defines, read back.  `_arm_of` re-renders what these parse and
+# The four arm id formats, read back.  `_arm_of` re-renders what these parse and
 # demands the id it was given, so anything looser here is caught there.
 _DEPTH_ID = _re.compile(r"depth:d([0-9]+)(?:\+h([0-9]+))?")
 _DISTRACTOR_ID = _re.compile(r"distractor:r([0-9]+)(?:\+len\(r([0-9]+)\))?@k([0-9]+)")
@@ -190,7 +191,7 @@ class Run:
 
 @_dataclass(frozen=True)
 class ArmRegistry:
-    """A registration, built: its arms as TG-M2 `ArmSpec`s in file order, its slack and
+    """A registration, built: its arms as `knobs.ArmSpec`s in file order, its slack and
     horizon, and the callables by registered name.
 
     Data, and not a singleton: two loads of one file are two registries.
@@ -218,7 +219,7 @@ class _Judgement:
 
 
 def _judge(bundle: _TaskBundle, run: Run) -> _Judgement:
-    """2.3's table in its own order, first match wins.
+    """The outcome table in its own order, first match wins.
 
     An exception in the adapter's own verification -- the replay or the verdict -- is a
     `verifier_error`: G10's "no default-to-pass path", at the adapter's own sites.  Then a
@@ -233,7 +234,7 @@ def _judge(bundle: _TaskBundle, run: Run) -> _Judgement:
         )
         calls = [call for turn in run.turns for call in turn.calls]
         scenario = _scenario_for(bundle.seed, bundle.split)
-        # A8, shape (b): a call the `null` harness answered itself (VN-7) never reached the
+        # A8, shape (b): a call the `null` harness answered itself never reached the
         # engine, so it is not replayed; `verify` still sees it, which is what makes the
         # episode `malformed_call`.  Everything else is replayed and compared byte for byte.
         kept = [
@@ -259,7 +260,7 @@ def _judge(bundle: _TaskBundle, run: Run) -> _Judgement:
 
 
 def _harness_answered(message: str) -> bool:
-    """Whether a tool message is the `null` harness's own refusal (VN-7): its `error: ...`
+    """Whether a tool message is the `null` harness's own refusal: its `error: ...`
     line, which carries no `seq` because the engine never saw the call.  An engine
     observation opens with its six-digit `seq`, so the two shapes cannot be confused."""
     return message.startswith("error: ")
@@ -280,8 +281,8 @@ def to_episode(
     common `H` and never the arm's own `max_turns` (N17).  What would break A5 or A3 is
     refused with a `ValueError` naming it: an `arm` that is not the bundle's, an instrument
     signal outside the closed vocabulary, more turns than `max_turns(arm)`, and a `horizon`
-    below it; the boundaries themselves are accepted.  `meta` carries what 2.5 lists that a
-    scripted episode has, JSON-normalised so that the store takes it, and the caller's own
+    below it; the boundaries themselves are accepted.  `meta` carries what a scripted
+    episode has, JSON-normalised so that the store takes it, and the caller's own
     keys, which never displace a required one.
     """
     rendered = _arm_id(arm)
@@ -334,9 +335,9 @@ def _is_int(value: _Any) -> bool:
 
 
 def _arm_of(rendered: _Any, document: _Mapping[str, _Any]) -> _ArmSpec:
-    """One listed arm id as a TG-M2 `ArmSpec`, or a `ValueError` naming it.
+    """One listed arm id as a `knobs.ArmSpec`, or a `ValueError` naming it.
 
-    TG-M2's constructor refuses `d3+h3` and `d8+h1` (N15); here the same refusal is reached
+    `ArmSpec`'s constructor refuses `d3+h3` and `d8+h1` (N15); here the same refusal is reached
     from a registration file.  The canonical check re-renders the arm and demands the id it
     was given, so `d01`, `D1` and `@k8` are refused as ids `arm_id` would never produce.
     """
@@ -422,7 +423,7 @@ def validate_preregistration(document: _Mapping[str, _Any]) -> None:
       control arm is a pre-registration error);
     * a `horizon` that is not `max(max_turns)` over the arms at that slack (N17);
     * a model that is not `<HF id>@<40 hex characters>`, models that omit or disagree on
-      `vllm_version` or `endpoint_type` (N18: the predicate TG-M2 declared and could not
+      `vllm_version` or `endpoint_type` (N18: the predicate `knobs.py` declares and cannot
       hold, since no model string reaches a bundle).
     """
     if not isinstance(document, _Mapping):
@@ -610,8 +611,9 @@ def _check_cfg(cfg: _Mapping[str, _Any], arm: _ArmSpec, slack: int, horizon: int
     that raises is the only refusal it can store.  A key that names a level is refused,
     because it moves `config_hash`; the four pins must be there and equal the
     registration's; every other key -- `model`, `serving_pin`, `temperature`,
-    `plant_cell` -- is tolerated and inert, since A21 runs the scripted `reference` target
-    on the model's real sweep file.  `generator_hash` is compared after generation.
+    `plant_cell` -- is tolerated and inert, since the model path runs the scripted
+    `reference` target on the model's real sweep file.  `generator_hash` is compared after
+    generation.
     """
     for key in _LEVEL_KEYS:
         if key in cfg:
@@ -734,7 +736,7 @@ def _pair_tokens(name: str, arguments: _Any, observation: str) -> int:
 
 def _seeded_tokens(bundle: _TaskBundle) -> int:
     """The history a bundle's prompt already holds: a `Messages` prompt's assistant tool
-    calls and tool messages, in the chat shape TG-M3 seeds.  A string prompt is the task
+    calls and tool messages, in the chat shape `tasks.py` seeds.  A string prompt is the task
     alone and holds none."""
     if isinstance(bundle.prompt, str):
         return 0
@@ -758,7 +760,7 @@ def _botch(call: _Call, record: str) -> _Call:
 
 
 def _faulty_run(bundle: _TaskBundle, seed: int, plant: _Plant) -> Run:
-    """The three plants of 2.5's `faulty`, on the reference chain.
+    """The three plants of the `faulty` policy, on the reference chain.
 
     **Depth** fails each required call independently at `step_fail_rate`.  **History**
     fails a required call with probability `min(1, history_fail_rate * history tokens)`,
@@ -766,7 +768,7 @@ def _faulty_run(bundle: _TaskBundle, seed: int, plant: _Plant) -> Run:
     far.  A failed call is made wrongly, the engine rejects it, and the policy replies: a
     failure at the first call is two turns and one sampled call, with the target below its
     goal.  **Leaky** makes one further stage call past the goal, with probability
-    `overshoot_rate`, when the block holds a tool that can, which is TG-M3's own rule for
+    `overshoot_rate`, when the block holds a tool that can, which is `tasks.py`'s own rule for
     an `overshoot` control.
     """
     record = bundle.goal[1]
@@ -795,7 +797,7 @@ def _faulty_run(bundle: _TaskBundle, seed: int, plant: _Plant) -> Run:
 
 
 def _check_labels() -> None:
-    """Every label this module names is in 2.3's closed vocabulary.  A vocabulary that
+    """Every label this module names is in the verifier's closed vocabulary.  A vocabulary that
     dropped one would otherwise store an unlisted label under `outcome`, which is what
     A4's closed set exists to prevent."""
     for label in (_VERIFIER_ERROR, _REPLAY_MISMATCH, *_INSTRUMENT_SIGNALS):

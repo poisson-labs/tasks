@@ -1,15 +1,16 @@
 """Model B's card, prepared: Qwen3-8B served by vLLM inside a Colab notebook.
 
-Taylor's decisions of 2026-09-25: model B is Qwen3-8B with thinking off, served by vLLM on a
-Colab L4 with his existing credits; the run probes the hardest levels first and stops if the
+The decisions of 2026-09-25: model B is Qwen3-8B with thinking off, served by vLLM on a
+Colab L4 with existing credits; the run probes the hardest levels first and stops if the
 model floors there; phase 3 is model A's design (14 arms x 60 seeds x 5 attempts, through the
 plumbing gate and CAL24); a dropped runtime must never lose a finished episode or run one
-twice (R4, CAL23); and the card records the serving stack as R12 requires.
+twice (CAL23); and the card records the serving stack, as a locally served model's
+provenance requires.
 
 These tests pin the driver the notebook calls, `poisson_tasks.calibration_run`, with no GPU
 and nothing off loopback:
 
-* the serving pin (R12, N18): one 40-character revision through `--revision` and
+* the serving pin (N18): one 40-character revision through `--revision` and
   `--served-model-name`, the vLLM version, the flags, and the provenance block they fill
 * thinking off: at vLLM 0.29.0 a request that carries `reasoning_effort` sets the template's
   `enable_thinking` to true, overriding a server-side default, and the calibration's declared
@@ -109,7 +110,7 @@ def test_the_driver_imports_no_proofload_and_no_adapter() -> None:
 
 
 # ---------------------------------------------------------------------------
-# the serving pin (R12, N18)
+# the serving pin (N18)
 # ---------------------------------------------------------------------------
 
 
@@ -159,9 +160,9 @@ def test_the_provenance_flags_name_the_template_by_hash_not_by_path() -> None:
 
 
 def test_the_pin_fills_a_provenance_block_that_the_artifact_accepts() -> None:
-    """R12: a local model's block carries the stack and its version, the flags, the GPU and
-    the revision, and `Provenance` refuses it without any of them.  No rate is declared, so
-    model B's dollar figure is null (compute units, R1 and R3)."""
+    """A local model's provenance block carries the stack and its version, the flags, the GPU
+    and the revision, and `Provenance` refuses it without any of them.  No rate is declared, so
+    model B's dollar figure is null (it is paid for in Colab compute units)."""
     pin = run_module().QWEN3_8B
     entry = pin.serving_entry(stack_version="0.29.0+cu129", gpu_name="NVIDIA L4")
     assert entry["kind"] == "local"
@@ -355,7 +356,7 @@ def test_the_thinking_check_refuses_a_reply_that_thinks(
 
 
 # ---------------------------------------------------------------------------
-# the checkpoint: mirror, lock, manifest (R4, CAL23)
+# the checkpoint: mirror, lock, manifest (CAL23)
 # ---------------------------------------------------------------------------
 
 
@@ -428,9 +429,9 @@ def test_the_lock_refuses_a_second_live_runtime_and_yields_to_a_stale_one(
 
 
 def test_the_run_manifest_refuses_a_resume_on_another_stack(tmp_path: Path) -> None:
-    """A14 and KC12 carried over: a run never resumes on a different GPU type, stack version,
-    revision or generator, because the same weights served differently are a different
-    measurement."""
+    """Carried over from the pilot's serving pin: a run never resumes on a different GPU type,
+    stack version, revision or generator, because the same weights served differently are a
+    different measurement."""
     module = run_module()
     facts = {"served_name": SERVED, "stack_version": "0.29.0+cu129", "gpu": "NVIDIA L4",
              "flags": ["--x"], "generator_hash": "g" * 64}
@@ -794,8 +795,9 @@ def test_a_resume_on_another_gpu_is_refused(rig: Any) -> None:
 
 @needs_uv
 def test_the_wall_clock_budget_stops_the_card_cleanly(rig: Any) -> None:
-    """R11 for model B: the Colab allowance is a wall-clock budget.  With none left, phase 3
-    stops before its first episode, says why, and exits with the stop's own code."""
+    """The run's stop limits, for model B: the Colab allowance is a wall-clock budget.  With
+    none left, phase 3 stops before its first episode, says why, and exits with the stop's
+    own code."""
     r = rig()
     r.serve()
     r.run("preflight")
@@ -809,7 +811,7 @@ def test_the_wall_clock_budget_stops_the_card_cleanly(rig: Any) -> None:
 
 
 # ---------------------------------------------------------------------------
-# the bundle, as it comes back to the vault
+# the bundle, as it comes back to be filed
 # ---------------------------------------------------------------------------
 
 

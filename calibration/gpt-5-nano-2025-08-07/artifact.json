@@ -14,6 +14,10 @@
       "instrument_count": 0,
       "instrument_rate": 0.0,
       "leaky_at_1": 0.9933333333333333,
+      "leaky_at_1_interval": [
+        0.9833333333333332,
+        1.0
+      ],
       "leaky_at_k": {
         "1": 0.9933333333333333,
         "2": 1.0,
@@ -33,6 +37,8 @@
         "passed": 164,
         "wrong_state": 2
       },
+      "overshoot_count": 134,
+      "overshoot_share": 0.44666666666666666,
       "pass_at_1": 0.5466666666666666,
       "pass_at_1_interval": [
         0.4733333333333335,
@@ -145,6 +151,10 @@
       "instrument_count": 0,
       "instrument_rate": 0.0,
       "leaky_at_1": 0.9566666666666667,
+      "leaky_at_1_interval": [
+        0.9266666666666664,
+        0.98
+      ],
       "leaky_at_k": {
         "1": 0.9566666666666667,
         "2": 0.9933333333333334,
@@ -164,6 +174,8 @@
         "passed": 119,
         "wrong_state": 13
       },
+      "overshoot_count": 168,
+      "overshoot_share": 0.56,
       "pass_at_1": 0.39666666666666656,
       "pass_at_1_interval": [
         0.30666666666666664,
@@ -276,6 +288,10 @@
       "instrument_count": 0,
       "instrument_rate": 0.0,
       "leaky_at_1": 0.6666666666666667,
+      "leaky_at_1_interval": [
+        0.5966666666666666,
+        0.7300000000000002
+      ],
       "leaky_at_k": {
         "1": 0.6666666666666667,
         "2": 0.8616666666666665,
@@ -296,6 +312,8 @@
         "passed": 71,
         "wrong_state": 99
       },
+      "overshoot_count": 128,
+      "overshoot_share": 0.4266666666666667,
       "pass_at_1": 0.2366666666666667,
       "pass_at_1_interval": [
         0.16666666666666666,
@@ -408,6 +426,10 @@
       "instrument_count": 0,
       "instrument_rate": 0.0,
       "leaky_at_1": 0.7133333333333334,
+      "leaky_at_1_interval": [
+        0.6533333333333334,
+        0.7699999999999999
+      ],
       "leaky_at_k": {
         "1": 0.7133333333333334,
         "2": 0.9066666666666664,
@@ -427,6 +449,8 @@
         "passed": 53,
         "wrong_state": 86
       },
+      "overshoot_count": 161,
+      "overshoot_share": 0.5366666666666666,
       "pass_at_1": 0.17666666666666667,
       "pass_at_1_interval": [
         0.11000000000000006,
@@ -539,6 +563,10 @@
       "instrument_count": 0,
       "instrument_rate": 0.0,
       "leaky_at_1": 0.8699999999999997,
+      "leaky_at_1_interval": [
+        0.8233333333333329,
+        0.913333333333333
+      ],
       "leaky_at_k": {
         "1": 0.8699999999999997,
         "2": 0.9716666666666666,
@@ -557,6 +585,8 @@
         "passed": 261,
         "wrong_state": 39
       },
+      "overshoot_count": 0,
+      "overshoot_share": 0.0,
       "pass_at_1": 0.8699999999999997,
       "pass_at_1_interval": [
         0.8233333333333329,
@@ -669,6 +699,10 @@
       "instrument_count": 0,
       "instrument_rate": 0.0,
       "leaky_at_1": 0.9399999999999997,
+      "leaky_at_1_interval": [
+        0.9033333333333331,
+        0.9733333333333332
+      ],
       "leaky_at_k": {
         "1": 0.9399999999999997,
         "2": 0.9866666666666666,
@@ -688,6 +722,8 @@
         "passed": 176,
         "wrong_state": 18
       },
+      "overshoot_count": 106,
+      "overshoot_share": 0.35333333333333333,
       "pass_at_1": 0.5866666666666666,
       "pass_at_1_interval": [
         0.5033333333333332,
@@ -800,6 +836,10 @@
       "instrument_count": 0,
       "instrument_rate": 0.0,
       "leaky_at_1": 0.8533333333333333,
+      "leaky_at_1_interval": [
+        0.8066666666666669,
+        0.8966666666666664
+      ],
       "leaky_at_k": {
         "1": 0.8533333333333333,
         "2": 0.9716666666666666,
@@ -819,6 +859,8 @@
         "passed": 77,
         "wrong_state": 44
       },
+      "overshoot_count": 179,
+      "overshoot_share": 0.5966666666666667,
       "pass_at_1": 0.25666666666666665,
       "pass_at_1_interval": [
         0.19666666666666666,
@@ -931,6 +973,10 @@
       "instrument_count": 0,
       "instrument_rate": 0.0,
       "leaky_at_1": 0.9166666666666666,
+      "leaky_at_1_interval": [
+        0.8833333333333331,
+        0.9499999999999998
+      ],
       "leaky_at_k": {
         "1": 0.9166666666666666,
         "2": 0.99,
@@ -949,6 +995,8 @@
         "passed": 275,
         "wrong_state": 25
       },
+      "overshoot_count": 0,
+      "overshoot_share": 0.0,
       "pass_at_1": 0.9166666666666666,
       "pass_at_1_interval": [
         0.8833333333333331,
@@ -1061,6 +1109,10 @@
       "instrument_count": 0,
       "instrument_rate": 0.0,
       "leaky_at_1": 0.9533333333333334,
+      "leaky_at_1_interval": [
+        0.9266666666666664,
+        0.9766666666666667
+      ],
       "leaky_at_k": {
         "1": 0.9533333333333334,
         "2": 0.9949999999999999,
@@ -1081,6 +1133,8 @@
         "passed": 271,
         "wrong_state": 11
       },
+      "overshoot_count": 0,
+      "overshoot_share": 0.0,
       "pass_at_1": 0.9033333333333332,
       "pass_at_1_interval": [
         0.8633333333333331,
@@ -1193,6 +1247,10 @@
       "instrument_count": 0,
       "instrument_rate": 0.0,
       "leaky_at_1": 0.9566666666666667,
+      "leaky_at_1_interval": [
+        0.9166666666666665,
+        0.9866666666666667
+      ],
       "leaky_at_k": {
         "1": 0.9566666666666667,
         "2": 0.9816666666666666,
@@ -1213,6 +1271,8 @@
         "passed": 273,
         "wrong_state": 10
       },
+      "overshoot_count": 0,
+      "overshoot_share": 0.0,
       "pass_at_1": 0.9099999999999999,
       "pass_at_1_interval": [
         0.8633333333333333,
@@ -1325,6 +1385,10 @@
       "instrument_count": 0,
       "instrument_rate": 0.0,
       "leaky_at_1": 0.9633333333333332,
+      "leaky_at_1_interval": [
+        0.9399999999999997,
+        0.9833333333333333
+      ],
       "leaky_at_k": {
         "1": 0.9633333333333332,
         "2": 0.9983333333333333,
@@ -1344,6 +1408,8 @@
         "passed": 273,
         "wrong_state": 11
       },
+      "overshoot_count": 0,
+      "overshoot_share": 0.0,
       "pass_at_1": 0.9099999999999997,
       "pass_at_1_interval": [
         0.8699999999999998,
@@ -1456,6 +1522,10 @@
       "instrument_count": 0,
       "instrument_rate": 0.0,
       "leaky_at_1": 0.9766666666666663,
+      "leaky_at_1_interval": [
+        0.9599999999999996,
+        0.9900000000000001
+      ],
       "leaky_at_k": {
         "1": 0.9766666666666663,
         "2": 1.0,
@@ -1476,6 +1546,8 @@
         "passed": 288,
         "wrong_state": 6
       },
+      "overshoot_count": 0,
+      "overshoot_share": 0.0,
       "pass_at_1": 0.9599999999999996,
       "pass_at_1_interval": [
         0.9366666666666663,
@@ -1588,6 +1660,10 @@
       "instrument_count": 0,
       "instrument_rate": 0.0,
       "leaky_at_1": 0.8966666666666664,
+      "leaky_at_1_interval": [
+        0.8533333333333332,
+        0.9366666666666664
+      ],
       "leaky_at_k": {
         "1": 0.8966666666666664,
         "2": 0.9783333333333334,
@@ -1606,6 +1682,8 @@
         "passed": 269,
         "wrong_state": 31
       },
+      "overshoot_count": 0,
+      "overshoot_share": 0.0,
       "pass_at_1": 0.8966666666666664,
       "pass_at_1_interval": [
         0.8533333333333332,
@@ -1718,6 +1796,10 @@
       "instrument_count": 0,
       "instrument_rate": 0.0,
       "leaky_at_1": 0.9166666666666664,
+      "leaky_at_1_interval": [
+        0.8799999999999997,
+        0.9499999999999997
+      ],
       "leaky_at_k": {
         "1": 0.9166666666666664,
         "2": 0.9883333333333334,
@@ -1738,6 +1820,8 @@
         "passed": 258,
         "wrong_state": 19
       },
+      "overshoot_count": 0,
+      "overshoot_share": 0.0,
       "pass_at_1": 0.8599999999999997,
       "pass_at_1_interval": [
         0.813333333333333,
@@ -2156,5 +2240,63 @@
     },
     "verifiers_version": "0.3.1",
     "vocabulary_hash": "9f3a8c4f4711574e947ec8b3396ff552c9b7aa730fbb5d565db4f10776653037"
-  }
+  },
+  "reach_pairs": [
+    {
+      "arm_a": "depth:d1",
+      "arm_b": "depth:d2",
+      "delta": null,
+      "high": null,
+      "knob": "depth",
+      "level_a": 1,
+      "level_b": 2,
+      "low": null,
+      "model": "gpt-5-nano-2025-08-07",
+      "predicate": "leaky",
+      "reason": "saturated on leaky: depth:d1, depth:d2",
+      "verdict": "excluded"
+    },
+    {
+      "arm_a": "depth:d2",
+      "arm_b": "depth:d3",
+      "delta": null,
+      "high": null,
+      "knob": "depth",
+      "level_a": 2,
+      "level_b": 3,
+      "low": null,
+      "model": "gpt-5-nano-2025-08-07",
+      "predicate": "leaky",
+      "reason": "saturated on leaky: depth:d2",
+      "verdict": "excluded"
+    },
+    {
+      "arm_a": "depth:d3",
+      "arm_b": "depth:d5",
+      "delta": -0.046666666666666634,
+      "high": 0.03666666666666667,
+      "knob": "depth",
+      "level_a": 3,
+      "level_b": 5,
+      "low": -0.13000000000000003,
+      "model": "gpt-5-nano-2025-08-07",
+      "predicate": "leaky",
+      "reason": null,
+      "verdict": "too small for this design to call"
+    },
+    {
+      "arm_a": "depth:d5",
+      "arm_b": "depth:d8",
+      "delta": -0.1566666666666663,
+      "high": -0.09000000000000004,
+      "knob": "depth",
+      "level_a": 5,
+      "level_b": 8,
+      "low": -0.21999999999999995,
+      "model": "gpt-5-nano-2025-08-07",
+      "predicate": "leaky",
+      "reason": null,
+      "verdict": "distinguishable"
+    }
+  ]
 }

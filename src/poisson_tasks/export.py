@@ -137,8 +137,23 @@ class ExportTasksetConfig(_vf.TasksetConfig):
     Only the *place* was open, and the earliest one is here.
     """
 
-    arm: dict[str, _Any] = _Field(default_factory=dict)
-    seeds: list[int] = _Field(default_factory=list)
+    arm: dict[str, _Any] = _Field(
+        default_factory=dict,
+        description=(
+            "The arm: the six ArmSpec fields as one JSON object, for example "
+            '{"knob": "depth", "level": 3, "control": null, "strictness": "strict", '
+            '"split": "eval", "generator_version": "0"}. '
+            "knob 'depth' (levels 1, 2, 3, 5, 8) sets how many chained calls the goal is "
+            "away. "
+            "knob 'distractor' (levels 0, 2, 4, 8, 14) is EXPERIMENTAL: on both calibrated "
+            "models it does not make tasks harder, so it is not a difficulty setting. "
+            "See docs/calibration.md."
+        ),
+    )
+    seeds: list[int] = _Field(
+        default_factory=list,
+        description="The task seeds: one task per seed, in the order given, no repeats.",
+    )
     task: ExportTaskConfig = _Field(default_factory=ExportTaskConfig)
 
     @_model_validator(mode="before")

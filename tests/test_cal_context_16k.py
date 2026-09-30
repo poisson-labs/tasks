@@ -15,7 +15,7 @@ The probe exists to catch this before the card: it stops when a prompt passes 75
 the cap leaves.  But it ran only `depth:d5` and `depth:d8`, which carry no history, so it never
 saw a long prompt.
 
-Ruled 2026-09-28, all four as recommended:
+Decided 2026-09-28, all four:
 1. `--max-model-len` 16384.  The decoding, including the 2,048-token completion limit, is
    unchanged, so the card stays comparable with model A's.
 2. The probe also runs the two history controls, for their prompts, context stops and

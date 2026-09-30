@@ -1,17 +1,15 @@
-"""The frozen tests for TG-M3, task and verifier generation: G1-G16, the outcome
+"""The tests for tasks.py, task and verifier generation: G1-G16, the outcome
 vocabulary, the format check and the two strictnesses.
 
-Frozen on 2026-09-14 against spec v0 rev. 3.2 with the amendments of 2026-09-11
-(TG-ADR-35, TG-ADR-36) and 2026-09-13 (TG-ADR-37, TG-ADR-38), and with TG-ADR-39,
-which is a recorded decision and **not** in the spec.  The module is written against
-this file, which is not edited to suit it.  Where the spec's text could not be used
-as written, this docstring is authoritative.
+Written on 2026-09-14, before the module.  The module is written against this file,
+which is not edited to suit it.  Where the design could not be used as written, this
+docstring is authoritative.
 
 The module is `poisson_tasks.tasks`
 ------------------------------------
-TG-M1 is `engine.py` and TG-M2 is `knobs.py`.  2.3 is "Task and verifier generation"
-and its type is `TaskBundle`, so the module is `tasks.py` rather than `generate.py`,
-which would have read `from poisson_tasks.generate import generate`.
+The engine is `engine.py` and the knobs are `knobs.py`.  This layer is "Task and verifier
+generation" and its type is `TaskBundle`, so the module is `tasks.py` rather than
+`generate.py`, which would have read `from poisson_tasks.generate import generate`.
 
 The public surface these tests pin
 ----------------------------------
@@ -23,22 +21,22 @@ The public surface these tests pin
     structure_space  structural_fingerprint
     encode_record_id  decode_record_id
 
-2.3's Interface list is `generate`, `verify` and `VerifierSpec.strictness`.  An extra
-public symbol is a spec violation, so each of the eight beyond that list is named by an
+The design's interface list is `generate`, `verify` and `VerifierSpec.strictness`.  An
+extra public symbol is a design violation, so each of the eight beyond that list is named by an
 invariant that cannot otherwise be tested, and each is recorded here:
 
-* `TaskBundle`, `Verdict`, `FormatSpec`, `Turn` - the types 2.3's two signatures use.
-* `OUTCOMES` - 2.3 says the outcome vocabulary "is closed".  Closure is a property of
+* `TaskBundle`, `Verdict`, `FormatSpec`, `Turn` - the types the two signatures use.
+* `OUTCOMES` - the design says the outcome vocabulary "is closed".  Closure is a property of
   the module, and a test cannot assert a closed set the module does not name.
 * `generate_contrast` - **G11's home.**  G11 is "a batch that violates any ledger row
   emits nothing", and every ledger row is an equality *across* the arms of one knob
-  (TG-M2's CP2: one arm satisfies all of them vacuously).  `generate(arm, seed)` is one
-  arm, so nothing in 2.3's Interface list can refuse on a ledger row at all.  The
+  (the knobs tests' CP2: one arm satisfies all of them vacuously).  `generate(arm, seed)`
+  is one arm, so nothing in the interface list can refuse on a ledger row at all.  The
   contrast is the unit the ledger is defined over, so it is the unit generation refuses
   on.
 * `scenario_for` - **A8's home.**  The adapter's replay check needs `replay(scenario,
-  calls, seq_start)` and the bundle does not carry the scenario (TG-ADR-37, TG-ADR-38).
-  The scenario is drawn "from the task seed alone" (2.2's Terms), so it is a pure
+  calls, seq_start)` and the bundle does not carry the scenario.
+  The scenario is drawn "from the task seed alone" (the design's definition), so it is a pure
   function of `(seed, split)` and re-derivable by anyone holding those two - which is
   what makes N1 true by construction rather than by check.  See *The scenario is not a
   bundle field* below.
@@ -50,31 +48,31 @@ invariant that cannot otherwise be tested, and each is recorded here:
   s` over a sweep of 2^20 seeds.  Through `generate` that is 2^20 bundles, and `decode`
   has no other route at all.
 
-Decisions these tests make, where the spec leaves the shape open
-----------------------------------------------------------------
-**1. PG-16: the verdict compares the records without the audit field.**  8's open
-question, opened 2026-09-11 while TG-M1 was written and assigned to this file "before
-the verifier is frozen".  Option 2 of the three, which is also Taylor's recorded
-non-binding lean - but not for the reason the lean gives.
+Decisions these tests make, where the design leaves the shape open
+------------------------------------------------------------------
+**1. PG-16: the verdict compares the records without the audit field.**  An open
+question, opened 2026-09-11 while the engine was written and left to this file "before
+the verifier is frozen".  Option 2 of the three, which was also the
+non-binding preference when it was opened - but not for the reason given for it.
 
-The deciding argument is **N14**, not "the audit field is bookkeeping".  TG-ADR-36
-makes the audit field the `seq` of the last successful transition and TG-ADR-35 makes
+The deciding argument is **N14**, not "the audit field is bookkeeping".  The engine
+makes the audit field the `seq` of the last successful transition and makes
 `seq_start` an argument N14 varies by arm, so a completed record's audit field differs
 between `depth:d1+h8` and `depth:d1` by exactly `H - dL`.  Option 1 - compute
 `expected_final_state` per arm - makes the bundle field differ across the two arms, so
-N14's list of fields the D control may change grows from the two 2.2 names to three,
+N14's list of fields the D control may change grows from the two the design names to three,
 and the field that grows onto it is *the one the verdict compares*.  Option 3 - make
-the audit field a call index - costs TG-ADR-36 its wording, re-opens TG-M1 two modules
+the audit field a call index - changes the engine's audit field, re-opens the engine two modules
 back, and is not even reachable: the engine would have to know `seq_start` to subtract
-it, and `DomainState` carries `next_seq` and never `seq_start` (TG-ADR-35).  Option 2
-is the only one of the three that leaves N14 at the two fields 2.2 names.
+it, and `DomainState` carries `next_seq` and never `seq_start`.  Option 2
+is the only one of the three that leaves N14 at the two fields the design names.
 
 **And it is information-preserving, which is the part that had to be measured rather
-than asserted** (standing rule 14).  `apply` writes the audit field only inside the one
+than asserted**.  `apply` writes the audit field only inside the one
 branch that also writes `stage` and `token` (`engine.py`'s `_stage_call`), so a record's
 audit field moves if and only if its stage moves.  `test_pg16_2` measures that over the
 status codes the engine can emit and `test_pg16_3` over random call sequences, rather
-than reading it off the source - which is the half of standing rule 14 a source read
+than reading it off the source - which is the half of the claim a source read
 would have got wrong in either direction.  So dropping the audit field from the compared
 value loses no discrimination in either place that reads it: `passed` compares the final
 records, and `collateral_mutation` asks whether another record was mutated, and a record
@@ -82,16 +80,16 @@ cannot have been mutated without its stage moving.
 
 So the shape, and it is a shape and not a comment: **a records value is a sorted tuple
 of `(class, record_id, stage, token)` rows.**  There is no audit field in it.
-`initial_state` and `expected_final_state` are both that.  `mutations` is TG-M1's and is
+`initial_state` and `expected_final_state` are both that.  `mutations` is the engine's and is
 unchanged - it still reports `(class, id, "audit")` triples, and `Verdict.mutations`
 still carries them, because that field is diagnostic output and not the predicate.
 
 **2. The scenario is not a bundle field, and it is a pure function of `(seed, split)`.**
-2.3 says a consumer holding only the bundle cannot re-derive the reference observations,
+The design says a consumer holding only the bundle cannot re-derive the reference observations,
 because the bundle does not carry the scenario.  Taken alone that also makes `verify`
 impossible - it has to reach the engine to know the final records, and `replay` and
 `init_state` both need a scenario - and makes A8's adapter-side replay impossible for
-the same reason.  2.2's Terms resolve it: the scenario is "everything drawn from the
+the same reason.  The design's definition resolves it: the scenario is "everything drawn from the
 task seed alone", so it is a derivation and not a datum.  `scenario_for(seed, split)`
 is that derivation, `verify` calls it with `bundle.seed` and `bundle.split`, and G9 is
 untouched - the verdict still depends on nothing outside the bundle and the turns.
@@ -101,10 +99,11 @@ This is also what makes N1 hold **by construction**: the arm is not an argument 
 for exactly that reason.
 
 **3. `verify` assigns seven of the ten outcomes.  Three are the adapter's.**  The
-vocabulary is closed at ten and shared with TG-M5, so `OUTCOMES` carries all ten in
-2.3's table order.  But `replay_mismatch` is E8's and 2.5 step 6 runs the replay check
-*before* computing the verdict; `api_error` and `wall_timeout` are A4's fault-injection
-labels and name conditions - a transport failure, a wall-clock deadline - that `verify`'s
+vocabulary is closed at ten and shared with the Proofload adapter, so `OUTCOMES` carries
+all ten in the design's table order.  But `replay_mismatch` is E8's and the adapter
+runs the replay check *before* computing the verdict; `api_error` and `wall_timeout`
+are A4's fault-injection labels and name conditions - a transport failure, a
+wall-clock deadline - that `verify`'s
 five arguments cannot express.  So `verify` returns one of `verifier_error`,
 `malformed_call`, `turn_limit`, `overshoot`, `wrong_state`, `collateral_mutation`,
 `passed`, and `test_g10_3` asserts it never returns the other three.  Naming the split
@@ -119,14 +118,14 @@ to what is left.  So a turn that fails the format check in an episode that other
 passes is `passed`, and `Verdict.format_clause` still names the clause that fired.
 
 **5. The optional `spec` argument.**  G16's *Test:* line runs the census and the
-chi-square "on a reduced vocabulary, where brute force is possible".  Nothing in 2.3
+chi-square "on a reduced vocabulary, where brute force is possible".  Nothing in the design
 offers a route to one, so `generate`, `generate_contrast`, `scenario_for` and
 `structure_space` each take `spec: EngineSpec | None = None`, defaulting to the frozen
-table.  `EngineSpec.from_mapping` is TG-M1's and already builds a spec from any table.
+table.  `EngineSpec.from_mapping` is the engine's and already builds a spec from any table.
 
 **6. `generate` generates both splits.**  G12 says "v0 emits `eval` only", which is the
 pre-registration's choice among what the generator offers, in the same shape as
-TG-ADR-39 (2): TG-M2 declined to check a level against `levels(knob)` because 2.2 calls
+`knobs.py` declining to check a level against `levels(knob)` because the design calls
 those the *candidate* levels.  G12's own first clause - eval and train draw from two
 disjoint lists, so no eval instance can equal a train instance - is a statement about
 both splits and is untestable if one of them refuses.  *Escape hatch:* one line in
@@ -141,7 +140,7 @@ last stage there is no stage above it, so **`overshoot` is not generated at stag
 G7's leaky-accepts-strict-rejects pair is carried by `collateral_mutation` alone there.
 `test_g7_2` is what pins that, so a reader does not later read the missing key as a bug.
 
-**8. The lowest-numbered format clause that fired is the one reported.**  2.3 numbers
+**8. The lowest-numbered format clause that fired is the one reported.**  The design numbers
 the four clauses and then writes "the clause that fired", singular, while one call can
 break two at once - a tool outside the block whose arguments are also not an object.
 Without a rule the reported clause is whatever the implementation checked first, and two
@@ -149,26 +148,27 @@ runs of the same episode under two builds would report different clauses for the
 call.  `test_fc_5` pins it.
 
 **9. The tool block is the target class's stage tools plus the orthogonal reads, and
-`K_D = 16` is what that comes to on the frozen table.**  2.2 writes knob D's block as
+`K_D = 16` is what that comes to on the frozen table.**  The design writes knob D's block as
 "the target class's 8 stage tools" plus "8 orthogonal read tools", `K_D = 16` - three
 literals that are all consequences of the frozen table having 8 stages.  Built as a
 count, the generator cannot run on the reduced vocabulary decision 5 needs; built as the
-rule, `K_D` is TG-M2's literal cited and not re-minted (`test_sf9`), and the reduced
+rule, `K_D` is `knobs.py`'s literal cited and not re-minted (`test_sf9`), and the reduced
 table works by construction.
 
 **10. The scenario carries the target record id in every ledger class, under one entry
-code.**  TG-M1 left this open in as many words - "whether one id may exist in several
-classes is a scenario question, and TG-M2 answers it" - and TG-M2 draws no scenarios, so
-it arrives here.  It is forced: a functional distractor is a required tool's twin in
-another class (2.2), E7 rejects a call against a record that does not exist rather than
-redirecting it, and `collateral_mutation` is how distractor misuse becomes observable.
+code.**  The engine's build left this open in as many words - whether one id may exist
+in several classes is a scenario question, for `knobs.py` to answer - and `knobs.py`
+draws no scenarios, so it arrives here.  It is forced: a functional distractor is a
+required tool's twin in another class (knob R's design), E7 rejects a call against a
+record that does not exist rather than redirecting it, and `collateral_mutation` is
+how distractor misuse becomes observable.
 If the id lived in the target class alone, every distractor call would be `no_such_rec`,
 no negative control could produce `collateral_mutation`, and G8 would fail on a label the
 whole of knob R rests on.  The shared entry code is the same argument one level down: a
 distractor that mirrors the required tool exactly has to be able to *succeed*.
 
 **11. Two named seams, and why a frozen test file names them.**  `generate` calls the
-module-global `verify` for G4's gate, and the module-global `_check_pins` - TG-M2's
+module-global `verify` for G4's gate, and the module-global `_check_pins` - `knobs.py`'s
 `check_pins`, aliased under an underscore the way `knobs.py` itself aliases its imports -
 for G11's.  Both are fault-injected (`test_g4_4`, `test_g11_1`), because the alternative
 is a deliberately broken generator as a fixture, and a gate that is only exercised by a
@@ -182,16 +182,16 @@ records value equals `bundle.initial_state`.  A bundle whose stored initial stat
 disagrees with its own derivation is a defective bundle, not a failed episode, so it is
 `verifier_error` and never a system label (`test_g10_2`).
 
-Shapes the spec names but does not define
------------------------------------------
-* ``TaskBundle`` is frozen and carries 2.3's fields in 2.3's order, plus nothing:
+Shapes the design names but does not define
+-------------------------------------------
+* ``TaskBundle`` is frozen and carries the design's fields in its order, plus nothing:
   ``task_id arm_id seed split scenario_hash system_prompt prompt tools seq_start
   template_id prompt_slots initial_state expected_final_state goal reference_calls
   reference_observations negative_controls verifier pins engine_hash generator_hash``.
-  ``pins`` is TG-M2's ``PinRecord``.
-* ``goal`` is ``(ledger class, record id, stage index)``.  2.3 names the field and never
+  ``pins`` is ``knobs.py``'s ``PinRecord``.
+* ``goal`` is ``(ledger class, record id, stage index)``.  The design names the field and never
   its shape, and every label in the table is written against "the target record" and "the
-  goal stage", so the verdict needs both and the class is in the key (TG-ADR-36).
+  goal stage", so the verdict needs both and the class is in the key.
 * ``Turn(content, calls, finish_reason)``, frozen.  ``calls`` is a tuple of
   ``(name, arguments)`` pairs, the engine's own call shape, with ``arguments`` left as
   parsed so that format-check clause 2 - arguments that are not a JSON object - is
@@ -199,33 +199,33 @@ Shapes the spec names but does not define
 * ``FormatSpec(name, markers)``, frozen.  ``markers`` is the call markers the pinned
   parser extracts: ``("<tool_call>", "<function=")`` for ``qwen3_coder`` and
   ``("[TOOL_CALLS]",)`` for ``mistral``.
-* ``VerifierSpec(strictness)``, frozen, one field.  2.3 names only ``strictness`` and
-  TG-M2's N11 reads only ``strictness``.  The target and the goal live on the bundle.
+* ``VerifierSpec(strictness)``, frozen, one field.  The design names only ``strictness`` and
+  ``knobs.py``'s N11 reads only ``strictness``.  The target and the goal live on the bundle.
 * ``Verdict(strict_label, leaky_pass, label, mutations, format_clause)``, frozen.
   ``format_clause`` is the integer clause that fired, or ``None``.
-* ``negative_controls`` is a ``dict[str, tuple]`` as 2.3 writes it, keyed by the labels
+* ``negative_controls`` is a ``dict[str, tuple]`` as the design writes it, keyed by the labels
   above.
 * A **records value** is a sorted tuple of ``(class, record_id, stage, token)``.  See
   decision 1.
 
 What is deliberately not tested here
 ------------------------------------
-* **N17's scripted `diff` and N18's revision predicate.**  Both are filed at 2.5 as
-  owed to TG-M5's tests, and **nothing covers either one today**.  This file does
-  not either: TG-M3 imports nothing from Proofload and no model string reaches a bundle.
-  `test_n18_3` asserts that TG-M3, like TG-M2 before it, holds **no** revision
-  predicate, so the gap stays visible and a later reader cannot take two modules'
-  silence for coverage.  TG-M2's `n18_2` makes the same assertion about TG-M2 and this
-  file does not weaken it.
-* **Format-check clause 1's generated control.**  G8 assigns clauses 2-4 to TG-M3 "at
+* **N17's scripted `diff` and N18's revision predicate.**  Both are filed as
+  owed to the Proofload adapter's tests, and **nothing covers either one today**.  This
+  file does not either: `tasks.py` imports nothing from Proofload and no model string
+  reaches a bundle.  `test_n18_3` asserts that `tasks.py`, like `knobs.py` before it,
+  holds **no** revision predicate, so the gap stays visible and a later reader cannot
+  take two modules' silence for coverage.  The knobs tests' `n18_2` makes the same
+  assertion about `knobs.py` and this file does not weaken it.
+* **Format-check clause 1's generated control.**  G8 assigns clauses 2-4 to the task layer "at
   the call level" and sends clause 1 - content carrying the markers with no parsed call -
-  through each model's stack at stage 0b, because it depends on the family's raw format
+  through each model's own stack, because it depends on the family's raw format
   (A16).  The *clause* is pinned here with a synthetic turn (`test_fc_1`); the
   *generated negative control* for it is not, and `test_g8_2` pins that
   `negative_controls` carries clauses 2, 3 and 4 and not clause 1.
 * **Whether a real cell's `k` clears `100*N**2`.**  G16's threshold is pinned as a
   literal and `structure_space` is pinned against a brute-force count on a reduced
-  vocabulary.  The census over the pilot's real arms is a run, not a test (KC14).
+  vocabulary.  The census over the pilot's real arms is a run, not a test.
 * **The mutation pass.**  G8's "a clause no control catches is a build failure" is a
   report, not an assertion in this file: the mutation table is kept with the project's
   records, and re-run against `src/` as built.
@@ -274,13 +274,13 @@ TASKS_EXPORTS = (
     "encode_record_id", "decode_record_id",
 )
 # `from __future__ import annotations` binds the name `annotations` in the module.  The
-# same exception TG-M2's SF2 makes, and for the same reason: it is a compiler directive,
+# same exception the knobs tests' SF2 makes, and for the same reason: it is a compiler directive,
 # not a symbol a caller could use.
 FUTURE_NAMES = ("annotations",)
 
-# 2.3's Interface list, and the fields a bundle carries, in 2.3's order.  TG-ADR-38's
-# three - `template_id`, `prompt_slots`, `reference_observations` - are in the spec now
-# and are not drafted here.
+# The interface list, and the fields a bundle carries, in the design's order.  The three
+# later additions - `template_id`, `prompt_slots`, `reference_observations` - are in the
+# design now and are not drafted here.
 BUNDLE_FIELDS = (
     "task_id", "arm_id", "seed", "split", "scenario_hash",
     "system_prompt", "prompt", "tools", "seq_start",
@@ -290,7 +290,7 @@ BUNDLE_FIELDS = (
     "verifier", "pins", "engine_hash", "generator_hash",
 )
 
-# 2.3's outcome vocabulary, closed, in the table's order.  The first label that matches
+# The outcome vocabulary, closed, in the table's order.  The first label that matches
 # wins, so this order is load-bearing and not decoration.
 OUTCOME_ORDER = (
     "verifier_error",
@@ -310,14 +310,14 @@ SYSTEM_OUTCOMES = (
     "passed",
 )
 # The three the adapter assigns and `verify` must never return.  `replay_mismatch` is
-# E8's and 2.5 runs the replay check before the verdict; `api_error` and `wall_timeout`
+# E8's and the adapter runs the replay check before the verdict; `api_error` and `wall_timeout`
 # are A4's, and name conditions `verify`'s five arguments cannot express.
 ADAPTER_ONLY_OUTCOMES = ("replay_mismatch", "api_error", "wall_timeout")
 VERIFIER_OUTCOMES = tuple(o for o in OUTCOME_ORDER if o not in ADAPTER_ONLY_OUTCOMES)
 
 # G8: one generated negative control per system label a call sequence can produce.
 # `passed` is `reference_calls` itself and `verifier_error` is fault-injected, so
-# neither is generated.  Clause 1 of the format check is stage 0b's (A16).
+# neither is generated.  Clause 1 of the format check runs in each model's stack (A16).
 NEGATIVE_CONTROL_LABELS = (
     "overshoot",
     "wrong_state",
@@ -328,20 +328,20 @@ NEGATIVE_CONTROL_LABELS = (
     "malformed_call_clause_4",
 )
 
-# 2.3's format check.  Four clauses, numbered as the spec numbers them.
+# The format check.  Four clauses, numbered as the design numbers them.
 FORMAT_CLAUSES = (1, 2, 3, 4)
 
-# 2.5's two pinned parsers and the markers each extracts.
+# The adapter's two pinned parsers and the markers each extracts.
 QWEN_FMT = ("qwen3_coder", ("<tool_call>", "<function="))
 MISTRAL_FMT = ("mistral", ("[TOOL_CALLS]",))
 
-# 2.2 and TG-ADR-16.  Candidate levels, not the pilot defaults.
+# Knob D's and knob R's candidate levels, not the pilot defaults.
 DEPTH_LEVELS = (1, 2, 3, 5, 8)
 DISTRACTOR_LEVELS = (0, 2, 4, 8, 14)
 K_D = 16
 K_R = 16
 D_R = 2
-SLACK = 4  # 8: `S = 4`, answered in rev. 3
+SLACK = 4  # `S = 4`, a settled design value
 
 # G16's threshold, written out rather than computed, so a build cannot satisfy it by
 # redefining the arithmetic.  "Far larger than N" means k >= 100*N**2.
@@ -563,8 +563,8 @@ def _gamma_q(s, x):
 
 
 def test_sf1_all_is_exactly_the_specs_interface_list_plus_the_eight_named():
-    """The surface is 2.3's list, the types its signatures use, and the eight the
-    module docstring justifies one by one.  An extra public symbol is a spec violation.
+    """The surface is the interface list, the types its signatures use, and the eight the
+    module docstring justifies one by one.  An extra public symbol is a design violation.
     """
     assert tuple(tasks().__all__) == TASKS_EXPORTS
 
@@ -584,13 +584,14 @@ def test_sf3_the_five_types_are_frozen():
 
 
 def test_sf4_task_bundle_carries_2_3s_fields_and_no_others():
-    """2.3's Interface list, in 2.3's order, with TG-ADR-38's three among them.
+    """The interface list, in the design's order, with the three later additions
+    (`template_id`, `prompt_slots`, `reference_observations`) among them.
 
-    The order is asserted because 2.3 writes one and a reader checking a bundle against
-    the spec reads them in that order.  A field beyond the list is a spec violation in
+    The order is asserted because the design writes one and a reader checking a bundle
+    against it reads them in that order.  A field beyond the list is a design violation in
     the same way an extra public symbol is - and the two fields named below are the two
-    a build would most plausibly add: the scenario, which TG-ADR-37 keeps out, and an
-    audit field, which PG-16 decides against.
+    a build would most plausibly add: the scenario, which the design keeps out of the
+    bundle, and an audit field, which PG-16 decides against.
     """
     fields = tuple(f.name for f in dataclasses.fields(tasks().TaskBundle))
     assert fields == BUNDLE_FIELDS
@@ -645,11 +646,11 @@ def test_sf8_generation_imports_no_network_no_model_and_no_verifiers():
 
 
 def test_sf9_tg_m1_and_tg_m2_literals_are_cited_and_not_re_minted():
-    """TG-M3 mints no literal another module already froze.
+    """`tasks.py` mints no literal another module already froze.
 
-    `L_obs` and the token band are TG-M1's; the candidate levels, `K_D`, `K_R`, `d_R`
-    and N9's band are TG-M2's.  A second copy here would be a number read back and
-    compared with itself (standing rule 8), and the two copies would drift silently on
+    `L_obs` and the token band are `engine.py`'s; the candidate levels, `K_D`, `K_R`, `d_R`
+    and N9's band are `knobs.py`'s.  A second copy here would be a number read back and
+    compared with itself, and the two copies would drift silently on
     the next vocabulary version.  Checked at module level only: a local computing a
     width is not a second freeze.
     """
@@ -693,9 +694,9 @@ def bundle_bytes(bundle) -> bytes:
     return json.dumps(canon(bundle), sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
-# `task_id`'s construction, pinned the way TG-M1 pinned `engine_hash`'s: a domain
-# separator and a canonical form over every field but the id itself.  TG-ADR-38 leaves
-# it to TG-M3 to state whether the id covers its three new fields, and the answer is
+# `task_id`'s construction, pinned the way the engine tests pinned `engine_hash`'s: a domain
+# separator and a canonical form over every field but the id itself.  The design leaves
+# it to tasks.py to state whether the id covers its three newest fields, and the answer is
 # yes, by covering all twenty.  It has to be pinned as a construction rather than
 # measured as a difference: all three fields are determined by the arm, the scenario and
 # the engine, so no pair of bundles differing only in one of them exists to compare.
@@ -770,11 +771,11 @@ def test_g1_3_task_id_is_a_content_hash_that_moves_with_the_content():
 
 
 def test_g1_4_task_id_is_the_digest_of_every_other_field():
-    """TG-ADR-38 asks TG-M3 to state whether `task_id` covers its three fields.  It
-    covers all twenty, because it is taken over the whole bundle rather than a listed
-    subset - so a field added later is covered without anyone remembering to add it.
+    """The design asks `tasks.py` to state whether `task_id` covers its three newest
+    fields.  It covers all twenty, because it is taken over the whole bundle rather than a
+    listed subset - so a field added later is covered without anyone remembering to add it.
 
-    Recomputed here independently, the way TG-M1's tests recompute `engine_hash`, so
+    Recomputed here independently, the way the engine tests recompute `engine_hash`, so
     the claim is measured rather than read off the source.
     """
     import hashlib
@@ -787,7 +788,7 @@ def test_g1_4_task_id_is_the_digest_of_every_other_field():
 def test_g1_5_task_id_moves_when_any_one_field_moves():
     """The other direction, and the one that makes `test_g1_4` more than a restatement:
     perturb one field of a real bundle and the recomputed digest moves.  Run over
-    TG-ADR-38's three, which are the fields the question was about."""
+    the three newest fields, which are the fields the question was about."""
     import hashlib
 
     b = tasks().generate(spec(level=3), 21)
@@ -838,7 +839,7 @@ def test_g2_2_verify_is_pure_within_one_process():
 # G3 - scenario independence, and N14's field-by-field diff
 # --------------------------------------------------------------------------
 
-# N14 as it falls on a real bundle.  2.2 writes N14 over "the fields its definition
+# N14 as it falls on a real bundle.  The design writes N14 over "the fields its definition
 # names", and the definition's fields are the *knob's* - goal stage, required count,
 # prompt `Messages`, `seq_start`, designated slots, filler.  A bundle has twenty-one
 # fields, so the diff has to say which bundle field each of those reaches.  Three
@@ -855,7 +856,7 @@ def test_g2_2_verify_is_pure_within_one_process():
 # `expected_final_state` is TRANSFORMED, because the goal stage is what it records and
 # the goal stage is the knob.  What PG-16 decides is the *other* comparison: it does not
 # move between `depth:d1` and `depth:d1+h8`, which are at one level and differ only in
-# `seq_start`, so N14 stays at the two fields 2.2 names for the D control.  That is
+# `seq_start`, so N14 stays at the two fields the design names for the D control.  That is
 # `test_pg16_1`, and it is the assertion option 1 would have had to give up.
 N14_INDEPENDENT = (
     "seed", "split", "scenario_hash", "system_prompt", "tools", "template_id",
@@ -877,7 +878,7 @@ def test_n14_0_the_three_partitions_cover_every_bundle_field_exactly_once():
 
 
 def test_g3_1_the_scenario_is_a_function_of_the_seed_and_the_split_alone():
-    """2.2's Terms: the scenario is "everything drawn from the task seed alone".  So the
+    """The design's definition: the scenario is "everything drawn from the task seed alone".  So the
     arm is not an argument, and N1 - scenario equality across a knob's arms - holds by
     construction rather than by check.  `test_g3_2` is the check anyway, because a
     generator could still draw *outside* `scenario_for`."""
@@ -904,7 +905,7 @@ def test_g3_3_every_distractor_arm_at_one_seed_shares_one_scenario_hash():
 def test_g3_4_a_generated_depth_contrast_satisfies_the_whole_ledger():
     """G3 says N1, N2 and N14 hold for every generated batch, and the ledger is how they
     are measured.  `check_pins` over the generated contrast refuses nothing and reports
-    nothing - which is TG-M2's CP5, run for the first time against real bundles."""
+    nothing - which is the knobs tests' CP5, run for the first time against real bundles."""
     report = knobs().check_pins(tasks().generate_contrast(depth_arms(1, 8), 55))
     assert report.refused is False, report.violations
     assert report.violations == ()
@@ -935,7 +936,7 @@ def test_n14_1_the_level_diff_moves_only_transformed_fields():
 def test_n14_2_the_d_control_moves_only_its_prompt_and_seq_start():
     """N14's D-control row, and the reason PG-16 had to be decided here.
 
-    2.2 lets the D control change the prompt `Messages` and `seq_start`, and nothing
+    The design lets the D control change the prompt `Messages` and `seq_start`, and nothing
     else.  `reference_observations` moves with them, because the control's reference
     episode starts at `seq_start = H - dL + 1` and an observation carries its `seq` -
     which is a field the definition names moving, not a second one appearing.
@@ -960,7 +961,7 @@ def test_n14_2_the_d_control_moves_only_its_prompt_and_seq_start():
 def test_pg16_1_expected_final_state_is_equal_across_the_d_control_and_its_plain_arm():
     """**PG-16, decided.**  The verdict's compared value carries no audit field, so it
     does not move with `seq_start`, so N14's list for the D control stays at the two
-    fields 2.2 names.  That is the whole of the decision, and this is the test that
+    fields the design names.  That is the whole of the decision, and this is the test that
     would move if a later build took option 1 instead."""
     made = tasks().generate_contrast(depth_arms(1, 8), 78)
     plain, control = made["depth:d1"], made["depth:d1+h8"]
@@ -972,7 +973,7 @@ def test_pg16_1_expected_final_state_is_equal_across_the_d_control_and_its_plain
 
 def test_pg16_2_the_audit_field_moves_if_and_only_if_the_stage_moves():
     """The measurement PG-16's decision rests on, rather than the assertion that the
-    audit field is "bookkeeping" (standing rule 14).
+    audit field is "bookkeeping".
 
     Dropping the audit field from the compared value loses discrimination only if some
     call can move it without moving the stage.  `apply` writes it in one branch, the one
@@ -1142,7 +1143,7 @@ def test_g5_3_no_shorter_call_sequence_reaches_the_expected_state(level):
     scenario, crossed with the entry code and with every chain token the scenario's key
     can produce - including tokens no model could know, so the bound is on what the
     *engine* accepts.  E3's stage precondition is what makes the answer `d`: a record at
-    stage `i` accepts only the stage `i+1` tool (TG-ADR-36).
+    stage `i` accepts only the stage `i+1` tool.
 
     Calls that mutate a *non-target* record are excluded from the frontier, and the
     exclusion is proved rather than assumed: stages only ever move forward, so a state
@@ -1221,7 +1222,7 @@ def test_ov1_the_vocabulary_is_closed_and_in_the_tables_order():
 
 
 def test_ov2_verify_assigns_seven_of_the_ten_and_never_the_adapters_three():
-    """Decision 3.  `replay_mismatch` is E8's and 2.5 runs the replay check before the
+    """Decision 3.  `replay_mismatch` is E8's and the adapter runs the replay check before the
     verdict; `api_error` and `wall_timeout` name conditions `verify`'s five arguments
     cannot express (A4).  Naming the split is what stops a build assigning an instrument
     label from inside the verifier."""
@@ -1298,8 +1299,9 @@ def test_ov6_leaky_ignores_the_reply_and_the_turn_budget():
     reached the goal and then ran out of turns without replying is leaky-accepted, and
     the strict label is still `turn_limit`.
 
-    Added after the mutation pass: `m03_leaky_also_requires_a_reply` survived the first
-    freeze, because every other fixture that reaches the goal also replies.
+    Added after the mutation pass: a leaky check that also required a reply survived
+    the first version of these tests, because every other fixture that reaches the goal
+    also replies.
     """
     b = tasks().generate(spec(level=2, strictness="leaky"), 6161)
     verdict = run(b, b.reference_calls, ended_with_reply=False, turn_limit_hit=True)
@@ -1341,7 +1343,7 @@ def _g6_pool(bundle):
 
 @pytest.mark.parametrize("level", DEPTH_LEVELS)
 def test_g7_1_some_control_is_accepted_by_leaky_and_rejected_by_strict(level):
-    """G7, per task family.  `overshoot` and `collateral_mutation` are the pair the spec
+    """G7, per task family.  `overshoot` and `collateral_mutation` are the pair the design
     names, and this asserts the property rather than the names, so a build that reaches
     it another way is not failed for it."""
     b = tasks().generate(spec(level=level), 8080)
@@ -1390,8 +1392,8 @@ def test_g8_2_each_control_produces_the_label_it_is_named_for(label):
 
 def test_g8_3_clause_1_has_no_generated_control_and_the_spec_says_where_it_runs():
     """G8 sends clause 1 - content carrying the markers with no parsed call - through
-    each model's stack at stage 0b, because it depends on the family's raw format (A16).
-    TG-M3 generates clauses 2 to 4 at the call level and not clause 1, and this is the
+    each model's own stack, because it depends on the family's raw format (A16).
+    `tasks.py` generates clauses 2 to 4 at the call level and not clause 1, and this is the
     row that keeps that visible rather than reading as an omission."""
     b = tasks().generate(spec(level=3), 9090)
     clauses = {int(k.rpartition("_")[2]) for k in b.negative_controls if "_clause_" in k}
@@ -1449,7 +1451,7 @@ def test_g9_3_the_markers_are_read_from_fmt_and_not_hardcoded():
 
 
 def test_fc_1_a_marker_with_no_parsed_call_fails_the_check():
-    """Clause 1, with a synthetic turn.  The generated control for it is stage 0b's
+    """Clause 1, with a synthetic turn.  The generated control for it runs in each model's stack
     (`test_g8_3`); the clause itself is `verify`'s and is pinned here."""
     b = tasks().generate(spec(level=3), 1212)
     verdict = run(b, (), content="<tool_call>{\"name\": \"submit_")
@@ -1504,7 +1506,7 @@ def test_fc_4_arguments_that_fail_the_tools_schema_fail(bad):
 
 
 def test_fc_5_the_clauses_are_ordered_and_the_lowest_one_that_fired_is_reported():
-    """2.3 numbers the four clauses and then writes "the clause that fired", singular,
+    """The design numbers the four clauses and then writes "the clause that fired", singular,
     while an episode can break two of them in two different turns.  Decision 8 makes the
     lowest-numbered one the reported one, so a reader comparing two runs of the same
     episode under two builds is comparing the same thing.
@@ -1512,7 +1514,7 @@ def test_fc_5_the_clauses_are_ordered_and_the_lowest_one_that_fired_is_reported(
     The fixture is two turns and not one call breaking two clauses: a per-call check
     stops at the first clause that fires, so a single call can only ever report one and
     a fixture built that way cannot tell "lowest" from "highest".  Found by the mutation
-    pass - `m04_the_highest_format_clause_wins` survived the first cut of this test.
+    pass - reporting the highest clause instead survived the first cut of this test.
     """
     m = tasks()
     b = m.generate(spec(level=3), 1212)
@@ -1598,7 +1600,7 @@ def test_g11_1_a_contrast_that_violates_a_row_emits_nothing():
 
 
 def test_g11_2_a_caller_error_raises_and_is_not_a_refusal():
-    """TG-M2's CP1 and CP2, reaching through.  Arms from two knobs, and a single arm,
+    """The knobs tests' CP1 and CP2, reaching through.  Arms from two knobs, and a single arm,
     are caller errors; neither is a pin violation and neither may come back as one."""
     m = tasks()
     with pytest.raises(ValueError):
@@ -1609,7 +1611,7 @@ def test_g11_2_a_caller_error_raises_and_is_not_a_refusal():
 
 def test_g11_3_a_clean_contrast_returns_every_arm_keyed_by_its_arm_id():
     """The control for the two above.  `check_pins` takes `bundles_by_arm`, so the keys
-    are the arm ids TG-M2 renders and `generate_contrast`'s output is what the ledger
+    are the arm ids `knobs.py` renders and `generate_contrast`'s output is what the ledger
     consumes without a shim in between."""
     m = tasks()
     arms = depth_arms(1, 8)
@@ -1626,7 +1628,7 @@ def test_g11_3_a_clean_contrast_returns_every_arm_keyed_by_its_arm_id():
 
 def test_g12_1_the_two_splits_draw_from_disjoint_word_lists():
     """No eval instance can equal a train instance, by construction.  The disjointness
-    of the two 256-word lists is TG-M1's (`test_vt2` there); what is pinned here is that
+    of the two 256-word lists is the engine's (`test_vt2` there); what is pinned here is that
     the generator *uses* the split's list and no other."""
     m = tasks()
     for seed in (0, 1, 12345, SEED_SPACE - 1):
@@ -1638,9 +1640,9 @@ def test_g12_1_the_two_splits_draw_from_disjoint_word_lists():
 
 
 def test_g12_2_the_task_seed_is_the_proofload_seed_with_no_remapping():
-    """G12, amended in rev. 3.2: "The task seed is the Proofload seed itself, with no
+    """G12: "The task seed is the Proofload seed itself, with no
     remapping."  So the seed handed to `generate` is recoverable from the instance it
-    produced, and V-1's third cause - a many-to-one split mapping - cannot come back."""
+    produced, and a many-to-one split mapping, one cause of an earlier bug, cannot come back."""
     m = tasks()
     for seed in (0, 7, 65535, 1 << 19, SEED_SPACE - 1):
         b = m.generate(spec(level=3), seed)
@@ -1657,8 +1659,8 @@ def test_g12_3_a_bundle_records_its_split():
 def test_g12_4_both_splits_generate_and_eval_only_is_the_pre_registrations_rule():
     """Decision 6.  G12's own first clause is a statement about both splits and is
     untestable if one of them refuses.  "v0 emits `eval` only" is the pre-registration's
-    choice among what the generator offers, in the same shape as TG-ADR-39 (2): TG-M2
-    declined to check a level against `levels(knob)` because 2.2 calls those the
+    choice among what the generator offers, in the same shape as `knobs.py`
+    declining to check a level against `levels(knob)` because the design calls those the
     *candidate* levels.  *Escape hatch:* one line in `generate`, and this is the test
     that would move."""
     for split in SPLITS:
@@ -1711,7 +1713,7 @@ def test_g13_1_the_seeded_history_is_well_formed_messages():
 
 def test_g13_2_the_seeded_observations_are_e2_conformant():
     """"Their observations are E2-conformant": `L_obs` bytes and a token count in the
-    band TG-M1 froze."""
+    band the engine froze."""
     control = tasks().generate_contrast(depth_arms(1, 8), 5151)["depth:d1+h8"]
     msgs = seeded_messages(control)[1:]
     for tool in msgs[1::2]:
@@ -1721,7 +1723,7 @@ def test_g13_2_the_seeded_observations_are_e2_conformant():
 
 
 def test_g13_3_the_seeded_seqs_run_to_h_minus_dl_and_the_server_starts_after_them():
-    """2.2: the seeded observations carry `seq` 1..(H - dL), after which the live server
+    """Knob D's design: the seeded observations carry `seq` 1..(H - dL), after which the live server
     starts at `seq_start = H - dL + 1`."""
     control = tasks().generate_contrast(depth_arms(1, 8), 5151)["depth:d1+h8"]
     msgs = seeded_messages(control)[1:]
@@ -1731,8 +1733,8 @@ def test_g13_3_the_seeded_seqs_run_to_h_minus_dl_and_the_server_starts_after_the
 
 
 def test_g13_4_the_seeded_calls_are_orthogonal_reads_on_non_target_items():
-    """2.2: each seeded pair is "an orthogonal read tool called on a non-target catalogue
-    item".  A seeded *stage* call would be the model's work done for it."""
+    """Knob D's design: each seeded pair is "an orthogonal read tool called on a
+    non-target catalogue item".  A seeded *stage* call would be the model's work done for it."""
     control = tasks().generate_contrast(depth_arms(1, 8), 5151)["depth:d1+h8"]
     for assistant in seeded_messages(control)[1::2]:
         name = assistant["tool_calls"][0]["function"]["name"]
@@ -1741,9 +1743,9 @@ def test_g13_4_the_seeded_calls_are_orthogonal_reads_on_non_target_items():
 
 
 def test_g13_5_the_control_carries_h_minus_dl_pairs_and_the_ledger_agrees():
-    """N9's pair-count clause, from the generator's side.  TG-M2's build added the check
+    """N9's pair-count clause, from the generator's side.  `knobs.py`'s build added the check
     and no test of its moved, because no fixture ever seeded the wrong number
-    (TG-M2's mutation row 20).  `test_k20_2` is the other side."""
+    (a mutation pass that deleted the check survived).  `test_k20_2` is the other side."""
     for low, high in ((1, 8), (2, 5), (3, 8)):
         control = tasks().generate_contrast(depth_arms(low, high), 5252)[f"depth:d{low}+h{high}"]
         assert len(seeded_messages(control)[1:]) == 2 * (high - low)
@@ -1819,7 +1821,7 @@ def test_g14_5_distinct_seeds_give_distinct_instance_hashes():
 
 def test_g14_6_every_record_id_word_is_one_token_where_it_is_rendered():
     """G14's second clause, and the reason N6 survives an injective id.  The table's
-    property is TG-M1's (`test_vt2`); what is asserted here is that it still holds *as
+    property is the engine's (`test_vt2`); what is asserted here is that it still holds *as
     the generator renders it* - four words, the table's separator, inside the prompt."""
     m = tasks()
     counts = {ntok(m.encode_record_id(seed, "eval"))
@@ -1891,8 +1893,8 @@ G16_DRAWS = 6_000
 # `test_g16_1` measures it rather than assuming it - so 6,000 draws put on the order of a
 # hundred in each cell, which is past the five-per-cell floor a chi-square needs by more
 # than an order of magnitude, and the chance any cell is missed entirely is below
-# 10^-40.  The reduction from the spec's number is declared here rather than made
-# silently, per standing rule 8, and the escape hatch is the constant.
+# 10^-40.  The reduction from G16's number is declared here rather than made
+# silently, and the escape hatch is the constant.
 
 
 @functools.lru_cache(maxsize=1)
@@ -1932,7 +1934,7 @@ def test_g16_2_the_draws_are_uniform():
 
 def test_g16_3_the_pilots_cells_clear_the_declared_floor():
     """G16's threshold, written out: "far larger than N" means k >= 100*N**2, which is
-    864,900 at N = 93.  This is the census (KC14) as a test, for the arms the pilot
+    864,900 at N = 93.  This is the census as a test, for the arms the pilot
     sweeps - and it is the check that would stop the program, not a description of one.
     """
     m = tasks()
@@ -1975,17 +1977,18 @@ def test_g16_4_structure_space_depends_on_the_arm_and_not_on_the_seed():
 
 
 # --------------------------------------------------------------------------
-# the two clauses TG-M2's build added that no test pinned, and one it never
+# the two clauses knobs.py's build added that no test pinned, and one it never
 # documented at all
 # --------------------------------------------------------------------------
 #
-# TG-M2's mutation table records rows 20 and 21 as survivors: two
-# clauses that build added beyond its tests, both the spec's own text, both failing
-# closed, and neither covered by any of the 102 green tests.  TG-ADR-39 records a third
-# of the same kind - N8's width is a UTF-8 byte length - which has no prose anywhere in
-# the tree and which TG-M2's tests could not have caught, since they only ever assert on
-# ASCII.  All three are TG-M2 behaviour reached through TG-M3 bundles: they are here
-# because TG-M3 is the first module that produces the inputs that discriminate.
+# A mutation pass over knobs.py found two survivors, N9's pair-count clause and N3's
+# filler exemption: two clauses that build added beyond its tests, both in the design's
+# own text, both failing closed, and neither covered by any of the 102 green tests.  A
+# third of the same kind was decided alongside them - N8's width is a UTF-8 byte length
+# - which has no prose anywhere in the tree and which the knobs tests could not have
+# caught, since they only ever assert on ASCII.  All three are knobs.py behaviour
+# reached through tasks.py bundles: they are here because tasks.py is the first module
+# that produces the inputs that discriminate.
 
 
 def _high_chain_target(made, low, high):
@@ -2025,9 +2028,10 @@ def seeded_block_hitting(target, n_pairs, scenario):
     table allows.
 
     N9's band is an aggregate of +/- 2 and the read pair's reachable set is consecutive
-    (TG-M2's measurement), so a block of a *different* pair count can still land on a given
-    total whenever the total is inside that count's range.  That is the whole content of
-    row 20: without the pair-count clause, six pairs summing correctly would pass N9.
+    (measured when knobs.py was built), so a block of a *different* pair count can still
+    land on a given total whenever the total is inside that count's range.  That is the
+    whole content of the gap `test_k20_2` pins: without the pair-count clause, six pairs
+    summing correctly would pass N9.
     """
     e = engine()
     options = _read_options(scenario)
@@ -2076,9 +2080,9 @@ def seeded_block_hitting(target, n_pairs, scenario):
 
 
 def test_k20_1_the_generated_control_seeds_exactly_h_minus_dl_pairs_and_lands_in_band():
-    """Row 20, from the side that has to hold: the generator's own control.  The ledger
-    accepts it, which means both halves of N9 - the count and the aggregate - are
-    satisfied by construction rather than by luck."""
+    """N9's pair-count clause, from the side that has to hold: the generator's own
+    control.  The ledger accepts it, which means both halves of N9 - the count and the
+    aggregate - are satisfied by construction rather than by luck."""
     made = tasks().generate_contrast(depth_arms(1, 8), 2020)
     report = knobs().check_pins(made)
     assert report.refused is False, report.violations
@@ -2087,8 +2091,8 @@ def test_k20_1_the_generated_control_seeds_exactly_h_minus_dl_pairs_and_lands_in
 
 
 def test_k20_2_a_control_that_seeds_the_wrong_number_of_pairs_is_refused_even_in_band():
-    """**Row 20, pinned.**  TG-M2's mutation table records
-    `m20_n9_drops_the_pair_count_clause` as a survivor against 102 green tests: no
+    """**N9's pair-count clause, pinned.**  In a mutation pass over `knobs.py`,
+    deleting that clause survived against 102 green tests: no
     fixture there ever seeded the wrong *number*, so deleting the clause moved nothing.
 
     This is the fixture that moves.  The control's seeded block is rebuilt with six
@@ -2099,7 +2103,7 @@ def test_k20_2_a_control_that_seeds_the_wrong_number_of_pairs_is_refused_even_in
     m = tasks()
     built = None
     # The probe needs a *wrong* pair count whose reachable range still brackets the right
-    # total.  A read pair reaches a consecutive [lo, hi] (TG-M2's measurement), so `n` pairs
+    # total.  A read pair reaches a consecutive [lo, hi] (measured for knobs.py), so `n` pairs
     # reach [n*lo, n*hi], and the seven-pair chain total does not always sit inside the
     # six- or eight-pair range - measured at [51, 66] per pair, six reach at most 396 and
     # eight at least 408, so a target between them is out of both.  So the fixture
@@ -2131,17 +2135,18 @@ def test_k20_2_a_control_that_seeds_the_wrong_number_of_pairs_is_refused_even_in
 
 
 def test_k21_1_the_generated_d_control_leaves_the_system_prompt_byte_equal():
-    """Row 21, from the side that has to hold.  2.2 gives the filler to knob R's control
-    alone, so a D control's system prompt is equal and not merely a prefix of its own."""
+    """N3's filler exemption, from the side that has to hold.  The filler is knob R's
+    control's alone, so a D control's system prompt is equal and not merely a prefix of its own."""
     made = tasks().generate_contrast(depth_arms(1, 8), 2121)
     assert made["depth:d1"].system_prompt == made["depth:d1+h8"].system_prompt
     assert made["depth:d8"].system_prompt == made["depth:d1"].system_prompt
 
 
 def test_k21_2_a_d_control_with_a_filler_suffix_is_refused():
-    """**Row 21, pinned.**  `m21_n3_filler_suffix_allowed_on_any_control` survived TG-M2's
-    build because `n14_3` moves the D control's system prompt to a string that is not a
-    suffix either way, so no fixture ever asked whether the suffix exemption is knob R's.
+    """**N3's filler exemption, pinned.**  A mutant allowing the filler suffix on any
+    control survived `knobs.py`'s tests because `n14_3` moves the D control's system
+    prompt to a string that is not a suffix either way, so no fixture ever asked whether
+    the suffix exemption is knob R's.
 
     Here it is asked: the same difference that N3 permits on an R control is planted on a
     D control, and the ledger must refuse it.
@@ -2172,19 +2177,19 @@ def test_k21_3_the_same_suffix_on_an_r_control_is_the_filler_and_is_allowed():
 
 
 def test_k22_1_n8s_width_is_a_byte_length_and_not_a_character_count():
-    """**TG-ADR-39's fifth call, pinned.**  `measure_pins` measures an observation's width
+    """**N8's byte-length width, pinned.**  `measure_pins` measures an observation's width
     as `len(observation.encode("utf-8"))` (`knobs.py:586`), which has no prose anywhere in
-    the tree, and TG-M2's tests assert only `len(obs.encode("ascii")) == L_OBS` - so
+    the tree, and the knobs tests assert only `len(obs.encode("ascii")) == L_OBS` - so
     every fixture it has is one on which a byte count and a character count agree.
 
-    2.1 says table strings are ASCII **because `L_obs` is a byte count**, so the byte
-    reading is the spec's and a character count would be the latent defect.  The only
+    The vocabulary table's strings are ASCII **because `L_obs` is a byte count**, so the
+    byte reading is intended and a character count would be the latent defect.  The only
     input that tells the two apart is a non-ASCII observation: 52 characters, 53 bytes.
     Under the byte reading N8 refuses and names the width; under a character count the
     width check passes and the row either passes or fires on the token band instead, so
     the assertion on the *detail* is what discriminates, not the refusal.
 
-    It reports rather than raising, which is the behaviour TG-ADR-39 records and which is
+    It reports rather than raising, which is the behaviour decided for it and which is
     kept: the row's declared action is that generation refuses, and it does.
     """
     made = tasks().generate_contrast(depth_arms(1, 8, control=False), 2222)
@@ -2205,8 +2210,8 @@ def test_k22_1_n8s_width_is_a_byte_length_and_not_a_character_count():
 
 
 def test_k22_2_every_generated_observation_is_ascii_and_l_obs_bytes():
-    """The reason `test_k22_1` is a guard and not a live failure: nothing TG-M3 produces
-    is non-ASCII, because the vocabulary table is ASCII (2.1) and every observation is
+    """The reason `test_k22_1` is a guard and not a live failure: nothing tasks.py produces
+    is non-ASCII, because the vocabulary table is ASCII and every observation is
     the engine's.  So the byte reading never fires in a real run, and that is exactly why
     it needs a test rather than a fixture."""
     made = tasks().generate_contrast(depth_arms(1, 8), 2222)
@@ -2216,17 +2221,17 @@ def test_k22_2_every_generated_observation_is_ascii_and_l_obs_bytes():
 
 
 # --------------------------------------------------------------------------
-# the two gaps owed to TG-M5's tests, which this module does not close
+# the two gaps owed to the Proofload adapter's tests, which this module does not close
 # --------------------------------------------------------------------------
 
 
 def test_n18_3_tg_m3_holds_no_revision_predicate_either():
-    """2.5 files N18's revision predicate as owed to TG-M5's tests, and TG-M2's
-    `n18_2` asserts that TG-M2 holds none.  This is the same assertion for TG-M3, so the
-    gap stays visible: two modules' silence is not coverage, and a build here cannot
-    quietly add half a validator.
+    """N18's revision predicate is owed to the Proofload adapter's tests, and the knobs
+    tests' `n18_2` asserts that `knobs.py` holds none.  This is the same assertion for
+    `tasks.py`, so the gap stays visible: two modules' silence is not coverage, and a
+    build here cannot quietly add half a validator.
 
-    The predicate owed is the one 2.5 names: a revision that is not 40 hex characters is
+    The predicate owed is this one: a revision that is not 40 hex characters is
     refused, and so are two models on different vLLM versions or endpoint types.
     """
     import re
@@ -2242,10 +2247,10 @@ def test_n18_3_tg_m3_holds_no_revision_predicate_either():
 
 
 def test_n17_2_tg_m3_asserts_no_horizon_and_does_not_reach_proofload():
-    """N17's scripted `diff` is the other inherited gap, and it lands with A5 in TG-M5.
-    TG-M3 carries no `horizon` and no `max_turns` - both ride the arm and the cfg (N16,
-    2.5) - so there is nothing here that could be mistaken for the arithmetic TG-M2
-    froze, let alone for the `diff`."""
+    """N17's scripted `diff` is the other inherited gap, and it lands with A5 in the
+    Proofload adapter.  `tasks.py` carries no `horizon` and no `max_turns` - both ride the
+    arm and the cfg (N16) - so there is nothing here that could be mistaken for the
+    arithmetic `knobs.py` froze, let alone for the `diff`."""
     fields = {f.name for f in dataclasses.fields(tasks().TaskBundle)}
     assert "horizon" not in fields and "max_turns" not in fields
     source = pathlib.Path(inspect.getfile(tasks())).read_text()
@@ -2259,11 +2264,11 @@ def test_n17_2_tg_m3_asserts_no_horizon_and_does_not_reach_proofload():
 # The build holds N7's overlap set still in three places it has freedom, and says so in
 # its module docstring: the reads the instruction touches are replaced last, the
 # distractors that add no instruction token the required tools lack are taken first, and
-# the template's prose carries no token a read tool's name or a qualifier carries.  Its
-# mutation rows 22, 23 and 26 cut each rule, and each survived this file.  Until
-# 2026-09-22 one case caught all three, TG-M5's `test_ct3[train]`, through the registered
-# arm sets and the six vocabulary-v1 record-id words a tool name carried; `45d0f49`
-# retired it with the words, and nothing caught the three rows after that.
+# the template's prose carries no token a read tool's name or a qualifier carries.  A
+# mutation pass cut each rule, and each mutant survived this file.  Until 2026-09-22 one
+# case caught all three, `test_ct3[train]` in tests/test_tg_m5_scripted.py, through the
+# registered arm sets and the six vocabulary-v1 record-id words a tool name carried;
+# `45d0f49` retired it with the words, and nothing caught the three mutants after that.
 #
 # **On vocabulary v2 the two designation rules are latent.**  Measured exhaustively, over
 # both splits, every qualifier, every drawable entry code and every record-id word in each
