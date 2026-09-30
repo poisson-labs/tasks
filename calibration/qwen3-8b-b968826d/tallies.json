@@ -1,0 +1,16 @@
+{
+  "depth:d1": {},
+  "depth:d1+h8": {},
+  "depth:d2": {},
+  "depth:d2+h5": {},
+  "depth:d3": {},
+  "depth:d5": {},
+  "depth:d8": {},
+  "distractor:r0+len(r8)@k16": {},
+  "distractor:r0@k16": {},
+  "distractor:r14@k16": {},
+  "distractor:r2+len(r14)@k16": {},
+  "distractor:r2@k16": {},
+  "distractor:r4@k16": {},
+  "distractor:r8@k16": {}
+}
