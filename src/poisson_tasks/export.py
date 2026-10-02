@@ -588,6 +588,20 @@ def task_from_bundle(bundle: _TaskBundle) -> ExportTask:
 # ---------------------------------------------------------------------------
 
 
+# What a run with no arm or no seeds is told, in the command line's terms: `eval` is where a
+# taskset gets iterated with nothing declared.  A caller of `load` in Python still meets
+# `arm_spec`'s own refusal of a missing arm, which speaks to that caller.
+_NO_ARM = (
+    "no arm given: pass --env.taskset.arm with the arm's six fields as one JSON object, for "
+    "example --env.taskset.arm '{\"knob\": \"depth\", \"level\": 3, \"control\": null, "
+    "\"strictness\": \"strict\", \"split\": \"eval\", \"generator_version\": \"0\"}'"
+)
+_NO_SEEDS = (
+    "no seeds given: pass --env.taskset.seeds with at least one seed, for example "
+    "--env.taskset.seeds 404 55 2121, and each seed is one task"
+)
+
+
 class ExportTaskset(_vf.Taskset[ExportTask, ExportTasksetConfig]):
     """Finite: one task per declared seed, via `generate`.
 
@@ -598,6 +612,22 @@ class ExportTaskset(_vf.Taskset[ExportTask, ExportTasksetConfig]):
     """
 
     INFINITE = False
+
+    def __iter__(self) -> _Iterator[ExportTask]:
+        """The wheel's iteration, refused when the config declares no arm or no seeds.
+
+        A real `eval` run lists its taskset through here before it starts anything that could
+        call a model, so the refusal comes before any model call.  It is here and not in the
+        config, because `eval --dry-run` validates the config and must keep accepting both; and
+        not in `load`, which yields nothing for an empty seed list (X8).  A view the wheel makes
+        (`head`, `shuffle`) is a copy of this taskset and iterates through here too.
+        """
+        if not self.config.arm:
+            raise ValueError(_NO_ARM)
+        if not self.config.seeds:
+            raise ValueError(_NO_SEEDS)
+        tasks: _Iterator[ExportTask] = super().__iter__()
+        return tasks
 
     def load(self) -> _Iterator[ExportTask]:
         arm = self.config.arm_spec()
