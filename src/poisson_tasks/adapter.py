@@ -350,7 +350,11 @@ def _arm_of(rendered: _Any, document: _Mapping[str, _Any]) -> _ArmSpec:
     elif distractor is not None:
         knob, level, high = _DISTRACTOR, distractor.group(1), distractor.group(2)
     else:
-        raise ValueError(f"{rendered!r} is not an arm id 2.2 defines")
+        raise ValueError(
+            f"{rendered!r} is not an arm id: an arm id is depth:d<level>, "
+            "depth:d<level>+h<level>, distractor:r<level>@k<tools> or "
+            "distractor:r<level>+len(r<level>)@k<tools>"
+        )
     try:
         arm = _ArmSpec(
             knob=knob,
@@ -385,7 +389,8 @@ def _check_model(index: int, value: _Any) -> None:
     if _REVISION.fullmatch(revision) is None:
         raise ValueError(
             f"models[{index}]: revision {revision!r} is not 40 lowercase hex characters, so "
-            "it is a branch, a tag or nothing, and not a commit (N18)"
+            "it is a branch, a tag or nothing, and not a commit: a model is pinned to the "
+            "exact commit of its weights"
         )
 
 
@@ -401,11 +406,14 @@ def _check_models(models: _Any) -> None:
             if not isinstance(value, str) or not value:
                 raise ValueError(
                     f"models[{index}] has no {key!r}: two models cannot be shown to agree "
-                    "on a value one of them omits (N18)"
+                    "on a value one of them omits"
                 )
             seen.append(value)
         if len(set(seen)) > 1:
-            raise ValueError(f"models disagree on {key!r}: {seen} (N18: one for every model)")
+            raise ValueError(
+                f"models disagree on {key!r}: {seen}; the serving pin needs one value for "
+                "every model"
+            )
 
 
 def validate_preregistration(document: _Mapping[str, _Any]) -> None:
@@ -438,7 +446,9 @@ def validate_preregistration(document: _Mapping[str, _Any]) -> None:
     if strictness not in _STRICTNESSES:
         raise ValueError(f"strictness must be one of {_STRICTNESSES}, got {strictness!r}")
     if split != _EVAL:
-        raise ValueError(f"split must be {_EVAL!r}, v0 emits eval only (G12), got {split!r}")
+        raise ValueError(
+            f"split must be {_EVAL!r}, the only split this version generates, got {split!r}"
+        )
     version = document["generator_version"]
     if not isinstance(version, str) or not version:
         raise ValueError(f"generator_version must be a non-empty string, got {version!r}")
@@ -462,13 +472,13 @@ def validate_preregistration(document: _Mapping[str, _Any]) -> None:
     if not any(arm.control is not None for arm in arms):
         raise ValueError(
             f"the {knob} registration has no control arm: a sweep of a knob without its "
-            "control arm is a pre-registration error (N15)"
+            "control arm is a pre-registration error"
         )
     largest = max(arm.max_turns(slack) for arm in arms)
     if horizon != largest:
         raise ValueError(
-            f"horizon is {horizon}, but N17 makes it the largest max_turns over the arms, "
-            f"{largest} at slack {slack}"
+            f"horizon is {horizon}, but it must be the largest max_turns over the arms, "
+            f"{largest} at slack {slack}, so that a comparison cuts no arm's episodes short"
         )
     if "models" in document:
         _check_models(document["models"])
@@ -590,7 +600,7 @@ def _refuse_running_loop() -> None:
         return
     raise RuntimeError(
         "an arm target cannot be called from inside a running event loop: it would nest "
-        "one loop in another (A12)"
+        "one loop in another"
     )
 
 
@@ -619,7 +629,7 @@ def _check_cfg(cfg: _Mapping[str, _Any], arm: _ArmSpec, slack: int, horizon: int
         if key in cfg:
             raise ValueError(
                 f"cfg carries {key!r}: what a contrast varies lives in the target and "
-                "never in cfg, because a cfg key moves config_hash and breaks pairing (A3)"
+                "never in cfg, because a cfg key moves config_hash and breaks pairing"
             )
     for key in _REQUIRED_CFG:
         if key not in cfg:

@@ -2268,7 +2268,8 @@ def test_n17_2_tg_m3_asserts_no_horizon_and_does_not_reach_proofload():
 # mutation pass cut each rule, and each mutant survived this file.  Until 2026-09-22 one
 # case caught all three, `test_ct3[train]` in tests/test_tg_m5_scripted.py, through the
 # registered arm sets and the six vocabulary-v1 record-id words a tool name carried;
-# `45d0f49` retired it with the words, and nothing caught the three mutants after that.
+# vocabulary v2's test retrofit retired it with the words, and nothing caught the three
+# mutants after that.
 #
 # **On vocabulary v2 the two designation rules are latent.**  Measured exhaustively, over
 # both splits, every qualifier, every drawable entry code and every record-id word in each

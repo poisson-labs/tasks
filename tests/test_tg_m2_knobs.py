@@ -161,8 +161,8 @@ REPORTING_ROWS = ("N5",)
 # N9's declared band, in reference-tokenizer tokens, over the aggregate.
 #
 # Minted 2026-09-13.  A seeded pair and a chain pair are each (call name + compact
-# JSON arguments + observation).  Measured against the frozen table and the engine at
-# 4b7b84a, with chain tokens the engine emitted under two disjoint token keys:
+# JSON arguments + observation).  Measured against the frozen table and the engine as
+# first built, with chain tokens the engine emitted under two disjoint token keys:
 #
 #   chain pair totals      [47, 65], mean 55.7, 1792 pairs, two disjoint scenarios
 #   read pair totals       13 to 16 *consecutive* integers inside [51, 66],

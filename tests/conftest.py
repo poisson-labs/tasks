@@ -9,7 +9,7 @@ the reason below, and the rest of the suite runs.
 It is done here and not in the file itself because the test files are frozen: each module
 was built against tests written before it, and the suite is not edited to suit an install.
 This adds no assertion and changes none; with the extra installed the hook does nothing and
-all 548 tests run exactly as they did.
+every test runs exactly as it would without it.
 
 The file collects cleanly either way -- it imports `poisson_tasks.adapter` lazily, through
 `importlib`, inside its own helper -- so the skip is applied to collected items rather than

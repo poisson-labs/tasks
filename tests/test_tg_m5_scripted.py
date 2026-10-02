@@ -156,7 +156,7 @@ every stored run; the tests of a *rule* (`test_cfg2` to `test_cfg7`, `test_map1`
 `SPEC_D3` and `SPEC_R4` mainly, and claim no level.  `test_ct*` reach the task layer's ledger
 through the registered arm sets, `test_ct5` on one pair, `r0` against `r14`, at a dense spread.
 `test_ct3` and `test_ct4` did the same on the seeds whose first record-id word a tool name
-carried, until vocabulary v2 left them no such seed and `45d0f49` retired them; the three
+carried, until vocabulary v2 left them no such seed and its test retrofit retired them; the three
 task-layer rows only `test_ct3` caught are pinned in `tests/test_tg_m3_tasks.py`.  **The open
 record-id gap is wider than recorded**: measured here at 60 seeds per word, `city` (eval),
 `grad` and `port` (train) refuse a knob R contrast at `r14` at every seed, and so does `disc`
@@ -344,9 +344,9 @@ def bundle_of(spec: ArmSpec, seed: int) -> Any:
 # ---------------------------------------------------------------------------
 # seeds: a spread over the 32-bit space, and the seeds whose first record-id word is one
 # some tool name carries (measured against the task layer's build), which `test_ct3` and `test_ct4`
-# used until `45d0f49` retired them.  Vocabulary v2 draws no such word, so `RISKY_WORDS`
-# and the helpers that read it find no seed and are unused; `GAP_WORDS` still filters
-# `test_ct2`'s and `test_ct5`'s seeds.
+# used until vocabulary v2's test retrofit retired them.  Vocabulary v2 draws no such word, so
+# `RISKY_WORDS` and the helpers that read it find no seed and are unused; `GAP_WORDS` still
+# filters `test_ct2`'s and `test_ct5`'s seeds.
 # ---------------------------------------------------------------------------
 
 

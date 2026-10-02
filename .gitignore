@@ -29,9 +29,6 @@ proofload-runs/
 # Local working notes: a symlink. No trailing slash, or the symlink gets through.
 notes
 
-# Agent tooling
-.claude/
-
 # Editors / OS
 .vscode/
 .idea/
