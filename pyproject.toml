@@ -128,3 +128,6 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Some tests import others as `tests.<module>`, which needs the repository root on the import
+# path. `python -m pytest` puts it there and a bare `pytest` does not; this does, for both.
+pythonpath = ["."]

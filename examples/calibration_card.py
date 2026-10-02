@@ -20,15 +20,50 @@ the provenance, so nothing here needs the run to be repeated.
 
 from __future__ import annotations
 
+import argparse
 import json
 import pathlib
 import sys
 import tempfile
+from typing import NoReturn
 
 from poisson_tasks import calibration as cal
 from poisson_tasks.tasks import generate
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+CARDS = ROOT / "calibration"
+CARD_FILES = ("artifact.json", "episodes.jsonl")
+
+
+class Parser(argparse.ArgumentParser):
+    """A command-line mistake is one line on stderr, and exit 2."""
+
+    def error(self, message: str) -> NoReturn:
+        self.exit(2, f"error: {message}\n")
+
+
+def arguments() -> argparse.Namespace:
+    parser = Parser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    which = parser.add_mutually_exclusive_group()
+    which.add_argument("dir", metavar="DIR", nargs="?", type=pathlib.Path,
+                       default=CARDS / cal.MODEL_A,
+                       help=f"one model's card folder (default: calibration/{cal.MODEL_A})")
+    which.add_argument("--page", action="store_true",
+                       help="rebuild every committed card and print the one page for all of them")
+    return parser.parse_args()
+
+
+def shown(path: pathlib.Path) -> str:
+    """A path as the user would type it from here: relative when it is under the current
+    folder, in full otherwise."""
+    try:
+        return str(path.resolve().relative_to(pathlib.Path.cwd()))
+    except ValueError:
+        return str(path)
+
+
+def committed_cards() -> list[pathlib.Path]:
+    return sorted(f for f in CARDS.iterdir() if all((f / name).is_file() for name in CARD_FILES))
 
 
 def rebuild(folder: pathlib.Path) -> tuple[cal.Artifact, int]:
@@ -49,27 +84,38 @@ def rebuild(folder: pathlib.Path) -> tuple[cal.Artifact, int]:
     return built, len(records)
 
 
-if sys.argv[1:] == ["--page"]:
-    folders = sorted(f for f in (ROOT / "calibration").iterdir() if (f / "artifact.json").exists())
-    sys.stdout.write(cal.render_combined_document([rebuild(f)[0] for f in folders]))
-    sys.exit(0)
+def main() -> None:
+    args = arguments()
+    if args.page:
+        sys.stdout.write(cal.render_combined_document([rebuild(f)[0] for f in committed_cards()]))
+        return
 
-DIR = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "calibration" / cal.MODEL_A
-committed = (DIR / "artifact.json").read_bytes()
-provenance = cal.Provenance(**json.loads(committed)["provenance"])
-artifact, count = rebuild(DIR)
-cells = {(cell["arm_id"], cell["model"]) for cell in artifact.cells}
+    folder = args.dir
+    missing = [name for name in CARD_FILES if not (folder / name).is_file()]
+    if missing:
+        cards = " and ".join(shown(card) for card in committed_cards())
+        sys.exit(f"error: {folder} is not a card folder (it has no {' and no '.join(missing)}); "
+                 f"the committed cards are {cards}")
 
-with tempfile.TemporaryDirectory() as scratch:
-    rebuilt = cal.write_artifact(artifact, pathlib.Path(scratch) / "artifact.json").read_bytes()
+    committed = (folder / "artifact.json").read_bytes()
+    provenance = cal.Provenance(**json.loads(committed)["provenance"])
+    artifact, count = rebuild(folder)
+    cells = {(cell["arm_id"], cell["model"]) for cell in artifact.cells}
 
-print(cal.render_document(artifact))
-print(f"{count} records, {len(cells)} cells")
-if rebuilt != committed:
-    sys.exit("the rebuilt artifact differs from the committed artifact.json")
-print("the rebuilt artifact is byte-identical to the committed artifact.json")
-# The installed generator's hash, read off a generated task (it is `tasks.py`'s own bytes).
-current = generate(cal.arm_specs()[0], cal.seed_list()[0]).generator_hash
-print("the card is current for this generator" if provenance.generator_hash == current
-      else f"the card is STALE: it was measured at generator {provenance.generator_hash}, "
-           f"and the installed generator is {current}")
+    with tempfile.TemporaryDirectory() as scratch:
+        rebuilt = cal.write_artifact(artifact, pathlib.Path(scratch) / "artifact.json").read_bytes()
+
+    print(cal.render_document(artifact))
+    print(f"{count} records, {len(cells)} cells")
+    if rebuilt != committed:
+        sys.exit("the rebuilt artifact differs from the committed artifact.json")
+    print("the rebuilt artifact is byte-identical to the committed artifact.json")
+    # The installed generator's hash, read off a generated task (it is `tasks.py`'s own bytes).
+    current = generate(cal.arm_specs()[0], cal.seed_list()[0]).generator_hash
+    print("the card is current for this generator" if provenance.generator_hash == current
+          else f"the card is STALE: it was measured at generator {provenance.generator_hash}, "
+               f"and the installed generator is {current}")
+
+
+if __name__ == "__main__":
+    main()

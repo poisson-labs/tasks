@@ -23,9 +23,11 @@ appears.
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import pathlib
 import sys
+from typing import NoReturn
 
 import tiktoken.load
 
@@ -107,13 +109,34 @@ def fetch(*, force: bool = False) -> pathlib.Path:
     return ENCODING_PATH
 
 
+class _Parser(argparse.ArgumentParser):
+    """A command-line mistake is one line on stderr, and exit 2."""
+
+    def error(self, message: str) -> NoReturn:
+        self.exit(2, f"error: {message}\n")
+
+
+# Laid out by hand, so the path in the epilog is never broken across lines.
+_DESCRIPTION = """\
+Fetch the o200k_base encoding file into the package, using tiktoken itself.
+
+The reference tokenizer reads this one local file and never reaches the network. The
+file is not shipped with the package, so run this once after installing it. A file
+already in place with the sha256 the installed tiktoken expects is left alone, and
+nothing is fetched."""
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = sys.argv[1:] if argv is None else argv
-    force = "--force" in args
-    unknown = [a for a in args if a != "--force"]
-    if unknown:
-        print(f"usage: python -m {__spec__.name} [--force]", file=sys.stderr)
-        return 2
+    parser = _Parser(
+        prog=f"python -m {__spec__.name}", description=_DESCRIPTION,
+        epilog=f"The file is written to:\n  {ENCODING_PATH}",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--force", action="store_true",
+        help="fetch the file again even if a copy with the expected sha256 is already in place",
+    )
+    force: bool = parser.parse_args(sys.argv[1:] if argv is None else argv).force
 
     blobpath, expected = encoding_source()
     existed = ENCODING_PATH.exists()

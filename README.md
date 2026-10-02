@@ -109,8 +109,8 @@ Sanity check:
 .venv/bin/python -m pytest -q
 ```
 
-Run it as `python -m pytest`, from the repository root: one test imports `tests.conftest`,
-which needs the root on the import path, and a bare `pytest` does not put it there.
+Run it from the repository root. A bare `pytest` collects the same tests: `pyproject.toml`
+puts the root on the import path, which the tests that import one another need.
 
 **1485 tests, 1103 passed and 382 skipped.** The skipped ones need Proofload -- the
 adapter's tests and the bridge between the two scorers -- and they say so.

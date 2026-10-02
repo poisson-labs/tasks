@@ -1431,9 +1431,20 @@ def verify_bundle(path: _pathlib.Path, *, recompute: bool = True) -> dict[str, _
     return out
 
 
+def _refuse(sentence: str) -> int:
+    """A refusal: one line on stderr, and exit 1."""
+    print(f"error: {sentence}", file=_sys.stderr, flush=True)
+    return 1
+
+
 def cmd_verify(bundle: _pathlib.Path, into: _pathlib.Path | None) -> int:
+    what = "a bundle is the .zip `bundle` writes, or the folder it unzips to"
     with _tempfile.TemporaryDirectory() as scratch:
         root = _pathlib.Path(bundle)
+        if not root.exists():
+            return _refuse(f"{bundle}: no such bundle ({what})")
+        if root.is_file() and not _zipfile.is_zipfile(root):
+            return _refuse(f"{bundle} is not a bundle: it is not a .zip archive ({what})")
         if root.is_file():
             with _zipfile.ZipFile(root) as handle:
                 for member in handle.namelist():
@@ -1442,6 +1453,8 @@ def cmd_verify(bundle: _pathlib.Path, into: _pathlib.Path | None) -> int:
                         raise ValueError(f"unsafe path in the bundle: {member}")
                 handle.extractall(scratch)
             root = _pathlib.Path(scratch)
+        if not (root / MANIFEST).is_file():
+            return _refuse(f"{bundle} is not a bundle: it holds no {MANIFEST} ({what})")
         result = verify_bundle(root)
         _say(f"{result['files']} files match the manifest"
              + ("; every number in artifact.json recomputes from episodes.jsonl"

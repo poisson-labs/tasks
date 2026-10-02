@@ -2,19 +2,18 @@
 
     python examples/one_task.py [SEED]
 
-No model, no network, no Proofload. Everything printed below is a pure function of the
-arm, the seed and the frozen vocabulary table: run it twice and you get the same bytes.
+No model, no network, no Proofload. Everything it prints is a pure function of the arm,
+the seed and the frozen vocabulary table: run it twice and you get the same bytes.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
-import sys
+from typing import NoReturn
 
 from poisson_tasks.knobs import ArmSpec, arm_id
-from poisson_tasks.tasks import FormatSpec, Turn, generate, verify
-
-SEED = int(sys.argv[1]) if len(sys.argv) > 1 else 7
+from poisson_tasks.tasks import FormatSpec, Turn, encode_record_id, generate, verify
 
 # One arm of the depth knob: three chained stage calls to reach the goal, the strict
 # verifier, the eval split, and the generator version the task is pinned to.
@@ -40,10 +39,31 @@ def turns_for(calls, *, reply: bool = True) -> tuple[Turn, ...]:
     return turns
 
 
-def main() -> None:
-    bundle = generate(ARM, SEED)
+class Parser(argparse.ArgumentParser):
+    """A command-line mistake is one line on stderr, and exit 2."""
 
-    print(f"arm {arm_id(ARM)}   seed {SEED}   split {ARM.split}")
+    def error(self, message: str) -> NoReturn:
+        self.exit(2, f"error: {message}\n")
+
+
+def seed_from_arguments() -> int:
+    parser = Parser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("seed", metavar="SEED", nargs="?", default="7",
+                        help="the task seed, a whole number from 0 to 4294967295 (default: 7)")
+    given = parser.parse_args().seed
+    try:
+        seed = int(given)
+        encode_record_id(seed, ARM.split)  # the generator's own check of a seed's range
+    except ValueError:
+        parser.error(f"SEED must be a whole number from 0 to 4294967295, and {given} is not")
+    return seed
+
+
+def main() -> None:
+    seed = seed_from_arguments()
+    bundle = generate(ARM, seed)
+
+    print(f"arm {arm_id(ARM)}   seed {seed}   split {ARM.split}")
     print(f"task_id      {bundle.task_id}")
     print(f"engine hash  {bundle.engine_hash}")
     print(f"turns needed {ARM.reference_turns}, budget at slack 4: {ARM.max_turns(4)}")

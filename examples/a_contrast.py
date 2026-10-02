@@ -12,6 +12,9 @@ No model, no network, no Proofload.
 
 from __future__ import annotations
 
+import argparse
+from typing import NoReturn
+
 from poisson_tasks.knobs import ArmSpec, arm_id, check_pins, levels, pin_ledger
 from poisson_tasks.tasks import generate
 
@@ -42,7 +45,17 @@ def show(knob: str, arms: list[ArmSpec]) -> None:
         print(f"      {why[:96]}...")
 
 
+class Parser(argparse.ArgumentParser):
+    """A command-line mistake is one line on stderr, and exit 2."""
+
+    def error(self, message: str) -> NoReturn:
+        self.exit(2, f"error: {message}\n")
+
+
 def main() -> None:
+    # It takes no arguments; this gives it --help and refuses anything else.
+    Parser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
+
     print(f"depth levels      {levels('depth')}")
     print(f"distractor levels {levels('distractor')}")
 
