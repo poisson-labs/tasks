@@ -48,8 +48,8 @@ jobs:
         run: ruff check .
       - name: Mypy
         run: mypy
-      # `python -m pytest`, not `pytest`: the tests import one another as `tests.<module>`,
-      # which needs the repository root on the import path, and `python -m` puts it there.
+      # `python -m pytest`, as the README gives it. A bare `pytest` collects the same tests,
+      # because pyproject.toml's pytest table puts the repository root on the import path.
       - name: Tests
         run: python -m pytest -q
 
