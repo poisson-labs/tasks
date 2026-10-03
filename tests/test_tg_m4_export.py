@@ -1,5 +1,5 @@
 """The verifiers export (export.py): bundles packaged as a verifiers v1 taskset -- data, task,
-toolset and rewards -- frozen as tests.
+toolset and rewards -- and its tests.
 
 The invariants this file is built against are X1-X9, the clauses of the export's written
 interface that X1-X9 do not restate (`validate`, the toolset's `setup_task`, `register` and
@@ -94,7 +94,7 @@ tools are listed over MCP (`test_x3_5`).  That needs the module to run as `__mai
 
 **11. The tool bodies are total.**  A tool body calls `apply`, and the engine's `apply`
 is total and advances `seq` on every call (E5).  FastMCP validates arguments against the
-function's signature before the body runs unless the build prevents it, and a call refused
+function's signature before the body runs unless the module prevents it, and a call refused
 there never reaches `apply`: the live counter then trails the task layer's replay by one and
 every later observation differs, which the adapter's replay check (A8) would label
 `replay_mismatch`.
@@ -106,8 +106,8 @@ and `docs/verifiers-export.md` states the three things X9 lists.  The run-time d
 `eval` on this taskset runs `null` with no harness named -- is the taskset's own `Env`,
 tested in `tests/test_tg_m5_standalone.py` (MP3).
 
-Open, and not settled here (each waits on a decision)
------------------------------------------------------
+Open, and not settled here
+--------------------------
 
 1. **The written list of task-data fields is eight of the bundle's twenty-one**, and X2, X4, X6,
    X7 and `validate` between them need the rest (`task_id` covers every other field;
@@ -132,7 +132,7 @@ id (`poisson-tasks`, which the wheel resolves to the package root: MP1); and how
 `is_truncated`, which is also true for a token limit or a length-finished reply: `test_tl1`
 to `test_tl3`).
 
-What this file does not freeze: anything that needs a model, an interception server or a
+What this file does not test: anything that needs a model, an interception server or a
 harness run (`Env.run_episode`, the `null` harness's own program, `eval`); the adapter's
 model path and its replay check A8; and X8's "`shuffle` is never on the measurement path"
 beyond the module's own source, because the measurement path is the adapter's.
@@ -169,7 +169,7 @@ THIS_FILE = Path(__file__).resolve()
 EXPORT_DOC = REPO / "docs" / "verifiers-export.md"
 
 # --------------------------------------------------------------------------
-# literals, each from a written requirement or from a frozen module below this one
+# literals, each from a written requirement or from a module below this one
 # --------------------------------------------------------------------------
 
 GEN_VERSION = "0"
@@ -513,8 +513,7 @@ def test_sf2_no_public_symbol_beyond_all():
 
 
 def test_sf3_each_class_is_the_verifiers_type_2_4_names():
-    """The written interface, class by class.  Fixture could disagree: yes, each base is
-    separate."""
+    """The written interface, class by class, each base checked on its own."""
     m = export()
     assert issubclass(m.ExportTasksetConfig, vf.TasksetConfig)
     assert issubclass(m.ExportTaskConfig, vf.TaskConfig)
@@ -558,14 +557,14 @@ def needs_proofload(modules: set[str]) -> set[str]:
 
 
 def test_pv2_this_file_imports_no_proofload_and_no_adapter():
-    """The same walk over this file, so no test here can need the extra.  Green before and
-    after the build: it reads this file only."""
+    """The same walk over this file, so no test here can need the extra.  It reads this
+    file only."""
     tree = ast.parse(THIS_FILE.read_text(encoding="utf-8"))
     assert needs_proofload(imported_modules(tree)) == set()
 
 
 def test_pv3_the_walker_sees_each_shape_of_import():
-    """The known positive for PV2, MP6.1's walk and X1.3's import half.  Green before and after."""
+    """The known positive for PV2, MP6.1's walk and X1.3's import half."""
     shapes = {
         "import proofload": {"proofload"},
         "from proofload import Episode": {"proofload"},
@@ -587,7 +586,7 @@ def test_pv3_the_walker_sees_each_shape_of_import():
 def test_x1_1_the_installed_wheel_is_the_pinned_one():
     """The pinned release, and X1's "a CI test imports each one from the pinned 0.3.1
     wheel": every verified name is an attribute of `verifiers.v1` and is in its `__all__`.
-    Green before and after: it reads the environment, not the module."""
+    It reads the environment, not the module."""
     assert importlib.metadata.version("verifiers") == PINNED_VERIFIERS
     assert {name for name in VERIFIED_NAMES if not hasattr(vf, name)} == set()
     assert VERIFIED_NAMES - set(vf.__all__) == set()
@@ -598,7 +597,7 @@ def test_x1_3_the_export_takes_only_verified_names_from_verifiers():
 
 
 def test_x1_4_the_walker_flags_each_way_an_unverified_name_gets_in():
-    """The known positive for X1.3.  Green before and after."""
+    """The known positive for X1.3."""
     flagged = {
         "import verifiers.v1 as vf\nvf.MessageNode": {"MessageNode"},
         "from verifiers.v1 import TraceTask": {"TraceTask"},
@@ -620,7 +619,7 @@ def test_x1_4_the_walker_flags_each_way_an_unverified_name_gets_in():
 
 @pytest.mark.parametrize("spec", ALL_SPECS, ids=spec_ids(ALL_SPECS))
 def test_x2_1_task_data_rebuilds_the_generated_bundle(spec):
-    """Fixture could disagree: yes.  The bundle holds tuples, a records value, a `PinRecord`
+    """The bundle holds tuples, a records value, a `PinRecord`
     of nested tuples, a clause-2 control whose arguments are a tuple, and (for a D control)
     a seeded prompt in a shape the wheel refuses."""
     for seed in SEEDS:
@@ -694,8 +693,7 @@ def listed(mcp: FastMCP) -> list[Any]:
 
 @pytest.mark.parametrize("spec", ALL_SPECS, ids=spec_ids(ALL_SPECS))
 def test_x3_1_the_names_are_the_bundles_in_slot_order(spec):
-    """The tool order is fixed per seed.  Fixture could disagree: yes, and the last
-    line checks the seeds do not all share one order, or order would be pinned by nothing."""
+    """The tool order is fixed per seed, and the last line checks the seeds do not all share one order, or order would be pinned by nothing."""
     orders = set()
     for seed in SEEDS:
         bundle = generate(spec, seed)
@@ -919,8 +917,8 @@ def test_ts5_the_engine_state_is_not_in_vf_state():
 @pytest.mark.parametrize("spec", ALL_SPECS, ids=spec_ids(ALL_SPECS))
 def test_x4_1_strict_is_one_exactly_when_verify_says_passed(spec):
     """Every generated control and the reference, under both strictnesses, at three seeds.
-    `turn_limit` runs with no reply, as the task layer runs it.  Fixture could disagree: yes --
-    the expectation is the task layer's `verify` on turns the module never sees."""
+    `turn_limit` runs with no reply, as the task layer runs it.  The
+    expectation is the task layer's `verify` on turns the module never sees."""
     ones = zeros = 0
     for seed in SEEDS[:3]:
         for arm in (spec, leaky(spec)):

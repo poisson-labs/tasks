@@ -1,21 +1,14 @@
 """The model path, layer 1 -- the standalone path: a taskset id that resolves, an `Env`
-that makes `eval` run the measured harness with no flag, and a stranger's one-liner -- frozen
-as tests.
+that makes `eval` run the measured harness with no flag, and a stranger's one-liner -- and its
+tests.
 
 The invariants this file is built against are MP1 to MP9 (layer 1), the wire round-trip
-invariant decided after the 2026-09-22 live smoke, the two items the verifiers export handed
-to the model path (the measured-harness default and loading the taskset by id), the 2026-09-21
-decisions on the model path (the id is `poisson-tasks`; the release needs layer 1 only;
+invariant that the first live run against a real model found, the two items the verifiers
+export left to the model path (the measured-harness default and loading the taskset by id),
+the model path's settled points (the id is `poisson-tasks`; the release needs layer 1 only;
 `turn_limit_hit` reads the stop reason), and knob R's level axis.  MP10, the bridge to the
 adapter's verdict, is in `tests/test_tg_m5_bridge.py`, because `to_episode` imports Proofload
 and no test here may.  Layer 2 (the pinned GPU stack) is not tested here.
-
-**Frozen 2026-09-22**, once the invariant-to-test mapping was approved, with six decisions of
-the same day: the mapping stands; MP10 stays in its own Prove-gated file; the build that
-follows may edit the one-line turn-limit read in `export.py` and `_judge` in `adapter.py`;
-the Env's second declared pin is the runtime; the one-liner passes the arm as one JSON value
-and the taskset config defaults nothing; `test_sf4` stays untouched and the retrofit branch
-goes unused.
 
 **No test here needs Proofload, a GPU or a model.**  Where an invariant is about a run, the run
 is made through the wheel's own lifecycle (`load_environment`, `serving`, `run_episode`)
@@ -23,7 +16,7 @@ against a stub OpenAI-compatible endpoint on loopback that answers with the refe
 Those tests need `uv` on `PATH`, because the `null` harness launches its program through
 `uv`; the program's four dependencies come from uv's cache after the first run.
 
-Every test reaches the build through the wheel's own loader, by the id: `import_taskset`,
+Every test reaches the package through the wheel's own loader, by the id: `import_taskset`,
 `taskset_class`, `environment_class`, `resolve_env_config`, `load_environment`.  So the file
 collects on a tree that exports nothing by the id and fails there for that one reason (the
 package root defines no `__all__`), except the tests of the export document's text and of the
@@ -33,15 +26,15 @@ Shapes decided here
 -------------------
 
 **1. The id `poisson-tasks` resolves to the package root, and the root exports two names
-lazily.**  Decided: the id is the distribution's name.  At 0.3.1 the wheel maps an id to a
+lazily.**  The id is the distribution's name.  At 0.3.1 the wheel maps an id to a
 top-level module by its own transformation (`owner/` and `@version` stripped, `-` to `_`,
 lower-cased; `utils/loaders.py`, `_import_plugin`), so `poisson-tasks` can only ever mean
 `poisson_tasks`, and of the three candidate shapes only "the renamed root is the id" is
-consistent with that decision.  The root's `__all__` names one `Taskset` and one `Env`, and a
+consistent with that.  The root's `__all__` names one `Taskset` and one `Env`, and a
 module `__getattr__` (PEP 562) imports them on first lookup, which is what the loader does
 (`getattr(module, name)` per listed name): `import poisson_tasks` therefore imports no
 `verifiers` (MP7, the separate-module answer inside the root shape).  The two classes live in
-a submodule of their own; the tests never name it or them, so both names are the build's.
+a submodule of their own; the tests never name it or them, so both names are the package's to choose.
 *Escape hatch:* an eager re-export; `test_mp7_1` flips and the document gains the sentence.
 
 **2. The `Env` pins two fields, and the module docstring declares them.**  `agent.harness.id`
@@ -57,13 +50,12 @@ pinned.  What else may go on the list is an open question and is not settled her
 
 **3. The taskset the id exports is `export.ExportTaskset` itself or a subclass that adds
 nothing to `load`.**  The tests check the class through the loader and compare each loaded
-task with `task_from_bundle(generate(arm, seed))`.  The taskset config defaults nothing (decided
-2026-09-22): the one-liner carries the arm, as one JSON value, and the seeds, and the one-liner
+task with `task_from_bundle(generate(arm, seed))`.  The taskset config defaults nothing: the one-liner carries the arm, as one JSON value, and the seeds, and the one-liner
 test asks that the documented command resolves to a non-empty arm and seed list.
 
-**4. `turn_limit_hit` is `Trace.stop_condition == "max_turns"`.**  Decided 2026-09-21,
-closing a question the verifiers export had left open, and pinned here on the only
-reader layer 1 has: the export's `leaky_pass` metric.  A trace the wheel stopped for a token
+**4. `turn_limit_hit` is `Trace.stop_condition == "max_turns"`.**  This closes a question
+the verifiers export's tests leave to this file, and is pinned here on the only reader
+layer 1 has: the export's `leaky_pass` metric.  A trace the wheel stopped for a token
 limit or a context length is truncated but not turn-limited, and with no reply it is
 `verifier_error` -- an episode that ended for a reason the verdict's five arguments cannot
 see.  Measured in a live run: the wheel stamps `max_turns` at the turn cap and
@@ -71,7 +63,7 @@ see.  Measured in a live run: the wheel stamps `max_turns` at the turn cap and
 `test_tl3` pin that read; `test_tl2` is the row `is_truncated` would fail.
 
 **5. The one-liner is read from the document and dry-run.**  MP9's byte-for-byte clause
-needs the live smoke and cannot be closed here; what can be is that the fenced
+needs a live run against a real model and cannot be closed here; what can be is that the fenced
 `eval poisson-tasks` command in `docs/verifiers-export.md` resolves under the wheel's own CLI
 with `--dry-run`, and that the config it resolves to loads by the id, runs `null` in a
 subprocess with no harness named, pushes nothing, and declares an arm and seeds.
@@ -82,9 +74,9 @@ outbound client run in the pytest process, so a guard on `socket.connect` that a
 only holds for the whole run; the harness program and the tool server are child processes on
 loopback and are outside the guard, which is recorded and not claimed.
 
-**7. The resolved env config survives its own wire format.**  Decided 2026-09-22 out of the
-live smoke, whose whole cost bought this one row: `resolve_env_config(env_config_data(cfg))`
-validates and is a fixed point.  It is the only place the config crosses a process boundary,
+**7. The resolved env config survives its own wire format.**  The first live run against a
+real model found this one: `resolve_env_config(env_config_data(cfg))` validates and is a
+fixed point.  It is the only place the config crosses a process boundary,
 and `--dry-run` -- which every other config test here goes through -- exits before the serve
 pool starts, so nothing else in this file reaches it.  The control, `test_w2`, is the same
 round trip on a config with no arm: its `task` is the export's own task config at its
@@ -92,13 +84,13 @@ defaults, and on a tree whose taskset config does not re-declare `task` it is th
 `TaskConfig`, so there `test_w2` passes while `test_w1` fails.
 *Escape hatch:* `env_config_data`'s name; `wire()` moves.
 
-Open, and not settled here (each waits on a decision)
------------------------------------------------------
+Open, and not settled here
+--------------------------
 
 1. **What else the env config may pin.**  Shape 2 above pins the declaration, not the list.
-2. **MP9's byte-for-byte clause** waits on the live smoke ($20 cap, granted).
+2. **MP9's byte-for-byte clause** needs a live run against a real model, which no test here makes.
 
-What this file does not freeze: anything that needs a real model (MP9 proper); the model
+What this file does not test: anything that needs a real model (MP9 proper); the model
 targets, the trace-to-`Run` mapping and A8's shape (layer 2); and MP10, which
 is `tests/test_tg_m5_bridge.py`'s and needs the extra.
 """
@@ -139,14 +131,14 @@ THIS_FILE = Path(__file__).resolve()
 EXPORT_DOC = REPO / "docs" / "verifiers-export.md"
 
 # --------------------------------------------------------------------------
-# literals, each from a design decision or a frozen module below this one
+# literals, each from a design choice or a module below this one
 # --------------------------------------------------------------------------
 
-TASKSET_ID = "poisson-tasks"  # decided 2026-09-21: the new name, from the first release
+TASKSET_ID = "poisson-tasks"  # the distribution's name, from the first release
 ROOT_MODULE = "poisson_tasks"  # what the wheel's own transformation makes of it
 OLD_ID = "task-generator"
-MEASURED_HARNESS = "null"  # X9, frozen in the export as `export.MEASURED_HARNESS`
-TURN_LIMIT_STOP = "max_turns"  # decided 2026-09-21: `turn_limit_hit` is this stop reason
+MEASURED_HARNESS = "null"  # X9, the export's `export.MEASURED_HARNESS`
+TURN_LIMIT_STOP = "max_turns"  # `turn_limit_hit` is this stop reason (shape 4)
 TOKEN_STOPS = ("max_input_tokens", "max_output_tokens", "max_total_tokens", "context_length")
 GEN_VERSION = "0"
 KEY_VAR = "POISSON_TASKS_TEST_KEY"
@@ -191,13 +183,13 @@ SPEC_D3 = spec_of("depth", 3)
 
 
 # --------------------------------------------------------------------------
-# helpers: the build, reached by the id through the wheel's own loader
+# helpers: the package, reached by the id through the wheel's own loader
 # --------------------------------------------------------------------------
 
 
 def loaders() -> Any:
-    """The wheel's loader module.  Its names are the wheel's, not the verified-names table's;
-    the gap log's PG-19 records them and the table row they are owed."""
+    """The wheel's loader module.  Its names are the wheel's and are not in the
+    verified-names table."""
     return importlib.import_module("verifiers.v1.utils.loaders")
 
 
@@ -688,7 +680,7 @@ def public_names(module: Any) -> set[str]:
 
 
 def test_sf1_this_file_imports_no_proofload_and_no_adapter():
-    """Decided 2026-09-21: Tasks is standalone, and no test here may need Prove."""
+    """The package is standalone, and no test here may need Proofload."""
     tree = ast.parse(THIS_FILE.read_text(encoding="utf-8"))
     assert needs_proofload(imported_modules(tree)) == set()
 
@@ -902,7 +894,7 @@ def test_mp5_3_at_the_cli_the_pin_is_a_default_and_not_a_lock():
 
 
 # --------------------------------------------------------------------------
-# MP6 - Prove stays optional
+# MP6 - Proofload stays optional
 # --------------------------------------------------------------------------
 
 
@@ -1010,7 +1002,7 @@ def test_mp9_3_the_one_liner_resolves_to_tasks_the_generator_would_make():
 
 
 # --------------------------------------------------------------------------
-# W - the resolved env config survives its own wire format (decided 2026-09-22)
+# W - the resolved env config survives its own wire format
 # --------------------------------------------------------------------------
 
 
@@ -1025,8 +1017,8 @@ def wire(config: Any) -> dict[str, Any]:
 
 
 def test_w1_the_resolved_env_config_survives_its_own_wire_format():
-    """The invariant the 2026-09-22 live smoke bought, decided the same day: a config the
-    wheel resolved must validate again from its own dump, and be a fixed point under it.
+    """The invariant the first live run against a real model found: a config the wheel
+    resolved must validate again from its own dump, and be a fixed point under it.
 
     `TasksetConfig.task` is `SerializeAsAny[TaskConfig]`, so the dump is duck-typed and
     carries whatever subclass the field holds -- but the annotation is still the base
@@ -1066,7 +1058,7 @@ def test_w2_a_config_with_no_arm_round_trips_the_known_positive_control():
 
 
 # --------------------------------------------------------------------------
-# TL - `turn_limit_hit` reads the stop reason (decided 2026-09-21)
+# TL - `turn_limit_hit` reads the stop reason
 # --------------------------------------------------------------------------
 
 
