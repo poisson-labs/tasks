@@ -966,6 +966,26 @@ def test_n8_2_an_observation_of_the_wrong_width_refuses():
     assert report.refused is True
 
 
+def test_n8_3_an_observation_outside_the_token_band_refuses():
+    """N8: "tokens in band" is the row's second half.  An observation of exactly
+    `L_obs` bytes whose token count is outside the engine's band refuses, below the band
+    and above it, and N8 is the only row that fires.  The victim is the low arm, whose
+    observations no N9 comparison reads."""
+    k = knobs()
+    below = " " * L_OBS
+    above = ("a1" * L_OBS)[:L_OBS]
+    assert ntok(below) < BAND_LO and ntok(above) > BAND_HI, (ntok(below), ntok(above))
+    for outside in (below, above):
+        arms = depth_contrast()
+        victim = k.arm_id(spec(level=1))
+        b = arms[victim]
+        arms[victim] = replaced(
+            b, reference_observations=tuple(outside for _ in b.reference_observations))
+        report = k.check_pins(arms)
+        assert failed_rows(report) == {"N8"}, (ntok(outside), report.violations)
+        assert report.refused is True
+
+
 def test_n9_1_the_seeded_history_is_compared_as_an_aggregate_not_per_pair():
     """N9: an aggregate band.  The comparison is the sum over the `H - dL` pairs against the
     sum over the chain pairs they stand in for, and **not** a per-pair equality.  A
