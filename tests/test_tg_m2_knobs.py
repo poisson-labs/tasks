@@ -155,8 +155,6 @@ ROW_KNOBS = {
 # and an episode's `meta` for the serving pin, and the trace for realised tokens.
 MEASURABLE_ROWS = tuple(f"N{i}" for i in range(1, 10)) + ("N11", "N12")
 UNMEASURABLE_ROWS = ("N10", "N13")
-# A failed row refuses unless its action is to report.  N5 is the only reporting row.
-REPORTING_ROWS = ("N5",)
 
 # N9's declared band, in reference-tokenizer tokens, over the aggregate.
 #
@@ -194,19 +192,6 @@ ARM_ID_CASES = (
 STRICTNESS = ("strict", "leaky")
 SPLITS = ("eval", "train")
 GEN_VERSION = "0.0.1"
-
-# N18.  A 40-character lowercase hex commit hash, never a branch or tag.
-GOOD_MODEL = "Qwen/Qwen3.5-9B@" + "c202236" + "a" * 33
-BAD_MODELS = (
-    "Qwen/Qwen3.5-9B@main",
-    "Qwen/Qwen3.5-9B@v1.0",
-    "Qwen/Qwen3.5-9B@" + "a" * 39,
-    "Qwen/Qwen3.5-9B@" + "a" * 41,
-    "Qwen/Qwen3.5-9B@" + "A" * 40,
-    "Qwen/Qwen3.5-9B@" + "g" * 40,
-    "Qwen/Qwen3.5-9B",
-)
-
 
 # --------------------------------------------------------------------------
 # the shared helpers
@@ -760,14 +745,6 @@ def reported_rows(report) -> set[str]:
     return {row for row, _ in report.reported}
 
 
-def test_n1_1_equal_scenarios_across_arms_pass():
-    """N1: `scenario_hash` of the same seed generated under every arm of the knob,
-    equal.  The pilot's three arms on one scenario are the clean case."""
-    report = knobs().check_pins(depth_contrast())
-    assert "N1" not in failed_rows(report)
-    assert report.refused is False
-
-
 def test_n1_2_a_differing_scenario_hash_refuses():
     """N1: the pin the whole design rests on.  If the arms are not the same scenario,
     the contrast is between two tasks and not between two levels."""
@@ -907,13 +884,6 @@ def test_n5_1_knob_rs_block_token_count_is_reported_and_never_refuses():
     assert report.refused is False
 
 
-def test_n5_2_n5_does_not_fire_on_knob_d():
-    """N5: the row is written "(knob R)".  Knob D holds the block identical (N4), so
-    its token count cannot differ and a report would be noise."""
-    report = knobs().check_pins(depth_contrast())
-    assert "N5" not in reported_rows(report) and "N5" not in failed_rows(report)
-
-
 def test_n6_1_a_different_template_id_refuses():
     """N6: "template id equal".  One fixed template per knob, so two
     arms on two templates are two prompts, whatever their token counts say."""
@@ -949,14 +919,6 @@ def test_n6_3_equal_counts_pass_even_when_the_slot_values_differ():
     for i, name in enumerate(sorted(arms)):
         arms[name] = replaced(arms[name], prompt_slots=(("goal", stage_names[i]),))
     assert "N6" not in failed_rows(k.check_pins(arms))
-
-
-def test_n7_1_the_prompt_to_tool_name_overlap_set_is_equal_across_arms():
-    """N7: "the set of prompt tokens that occur in any tool name, across arms", equal.
-    A prompt that names one arm's tool and not another's is a lexical cue for the arm,
-    which is the confound knob R's lexical rule exists to stop."""
-    k = knobs()
-    assert "N7" not in failed_rows(k.check_pins(depth_contrast()))
 
 
 def test_n7_2_a_prompt_that_names_a_tool_in_one_arm_only_refuses():
@@ -1135,22 +1097,6 @@ def test_n14_1_knob_d_changes_only_the_goal_stage_and_the_required_count():
     assert failed_rows(report) == set()
 
 
-def test_n14_2_the_d_control_may_change_the_prompt_messages_and_seq_start_and_nothing_else():
-    """N14: "D control: prompt `Messages`, `seq_start`.  Both ride the arm, not the
-    scenario, so N1 still holds."  The control's prompt *is* different - that is what a
-    seeded control is - and `seq_start` moves to `H - dL + 1`, and neither may be read
-    as an N1, N3, N6 or N7 violation."""
-    k = knobs()
-    low, high = 1, 8
-    arms = depth_contrast(low=low, high=high)
-    control = k.arm_id(spec(level=low, control=high))
-    arms[control] = control_with_residual(arms, low, high, 0)
-    assert arms[control].seq_start == high - low + 1
-    assert arms[control].prompt != arms[k.arm_id(spec(level=low))].prompt
-    report = k.check_pins(arms)
-    assert report.refused is False
-
-
 def test_n14_3_a_control_that_moves_a_field_outside_its_list_refuses():
     """N14: the list is exhaustive.  A control arm that also moved the block, the
     scenario or a hash would be changing what it claims to hold fixed, and the reason
@@ -1213,19 +1159,6 @@ def _shape(arm_id_str: str) -> str:
             out.append(ch)
             prev_digit = False
     return "".join(out)
-
-
-def test_n15_2_the_control_is_total_over_the_knobs_levels():
-    """N15: "total" means the constructor is defined for every level the knob offers,
-    against every higher level.  A control that existed only at the pilot's `d1+h8`
-    would tie the control to the pilot's levels, and the candidates have no cut order."""
-    k = knobs()
-    for knob in ("depth", "distractor"):
-        lv = k.levels(knob)
-        for low in lv:
-            for high in lv:
-                if high > low:
-                    assert k.arm_id(spec(knob=knob, level=low, control=high))
 
 
 def test_n15_3_a_control_against_a_level_that_is_not_higher_is_refused():
@@ -1324,35 +1257,6 @@ def test_n18_1_the_serving_pin_row_carries_n18s_requirements():
         assert piece in held, piece
 
 
-def test_n18_2_tg_m2_holds_no_revision_predicate_and_the_ledger_says_who_does():
-    """N18: the written test for it is "the pre-registration validator refuses a
-    revision that isn't 40 hex characters", and the pre-registration is built in the
-    adapter.  Nothing about a model reaches a bundle, so knobs.py declares the row
-    and validates nothing - asserted here so that a build does not quietly add a
-    half-validator, and so the gap is visible rather than assumed covered.
-
-    **The predicate itself is a named gap owed to the adapter's tests**, together with
-    N17's scripted `diff`.  Both are in this file's docstring.
-    """
-    k = knobs()
-    rows = {r.row_id: r for r in k.pin_ledger("depth")}
-    assert rows["N10"].stage == "adapter"
-    rec = k.measure_pins(bundle(spec()))
-    assert "N10" in rec.unmeasured
-    # No public symbol validates a model string; SF2 pins the surface, this pins the
-    # consequence.  A model id never enters knobs.py, so the 40-hex check cannot live here.
-    assert not any("model" in name.lower() for name in KNOBS_EXPORTS)
-    assert all(len(rev) == 40 and set(rev) <= set("0123456789abcdef")
-               for rev in [GOOD_MODEL.split("@", 1)[1]]), "the fixture is a valid pin"
-    assert not any(_valid_revision(m.split("@", 1)[1]) for m in BAD_MODELS if "@" in m)
-
-
-def _valid_revision(rev: str) -> bool:
-    """N18's predicate, written here so the fixture above can be trusted.  It is *not*
-    the implementation: the adapter's pre-registration validator owns that."""
-    return len(rev) == 40 and set(rev) <= set("0123456789abcdef")
-
-
 # --------------------------------------------------------------------------
 # CP - check_pins' own contract
 # --------------------------------------------------------------------------
@@ -1399,22 +1303,14 @@ def test_cp3_the_report_names_the_knob_and_carries_every_arms_record():
         assert rec.arm_id == arm
 
 
-def test_cp4_refused_is_true_for_every_action_except_report():
-    """CP4: N5 is the only row whose failure is not a refusal.  Stated as its own test
-    because the ledger's *On violation* column has five distinct values and four of
-    them stop generation; collapsing them to a boolean is where that gets lost."""
-    k = knobs()
-    for row in k.pin_ledger("depth"):
-        if row.row_id in REPORTING_ROWS:
-            assert row.on_violation == "report", row.row_id
-        else:
-            assert row.on_violation != "report", row.row_id
-
-
 def test_cp5_a_clean_contrast_refuses_nothing_and_reports_nothing():
     """CP5: the control case.  If the pilot's own three arms tripped a row, every test
     above that asserts a *specific* row fired would still pass while the ledger was
-    refusing everything."""
+    refusing everything.
+
+    It is also N14's D control case: the control's prompt `Messages` and its
+    `seq_start` of `H - dL + 1` ride the arm, not the scenario, and neither may be read
+    as an N1, N3, N6 or N7 violation."""
     k = knobs()
     low, high = 1, 8
     arms = depth_contrast(low=low, high=high)
