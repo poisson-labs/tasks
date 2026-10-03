@@ -90,7 +90,7 @@ import subprocess
 import sys
 import textwrap
 
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 # --------------------------------------------------------------------------
@@ -724,7 +724,13 @@ def test_nrows_4_every_row_is_measured_or_declared_unmeasurable_exactly_once():
 def test_nrows_5_the_unmeasurable_rows_are_exactly_n10_and_n13_and_each_gives_a_reason():
     """N-rows: only the serving pin and the realised token count need something no
     bundle carries.  Naming them here stops a later build from quietly widening the
-    set and calling a pin unmeasurable because measuring it was awkward."""
+    set and calling a pin unmeasurable because measuring it was awkward.
+
+    This is N10's and N13's test at generation.  N10 compares a serving pin "across all
+    of a model's runs", from cfg, the arm spec and every episode's `meta`; N13 reads
+    server-reported usage from the trace, per episode.  A bundle has none of those, so
+    each is declared unmeasured with a reason rather than a pin that silently measures
+    nothing.  Where each is enforced, and what its violation does, is test_nrows_2's."""
     k = knobs()
     rec = k.measure_pins(bundle(spec()))
     assert tuple(sorted(rec.unmeasured, key=lambda r: int(r[1:]))) == UNMEASURABLE_ROWS
@@ -1034,17 +1040,6 @@ def test_n9_4_the_read_pairs_reachable_set_is_what_makes_the_aggregate_attainabl
     assert row.on_violation == "refuse"
 
 
-def test_n10_1_the_serving_pin_is_declared_unmeasurable_at_generation():
-    """N10: it compares a serving pin "across all of a model's runs", from cfg, the arm
-    spec and every episode's `meta`.  A bundle has none of those, and the honest answer
-    is a named gap rather than a pin that silently measures nothing."""
-    k = knobs()
-    rec = k.measure_pins(bundle(spec()))
-    assert "N10" in rec.unmeasured
-    row = {r.row_id: r for r in k.pin_ledger("depth")}["N10"]
-    assert row.stage == "adapter" and row.on_violation == "stop_run"
-
-
 def test_n11_1_a_strictness_difference_refuses_the_start():
     """N11: "Verifier strictness, from the arm spec, equal".  Both predicates are always
     computed (by the task layer), so a strictness that varies by arm would change which label the
@@ -1069,17 +1064,6 @@ def test_n12_1_the_engine_and_generator_hashes_are_held_equal():
         report = k.check_pins(arms)
         assert "N12" in failed_rows(report), field
         assert report.refused is True
-
-
-def test_n13_1_realised_input_tokens_are_declared_unmeasurable_at_generation():
-    """N13: "server-reported usage from the trace, per episode", against a
-    pre-registered band, and a violation voids the contrast.  Nothing about
-    it exists before a run, so generation declares it rather than guessing."""
-    k = knobs()
-    rec = k.measure_pins(bundle(spec()))
-    assert "N13" in rec.unmeasured
-    row = {r.row_id: r for r in k.pin_ledger("depth")}["N13"]
-    assert row.stage == "analysis" and row.on_violation == "void_contrast"
 
 
 # --------------------------------------------------------------------------
@@ -1194,25 +1178,21 @@ def test_n16_1_max_turns_is_the_reference_turns_plus_the_slack():
 @given(slack=st.integers(min_value=0, max_value=64),
        level=st.sampled_from(DEPTH_LEVELS),
        control=st.one_of(st.none(), st.sampled_from(DEPTH_LEVELS)))
+@example(slack=4, level=1, control=8)
 def test_n16_1b_the_slack_identity_holds_over_every_slack_and_level(slack, level, control):
     """N16, as a property: `max_turns(S) - reference_turns == S` for every slack and
     every candidate level, and the control's turn count follows `dL` and never `H`.
-    Three hand-picked slacks cannot tell an identity from a table of three answers."""
+    Three hand-picked slacks cannot tell an identity from a table of three answers.
+
+    "The depth control gets `dL + 1 + S`."  Seeded history uses no turns, so a `d1+h8`
+    control needs two turns plus slack and not nine, which is the whole reason the turn
+    budget is pinned as slack rather than as a total.  The explicit example is that
+    control at S = 4."""
     if control is not None and control <= level:
         return
     s = spec(level=level, control=control)
     assert s.max_turns(slack) - s.reference_turns == slack
     assert s.reference_turns == level + 1
-
-
-def test_n16_2_the_depth_control_gets_its_own_level_plus_slack_not_the_high_levels():
-    """N16: "The depth control gets `dL + 1 + S`."  Seeded history uses no turns, so a
-    `d1+h8` control needs two turns plus slack and not nine - which is the whole reason
-    the turn budget is pinned as slack rather than as a total."""
-    control = spec(level=1, control=8)
-    assert control.reference_turns == 1 + 1
-    assert control.max_turns(4) == 1 + 1 + 4
-    assert control.max_turns(4) != spec(level=8).max_turns(4)
 
 
 def test_n18_1_the_serving_pin_row_carries_n18s_requirements():
