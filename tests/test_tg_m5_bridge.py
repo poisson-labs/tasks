@@ -291,8 +291,3 @@ def test_mp10_4_control_a_genuine_divergence_is_replay_mismatch_and_the_reward_c
         trace = trace_of(task, bundle, ref, reply=True, observations=bad)
         assert episode_of(spec, bundle, trace).outcome == "replay_mismatch", index
 
-
-def test_mp10_5_the_adapters_run_keeps_its_six_fields():
-    """Shape (b) costs the frozen scripted tests nothing: `Run` is the record `test_sf4` pins."""
-    fields = dataclasses.fields(adapter().Run)
-    assert [f.name for f in fields] == ["turns", "tool_messages", "ended_with_reply", "turn_limit_hit", "fmt", "instrument"]
