@@ -1,9 +1,9 @@
 """The Proofload adapter's scripted path: the arm targets, the two scripted policies, the
-outcome map and the pre-registration validator, frozen as tests.
+outcome map and the pre-registration validator, as tests.
 
 The invariants this file is built against are A1-A9 and A12, the two coverage gaps these
-tests inherit from knobs.py's tests (N17's scripted `diff`, N18's revision predicate), and
-knob R's level axis, which the task layer's build found uncovered.  The model path is for a
+tests inherit from knobs.py's tests (N17's common horizon, N18's revision predicate), and
+knob R's level axis, which the task layer's tests leave uncovered.  The model path is for a
 later set of tests.  The written requirements are not edited here: where they are silent
 this docstring decides, and it is authoritative for the build wherever their text could not
 be used as written.  Every decision below carries its reason and an escape hatch.
@@ -13,10 +13,9 @@ to end".  A lazily built module-level `world()` builds both registries and runs 
 `proofload sweep`s once (every arm of both knobs, two `faulty` arms over two plant cells, and
 one run under another salt); the first test that needs a registered target builds it.
 `test_a2_*`, `test_a3_*`, `test_a5_1`, `test_a5_2`, `test_a6_3` and `test_f8` read what those
-sweeps stored, `test_a5_4` and `test_a5_5` run `proofload diff` over them, and `test_a5_6` and
-`test_a7_5` run the CLI on their own; everything else calls targets or the outcome map in
-process.  The stores are read from their files: no public verb prints an episode's `meta`
-(gap log, PG-17).  The child interpreters inherit `PYTHONPATH`, so they import the same copy
+sweeps stored, and `test_a7_5` runs the CLI on its own; everything else calls targets or the
+outcome map in process.  The stores are read from their files: no public verb prints an
+episode's `meta`.  The child interpreters inherit `PYTHONPATH`, so they import the same copy
 of the package the tests do.
 
 Decisions
@@ -53,7 +52,7 @@ and `distractor:r0+len(r8)@k16` is `reference_distractor_r0_len_r8_k16`.  An arm
 it, so "one module-level callable per arm" needs a rule for the name; the two policies
 are `reference` and `faulty`, and `faulty` exists only when `load_registry` is given a sealed
 file.  Pinned by literals in `test_a7_7` and not by the helper the rest of the file uses.
-*Escape hatch:* any injective rule; `attr_of` and `test_a7_6`/`test_a7_7` move.
+*Escape hatch:* any injective rule; `attr_of` and `test_a7_7` move.
 
 **4. The cfg contract.**  A target requires `slack`, `horizon`, `strictness` and
 `generator_hash` (N10, N11, N12, N17: the sweep file declares them so they enter
@@ -73,8 +72,8 @@ reference episode of `d` calls has `t = d + 1`, N16's own count, and the wrong-s
 (one call fewer, then a reply) has `t = d`.  This is `Trace.num_turns` for a run with no
 trace.  `Run` carries `turns` (the task layer's `Turn`s), `tool_messages`, `ended_with_reply`,
 `turn_limit_hit`, `fmt` and an optional `instrument`; the model path builds one from a
-verifiers trace.  `Run` is a plain record and validates nothing at construction (`test_sf8`),
-because a structurally invalid trace has to reach `to_episode` to become a `verifier_error`.
+verifiers trace.  `Run` is a plain record and validates nothing at construction, because a
+structurally invalid trace has to reach `to_episode` to become a `verifier_error` (`test_a4_6`).
 
 **6. The outcome map's order.**  `to_episode(arm, bundle, run, *, slack, horizon, meta=None)`
 assigns, in this order and first match wins: an exception in its own verification (the
@@ -113,7 +112,7 @@ the same seam for model targets.  *Escape hatch:* any other injectable seam; `te
 **10. The validator holds three clauses no other module's tests hold, and refuses by name.**
 `validate_preregistration(document)` raises `ValueError` whose message names the offending
 key or value (a refusal that did not would pass any test of it for the wrong clause).  N18's
-predicate (owed since 2026-09-13): each `model` is `<HF id>@<revision>` with exactly one `@`,
+predicate: each `model` is `<HF id>@<revision>` with exactly one `@`,
 a non-empty id and a revision of 40 hex characters; models on different `vllm_version`s or
 `endpoint_type`s are refused; a model that omits either cannot be shown to agree and is
 refused.  N15's pre-registration half, which nothing held ("a sweep of a knob without its
@@ -145,28 +144,21 @@ exercise the extremes (rates 0 and 1) exactly and a half rate statistically, wit
 standard deviations wide, so no test depends on which keyed draw a build uses.  These are the
 least anchored decisions in the file; the plants' *scoring* is the calibration stage's and is
 not here.
-*Escape hatch:* the plant semantics are `test_f3` to `test_f7`.
+*Escape hatch:* the plant semantics are `test_f3` to `test_f6`.
 
 **12. Inherited coverage: knob R's level axis.**  The task layer's tests build one contrast,
-`r0` against `r8`, at three seeds, and four of the mutation rows run against its build
-survived its 235 tests for that reason.  Every test here that checks what a knob R arm
-generates, stores or labels runs over `levels("distractor")` and both R controls, or over
-every stored run; the tests of a *rule* (`test_cfg2` to `test_cfg7`, `test_map1`, `test_a4_2`,
-`test_a4_6`, `test_a4_7`, `test_a5_7`, `test_a5_8`, `test_a8_5`) fix one to four arms,
-`SPEC_D3` and `SPEC_R4` mainly, and claim no level.  `test_ct*` reach the task layer's ledger
-through the registered arm sets, `test_ct5` on one pair, `r0` against `r14`, at a dense spread.
-`test_ct3` and `test_ct4` did the same on the seeds whose first record-id word a tool name
-carried, until vocabulary v2 left them no such seed and its test retrofit retired them; the three
-task-layer rows only `test_ct3` caught are pinned in `tests/test_tg_m3_tasks.py`.  **The open
-record-id gap is wider than recorded**: measured here at 60 seeds per word, `city` (eval),
-`grad` and `port` (train) refuse a knob R contrast at `r14` at every seed, and so does `disc`
-(train) at 43 of 60, which the record does not name; `face` and `elect` refuse none, and
-nothing below `r14` refuses for any of the six.  The four are excluded from any contrast
-that holds `r14` and asserted nowhere: pinning a known defect would need a retrofit the day
-it closes.  Every `test_ct*`, `test_a5_6`, `test_a1_3` and `test_h1` are **green before and
-after**.
+`r0` against `r8`, at three seeds.  Every test here that checks what a knob R arm generates,
+stores or labels runs over `levels("distractor")` and both R controls, or over every stored
+run; the tests of a *rule* (`test_cfg2` to `test_cfg7`, `test_map1`, `test_a4_2`, `test_a4_6`,
+`test_a4_7`, `test_a5_7`, `test_a8_5`) fix one to four arms, `SPEC_D3` and `SPEC_R4` mainly,
+and claim no level.  `test_ct1` and `test_ct2` reach the task layer's ledger through the
+registered arm sets over a spread of seeds.  Under the first record-id vocabulary, a seed
+whose first record-id word a tool name carried (`city` in eval; `disc`, `grad` and `port` in
+train) made a knob R contrast that holds `r14` refuse.  Vocabulary v2's word lists share no
+word with any tool name, so that gap is closed, no seed is excluded here, and
+`tests/test_record_id_fix.py` pins the fix.
 
-What this file does not freeze
+What this file does not pin
 ------------------------------
 A4's *end-to-end* fault injection (a vLLM server dying mid-episode) and A9's model-path half
 belong to the model path: the scripted path has no server, so here the fault is injected where
@@ -484,8 +476,8 @@ def sweep(
 def read_rows(store: Path, run_id: str) -> list[dict[str, Any]]:
     """A run's rows, read from the store's own files.  Proofload's public verbs print no
     episode `meta` (`inspect` prints traces, `diff` never reads it), so A2, A3 and A6 have
-    no public route to what they assert.  The files are the route PG-13 already asks
-    Proofload to document; the `Store` class is the workaround not taken (gap log, PG-17)."""
+    no public route to what they assert.  The files are read directly, and not through
+    Proofload's `Store` class."""
     import pyarrow.parquet as pq
 
     rows: list[dict[str, Any]] = []
@@ -823,8 +815,7 @@ def test_a1_2_the_walker_sees_the_import_the_adapter_must_make():
     ],
 )
 def test_a1_3_the_walker_flags_every_shape_that_is_not_the_one_permitted(source):
-    """Green before and after: it tests this file's own walker, which is
-    what makes A1.1 able to fail."""
+    """It tests this file's own walker, which is what makes A1.1 able to fail."""
     assert proofload_violations(ast.parse(source)) != []
     assert proofload_violations(ast.parse("from proofload import Episode, Rollout")) == []
 
@@ -1212,7 +1203,7 @@ def test_a9_3_the_targets_episode_is_the_maps_pure_function_of_what_it_was_hande
 @pytest.mark.parametrize("control", ["overshoot", "collateral_mutation"])
 def test_a9_4_the_arms_strictness_decides_the_label_and_both_predicates_are_recorded(control):
     """The rule: "`outcome` = the verdict label under the arm's strictness", with the leaky verdict
-    in `meta` (PG-5).  The same episode is `overshoot` or `collateral_mutation` under a strict
+    in `meta`.  The same episode is `overshoot` or `collateral_mutation` under a strict
     arm and `passed` under a leaky one, and both record `leaky_pass` and the strict label."""
     strict, leaky = spec_of("depth", 3), spec_of("depth", 3, strictness="leaky")
     results = {}
@@ -1877,7 +1868,7 @@ def test_n18_1_a_revision_that_is_not_forty_hex_characters_is_refused(name, posi
     """N18: "the pre-registration validator refuses a revision that isn't 40 hex characters",
     a full commit hash "never a branch or tag".  Either model's; twelve ways to be wrong,
     including a trailing newline (which a `$`-anchored pattern lets through) and a 41st
-    character (which a `{40,}` lets through).  Owed to this module since 2026-09-13."""
+    character (which a `{40,}` lets through)."""
     models = [model(), model(f"{GOOD_REVISION}", model=f"mistralai/Ministral-3-14B@{GOOD_REVISION}")]
     models[position] = dict(models[position], model=models[position]["model"].split("@")[0] + "@" + BAD_REVISIONS[name])
     refused(with_models(*models), "revision")
@@ -1969,8 +1960,7 @@ def test_n17_2_the_horizon_follows_the_slack_and_the_arm_set():
 # names the slack; `"13"` and `None` are refused by the horizon's type clause and again by N17's equality
 # clause, and both messages name `horizon`.  Neither can be isolated by any document, because a string, a
 # `None` and a non-integral float can never compare equal to N17's integer -- what isolates the type clause is
-# a value that is not an `int` and *does* compare equal, which is what `4.0` and `13.0` are.  Measured in the
-# mutation pass: `4.0` is accepted by two mutants and refused by every other row, and `13.0` by three.
+# a value that is not an `int` and *does* compare equal, which is what `4.0` and `13.0` are.
 @pytest.mark.parametrize(
     "field, value, horizon",
     [("horizon", "13", 13), ("horizon", None, 13), ("horizon", 13.0, 13), ("slack", "4", 13), ("slack", -1, 8),
@@ -2035,8 +2025,8 @@ def test_val5_an_arm_must_be_a_canonical_distinct_arm_id_of_the_registrations_kn
     The other six are refused while their arms are read, before any horizon is computed, and
     keep 13.
 
-    `leading_zero` also had to stop naming an arm the document already lists: `d01` renders
-    as `depth:d1`, so a build without the canonical clause refused it as a duplicate of the
+    `leading_zero` names no arm the document already lists: `d01` would render as
+    `depth:d1`, so a build without the canonical clause would refuse it as a duplicate of the
     `depth:d1` beside it, in a message naming `depth:d1` and not `depth:d01`.  `d03` renders
     as `depth:d3`, which no other listed arm is, so the canonical clause is the only clause
     that can refuse the document."""
@@ -2056,11 +2046,10 @@ def test_val7_a_non_canonical_distractor_id_is_refused_because_its_k_is_fixed():
     """`@k16` is fixed and the renderer is the only thing that writes it, so `@k8` is
     not another arm: it is an id `arm_id` would never produce.
 
-    `distractor:r4@k8` takes the place of `distractor:r4@k16`, the arm it renders as, rather
-    than of the last arm in the list.  It used to take the last one's place, which left the
-    `r4@k16` it renders as still listed, so a build without the canonical clause refused the
-    document as a duplicate, in a message naming `distractor:r4@k16`.  Swapped for the arm it
-    renders as, the arm set such a build reads is exactly `R_SPECS` -- every arm once, a
+    `distractor:r4@k8` takes the place of `distractor:r4@k16`, the arm it renders as.  In
+    any other arm's place it would leave the `r4@k16` it renders as still listed, and a build
+    without the canonical clause would refuse the document as a duplicate, in a message naming
+    `distractor:r4@k16`.  Swapped for the arm it renders as, the arm set such a build reads is exactly `R_SPECS` -- every arm once, a
     control arm among them, and `reg_doc`'s horizon still N17's number for it -- so the
     canonical clause is the only clause that can refuse the document."""
     doc = reg_doc("distractor", R_SPECS)
