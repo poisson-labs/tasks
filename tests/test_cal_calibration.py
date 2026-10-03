@@ -541,35 +541,31 @@ def expect_attempt_weighted_unequal(survivors: Sequence[tuple[int, int]]) -> flo
 
 
 # ---------------------------------------------------------------------------
-# guards on the fixtures themselves (decision 4) -- these pin nothing about the build
-# ---------------------------------------------------------------------------
-
-
-def test_fixture_enumerated_answers_agree_with_each_other() -> None:
-    """CAL7's two derivations are independent and must agree before any test uses either:
-    the closed form from `math.comb`, and the exhaustive expectation over all `C(n, k)`
-    subsets.  If these two ever disagree, these tests are wrong and not the build."""
-    for k in range(1, N + 1):
-        closed = expect_pass_at_k_closed(HETEROGENEOUS_COUNTS, k)
-        exhaustive = expect_pass_at_k_exhaustive(HETEROGENEOUS_COUNTS, k)
-        assert closed == pytest.approx(exhaustive, abs=1e-12), (k, closed, exhaustive)
-    assert expect_pass_at_k_closed(HETEROGENEOUS_COUNTS, 1) == pytest.approx(
-        expect_pass_at_1(HETEROGENEOUS_COUNTS)
-    )
-
-
-# ---------------------------------------------------------------------------
 # B - the arithmetic.  CAL6 to CAL16
 # ---------------------------------------------------------------------------
 
 
 def test_cal6_1_pass_at_1_is_task_weighted() -> None:
     """CAL6 on the fixture that can tell the two weightings apart.  The answer is computed
-    from the table, not read off the build."""
+    from the table, not read off the build.
+
+    CAL16's exclusion is what makes the surviving `n` unequal: "an episode carrying an
+    instrument label ... leaves the denominator", one attempt at a time and never its whole
+    task.  And the sentence CAL6 is written in, "every seed counts once, whatever `n` it
+    got", on a task with one attempt beside a task with five."""
     cell = cell_with_exclusions()
-    got = cal().pass_at_1(cal().scored(cell))
+    kept = cal().scored(cell)
+    assert len(kept) == sum(k for _, k in UNEQUAL_SURVIVORS)
+    assert all(row.label not in INSTRUMENT_LABELS for row in kept)
+    got = cal().pass_at_1(kept)
     assert got == pytest.approx(expect_task_weighted(UNEQUAL_SURVIVORS))
     assert got != pytest.approx(expect_attempt_weighted_unequal(UNEQUAL_SURVIVORS))
+
+    one_attempt = [record(task_id="x", seed=1, attempt=0, strict=True)]
+    five_attempts = [record(task_id="y", seed=2, attempt=i, strict=(i == 0)) for i in range(N)]
+    assert cal().pass_at_1(cal().scored(one_attempt + five_attempts)) == pytest.approx(
+        (1.0 + 1 / N) / 2
+    )
 
 
 def test_cal6_2_the_indicator_is_the_strict_reward() -> None:
@@ -582,31 +578,16 @@ def test_cal6_2_the_indicator_is_the_strict_reward() -> None:
     assert cal().pass_at_1(cal().scored(cell)) == pytest.approx(2 / N)
 
 
-def test_cal6_3_a_task_counts_once_whatever_n_it_got() -> None:
-    """The sentence CAL6 is written in: "every seed counts once, whatever `n` it got"."""
-    one_attempt = [record(task_id="x", seed=1, attempt=0, strict=True)]
-    five_attempts = [record(task_id="y", seed=2, attempt=i, strict=(i == 0)) for i in range(N)]
-    cell = one_attempt + five_attempts
-    assert cal().pass_at_1(cal().scored(cell)) == pytest.approx((1.0 + 1 / N) / 2)
-
-
 @pytest.mark.parametrize("k", range(1, N + 1))
 def test_cal7_1_pass_at_k_matches_the_closed_form(k: int) -> None:
-    """CAL7: `1 - C(n-c, k)/C(n, k)`, averaged over tasks."""
+    """CAL7: `1 - C(n-c, k)/C(n, k)`, averaged over tasks, and the same number reached a
+    second way, over every `C(n, k)` subset of each task's attempts.  The two derivations are
+    independent, so a build that agrees with one and not the other is wrong, and if they ever
+    disagreed with each other the test would be wrong and not the build."""
     cell = heterogeneous()
-    assert cal().pass_at_k(cal().scored(cell), k) == pytest.approx(
-        expect_pass_at_k_closed(HETEROGENEOUS_COUNTS, k)
-    )
-
-
-@pytest.mark.parametrize("k", range(1, N + 1))
-def test_cal7_2_pass_at_k_matches_the_exhaustive_expectation(k: int) -> None:
-    """The same number reached a second way, over every `C(n, k)` subset of each task's
-    attempts.  A build that agrees with one derivation and not the other is wrong."""
-    cell = heterogeneous()
-    assert cal().pass_at_k(cal().scored(cell), k) == pytest.approx(
-        expect_pass_at_k_exhaustive(HETEROGENEOUS_COUNTS, k)
-    )
+    got = cal().pass_at_k(cal().scored(cell), k)
+    assert got == pytest.approx(expect_pass_at_k_closed(HETEROGENEOUS_COUNTS, k))
+    assert got == pytest.approx(expect_pass_at_k_exhaustive(HETEROGENEOUS_COUNTS, k))
 
 
 def test_cal7_3_pass_at_k_equals_pass_at_1_at_k_1() -> None:
@@ -813,14 +794,6 @@ def test_cal10_5_the_same_seed_set_in_a_different_order_does_not_refuse() -> Non
     assert delta.point == pytest.approx(
         cal().paired_delta(cal().scored(a), cal().scored(b), resamples=200, seed=1).point
     )
-
-
-def test_cal10_6_the_paired_interval_is_reproducible() -> None:
-    a, b = correlated_pair()
-    scored_a, scored_b = cal().scored(a), cal().scored(b)
-    first = cal().paired_delta(scored_a, scored_b, resamples=RESAMPLES, seed=3)
-    second = cal().paired_delta(scored_a, scored_b, resamples=RESAMPLES, seed=3)
-    assert (first.point, first.low, first.high) == (second.point, second.low, second.high)
 
 
 # ---------------------------------------------------------------------------
@@ -1112,14 +1085,13 @@ def sample_artifact(**over: Any) -> Any:
     return cal().build_artifact(cells, provenance(**over))
 
 
-def test_cal16_1_instrument_labels_leave_the_denominator() -> None:
-    """CAL16: "An episode carrying an instrument label ... leaves the denominator".
-    `scored` is the exclusion, and its answer is the task-weighted rate over survivors."""
-    cell = cell_with_exclusions()
-    kept = cal().scored(cell)
-    assert len(kept) == sum(k for _, k in UNEQUAL_SURVIVORS)
-    assert all(row.label not in INSTRUMENT_LABELS for row in kept)
-    assert cal().pass_at_1(kept) == pytest.approx(expect_task_weighted(UNEQUAL_SURVIVORS))
+def two_level_artifact(**over: Any) -> Any:
+    """An artifact over two adjacent depth levels whose difference is real: `correlated_pair()`
+    at `depth:d3` and `depth:d5`, so the pair row carries a paired interval that excludes zero
+    and is not a single point."""
+    a, b = correlated_pair()
+    cells = {("depth:d3", MODEL_A): cal().scored(a), ("depth:d5", MODEL_A): cal().scored(b)}
+    return cal().build_artifact(cells, provenance(**over))
 
 
 @pytest.mark.parametrize("label", INSTRUMENT_LABELS)
@@ -1270,13 +1242,20 @@ def no_sockets() -> Any:
 
 def test_cal19_1_every_number_recomputes_with_sockets_disabled() -> None:
     """CAL19: "The estimator runs from the stored per-episode records **with sockets
-    disabled** ... and reproduces the artifact's every figure"."""
+    disabled** ... and reproduces the artifact's every figure" -- the cells, and the paired
+    differences between adjacent levels on both predicates, whose intervals are seeded
+    bootstraps of their own."""
     artifact = sample_artifact()
-    wire = json.loads(json.dumps(artifact.cells))
+    paired = two_level_artifact()
+    wire = json.loads(json.dumps([artifact.cells, paired.pairs, paired.reach_pairs]))
     with no_sockets() as guard:
         again = sample_artifact()
+        paired_again = two_level_artifact()
     assert guard.attempts == []
-    assert json.loads(json.dumps(again.cells)) == wire
+    assert json.loads(json.dumps([again.cells, paired_again.pairs, paired_again.reach_pairs])) == wire
+    # the pair rows have a real interval to reproduce, not a single point
+    for row in paired.pairs + paired.reach_pairs:
+        assert row["low"] < row["high"], row
 
 
 def test_cal19_2_the_records_round_trip_through_their_own_wire_format() -> None:
@@ -1346,17 +1325,12 @@ def test_cal20_1c_a_run_inside_every_limit_continues() -> None:
     assert verdict.reason is None
 
 
-def test_cal20_2_a_stop_leaves_partial_records_that_still_recompute() -> None:
-    """"a stop leaves partial records that still recompute"."""
+def test_cal20_3_a_short_cell_is_marked_incomplete_and_never_a_smaller_S() -> None:
+    """"a stop leaves partial records that still recompute; the artifact marks the cell
+    **incomplete** and never silently reports a smaller `S`"."""
     partial = cell_from(HETEROGENEOUS_COUNTS[:5])
     figures = cal().build_artifact({("depth:d3", MODEL_A): cal().scored(partial)}, provenance()).cells[0]
     assert figures["pass_at_1"] == pytest.approx(expect_pass_at_1(HETEROGENEOUS_COUNTS[:5]))
-
-
-def test_cal20_3_a_short_cell_is_marked_incomplete_and_never_a_smaller_S() -> None:
-    """"the artifact marks the cell **incomplete** and never silently reports a smaller `S`"."""
-    partial = cell_from(HETEROGENEOUS_COUNTS[:5])
-    figures = cal().build_artifact({("depth:d3", MODEL_A): cal().scored(partial)}, provenance()).cells[0]
     assert figures["incomplete"] is True
     assert figures["S_declared"] == S
     assert figures["S_observed"] == 5
@@ -1435,22 +1409,6 @@ def test_cal23_1_a_resume_owes_exactly_what_the_interrupt_left(cut: int, tmp_pat
         assert done + owed.get(task, 0) == PLAN_N, (task, done, owed)
 
 
-def test_cal23_3_an_errored_episode_is_owed_again_not_kept(tmp_path: Path) -> None:
-    """Measured in the wheel: `load` keeps a saved rollout only if the keep-verdict accepts
-    it, and the default verdict is `episode.ok`.  So a failed attempt is re-run.
-
-    **An open question:** that means a resumed run's instrument-label count is not the
-    uninterrupted run's -- CAL16 counts what CAL23 has already discarded.  Recorded, untested
-    either way, and not settled here."""
-    directory = tmp_path / "errored"
-    directory.mkdir()
-    rows = [("h0", True), ("h0", False), ("h0", True)]
-    traces_file(directory, rows)
-    kept, owed = wheel_resume().load(directory, ["h0"], PLAN_N)
-    assert len(kept) == 2
-    assert owed.get("h0") == 1
-
-
 def test_cal23_4_a_torn_final_line_is_owed_again_and_never_a_crash(tmp_path: Path) -> None:
     """A dropped Colab runtime dies mid-write, so the last line of `traces.jsonl` is half a
     row.  It must be owed again rather than raising -- which is the difference between a
@@ -1484,12 +1442,17 @@ def test_cal23_5b_resume_load_rewrites_the_trace_file(tmp_path: Path) -> None:
     do -- which is exactly how a mutant once survived.
 
     A build that treats `load` as a query, or that reads the trace file after calling it and
-    expects the run's own rows, is reading a pruned file."""
+    expects the run's own rows, is reading a pruned file.
+
+    What it prunes is the errored rows: `load` keeps a saved rollout only if the keep-verdict
+    accepts it, and the default verdict is `episode.ok`, so a failed attempt is dropped and
+    owed again, not kept."""
     directory = tmp_path / "rewrite"
     directory.mkdir()
     path = traces_file(directory, [("h0", True), ("h0", False), ("h0", True)])
     assert len(path.read_text(encoding="utf-8").splitlines()) == 3
-    _, owed = wheel_resume().load(directory, ["h0"], PLAN_N)
+    kept, owed = wheel_resume().load(directory, ["h0"], PLAN_N)
+    assert len(kept) == 2
     after = len(path.read_text(encoding="utf-8").splitlines())
     assert after == 2, f"load kept {after} rows; the errored one is dropped and owed again"
     assert owed == {"h0": 1}
