@@ -68,9 +68,6 @@ DATA = pathlib.Path(__file__).resolve().parent.parent / "src" / "poisson_tasks" 
 TABLE_PATH = DATA / "vocabulary-v2.json"
 ENCODING_PATH = DATA / "o200k_base.tiktoken"
 
-# T1: the expected_hash tiktoken 0.14.0 pins for o200k_base, read from
-# tiktoken_ext/openai_public.py at step zero.  An independent source.
-ENCODING_SHA256 = "446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d"
 # VT4: the table as it was frozen, at commit zero.
 TABLE_SHA256 = "9f3a8c4f4711574e947ec8b3396ff552c9b7aa730fbb5d565db4f10776653037"
 
@@ -1221,9 +1218,33 @@ def test_p1_module_exports_are_exactly_the_named_surface():
 # --------------------------------------------------------------------------
 
 
-def test_t1_vendored_encoding_matches_the_pinned_sha256():
-    """T1: the vendored file is the one tiktoken 0.14.0 pins."""
-    assert hashlib.sha256(ENCODING_PATH.read_bytes()).hexdigest() == ENCODING_SHA256
+def test_t1_a_changed_encoding_file_is_refused(tmp_path, monkeypatch):
+    """T1: the tokenizer checks the encoding file against the sha256 tiktoken 0.14.0
+    pins before it builds, and refuses a copy with one byte changed.
+
+    The changed byte is the last digit of the last rank, so the copy still parses and
+    builds: without the check the encoder would come up with a wrong rank and say
+    nothing.  An unchanged copy at the same kind of path builds, so it is the content
+    that is refused and not the path.  `__wrapped__` builds past the cache, so neither
+    build reaches the encoder the rest of the suite uses.
+    """
+    import poisson_tasks.tokenizer as tokenizer
+
+    blob = ENCODING_PATH.read_bytes()
+    assert blob.endswith(b" 199997\n"), blob[-20:]
+    unchanged = tmp_path / "unchanged.tiktoken"
+    unchanged.write_bytes(blob)
+    changed = tmp_path / "changed.tiktoken"
+    changed.write_bytes(blob[:-2] + b"8\n")
+
+    monkeypatch.setattr(tokenizer, "_ENCODING_PATH", unchanged)
+    assert tokenizer.reference_encoding.__wrapped__().name == "o200k_base"
+    monkeypatch.setattr(tokenizer, "_ENCODING_PATH", changed)
+    try:
+        tokenizer.reference_encoding.__wrapped__()
+    except ValueError:
+        return
+    raise AssertionError("an encoding file with one byte changed was accepted")
 
 
 _T2_CHILD = textwrap.dedent(
