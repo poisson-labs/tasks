@@ -1,4 +1,4 @@
-"""Model B's notebook, run again in the same runtime: the install fix of 2026-09-26.
+"""Model B's notebook, run again in the same runtime: the install fix.
 
 On Colab the notebook's `install-vllm` cell stopped at its first command, `uv venv --python
 3.12 /content/vllm-venv`, with exit status 2.  The notebook had been started once before in
@@ -38,7 +38,6 @@ import signal
 import subprocess
 import sys
 import time
-import types
 import zipfile
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -46,23 +45,24 @@ from typing import Any
 
 import pytest
 
+from tests.helpers import (
+    driver_helper,
+    free_port,
+    needs_git,
+    notebook_cell,
+    run_code_cell,
+    run_module,
+)
+
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 SRC = REPO / "src"
-NOTEBOOK = REPO / "notebooks" / "calibration_model_b.ipynb"
 FAKE = HERE / "fake_vllm.py"
 FIXTURE = HERE / "fixtures" / "qwen3-8b-chat-template.json"
 
 REAL_UV = shutil.which("uv")
 REAL_GIT = shutil.which("git")
-needs_uv = pytest.mark.skipif(REAL_UV is None, reason="the install runs the real uv")
-needs_git = pytest.mark.skipif(REAL_GIT is None, reason="the clone cell runs git")
-
-
-def run_module() -> Any:
-    import importlib
-
-    return importlib.import_module("poisson_tasks.calibration_run")
+needs_real_uv = pytest.mark.skipif(REAL_UV is None, reason="the install runs the real uv")
 
 
 def _driver(*args: str) -> list[str]:
@@ -222,7 +222,7 @@ def inst(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Install:
 CHECK_LINE = "0.29.0 2.13.0+cu129 12.9 True"
 
 
-@needs_uv
+@needs_real_uv
 def test_control_a_fresh_install_then_a_rerun_that_installs_nothing(
     inst: Install, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -239,7 +239,7 @@ def test_control_a_fresh_install_then_a_rerun_that_installs_nothing(
     assert inst.installs() == [], "a finished install was installed again"
 
 
-@needs_uv
+@needs_real_uv
 def test_a_rerun_after_an_attempt_that_created_the_venv_and_stopped(
     inst: Install, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -251,7 +251,7 @@ def test_a_rerun_after_an_attempt_that_created_the_venv_and_stopped(
     assert [c.split()[0] for c in inst.installs()] == ["venv", "pip"]
 
 
-@needs_uv
+@needs_real_uv
 def test_a_rerun_after_an_install_cut_off_part_way_rebuilds_it_from_nothing(
     inst: Install, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -267,7 +267,7 @@ def test_a_rerun_after_an_install_cut_off_part_way_rebuilds_it_from_nothing(
     assert [c.split()[0] for c in inst.installs()] == ["venv", "pip"]
 
 
-@needs_uv
+@needs_real_uv
 def test_an_install_whose_uv_pip_install_failed_is_built_again(
     inst: Install, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -282,7 +282,7 @@ def test_an_install_whose_uv_pip_install_failed_is_built_again(
     assert [c.split()[0] for c in inst.installs()] == ["venv", "pip"]
 
 
-@needs_uv
+@needs_real_uv
 def test_a_venv_installed_for_another_pin_is_built_again(
     inst: Install, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -303,7 +303,7 @@ def test_a_venv_installed_for_another_pin_is_built_again(
     assert (inst.site_packages() / "vllm" / "_rebuilt.py").exists()
 
 
-@needs_uv
+@needs_real_uv
 def test_a_finished_install_whose_check_fails_is_not_installed_again(
     inst: Install, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -320,7 +320,7 @@ def test_a_finished_install_whose_check_fails_is_not_installed_again(
     assert isinstance(error, (run.ServingMismatch, run.StepFailed)), repr(error)
 
 
-@needs_uv
+@needs_real_uv
 def test_the_checks_own_error_output_is_in_the_stop_message(
     inst: Install, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -333,7 +333,7 @@ def test_the_checks_own_error_output_is_in_the_stop_message(
     assert isinstance(error, run_module().StepFailed), repr(error)
 
 
-@needs_uv
+@needs_real_uv
 def test_a_failing_uv_commands_own_output_is_in_the_stop_message(
     inst: Install, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -343,7 +343,7 @@ def test_a_failing_uv_commands_own_output_is_in_the_stop_message(
     assert isinstance(error, run_module().StepFailed), repr(error)
 
 
-@needs_uv
+@needs_real_uv
 def test_a_path_holding_someone_elses_files_is_refused_and_left_alone(inst: Install) -> None:
     """Replacing an unfinished virtualenv deletes a directory, so only a virtualenv, or what
     uv leaves while it makes one, is ever replaced.  Anything else stops the step before any
@@ -358,7 +358,7 @@ def test_a_path_holding_someone_elses_files_is_refused_and_left_alone(inst: Inst
     assert isinstance(error, run_module().StepFailed), repr(error)
 
 
-@needs_uv
+@needs_real_uv
 def test_control_a_wheel_with_another_sha256_is_refused(inst: Install) -> None:
     """The pin holds: a download whose sha256 is not the pinned one is refused, nothing is
     installed from it, and it is not kept."""
@@ -369,7 +369,7 @@ def test_control_a_wheel_with_another_sha256_is_refused(inst: Install) -> None:
     assert not (inst.content / WHEEL_NAME).exists()
 
 
-@needs_uv
+@needs_real_uv
 def test_the_command_line_prints_a_stop_with_uvs_own_words_and_no_traceback(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -387,7 +387,7 @@ def test_the_command_line_prints_a_stop_with_uvs_own_words_and_no_traceback(
     assert "planted uv failure, in uv's own words" in _after_stop(done.stdout), done.stdout
 
 
-@needs_uv
+@needs_real_uv
 def test_the_stop_button_during_the_install_stops_uv_too(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -422,15 +422,6 @@ def test_the_stop_button_during_the_install_stops_uv_too(
 # ---------------------------------------------------------------------------
 
 
-def _free_port() -> int:
-    import socket
-
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        port: int = sock.getsockname()[1]
-        return port
-
-
 def _alive(pid: int) -> bool:
     try:
         os.kill(pid, 0)
@@ -461,7 +452,7 @@ def served(tmp_path: Path) -> Iterator[dict[str, Any]]:
     tokenizer = tmp_path / "tokenizer_config.json"
     tokenizer.write_text(json.dumps({"chat_template": data["chat_template"]}), encoding="utf-8")
     common = ["--local", str(tmp_path / "local"), "--durable", str(tmp_path / "durable"),
-              "--port", str(_free_port())]
+              "--port", str(free_port())]
     state: dict[str, Any] = {
         "bin": bin_dir, "vllm": vllm, "tokenizer": tokenizer, "common": common,
         "local": tmp_path / "local", "env": _driver_env(FAKE_SEEDS="404"),
@@ -525,23 +516,7 @@ def test_a_failed_template_fetch_stops_with_its_own_words(served: dict[str, Any]
 # the notebook's setup cells, run the way Colab runs them
 # ---------------------------------------------------------------------------
 
-HELPER_MARK = "# the driver helper"
-CODE_MARK = "# The code: poisson-tasks at REPO_REF"
 ENV_MARK = "# The tasks environment:"
-
-
-def _cell(mark: str) -> str:
-    nb = json.loads(NOTEBOOK.read_text(encoding="utf-8"))
-    found = ["".join(c["source"]) for c in nb["cells"]
-             if c["cell_type"] == "code" and "".join(c["source"]).startswith(mark)]
-    assert len(found) == 1, f"one code cell opens with {mark!r}"
-    return found[0]
-
-
-def _helper() -> dict[str, Any]:
-    ns: dict[str, Any] = {"DRIVER": [sys.executable, "-c", "pass"], "COMMON": []}
-    exec(_cell(HELPER_MARK), ns)
-    return ns
 
 
 def test_the_helpers_run_stops_with_the_commands_own_output_and_no_token(
@@ -550,7 +525,7 @@ def test_the_helpers_run_stops_with_the_commands_own_output_and_no_token(
     """The setup cells run their commands through the helper's `run`: a failure halts the
     notebook with the command's own output, and a secret on the command line (the GitHub
     token in the clone's URL) appears nowhere."""
-    ns = _helper()
+    ns = driver_helper()
     assert "run" in ns, "the helper cell defines no run() for the setup cells"
     # The error is put together at run time, so it is on the command line in no form and
     # only the command's own output can carry it into the STOP.
@@ -604,7 +579,7 @@ def _run_env_cell(tmp: Path, recorder: Recorder, monkeypatch: pytest.MonkeyPatch
     with monkeypatch.context() as patch:
         patch.setattr(subprocess, "run", refuse)
         patch.setattr(subprocess, "Popen", refuse)
-        exec(_cell(ENV_MARK), ns)
+        exec(notebook_cell(ENV_MARK), ns)
 
 
 def test_the_tasks_environment_is_rebuilt_when_it_did_not_finish_and_kept_when_it_did(
@@ -642,9 +617,6 @@ def test_a_tasks_environment_build_that_stopped_is_built_again(
     assert again.built(), again.calls
 
 
-GIT = ["git", "-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid",
-       "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null"]
-
 GIT_SHIM = """#!/bin/sh
 if [ "$1" = "clone" ]; then
   for arg in "$@"; do dest=$arg; done
@@ -659,34 +631,6 @@ exec "{real}" "$@"
 """
 
 
-@pytest.fixture
-def code_cell(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
-    """The clone cell's world: a stand-in origin with one commit on `main`, a fake
-    `google.colab.userdata` holding a token, a Drive folder, and git kept inside tmp."""
-    origin = tmp_path / "origin"
-    subprocess.run([*GIT, "init", "--quiet", "-b", "main", str(origin)], check=True)
-    (origin / "README").write_text("stand-in\n")
-    subprocess.run([*GIT, "-C", str(origin), "add", "README"], check=True)
-    subprocess.run([*GIT, "-C", str(origin), "commit", "--quiet", "-m", "stand-in"], check=True)
-    head = subprocess.run(["git", "-C", str(origin), "rev-parse", "HEAD"], check=True,
-                          capture_output=True, text=True).stdout.strip()
-    colab = types.ModuleType("google.colab")
-    colab.userdata = types.SimpleNamespace(get=lambda name: "tok-123")  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "google.colab", colab)
-    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
-    drive = tmp_path / "drive"
-    drive.mkdir()
-    return {"origin": origin, "head": head, "drive": drive, "tasks": tmp_path / "tasks",
-            "tmp": tmp_path}
-
-
-def _run_code_cell(world: dict[str, Any]) -> None:
-    ns = _helper()
-    ns.update({"REPO": "poisson-labs/tasks", "REPO_REF": "main", "TASKS": str(world["tasks"]),
-               "DRIVE_DIR": str(world["drive"])})
-    exec(_cell(CODE_MARK), ns)
-
-
 @needs_git
 def test_a_failed_setup_does_not_pin_the_run_to_the_commit_that_failed(
     code_cell: dict[str, Any],
@@ -699,7 +643,7 @@ def test_a_failed_setup_does_not_pin_the_run_to_the_commit_that_failed(
                    check=True)
     source = code_cell["drive"] / "source.json"
     source.write_text(json.dumps({"repo": "poisson-labs/tasks", "ref": "main", "commit": "f" * 40}))
-    _run_code_cell(code_cell)
+    run_code_cell(code_cell)
     assert json.loads(source.read_text())["commit"] == code_cell["head"]
 
 
@@ -714,7 +658,7 @@ def test_control_a_started_run_stays_on_the_commit_it_started_on(
     source.write_text(first)
     (code_cell["drive"] / "run.json").write_text("{}")
     with pytest.raises(SystemExit) as stop:
-        _run_code_cell(code_cell)
+        run_code_cell(code_cell)
     assert "f" * 40 in str(stop.value)
     assert source.read_text() == first
 
@@ -734,10 +678,10 @@ def test_a_clone_cut_off_part_way_is_not_taken_for_a_finished_one(
     monkeypatch.setenv("PATH", f"{shim_dir}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("FAKE_CLONE_CUT", "1")
     with pytest.raises(SystemExit) as stop:
-        _run_code_cell(code_cell)
+        run_code_cell(code_cell)
     assert "tok-123" not in str(stop.value)
     monkeypatch.delenv("FAKE_CLONE_CUT")
-    _run_code_cell(code_cell)
+    run_code_cell(code_cell)
     tasks = code_cell["tasks"]
     assert (tasks / "README").read_text() == "stand-in\n"
     head = subprocess.run(["git", "-C", str(tasks), "rev-parse", "HEAD"], check=True,

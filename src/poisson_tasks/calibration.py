@@ -1668,7 +1668,6 @@ def check_decoding(declared: _Mapping[str, _Any]) -> bool:
 class BudgetVerdict:
     ok: bool
     reason: str | None
-    clean: bool = True
 
 
 def within_budget(

@@ -17,8 +17,8 @@ from typing import Any
 
 import pytest
 
-from poisson_tasks import calibration as cal
 from poisson_tasks import calibration_run as run
+from tests.helpers import rebuild_committed_card
 
 REPO = Path(__file__).resolve().parent.parent
 MODEL_B = REPO / "calibration" / "qwen3-8b-b968826d"
@@ -26,13 +26,7 @@ NEWER = {"leaky_at_1_interval", "overshoot_count", "overshoot_share"}
 
 
 def _current_artifact() -> dict[str, Any]:
-    stored = json.loads((MODEL_B / "artifact.json").read_text())
-    cells: dict[tuple[str, str], list[cal.EpisodeRecord]] = {}
-    for record in cal.read_records(MODEL_B / "episodes.jsonl"):
-        cells.setdefault((record.arm_id, record.model), []).append(record)
-    tallies = json.loads((MODEL_B / "tallies.json").read_text())
-    artifact = cal.build_artifact(cells, cal.Provenance(**stored["provenance"]),
-                                  tally={key: tallies.get(key[0], {}) for key in cells})
+    artifact, _ = rebuild_committed_card(MODEL_B)
     return artifact.as_dict()
 
 

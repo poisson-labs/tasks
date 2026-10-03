@@ -17,8 +17,8 @@ decoding.
 The phase 1 report printed the gate's reasons ("6 of 6 episodes carry an instrument label")
 and not the error.  It now prints the first episode's error as well.
 
-The rig is `tests/test_cal_qwen_prep.py`'s, imported unchanged: a fake vLLM and a fake
-`nvidia-smi` on PATH, and the driver run as a subprocess.
+The rig is the `rig` fixture in `tests/conftest.py`, the one `tests/test_cal_qwen_prep.py` uses:
+a fake vLLM and a fake `nvidia-smi` on PATH, and the driver run as a subprocess.
 """
 
 from __future__ import annotations
@@ -27,18 +27,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-from tests.test_cal_qwen_prep import needs_uv, rig  # noqa: F401  (the rig fixture)
+from tests.helpers import needs_uv, run_module
 
 COLAB_ERROR = (
     "harness setup: RuntimeError: failed to prepare uv script: error: the argument "
     "'--script <SCRIPT>' cannot be used with '--system'"
 )
-
-
-def run_module() -> Any:
-    import importlib
-
-    return importlib.import_module("poisson_tasks.calibration_run")
 
 
 # ---------------------------------------------------------------------------
@@ -79,7 +73,7 @@ def test_traces_without_errors_have_no_first_error(tmp_path: Path) -> None:
 
 
 @needs_uv
-def test_phase1_passes_with_colabs_uv_system_python_set(rig: Any) -> None:  # noqa: F811
+def test_phase1_passes_with_colabs_uv_system_python_set(rig: Any) -> None:
     r = rig()
     r.env["UV_SYSTEM_PYTHON"] = "true"
     r.serve()
@@ -91,7 +85,7 @@ def test_phase1_passes_with_colabs_uv_system_python_set(rig: Any) -> None:  # no
 
 
 @needs_uv
-def test_a_failed_phase1_prints_the_episodes_own_error(rig: Any) -> None:  # noqa: F811
+def test_a_failed_phase1_prints_the_episodes_own_error(rig: Any) -> None:
     """`UV_PYTHON` naming an interpreter that does not exist: every episode's harness setup
     fails, as on Colab, and the printout carries the failure's own words, not only the gate's
     count.  (A `uv` planted on PATH would not do: the harness puts `$HOME/.local/bin` first and

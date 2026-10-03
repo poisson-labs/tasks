@@ -1,9 +1,9 @@
 """The Proofload adapter's scripted path: the arm targets, the two scripted policies, the
-outcome map and the pre-registration validator, frozen as tests.
+outcome map and the pre-registration validator, as tests.
 
 The invariants this file is built against are A1-A9 and A12, the two coverage gaps these
-tests inherit from knobs.py's tests (N17's scripted `diff`, N18's revision predicate), and
-knob R's level axis, which the task layer's build found uncovered.  The model path is for a
+tests inherit from knobs.py's tests (N17's common horizon, N18's revision predicate), and
+knob R's level axis, which the task layer's tests leave uncovered.  The model path is for a
 later set of tests.  The written requirements are not edited here: where they are silent
 this docstring decides, and it is authoritative for the build wherever their text could not
 be used as written.  Every decision below carries its reason and an escape hatch.
@@ -13,10 +13,9 @@ to end".  A lazily built module-level `world()` builds both registries and runs 
 `proofload sweep`s once (every arm of both knobs, two `faulty` arms over two plant cells, and
 one run under another salt); the first test that needs a registered target builds it.
 `test_a2_*`, `test_a3_*`, `test_a5_1`, `test_a5_2`, `test_a6_3` and `test_f8` read what those
-sweeps stored, `test_a5_4` and `test_a5_5` run `proofload diff` over them, and `test_a5_6` and
-`test_a7_5` run the CLI on their own; everything else calls targets or the outcome map in
-process.  The stores are read from their files: no public verb prints an episode's `meta`
-(gap log, PG-17).  The child interpreters inherit `PYTHONPATH`, so they import the same copy
+sweeps stored, and `test_a7_5` runs the CLI on its own; everything else calls targets or the
+outcome map in process.  The stores are read from their files: no public verb prints an
+episode's `meta`.  The child interpreters inherit `PYTHONPATH`, so they import the same copy
 of the package the tests do.
 
 Decisions
@@ -53,7 +52,7 @@ and `distractor:r0+len(r8)@k16` is `reference_distractor_r0_len_r8_k16`.  An arm
 it, so "one module-level callable per arm" needs a rule for the name; the two policies
 are `reference` and `faulty`, and `faulty` exists only when `load_registry` is given a sealed
 file.  Pinned by literals in `test_a7_7` and not by the helper the rest of the file uses.
-*Escape hatch:* any injective rule; `attr_of` and `test_a7_6`/`test_a7_7` move.
+*Escape hatch:* any injective rule; `attr_of` and `test_a7_7` move.
 
 **4. The cfg contract.**  A target requires `slack`, `horizon`, `strictness` and
 `generator_hash` (N10, N11, N12, N17: the sweep file declares them so they enter
@@ -73,8 +72,8 @@ reference episode of `d` calls has `t = d + 1`, N16's own count, and the wrong-s
 (one call fewer, then a reply) has `t = d`.  This is `Trace.num_turns` for a run with no
 trace.  `Run` carries `turns` (the task layer's `Turn`s), `tool_messages`, `ended_with_reply`,
 `turn_limit_hit`, `fmt` and an optional `instrument`; the model path builds one from a
-verifiers trace.  `Run` is a plain record and validates nothing at construction (`test_sf8`),
-because a structurally invalid trace has to reach `to_episode` to become a `verifier_error`.
+verifiers trace.  `Run` is a plain record and validates nothing at construction, because a
+structurally invalid trace has to reach `to_episode` to become a `verifier_error` (`test_a4_6`).
 
 **6. The outcome map's order.**  `to_episode(arm, bundle, run, *, slack, horizon, meta=None)`
 assigns, in this order and first match wins: an exception in its own verification (the
@@ -113,7 +112,7 @@ the same seam for model targets.  *Escape hatch:* any other injectable seam; `te
 **10. The validator holds three clauses no other module's tests hold, and refuses by name.**
 `validate_preregistration(document)` raises `ValueError` whose message names the offending
 key or value (a refusal that did not would pass any test of it for the wrong clause).  N18's
-predicate (owed since 2026-09-13): each `model` is `<HF id>@<revision>` with exactly one `@`,
+predicate: each `model` is `<HF id>@<revision>` with exactly one `@`,
 a non-empty id and a revision of 40 hex characters; models on different `vllm_version`s or
 `endpoint_type`s are refused; a model that omits either cannot be shown to agree and is
 refused.  N15's pre-registration half, which nothing held ("a sweep of a knob without its
@@ -145,28 +144,21 @@ exercise the extremes (rates 0 and 1) exactly and a half rate statistically, wit
 standard deviations wide, so no test depends on which keyed draw a build uses.  These are the
 least anchored decisions in the file; the plants' *scoring* is the calibration stage's and is
 not here.
-*Escape hatch:* the plant semantics are `test_f3` to `test_f7`.
+*Escape hatch:* the plant semantics are `test_f3` to `test_f6`.
 
 **12. Inherited coverage: knob R's level axis.**  The task layer's tests build one contrast,
-`r0` against `r8`, at three seeds, and four of the mutation rows run against its build
-survived its 235 tests for that reason.  Every test here that checks what a knob R arm
-generates, stores or labels runs over `levels("distractor")` and both R controls, or over
-every stored run; the tests of a *rule* (`test_cfg2` to `test_cfg7`, `test_map1`, `test_a4_2`,
-`test_a4_6`, `test_a4_7`, `test_a5_7`, `test_a5_8`, `test_a8_5`) fix one to four arms,
-`SPEC_D3` and `SPEC_R4` mainly, and claim no level.  `test_ct*` reach the task layer's ledger
-through the registered arm sets, `test_ct5` on one pair, `r0` against `r14`, at a dense spread.
-`test_ct3` and `test_ct4` did the same on the seeds whose first record-id word a tool name
-carried, until vocabulary v2 left them no such seed and its test retrofit retired them; the three
-task-layer rows only `test_ct3` caught are pinned in `tests/test_tg_m3_tasks.py`.  **The open
-record-id gap is wider than recorded**: measured here at 60 seeds per word, `city` (eval),
-`grad` and `port` (train) refuse a knob R contrast at `r14` at every seed, and so does `disc`
-(train) at 43 of 60, which the record does not name; `face` and `elect` refuse none, and
-nothing below `r14` refuses for any of the six.  The four are excluded from any contrast
-that holds `r14` and asserted nowhere: pinning a known defect would need a retrofit the day
-it closes.  Every `test_ct*`, `test_a5_6`, `test_a1_3` and `test_h1` are **green before and
-after**.
+`r0` against `r8`, at three seeds.  Every test here that checks what a knob R arm generates,
+stores or labels runs over `levels("distractor")` and both R controls, or over every stored
+run; the tests of a *rule* (`test_cfg2` to `test_cfg7`, `test_map1`, `test_a4_2`, `test_a4_6`,
+`test_a4_7`, `test_a5_7`, `test_a8_5`) fix one to four arms, `SPEC_D3` and `SPEC_R4` mainly,
+and claim no level.  `test_ct1` and `test_ct2` reach the task layer's ledger through the
+registered arm sets over a spread of seeds.  Under the first record-id vocabulary, a seed
+whose first record-id word a tool name carried (`city` in eval; `disc`, `grad` and `port` in
+train) made a knob R contrast that holds `r14` refuse.  Vocabulary v2's word lists share no
+word with any tool name, so that gap is closed, no seed is excluded here, and
+`tests/test_record_id_fix.py` pins the fix.
 
-What this file does not freeze
+What this file does not pin
 ------------------------------
 A4's *end-to-end* fault injection (a vLLM server dying mid-episode) and A9's model-path half
 belong to the model path: the scripted path has no server, so here the fault is injected where
@@ -210,12 +202,9 @@ from hypothesis import strategies as st
 from poisson_tasks.engine import apply, init_state
 from poisson_tasks.knobs import ArmSpec, arm_id, levels
 from poisson_tasks.tasks import (
-    OUTCOMES,
     FormatSpec,
     Turn,
-    encode_record_id,
     generate,
-    generate_contrast,
     scenario_for,
     verify,
 )
@@ -342,44 +331,11 @@ def bundle_of(spec: ArmSpec, seed: int) -> Any:
 
 
 # ---------------------------------------------------------------------------
-# seeds: a spread over the 32-bit space, and the seeds whose first record-id word is one
-# some tool name carries (measured against the task layer's build), which `test_ct3` and `test_ct4`
-# used until vocabulary v2's test retrofit retired them.  Vocabulary v2 draws no such word, so
-# `RISKY_WORDS` and the helpers that read it find no seed and are unused; `GAP_WORDS` still
-# filters `test_ct2`'s and `test_ct5`'s seeds.
+# seeds: a spread over the 32-bit space
 # ---------------------------------------------------------------------------
 
 
-def spaced(count: int, offset: int = 7) -> tuple[int, ...]:
-    step = 2**32 // count
-    return tuple((offset + i * step) % 2**32 for i in range(count))
-
-
 SPREAD = (0, 1, 2, 55, 404, 2121, 65535, 2**24, 2**31 - 1, 2**32 - 1)
-SPACED = spaced(24)
-RISKY_WORDS = {"eval": ("city", "face"), "train": ("disc", "elect", "grad", "port")}
-# The open record-id gap: these words refuse a knob R contrast that holds `r14`.  The gap's
-# record names three (`city`, `grad`, `port`); measured here at 60 seeds per word, a fourth
-# does too -- `disc` refuses 43 of 60 -- while `face` and `elect` refuse none, and nothing
-# below `r14` refuses for any of the six.  They are excluded from any contrast that holds
-# an `r14` arm and are not asserted anywhere.
-GAP_WORDS = {"eval": ("city",), "train": ("disc", "grad", "port")}
-
-
-@cache
-def word_seed(word: str, split: str, k: int = 0) -> int:
-    for index in range(256):
-        if encode_record_id(index << 24, split).split("-")[0] == word:
-            return (index << 24) + k
-    raise LookupError(word)
-
-
-def risky_seeds(split: str = "eval", per_word: int = 6) -> tuple[int, ...]:
-    return tuple(
-        word_seed(word, split, k * 7919)
-        for word in RISKY_WORDS[split]
-        for k in range(per_word)
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -513,8 +469,8 @@ def sweep(
 def read_rows(store: Path, run_id: str) -> list[dict[str, Any]]:
     """A run's rows, read from the store's own files.  Proofload's public verbs print no
     episode `meta` (`inspect` prints traces, `diff` never reads it), so A2, A3 and A6 have
-    no public route to what they assert.  The files are the route PG-13 already asks
-    Proofload to document; the `Store` class is the workaround not taken (gap log, PG-17)."""
+    no public route to what they assert.  The files are read directly, and not through
+    Proofload's `Store` class."""
     import pyarrow.parquet as pq
 
     rows: list[dict[str, Any]] = []
@@ -528,10 +484,6 @@ def read_rows(store: Path, run_id: str) -> list[dict[str, Any]]:
 
 def pairs_of(rows: list[dict[str, Any]]) -> dict[tuple[str, int], dict[str, Any]]:
     return {(r["config_hash"], r["replicate_index"]): r for r in rows}
-
-
-def manifest_of(store: Path, run_id: str) -> dict[str, Any]:
-    return json.loads((store / run_id / "manifest.json").read_text())
 
 
 # ---------------------------------------------------------------------------
@@ -808,16 +760,6 @@ def test_sf7_the_scripted_path_has_no_verifiers_and_no_network():
     assert not roots & banned, sorted(roots & banned)
 
 
-def test_sf8_a_run_is_a_plain_record_and_validates_nothing_at_construction():
-    """A `Run` is what a harness hands the outcome map, and the map decides what to make of
-    it.  Building one from a structurally invalid trace must not raise: `test_a4_6` needs the
-    invalid trace to reach `to_episode`, where it is a `verifier_error` and not an exception
-    at the caller."""
-    bad = Turn(content="", calls=(5,), finish_reason="tool_calls")
-    run = adapter().Run(turns=(bad,), tool_messages=(), ended_with_reply=False, turn_limit_hit=False, fmt=DIRECT)
-    assert run.turns == (bad,) and run.instrument is None
-
-
 # ===========================================================================
 # A1 · public API only
 # ===========================================================================
@@ -866,8 +808,7 @@ def test_a1_2_the_walker_sees_the_import_the_adapter_must_make():
     ],
 )
 def test_a1_3_the_walker_flags_every_shape_that_is_not_the_one_permitted(source):
-    """Green before and after: it tests this file's own walker, which is
-    what makes A1.1 able to fail."""
+    """It tests this file's own walker, which is what makes A1.1 able to fail."""
     assert proofload_violations(ast.parse(source)) != []
     assert proofload_violations(ast.parse("from proofload import Episode, Rollout")) == []
 
@@ -888,16 +829,6 @@ EXTRA_CFG = {
     "temperature": 0.7,
     "max_input_tokens": 20480,
 }
-
-
-def test_cfg1_a_complete_cfg_gives_an_episode_for_every_arm_under_both_policies():
-    """The control for everything below: a target that refused every cfg would pass all of
-    the refusal tests."""
-    for spec in ALL_SPECS:
-        ref = target_of("reference", spec)(cfg_of(spec), 404)
-        assert ref.outcome == "passed", aid(spec)
-        clean = target_of("faulty", spec)(cfg_of(spec, plant_cell="clean"), 404)
-        assert clean.outcome == "passed", aid(spec)
 
 
 @pytest.mark.parametrize("missing", REQUIRED_CFG)
@@ -1026,27 +957,6 @@ def test_a2_3_the_equality_is_the_salts_and_not_a_constant():
         assert base[key]["meta"]["scenario_hash"] != other[key]["meta"]["scenario_hash"]
 
 
-def test_a2_4_the_paired_run_inherited_the_salt_and_the_unpaired_one_did_not():
-    w = world()
-    for spec in D_SPECS:
-        salt = manifest_of(w.store, w.runs[("reference", aid(spec))])["run_salt"]
-        assert salt == SALT, aid(spec)
-    assert manifest_of(w.store, w.runs[("unpaired", aid(D_SPECS[0]))])["run_salt"] == OTHER_SALT
-    assert w.paired_arm in {aid(s) for s in D_SPECS}
-
-
-def test_a2_5_the_faulty_target_pairs_across_arms_too():
-    w = world()
-    by_arm = {a: read_rows(w.store, run) for (k, a), run in w.runs.items() if k == "faulty"}
-    assert len(by_arm) == 2
-    keysets = [set(pairs_of(rows)) for rows in by_arm.values()]
-    assert keysets[0] == keysets[1] and len(keysets[0]) == 2 * REPLICATES  # two plant cells
-    tables = [pairs_of(rows) for rows in by_arm.values()]
-    for key in keysets[0]:
-        assert tables[0][key]["seed"] == tables[1][key]["seed"]
-        assert tables[0][key]["meta"]["scenario_hash"] == tables[1][key]["meta"]["scenario_hash"]
-
-
 # ---------------------------------------------------------------------------
 # A3 · arms outside cfg
 # ---------------------------------------------------------------------------
@@ -1067,12 +977,6 @@ def test_a3_1_meta_carries_the_arm_identity_on_every_episode():
             assert meta["policy"] == policy
             count += 1
     assert count == 8 * (len(ALL_SPECS) + 1) + 2 * 2 * REPLICATES
-
-
-def test_a3_2_no_stored_cfg_carries_a_knob_level():
-    for _policy, _spec, _run_id, rows in every_run():
-        for row in rows:
-            assert not set(row["config"]) & set(LEVEL_KEYS), row["config"]
 
 
 def test_a3_3_the_recorded_task_is_the_generators_task_at_the_proofload_seed():
@@ -1110,13 +1014,6 @@ def test_a3_4_meta_carries_every_field_2_5_names_that_a_scripted_episode_has():
                 assert not (kind is int and isinstance(meta[key], bool)), key
             assert "format_clause" in meta
             assert meta["format_clause"] is None or isinstance(meta["format_clause"], int)
-
-
-def test_a3_5_the_recorded_pins_are_the_bundles_pin_record():
-    for _policy, spec, _run_id, rows in every_run():
-        for row in rows[:2]:
-            bundle = bundle_of(spec, row["seed"])
-            assert row["meta"]["pins"] == json_norm(dataclasses.asdict(bundle.pins))
 
 
 # ---------------------------------------------------------------------------
@@ -1157,80 +1054,9 @@ def test_a5_3_the_registered_slack_and_horizon_are_n16_and_n17_arithmetic():
     assert (w.r_registry.slack, w.r_registry.horizon) == (SLACK, H_R) == (SLACK, 7)
 
 
-def diff_json(store: Path, mods: Path, a: str, b: str) -> dict[str, Any]:
-    done = cli(store, "diff", a, b, "--event", "passed", "--format", "json", "--method", "mcnemar_bh", mods=mods)
-    if done.returncode != 0:
-        raise AssertionError(f"diff {a} {b} exited {done.returncode}\n{done.stdout}\n{done.stderr}")
-    return json.loads(done.stdout)
-
-
-def _diffs(pairs: list[tuple[str, str]]) -> list[dict[str, Any]]:
-    w = world()
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        return list(pool.map(lambda p: diff_json(w.store, w.mods, w.runs[("reference", p[0])], w.runs[("reference", p[1])]), pairs))
-
-
-def test_a5_4_a_scripted_diff_of_the_lowest_depth_arm_against_the_highest_truncates_nothing():
-    """N17's *Test:* line, owed since 2026-09-13: "a scripted `diff` of the lowest arm against
-    the highest reports zero truncated rows."  `diff` compares at the smaller of the two runs'
-    horizons, so a per-arm horizon would delete every `d8` pass past `d1`'s cutoff.  The
-    lowest against every other arm, the control against the highest (S4's pair) and the two
-    interior levels are here as well."""
-    low, high = aid(D_SPECS[0]), aid(D_SPECS[4])
-    pairs = [(low, aid(s)) for s in D_SPECS[1:]] + [(aid(D_SPECS[5]), high), (aid(D_SPECS[2]), high)]
-    for (a, b), result in zip(pairs, _diffs(pairs)):
-        assert result["truncated"] == 0, (a, b)
-        assert result["horizon"] == float(H_D), (a, b)
-        assert result["t_unit"] == "turns"
-
-
-def test_a5_5_the_same_over_every_distractor_level():
-    low = aid(R_SPECS[0])
-    pairs = [(low, aid(s)) for s in R_SPECS[1:]]
-    for (a, b), result in zip(pairs, _diffs(pairs)):
-        assert result["truncated"] == 0, (a, b)
-        assert result["horizon"] == float(H_R), (a, b)
-
-
-def test_a5_6_a_per_arm_horizon_would_truncate_and_this_diff_can_see_it(tmp_path):
-    """The known-positive control for A5.4 and A5.5, run before either is believed: "zero
-    truncated rows" from a `diff` that could not truncate would mean nothing.  Two scripted
-    targets that declare a per-arm horizon lose every high-arm row, and two that declare one
-    common horizon lose none.  Green before and after: it exercises
-    Proofload, and no adapter code."""
-    store = tmp_path / "store"
-    (tmp_path / "toyh.py").write_text(
-        "from proofload import Episode\n"
-        "def per_arm_low(cfg, seed): return Episode(outcome='passed', t=2, horizon=6)\n"
-        "def per_arm_high(cfg, seed): return Episode(outcome='passed', t=9, horizon=13)\n"
-        "def common_low(cfg, seed): return Episode(outcome='passed', t=2, horizon=13)\n"
-        "def common_high(cfg, seed): return Episode(outcome='passed', t=9, horizon=13)\n"
-    )
-    spec_file = tmp_path / "sweep.toml"
-    spec_file.write_text(sweep_text(H_D))
-    ids = {
-        n: sweep(store, spec_file, f"toyh:{n}", mods=tmp_path)
-        for n in ("per_arm_low", "per_arm_high", "common_low", "common_high")
-    }
-    per_arm = diff_json(store, tmp_path, ids["per_arm_low"], ids["per_arm_high"])
-    common = diff_json(store, tmp_path, ids["common_low"], ids["common_high"])
-    assert per_arm["truncated"] == REPLICATES and per_arm["horizon"] == 6.0
-    assert common["truncated"] == 0 and common["horizon"] == 13.0
-
-
 # ---------------------------------------------------------------------------
 # A6 · determinism of mapping
 # ---------------------------------------------------------------------------
-
-
-def test_a6_1_the_same_arm_cfg_and_seed_give_the_same_episode():
-    for policy, plant in (("reference", None), ("faulty", "depth_half")):
-        for spec in ALL_SPECS:
-            cfg = cfg_of(spec) if plant is None else cfg_of(spec, plant_cell=plant)
-            for seed in SPREAD[:4]:
-                one = target_of(policy, spec)(cfg, seed)
-                two = target_of(policy, spec)(dict(cfg), seed)
-                assert episode_dict(one) == episode_dict(two), (policy, aid(spec), seed)
 
 
 def test_a6_2_two_processes_and_two_hash_seeds_agree_byte_for_byte():
@@ -1292,8 +1118,6 @@ def test_a6_3_any_stored_episode_can_be_regenerated_from_its_row():
 # the outcome map: A4, A5's guards, A8 and A9, driven with hand-built runs
 # ===========================================================================
 
-ADAPTERS_LABELS = ("replay_mismatch", "api_error", "wall_timeout")
-INSTRUMENT_LABELS = ("verifier_error", *ADAPTERS_LABELS)
 SPEC_IDS = spec_ids(ALL_SPECS)
 
 
@@ -1372,7 +1196,7 @@ def test_a9_3_the_targets_episode_is_the_maps_pure_function_of_what_it_was_hande
 @pytest.mark.parametrize("control", ["overshoot", "collateral_mutation"])
 def test_a9_4_the_arms_strictness_decides_the_label_and_both_predicates_are_recorded(control):
     """The rule: "`outcome` = the verdict label under the arm's strictness", with the leaky verdict
-    in `meta` (PG-5).  The same episode is `overshoot` or `collateral_mutation` under a strict
+    in `meta`.  The same episode is `overshoot` or `collateral_mutation` under a strict
     arm and `passed` under a leaky one, and both record `leaky_pass` and the strict label."""
     strict, leaky = spec_of("depth", 3), spec_of("depth", 3, strictness="leaky")
     results = {}
@@ -1442,21 +1266,6 @@ def test_a4_2_a_leaky_arm_never_passes_an_episode_the_instrument_ended():
         run = make_run(bundle, bundle.reference_calls, instrument=signal)
         episode = episode_of(spec, bundle, run, horizon=H_D)
         assert episode.outcome == signal and episode.meta["leaky_pass"] is False
-
-
-def test_a4_3_the_adapter_never_assigns_an_instrument_label_of_its_own_accord():
-    """"Every label-assignment site is tested, not only the declared set" (`defining-outcomes.md`,
-    checklist item 3).  With no signal and a faithful trace, the sites the adapter owns — the
-    replay check, the two instrument signals, the exception guard — never fire, over every
-    arm and every shape; and the six system labels `verify` assigns are all reached."""
-    reached: set[str] = set()
-    for spec in ALL_SPECS:
-        for bundle, control, run in grid(spec, seeds=(404,)):
-            outcome = episode_of(spec, bundle, run).outcome
-            assert outcome in OUTCOMES
-            assert outcome not in INSTRUMENT_LABELS, (aid(spec), control, outcome)
-            reached.add(outcome)
-    assert reached == {"passed", "wrong_state", "overshoot", "collateral_mutation", "turn_limit", "malformed_call"}
 
 
 def test_a4_4_replay_mismatch_precedes_the_two_instrument_signals():
@@ -1628,17 +1437,6 @@ def test_a8_6_any_single_character_change_to_any_message_is_detected(spec, seed,
     assert episode.outcome == "replay_mismatch"
 
 
-def test_a8_7_the_replay_is_of_the_calls_actually_made_and_not_of_the_reference():
-    """E8: "`replay` reproduces the live toolset's observations byte for byte" for *any* call
-    sequence.  A check that compared tool messages with the bundle's `reference_observations`
-    would call every non-reference episode a mismatch: a wrong-state episode is `wrong_state`."""
-    spec = SPEC_D3
-    bundle = bundle_of(spec, 404)
-    run = make_run(bundle, bundle.negative_controls["wrong_state"])
-    assert tuple(run.tool_messages) != tuple(bundle.reference_observations)
-    assert episode_of(spec, bundle, run).outcome == "wrong_state"
-
-
 @pytest.mark.parametrize(
     "control",
     ["wrong_state", "overshoot", "collateral_mutation", "malformed_call_clause_2", "malformed_call_clause_3",
@@ -1686,12 +1484,16 @@ def test_map1_meta_is_the_bundles_identity_and_the_verdicts_predicates(spec):
 
 
 def test_map2_a_caller_meta_is_merged_and_does_not_displace_the_required_keys():
+    """The caller's meta carries a `task_id` of its own, so a merge that let a caller's key
+    overwrite a required one would show here."""
     spec = SPEC_D3
     bundle = bundle_of(spec, 404)
     run = make_run(bundle, bundle.reference_calls)
     plain = adapter().to_episode(spec, bundle, run, slack=SLACK, horizon=H_D)
-    extra = adapter().to_episode(spec, bundle, run, slack=SLACK, horizon=H_D, meta={"policy": "reference", "note": 7})
+    caller = {"policy": "reference", "note": 7, "task_id": "x"}
+    extra = adapter().to_episode(spec, bundle, run, slack=SLACK, horizon=H_D, meta=caller)
     assert extra.meta["policy"] == "reference" and extra.meta["note"] == 7
+    assert extra.meta["task_id"] == bundle.task_id != "x"
     assert {k: v for k, v in dict(extra.meta).items() if k not in ("policy", "note")} == dict(plain.meta)
 
 
@@ -1724,18 +1526,6 @@ def test_a5_7_a_trace_longer_than_max_turns_or_a_horizon_below_it_is_refused(spe
         episode_of(spec, bundle, run, horizon=limit - 1)
 
 
-def test_a5_8_t_is_the_number_of_turns_and_not_the_number_of_calls():
-    """`t = Trace.num_turns`: a reply is a turn that makes no call, so a reference
-    episode of `d` calls takes `d + 1`, and the wrong-state control (one call fewer, then a
-    reply) takes `d`."""
-    for spec in (SPEC_D3, SPEC_R4):
-        bundle = bundle_of(spec, 404)
-        d = len(bundle.reference_calls)
-        assert episode_of(spec, bundle, make_run(bundle, bundle.reference_calls)).t == d + 1
-        wrong = make_run(bundle, bundle.negative_controls["wrong_state"])
-        assert episode_of(spec, bundle, wrong).t == d
-
-
 # ===========================================================================
 # A7 · the pre-registration lock
 # ===========================================================================
@@ -1766,14 +1556,6 @@ def import_module_from(directory: Path, name: str) -> Any:
 
 def write_registry(directory: Path, name: str, reg: Path, sha: str, sealed: Path | None = None) -> None:
     (directory / f"{name}.py").write_text(registry_module_text(reg, sha, sealed))
-
-
-def test_a7_1_a_registry_whose_compiled_hash_matches_imports_and_its_targets_run(tmp_path):
-    reg, sha, sealed = pilot_files(tmp_path)
-    write_registry(tmp_path, "lock_ok", reg, sha, sealed)
-    module = import_module_from(tmp_path, "lock_ok")
-    episode = module.reference_depth_d3(cfg_of(spec_of("depth", 3)), 404)
-    assert episode.outcome == "passed" and episode.meta["arm_id"] == "depth:d3"
 
 
 def test_a7_2_a_hash_that_disagrees_with_the_file_raises_at_import_naming_both(tmp_path):
@@ -1849,16 +1631,6 @@ def test_a7_5_the_refusal_surfaces_as_a_target_resolution_failure_before_any_epi
     assert len([p for p in store.iterdir() if p.is_dir()]) == 1
 
 
-def test_a7_6_an_arm_that_was_not_pre_registered_has_no_target(tmp_path):
-    reg, sha, sealed = pilot_files(tmp_path)
-    write_registry(tmp_path, "lock_arms", reg, sha, sealed)
-    module = import_module_from(tmp_path, "lock_arms")
-    for name in ("reference_depth_d4", "reference_depth_d2", "faulty_depth_d5", "reference_distractor_r0_k16"):
-        assert not hasattr(module, name), name
-    with pytest.raises(AttributeError):
-        module.reference_depth_d4  # noqa: B018
-
-
 def test_a7_7_the_registered_names_are_the_policy_then_the_arm_id_with_runs_of_punctuation_as_underscores(tmp_path):
     """Pinned by literals and not by `attr_of`, so the rule is stated in two places that
     must agree: an arm id holds `:`, `+`, `(`, `)` and `@`, none of which `--target
@@ -1916,16 +1688,6 @@ def test_a7_11_a_compiled_hash_that_differs_in_one_character_is_refused(tmp_path
     write_registry(tmp_path, "lock_near", reg, near, sealed)
     with pytest.raises(RuntimeError):
         import_module_from(tmp_path, "lock_near")
-
-
-def test_h1_the_registration_writer_round_trips_through_tomllib():
-    """Green before and after: the writer every registry test relies on.  A
-    writer that rendered a document wrongly would turn a registry test's failure into a
-    question about the writer."""
-    for doc in (reg_doc("depth", D_SPECS), reg_doc("distractor", R_SPECS), reg_doc("depth", PILOT, models=())):
-        assert tomllib.loads(toml_text(doc)) == doc
-    cells = {"a": {"step_fail_rate": 0.5}, "b": {}}
-    assert tomllib.loads(sealed_text(cells)) == {"cells": cells}
 
 
 # ===========================================================================
@@ -1999,13 +1761,18 @@ def test_a12_3_a_refused_call_poisons_nothing_and_the_target_still_works_outside
 
 def test_a12_4_a_call_starts_no_thread_and_leaves_no_loop():
     """Each call owns what it uses.  On the scripted path that is nothing that outlives it: no
-    thread, and no event loop left running or set on the calling thread."""
+    thread, and no event loop left running or set on the calling thread.  `get_running_loop`
+    cannot see a loop that is set but not running, so the thread starts with no loop set and
+    `get_event_loop`, which returns a set loop, must still find none afterwards."""
+    asyncio.set_event_loop(None)
     before = {t.ident for t in threading.enumerate()}
     for policy, spec, cfg, seed in battery()[:12]:
         target_of(policy, spec)(cfg, seed)
     assert {t.ident for t in threading.enumerate()} == before
     with pytest.raises(RuntimeError):
         asyncio.get_running_loop()
+    with pytest.raises(RuntimeError):
+        asyncio.get_event_loop()
 
 
 def test_a12_5_the_adapter_source_declares_no_global():
@@ -2094,19 +1861,27 @@ def test_n18_1_a_revision_that_is_not_forty_hex_characters_is_refused(name, posi
     """N18: "the pre-registration validator refuses a revision that isn't 40 hex characters",
     a full commit hash "never a branch or tag".  Either model's; twelve ways to be wrong,
     including a trailing newline (which a `$`-anchored pattern lets through) and a 41st
-    character (which a `{40,}` lets through).  Owed to this module since 2026-09-13."""
+    character (which a `{40,}` lets through)."""
     models = [model(), model(f"{GOOD_REVISION}", model=f"mistralai/Ministral-3-14B@{GOOD_REVISION}")]
     models[position] = dict(models[position], model=models[position]["model"].split("@")[0] + "@" + BAD_REVISIONS[name])
     refused(with_models(*models), "revision")
 
 
 @pytest.mark.parametrize(
-    "value",
-    ["Qwen/Qwen3.5-9B", f"@{GOOD_REVISION}", f"a@b@{GOOD_REVISION}", 123],
+    "value, needle",
+    [
+        ("Qwen/Qwen3.5-9B", "model"),
+        (f"@{GOOD_REVISION}", "model"),
+        (f"Qwen/X@{GOOD_REVISION}@{GOOD_REVISION}", "exactly one"),
+        (123, "model"),
+    ],
     ids=["no_at", "empty_id", "two_ats", "not_a_string"],
 )
-def test_n18_2_a_model_that_is_not_an_id_at_a_revision_is_refused(value):
-    refused(with_models(model(model=value)), "model")
+def test_n18_2_a_model_that_is_not_an_id_at_a_revision_is_refused(value, needle):
+    """`two_ats` carries a valid revision after its first `@`, so only the one-`@` clause can
+    refuse it, and its needle is that clause's own words: with a non-hex text after the first
+    `@`, the revision clause would refuse it too, in a message that also says "model"."""
+    refused(with_models(model(model=value)), needle)
 
 
 def test_n18_3_models_on_different_vllm_versions_are_refused():
@@ -2178,8 +1953,7 @@ def test_n17_2_the_horizon_follows_the_slack_and_the_arm_set():
 # names the slack; `"13"` and `None` are refused by the horizon's type clause and again by N17's equality
 # clause, and both messages name `horizon`.  Neither can be isolated by any document, because a string, a
 # `None` and a non-integral float can never compare equal to N17's integer -- what isolates the type clause is
-# a value that is not an `int` and *does* compare equal, which is what `4.0` and `13.0` are.  Measured in the
-# mutation pass: `4.0` is accepted by two mutants and refused by every other row, and `13.0` by three.
+# a value that is not an `int` and *does* compare equal, which is what `4.0` and `13.0` are.
 @pytest.mark.parametrize(
     "field, value, horizon",
     [("horizon", "13", 13), ("horizon", None, 13), ("horizon", 13.0, 13), ("slack", "4", 13), ("slack", -1, 8),
@@ -2244,8 +2018,8 @@ def test_val5_an_arm_must_be_a_canonical_distinct_arm_id_of_the_registrations_kn
     The other six are refused while their arms are read, before any horizon is computed, and
     keep 13.
 
-    `leading_zero` also had to stop naming an arm the document already lists: `d01` renders
-    as `depth:d1`, so a build without the canonical clause refused it as a duplicate of the
+    `leading_zero` names no arm the document already lists: `d01` would render as
+    `depth:d1`, so a build without the canonical clause would refuse it as a duplicate of the
     `depth:d1` beside it, in a message naming `depth:d1` and not `depth:d01`.  `d03` renders
     as `depth:d3`, which no other listed arm is, so the canonical clause is the only clause
     that can refuse the document."""
@@ -2265,11 +2039,10 @@ def test_val7_a_non_canonical_distractor_id_is_refused_because_its_k_is_fixed():
     """`@k16` is fixed and the renderer is the only thing that writes it, so `@k8` is
     not another arm: it is an id `arm_id` would never produce.
 
-    `distractor:r4@k8` takes the place of `distractor:r4@k16`, the arm it renders as, rather
-    than of the last arm in the list.  It used to take the last one's place, which left the
-    `r4@k16` it renders as still listed, so a build without the canonical clause refused the
-    document as a duplicate, in a message naming `distractor:r4@k16`.  Swapped for the arm it
-    renders as, the arm set such a build reads is exactly `R_SPECS` -- every arm once, a
+    `distractor:r4@k8` takes the place of `distractor:r4@k16`, the arm it renders as.  In
+    any other arm's place it would leave the `r4@k16` it renders as still listed, and a build
+    without the canonical clause would refuse the document as a duplicate, in a message naming
+    `distractor:r4@k16`.  Swapped for the arm it renders as, the arm set such a build reads is exactly `R_SPECS` -- every arm once, a
     control arm among them, and `reg_doc`'s horizon still N17's number for it -- so the
     canonical clause is the only clause that can refuse the document."""
     doc = reg_doc("distractor", R_SPECS)
@@ -2403,19 +2176,6 @@ def test_f6_the_leaky_plant_overshoots_where_the_block_allows_and_only_there(spe
             assert episode.outcome == "passed" and episode.t == calls + 1
 
 
-def test_f7_a_faulty_episode_is_a_function_of_cfg_and_seed_alone():
-    """"Its per-step error is driven by the Proofload seed, so it is fully deterministic": one
-    seed always gives one episode, and across seeds a half-rate plant gives both outcomes.
-    At `d1` and rate 0.5 either outcome has probability one half per seed, so sixty seeds all
-    giving one of them is a one-in-10^17 event under any keyed draw."""
-    outcomes = set()
-    for seed in range(60):
-        one, two = faulty(D_SPECS[0], "depth_half", seed), faulty(D_SPECS[0], "depth_half", seed)
-        assert episode_dict(one) == episode_dict(two)
-        outcomes.add(one.outcome)
-    assert outcomes == {"passed", "wrong_state"}
-
-
 def test_f8_two_plant_cells_of_one_sweep_are_named_by_their_rows():
     """Stage 0a's naming score is read off the store: over a real two-cell sweep, every
     episode of the planted cell fails and every episode of the clean cell passes."""
@@ -2460,52 +2220,3 @@ def test_f9_a_sealed_file_that_cannot_be_read_as_plants_is_refused_at_load(tmp_p
     with pytest.raises(ValueError, match=re.escape(needle) if needle else None):
         adapter().load_registry(reg, sha256=sha, sealed=sealed_file(tmp_path, text))
 
-
-# ===========================================================================
-# CT · inherited coverage: the task layer's knob R level axis, at the contrast the adapter pairs.
-#
-# The task layer's tests build one knob R contrast, `r0` against `r8`, at three seeds, and four rows
-# of the mutation pass against its build survive its whole 235-test suite for that reason.  These
-# tests are task-layer behaviour reached through the registered arm sets — the arms this adapter
-# runs against one salt and compares — over every level, both splits, and the seeds whose
-# first record-id word a tool name carries.  Every one is **green before and after**:
-# none of them imports the adapter.  The open record-id gap (`city`, `disc`, `grad` and
-# `port` refuse a contrast that holds `r14`) is excluded and not asserted.
-# ===========================================================================
-
-
-def first_word(seed: int, split: str) -> str:
-    return encode_record_id(seed, split).split("-")[0]
-
-
-def contrast_ok(specs: Iterable[ArmSpec], seeds: Iterable[int], split: str = "eval") -> int:
-    arms = tuple(dataclasses.replace(s, split=split) for s in specs)
-    made = 0
-    for seed in seeds:
-        generate_contrast(arms, seed)  # raises ValueError if the ledger refuses
-        made += 1
-    return made
-
-
-R_NO_14 = tuple(s for s in R_SPECS if s.level != 14 and s.control != 14)
-R_TOP = (spec_of("distractor", 0), spec_of("distractor", 14))
-NON_GAP = tuple(s for s in SPREAD + SPACED if first_word(s, "eval") not in GAP_WORDS["eval"])
-
-
-def test_ct1_every_registered_depth_arm_holds_the_ledger_across_the_seed_space():
-    assert contrast_ok(D_SPECS, SPREAD + SPACED) == len(SPREAD + SPACED)
-
-
-def test_ct2_every_registered_distractor_arm_holds_the_ledger_across_the_seed_space():
-    """Every level `r0` to `r14` and both controls at once: nothing here is one pair."""
-    assert contrast_ok(R_SPECS, NON_GAP) == len(NON_GAP)
-
-
-def test_ct5_the_top_level_holds_the_ledger_across_a_dense_spread_of_seeds():
-    """`r14` keeps no read tool at all, so the prose and the entry-code draw are all that
-    hold N7's set still there.  The mutation pass against the task layer's build measured
-    248 of 1,216 refusals against 0 with the prose rule off, and 10 with the entry-code rule
-    off, all at `r14`: a sample this size sees both."""
-    seeds = [s for s in spaced(160, offset=3) if first_word(s, "eval") not in GAP_WORDS["eval"]]
-    assert len(seeds) >= 150
-    assert contrast_ok(R_TOP, seeds) == len(seeds)

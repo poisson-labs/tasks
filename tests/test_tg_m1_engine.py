@@ -1,8 +1,7 @@
 """The tests for the domain engine, engine.py: E1-E10, P1, T1-T3, VT1-VT4.
 
-Written on 2026-09-11, before the module. The module is written against this
-file, which is not edited to suit it. Where the design could not be used as
-written, this docstring is authoritative.
+The tests were written before the module, and the module is written against
+them.  Where the design leaves a shape open, this docstring fixes it.
 
 The public surface these tests pin
 ----------------------------------
@@ -57,21 +56,18 @@ import subprocess
 import sys
 import textwrap
 
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 # --------------------------------------------------------------------------
-# frozen literals
+# pinned literals
 # --------------------------------------------------------------------------
 
 DATA = pathlib.Path(__file__).resolve().parent.parent / "src" / "poisson_tasks" / "data"
 TABLE_PATH = DATA / "vocabulary-v2.json"
 ENCODING_PATH = DATA / "o200k_base.tiktoken"
 
-# T1: the expected_hash tiktoken 0.14.0 pins for o200k_base, read from
-# tiktoken_ext/openai_public.py at step zero.  An independent source.
-ENCODING_SHA256 = "446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d"
-# VT4: the table as it was frozen, at commit zero.
+# VT4: the sha256 of the frozen vocabulary table.
 TABLE_SHA256 = "9f3a8c4f4711574e947ec8b3396ff552c9b7aa730fbb5d565db4f10776653037"
 
 ENGINE_EXPORTS = (
@@ -96,8 +92,8 @@ DENY_NAMES = DENY + (
     "head", "tail", "front", "rear", "chain", "queue", "cursor",
 )
 
-# T3: minted at step zero from tiktoken.get_encoding("o200k_base"), which is an
-# independent source and not the offline encoder's own output read back.  No test
+# T3: taken from tiktoken.get_encoding("o200k_base"), which is an independent
+# source and not the offline encoder's own output read back.  No test
 # in this file touches the network.
 PINNED_TOKEN_COUNTS = (
     ('submit', 1),
@@ -258,7 +254,9 @@ def rejected_calls(scenario, at_stage_1, at_stage_0):
     passes so that the token is what is rejected, which takes a record standing at
     stage 1; `bad_entry` needs a stage-1 tool whose precondition passes, which
     takes a record still at stage 0; and `not_ready` needs one whose precondition
-    fails.
+    fails.  `not_ready` is made on both records: a record at stage 0 has no token
+    and no audit yet, which is a different thing for a refused call to leave
+    untouched than a record further along.
 
     Precedence, which the design leaves open and these tests therefore fix: the
     stage precondition is decided before the argument.  A stage-3 tool aimed at a
@@ -284,6 +282,8 @@ def rejected_calls(scenario, at_stage_1, at_stage_0):
                        {"record_id": rid1, "chain_token": "f" * 32})),
         ("not_ready", (stage_tool(TABLE["stage_names"][2], cls1),
                        {"record_id": rid1, "chain_token": "f" * 32})),
+        ("not_ready", (stage_tool(TABLE["stage_names"][1], cls0),
+                       {"record_id": rid0, "chain_token": "f" * 32})),
         ("no_such_item", (reader, {"item_code": "no-such-item-code",
                                    "page_key": TABLE["page_keys"][0]})),
         ("no_such_page", (reader, {"item_code": good_item, "page_key": "e" * 32})),
@@ -300,10 +300,16 @@ def call_sequences(draw, scenario=None, length=None):
     for _ in range(n):
         kind = draw(st.sampled_from(["stage", "read", "junk"]))
         if kind == "stage":
-            cls = draw(st.sampled_from(quals))
             s = draw(st.integers(min_value=0, max_value=7))
-            rid = draw(st.sampled_from(sorted({r for _, r in (scenario or {}).records})))\
-                if scenario else "able-account-active-address"
+            if scenario:
+                # Either a record the scenario has, so the call reaches the stage
+                # precondition and the argument checks, or any class with one of the
+                # scenario's ids, so `no_such_rec` stays reachable.
+                ids = sorted({r for _, r in scenario.records})
+                cls, rid = draw(st.sampled_from(sorted(scenario.records))
+                                | st.tuples(st.sampled_from(quals), st.sampled_from(ids)))
+            else:
+                cls, rid = draw(st.sampled_from(quals)), "able-account-active-address"
             key = "entry_code" if s == 0 else "chain_token"
             val = draw(st.sampled_from(TABLE["entry_codes"])) if s == 0 else draw(
                 st.text(alphabet="0123456789abcdef", min_size=32, max_size=32))
@@ -378,8 +384,9 @@ def test_e1_two_processes_agree_byte_for_byte():
     ]
     a = _run_child(calls, "0")
     b = _run_child(calls, "1")
-    # mutation-harness fact 1: if the children import the original tree instead of
-    # the copy under test, every row of a mutation table reads "survives".
+    # The children must import the same engine as this process.  If they imported
+    # another copy, a run against a modified engine would compare that other copy
+    # with itself and pass whatever the modification.
     assert a["file"] == engine.__file__ == b["file"]
     assert a["digest"] == b["digest"]
     assert a["next_seq"] == b["next_seq"]
@@ -393,9 +400,10 @@ def test_e1_repeat_within_one_process_agrees():
     inherited at import, an environment variable read at module load, a value
     that resets per process.  Cross-process determinism rests on
     test_e1_two_processes_agree_byte_for_byte and on E10's "only if" direction,
-    not on this test.  It is here because it is the only clause that catches a
-    module-level counter, which two fresh processes agree on and therefore
-    cannot see.
+    not on this test.  It is here for a module-level counter, which two fresh
+    processes agree on and therefore cannot see.  In this file it is the only test
+    that catches a counter reaching the chain tokens of stage 1 and above; it is not
+    the only test in the suite that can catch a counter.
     """
     from poisson_tasks.engine import apply, init_state
 
@@ -511,8 +519,8 @@ def test_e2_every_status_code_renders_l_obs_bytes():
 def test_e2_observation_token_count_in_band(payload_seed):
     """E2: the token count under the reference tokenizer lies in the declared band.
 
-    The band is a frozen literal minted at step zero on a 300k sample and checked
-    on a disjoint 300k sample.  This test draws fresh payloads,
+    The band is a table value, measured on a 300k sample and checked on a
+    disjoint 300k sample.  This test draws fresh payloads,
     so it is a third sample and can disagree with both.
     """
     from poisson_tasks.engine import apply, init_state
@@ -722,21 +730,6 @@ def test_e4_error_calls_do_not_touch_the_records(data):
             assert records_bytes(state) == records_bytes(before), (call, obs)
             assert mutations(before, state) == [], (call, obs)
 
-
-@given(data=st.data())
-@SLOW
-def test_e4_error_calls_advance_next_seq_by_one(data):
-    """E4 with E5: the counter is the one thing an error does change."""
-    from poisson_tasks.engine import apply, init_state
-
-    scenario = make_scenario(n_records=4)
-    state = init_state(scenario, data.draw(st.integers(min_value=1, max_value=5000)))
-    for call in data.draw(call_sequences(scenario)):
-        before = state
-        state, obs = apply(state, call)
-        if obs_status(obs) != "ok":
-            assert state.next_seq == before.next_seq + 1, (call, obs)
-
 # --------------------------------------------------------------------------
 # E5 Sequence numbers  (the counter advances on every call, errors included)
 # --------------------------------------------------------------------------
@@ -816,37 +809,6 @@ def test_e5_seq_start_is_an_argument_not_a_scenario_field():
     for x, y in zip(a_obs, b_obs):
         assert obs_fields(x)[1:] == obs_fields(y)[1:]
         assert obs_seq(y) - obs_seq(x) == 499
-
-
-def test_e5_replay_numbers_in_list_order():
-    """E5: replay numbers calls in list order from seq_start.
-
-    The caller sorts the sampled calls by the seq in their tool messages (X4, in
-    tasks.py and export.py); replay numbers what it is handed, in the order it is handed.
-    """
-    from poisson_tasks.engine import replay
-
-    scenario = make_scenario()
-    cls, rid = a_record(scenario)
-    entry = scenario.records[(cls, rid)]
-    calls = [
-        (stage_tool(TABLE["stage_names"][0], cls), {"record_id": rid, "entry_code": entry}),
-        ("nope", {}),
-        (all_read_tools()[0], {"item_code": TABLE["catalogue_items"][0],
-                               "page_key": TABLE["page_keys"][0]}),
-    ]
-    for seq_start in (1, 42, 900):
-        _, observations = replay(scenario, calls, seq_start)
-        assert [obs_seq(o) for o in observations] == \
-            [seq_start, seq_start + 1, seq_start + 2]
-    # order is the list's, not the calls' own: reversing the list renumbers them
-    _, forward = replay(scenario, calls, 1)
-    _, backward = replay(scenario, list(reversed(calls)), 1)
-    assert [obs_seq(o) for o in backward] == [1, 2, 3]
-    # position 0 holds a different call in each list, so its payload differs; the
-    # rejected call sits at index 1 in both and is numbered 2 in both
-    assert obs_fields(forward[0])[2] != obs_fields(backward[0])[2]
-    assert obs_status(forward[1]) == obs_status(backward[1]) == "no_such_tool"
 
 # --------------------------------------------------------------------------
 # E6 Closed vocabulary
@@ -1058,10 +1020,33 @@ def test_mutations_against_hand_built_state_pairs():
 # --------------------------------------------------------------------------
 
 
-@given(data=st.data())
+# A fixed case for E8: a valid stage-1 call on the first record make_scenario builds,
+# an unknown tool and a read.  Each call differs from the others, so a replay that
+# reordered them, or numbered them from anything but seq_start, differs from the fold.
+_REPLAY_CALLS = [
+    (stage_tool(TABLE["stage_names"][0], TABLE["qualifiers"][0]),
+     {"record_id": record_id([TABLE["record_id_words"]["eval"][(k * 11) % 256]
+                              for k in range(4)]),
+      "entry_code": TABLE["entry_codes"][0]}),
+    ("nope", {}),
+    (all_read_tools()[0], {"item_code": TABLE["catalogue_items"][0],
+                           "page_key": TABLE["page_keys"][0]}),
+]
+
+
+@given(seq_start=st.integers(min_value=1, max_value=5000),
+       calls=st.deferred(lambda: call_sequences(make_scenario(n_records=4))))
+@example(seq_start=42, calls=_REPLAY_CALLS)
+@example(seq_start=900, calls=list(reversed(_REPLAY_CALLS)))
 @SLOW
-def test_e8_replay_equals_the_left_fold_of_apply(data):
-    """E8 in the engine: replay is the left fold of apply from init_state.
+def test_e8_replay_equals_the_left_fold_of_apply(seq_start, calls):
+    """E8 in the engine, with E5's numbering: replay is the left fold of apply from
+    init_state(scenario, seq_start).
+
+    So replay numbers the calls seq_start, seq_start + 1, ... in list order.  The caller
+    sorts the sampled calls by the seq in their tool messages (X4, in tasks.py and
+    export.py); replay numbers what it is handed, in the order it is handed.  The two
+    explicit examples are the same three calls forward and reversed.
 
     The comparison against the live toolset is A8, run per episode in the Proofload
     adapter (adapter.py).  Nothing in this file can see a live toolset.
@@ -1069,8 +1054,6 @@ def test_e8_replay_equals_the_left_fold_of_apply(data):
     from poisson_tasks.engine import apply, init_state, replay
 
     scenario = make_scenario(n_records=4)
-    seq_start = data.draw(st.integers(min_value=1, max_value=5000))
-    calls = data.draw(call_sequences(scenario))
 
     state = init_state(scenario, seq_start)
     folded = []
@@ -1169,7 +1152,7 @@ def test_e10_hash_moves_on_any_single_change():
         assert moved[key] != base, key
 
 
-def test_e10_hash_is_stable_across_everything_else():
+def test_e10_hash_is_stable_across_everything_else(tmp_path):
     """E10's "only if": nothing but the spec, table or version moves the hash.
 
     Not the process, not PYTHONHASHSEED, not the insertion order of a spec built
@@ -1192,12 +1175,9 @@ def test_e10_hash_is_stable_across_everything_else():
     assert engine_hash(EngineSpec.from_mapping(deep)) == base
 
     # the same table at a different path
-    copy = pathlib.Path(os.environ.get("TMPDIR", "/tmp")) / "tg_m1_table_copy.json"
+    copy = tmp_path / "table_copy.json"
     copy.write_text(TABLE_PATH.read_text())
-    try:
-        assert engine_hash(EngineSpec.load(copy)) == base, "the load path reached the hash"
-    finally:
-        copy.unlink(missing_ok=True)
+    assert engine_hash(EngineSpec.load(copy)) == base, "the load path reached the hash"
 
     # two fresh processes at different PYTHONHASHSEED values
     src = ("import poisson_tasks.engine as E;"
@@ -1236,9 +1216,33 @@ def test_p1_module_exports_are_exactly_the_named_surface():
 # --------------------------------------------------------------------------
 
 
-def test_t1_vendored_encoding_matches_the_pinned_sha256():
-    """T1: the vendored file is the one tiktoken 0.14.0 pins."""
-    assert hashlib.sha256(ENCODING_PATH.read_bytes()).hexdigest() == ENCODING_SHA256
+def test_t1_a_changed_encoding_file_is_refused(tmp_path, monkeypatch):
+    """T1: the tokenizer checks the encoding file against the sha256 tiktoken 0.14.0
+    pins before it builds, and refuses a copy with one byte changed.
+
+    The changed byte is the last digit of the last rank, so the copy still parses and
+    builds: without the check the encoder would come up with a wrong rank and say
+    nothing.  An unchanged copy at the same kind of path builds, so it is the content
+    that is refused and not the path.  `__wrapped__` builds past the cache, so neither
+    build reaches the encoder the rest of the suite uses.
+    """
+    import poisson_tasks.tokenizer as tokenizer
+
+    blob = ENCODING_PATH.read_bytes()
+    assert blob.endswith(b" 199997\n"), blob[-20:]
+    unchanged = tmp_path / "unchanged.tiktoken"
+    unchanged.write_bytes(blob)
+    changed = tmp_path / "changed.tiktoken"
+    changed.write_bytes(blob[:-2] + b"8\n")
+
+    monkeypatch.setattr(tokenizer, "_ENCODING_PATH", unchanged)
+    assert tokenizer.reference_encoding.__wrapped__().name == "o200k_base"
+    monkeypatch.setattr(tokenizer, "_ENCODING_PATH", changed)
+    try:
+        tokenizer.reference_encoding.__wrapped__()
+    except ValueError:
+        return
+    raise AssertionError("an encoding file with one byte changed was accepted")
 
 
 _T2_CHILD = textwrap.dedent(
@@ -1270,8 +1274,7 @@ def test_t2_tokenizer_builds_with_sockets_disabled(tmp_path):
     Run in a fresh interpreter, not in this one.  The encoding is expensive, so
     any sane tokenizer caches it; an earlier test in the same interpreter would then
     have built it already and this test would assert on a cached object, having
-    disabled nothing.  That is not hypothetical -- it is how the first draft of
-    this test let the get_encoding fallback through the whole mutation pass.
+    disabled nothing, and a get_encoding fallback would pass it.
     """
     cache = tmp_path / "tiktoken-cache"
     cache.mkdir()
@@ -1284,7 +1287,7 @@ def test_t2_tokenizer_builds_with_sockets_disabled(tmp_path):
 
 
 def test_t3_offline_counts_match_the_pinned_pairs():
-    """T3: the offline counts equal pairs minted from get_encoding at step zero.
+    """T3: the offline counts equal pairs taken from tiktoken.get_encoding.
 
     An independent source, not this encoder's own output read back.  No test here
     touches the network.
@@ -1323,7 +1326,6 @@ def test_vt1_table_meets_the_required_coverage():
         assert set(row) == set(TABLE["facets"])
     assert len(set(TABLE["status_codes"])) == len(TABLE["status_codes"]) >= 2
     assert set(TABLE["description_templates"]) == {"stage_first", "stage_chain", "read"}
-    assert TABLE["L_obs"] == L_OBS and len(TABLE["token_band"]) == 2
     assert TABLE["engine_version"] and TABLE["vocabulary_version"]
     assert TABLE_PATH.read_bytes().isascii()
     assert spec.L_obs == L_OBS

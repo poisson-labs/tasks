@@ -63,6 +63,10 @@ dev = [
     "hypothesis>=6.168.0",
     "mypy>=2.3.1",
     "ruff>=0.16.7",
+    # The model B tests render the served model's chat template the way vLLM does, with
+    # jinja2's sandbox. It used to arrive only through a dependency of `verifiers`, and the
+    # tests that need it skipped where it did not.
+    "jinja2>=3.1.6",
 ]
 
 # The name is settled: the tool is Poisson Tasks, the distribution is `poisson-tasks` and

@@ -277,6 +277,21 @@ License:     MIT
     The above copyright notice and this permission notice shall be included in all
     copies or substantial portions of the Software.
 
+jinja2 3.1.6
+------------
+Upstream:    https://github.com/pallets/jinja
+Source read: LICENSE.txt in the installed jinja2 3.1.6 distribution (jinja2-3.1.6.dist-info/licenses)
+License:     BSD-3-Clause
+
+    Copyright 2007 Pallets
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are
+    met:
+
+jinja2 is used only to run the tests that render the served model's chat template. Nothing
+from it is copied into or distributed with this repository.
+
 ================================================================================
 4. Build backend
 ================================================================================

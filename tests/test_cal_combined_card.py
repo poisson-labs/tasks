@@ -14,12 +14,14 @@ difference:
 A sign alone would count noise as agreement.
 
 Cards compare only when they were measured the same way: one generator, one engine table and
-vocabulary, one seed list, the same attempts per task, decoding and resolution. The page
-refuses a set that does not.
+vocabulary, one harness, one seed list of one length, the same attempts per task, decoding and
+resolution, and the same saturation bounds and bootstrap. The page refuses a set that does
+not.
 """
 
 from __future__ import annotations
 
+import copy
 import dataclasses
 import hashlib
 import json
@@ -30,6 +32,7 @@ import pytest
 
 from poisson_tasks import calibration as cal
 from poisson_tasks.knobs import levels
+from tests.helpers import rebuild_committed_card
 
 REPO = Path(__file__).resolve().parent.parent
 N = 5
@@ -122,15 +125,34 @@ def test_the_page_counts_agreement_per_table() -> None:
     assert "agree on 1" in summary and "disagree on 1" in summary and "of 4" in summary
 
 
+def _measured_otherwise(provenance: cal.Provenance, change: dict[str, Any]) -> cal.Provenance:
+    """`provenance` with `change` applied.  `Provenance` refuses any harness but the measured
+    one when it is built, so that change is set on a built copy: the page has to refuse it on
+    its own account."""
+    if "harness_id" in change:
+        changed = copy.copy(provenance)
+        object.__setattr__(changed, "harness_id", change["harness_id"])
+        return changed
+    return dataclasses.replace(provenance, **change)
+
+
+# One case per field two cards must share, each changing that field alone among them.
 @pytest.mark.parametrize("change", [
     {"generator_hash": "x" * 64}, {"engine_hash": "x" * 64}, {"vocabulary_hash": "x" * 64},
     {"n": 4, "k_values": [1, 2]}, {"delta_star": 0.2},
     {"decoding": {**cal.DECODING, "temperature": 0.7}},
-], ids=["generator", "engine", "vocabulary", "attempts", "resolution", "decoding"])
+    {"seed_list_hash": "x" * 64},
+    {"S": cal.S + 1, "seed_list": [*range(5000, 5000 + cal.S), 9999]},
+    {"harness_id": "bash"},
+    {"saturation_high": 0.9}, {"saturation_low": 0.1},
+    {"bootstrap_resamples": 100}, {"bootstrap_seed": 1},
+], ids=["generator", "engine", "vocabulary", "attempts", "resolution", "decoding",
+        "seed_list", "tasks", "harness", "saturation_high", "saturation_low",
+        "bootstrap_resamples", "bootstrap_seed"])
 def test_cards_measured_differently_do_not_share_a_page(change: dict[str, Any]) -> None:
     a = _artifact("a", A_STRICT)
     b = _artifact("b", B_STRICT)
-    changed = dataclasses.replace(b, provenance=dataclasses.replace(b.provenance, **change))
+    changed = dataclasses.replace(b, provenance=_measured_otherwise(b.provenance, change))
     with pytest.raises(ValueError):
         cal.render_combined_document([a, changed])
 
@@ -141,15 +163,8 @@ def test_one_model_twice_is_refused() -> None:
 
 
 def _committed(folder: str) -> cal.Artifact:
-    root = REPO / "calibration" / folder
-    stored = json.loads((root / "artifact.json").read_text())
-    cells: dict[tuple[str, str], list[cal.EpisodeRecord]] = {}
-    for record in cal.read_records(root / "episodes.jsonl"):
-        cells.setdefault((record.arm_id, record.model), []).append(record)
-    tallies_path = root / "tallies.json"
-    tallies = json.loads(tallies_path.read_text()) if tallies_path.exists() else {}
-    return cal.build_artifact(cells, cal.Provenance(**stored["provenance"]),
-                              tally={key: tallies.get(key[0], {}) for key in cells})
+    artifact, _ = rebuild_committed_card(REPO / "calibration" / folder)
+    return artifact
 
 
 def test_docs_calibration_md_is_the_rendering_of_the_committed_cards() -> None:

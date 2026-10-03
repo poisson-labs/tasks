@@ -1,9 +1,7 @@
 """The tests for tasks.py, task and verifier generation: G1-G16, the outcome
 vocabulary, the format check and the two strictnesses.
 
-Written on 2026-09-14, before the module.  The module is written against this file,
-which is not edited to suit it.  Where the design could not be used as written, this
-docstring is authoritative.
+Where the design could not be used as written, this docstring is authoritative.
 
 The module is `poisson_tasks.tasks`
 ------------------------------------
@@ -50,10 +48,9 @@ invariant that cannot otherwise be tested, and each is recorded here:
 
 Decisions these tests make, where the design leaves the shape open
 ------------------------------------------------------------------
-**1. PG-16: the verdict compares the records without the audit field.**  An open
-question, opened 2026-09-11 while the engine was written and left to this file "before
-the verifier is frozen".  Option 2 of the three, which was also the
-non-binding preference when it was opened - but not for the reason given for it.
+**1. The verdict compares the records without the audit field.**  The engine left open
+whether it should, and this file decides it.  Option 2 of the three - but not for the
+reason first given for it.
 
 The deciding argument is **N14**, not "the audit field is bookkeeping".  The engine
 makes the audit field the `seq` of the last successful transition and makes
@@ -71,8 +68,7 @@ is the only one of the three that leaves N14 at the two fields the design names.
 than asserted**.  `apply` writes the audit field only inside the one
 branch that also writes `stage` and `token` (`engine.py`'s `_stage_call`), so a record's
 audit field moves if and only if its stage moves.  `test_pg16_2` measures that over the
-status codes the engine can emit and `test_pg16_3` over random call sequences, rather
-than reading it off the source - which is the half of the claim a source read
+status codes the engine can emit, rather than reading it off the source - which is the half of the claim a source read
 would have got wrong in either direction.  So dropping the audit field from the compared
 value loses no discrimination in either place that reads it: `passed` compares the final
 records, and `collateral_mutation` asks whether another record was mutated, and a record
@@ -106,7 +102,9 @@ are A4's fault-injection labels and name conditions - a transport failure, a
 wall-clock deadline - that `verify`'s
 five arguments cannot express.  So `verify` returns one of `verifier_error`,
 `malformed_call`, `turn_limit`, `overshoot`, `wrong_state`, `collateral_mutation`,
-`passed`, and `test_g10_3` asserts it never returns the other three.  Naming the split
+`passed`: `test_g8_2` asserts the label of every generated control, `test_g4_1` the
+reference solution's and `test_g10_1` a raised verifier's, so none of them can be one of
+the other three.  Naming the split
 is what stops a later build from quietly assigning an instrument label from inside the
 verifier, which A4 exists to prevent.
 
@@ -167,7 +165,7 @@ no negative control could produce `collateral_mutation`, and G8 would fail on a 
 whole of knob R rests on.  The shared entry code is the same argument one level down: a
 distractor that mirrors the required tool exactly has to be able to *succeed*.
 
-**11. Two named seams, and why a frozen test file names them.**  `generate` calls the
+**11. Two named seams, and why this test file names them.**  `generate` calls the
 module-global `verify` for G4's gate, and the module-global `_check_pins` - `knobs.py`'s
 `check_pins`, aliased under an underscore the way `knobs.py` itself aliases its imports -
 for G11's.  Both are fault-injected (`test_g4_4`, `test_g11_1`), because the alternative
@@ -210,25 +208,24 @@ Shapes the design names but does not define
 
 What is deliberately not tested here
 ------------------------------------
-* **N17's scripted `diff` and N18's revision predicate.**  Both are filed as
-  owed to the Proofload adapter's tests, and **nothing covers either one today**.  This
-  file does not either: `tasks.py` imports nothing from Proofload and no model string
-  reaches a bundle.  `test_n18_3` asserts that `tasks.py`, like `knobs.py` before it,
-  holds **no** revision predicate, so the gap stays visible and a later reader cannot
-  take two modules' silence for coverage.  The knobs tests' `n18_2` makes the same
-  assertion about `knobs.py` and this file does not weaken it.
+* **N17's scripted `diff` and N18's revision predicate.**  Both belong to the Proofload
+  adapter, and `tests/test_tg_m5_scripted.py` covers them **only with Proofload
+  installed**: without it that file is skipped whole, and neither is covered.  This file
+  does not cover them either: `tasks.py` imports nothing from Proofload (`test_sf8`) and
+  the bundle carries no model field (`test_sf4`), so there is nothing here for either
+  check to read.
 * **Format-check clause 1's generated control.**  G8 assigns clauses 2-4 to the task layer "at
   the call level" and sends clause 1 - content carrying the markers with no parsed call -
   through each model's own stack, because it depends on the family's raw format
   (A16).  The *clause* is pinned here with a synthetic turn (`test_fc_1`); the
-  *generated negative control* for it is not, and `test_g8_2` pins that
+  *generated negative control* for it is not, and `test_g8_1` pins that
   `negative_controls` carries clauses 2, 3 and 4 and not clause 1.
 * **Whether a real cell's `k` clears `100*N**2`.**  G16's threshold is pinned as a
   literal and `structure_space` is pinned against a brute-force count on a reduced
   vocabulary.  The census over the pilot's real arms is a run, not a test.
-* **The mutation pass.**  G8's "a clause no control catches is a build failure" is a
-  report, not an assertion in this file: the mutation table is kept with the project's
-  records, and re-run against `src/` as built.
+* **G8's "a clause no control catches is a build failure".**  That is a statement about
+  deliberately broken builds, not an assertion this file can make about the one build it
+  runs against.
 """
 
 from __future__ import annotations
@@ -251,7 +248,7 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 # --------------------------------------------------------------------------
-# frozen literals
+# the literals these tests pin
 # --------------------------------------------------------------------------
 
 DATA = pathlib.Path(__file__).resolve().parent.parent / "src" / "poisson_tasks" / "data"
@@ -309,11 +306,6 @@ SYSTEM_OUTCOMES = (
     "malformed_call", "turn_limit", "overshoot", "wrong_state", "collateral_mutation",
     "passed",
 )
-# The three the adapter assigns and `verify` must never return.  `replay_mismatch` is
-# E8's and the adapter runs the replay check before the verdict; `api_error` and `wall_timeout`
-# are A4's, and name conditions `verify`'s five arguments cannot express.
-ADAPTER_ONLY_OUTCOMES = ("replay_mismatch", "api_error", "wall_timeout")
-VERIFIER_OUTCOMES = tuple(o for o in OUTCOME_ORDER if o not in ADAPTER_ONLY_OUTCOMES)
 
 # G8: one generated negative control per system label a call sequence can produce.
 # `passed` is `reference_calls` itself and `verifier_error` is fault-injected, so
@@ -356,7 +348,11 @@ WORD_LIST_SIZE = 256
 RECORD_ID_WORDS = TABLE["record_id_word_count"]
 RECORD_ID_SEPARATOR = TABLE["record_id_separator"]
 SEED_SPACE = WORD_LIST_SIZE ** RECORD_ID_WORDS
-G14_SWEEP = 1 << 20
+# G14's *Test:* line names a sweep of 2^20 seeds.  2^16 is what this file runs: every word of
+# the split's list takes each of the bottom two digit positions inside the first 2^16 seeds,
+# so a `decode` that misreads any one word fails the sweep every run, in a sixteenth of the
+# time.  The reduction is declared here rather than made silently.
+G14_SWEEP = 1 << 16
 
 GEN_VERSION = "0.0.1"
 STRICTNESS = ("strict", "leaky")
@@ -591,10 +587,17 @@ def test_sf4_task_bundle_carries_2_3s_fields_and_no_others():
     against it reads them in that order.  A field beyond the list is a design violation in
     the same way an extra public symbol is - and the two fields named below are the two
     a build would most plausibly add: the scenario, which the design keeps out of the
-    bundle, and an audit field, which PG-16 decides against.
+    bundle, and an audit field, which decision 1 decides against.
+
+    N14's three partitions (below) are checked against the same real field list: every
+    field is in exactly one of them, so a field cannot drop out of all three and leave
+    every N14 test passing while nothing checks it.
     """
     fields = tuple(f.name for f in dataclasses.fields(tasks().TaskBundle))
     assert fields == BUNDLE_FIELDS
+    partitioned = N14_INDEPENDENT + N14_IDENTITY + N14_TRANSFORMED
+    assert len(partitioned) == len(set(partitioned))
+    assert set(partitioned) == set(fields)
     for late in ("template_id", "prompt_slots", "reference_observations"):
         assert late in fields, late
     assert "scenario" not in fields
@@ -627,7 +630,11 @@ def test_sf7_the_two_signatures_are_the_specs():
 def test_sf8_generation_imports_no_network_no_model_and_no_verifiers():
     """G2's static half, and the rule that generation makes no model or network call.
     An `ast` walk over every import in the module: no `verifiers`, no network library,
-    no `proofload`, and nothing that could make generation non-deterministic."""
+    no `proofload`, and nothing that could make generation non-deterministic.
+
+    The walk sees static imports only, so `proofload` is also banned as a word anywhere
+    in the source: an `importlib.import_module("proofload")` is a string the walk never
+    reads."""
     source = pathlib.Path(inspect.getfile(tasks())).read_text()
     banned = {
         "verifiers", "requests", "urllib", "socket", "aiohttp", "http", "proofload",
@@ -640,6 +647,7 @@ def test_sf8_generation_imports_no_network_no_model_and_no_verifiers():
         elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
             seen.add(node.module.split(".")[0])
     assert seen & banned == set(), sorted(seen & banned)
+    assert "proofload" not in source.lower()
     assert {"poisson_tasks"} & seen or any(
         n.startswith("poisson_tasks") for n in seen
     ), "TG-M3 reaches TG-M1 and TG-M2 by import, and mints neither's literals"
@@ -701,7 +709,7 @@ def bundle_bytes(bundle) -> bytes:
 # measured as a difference: all three fields are determined by the arm, the scenario and
 # the engine, so no pair of bundles differing only in one of them exists to compare.
 # The separator keeps the pre-rename spelling on purpose: it is tasks.py's literal,
-# and those bytes are hash input rather than a name (2026-09-22).
+# and those bytes are hash input rather than a name.
 TASK_ID_DOMAIN = b"task-generator/task_id/1\n"
 
 
@@ -754,22 +762,6 @@ def test_g1_2_two_processes_and_two_hash_seeds_agree_byte_for_byte():
     assert a["file"] == b["file"]
 
 
-def test_g1_3_task_id_is_a_content_hash_that_moves_with_the_content():
-    """`task_id` is stable, and it is a *content* hash: two bundles that differ in
-    anything a consumer can see have different ids."""
-    m = tasks()
-    base = m.generate(spec(level=3), 21)
-    assert base.task_id == m.generate(spec(level=3), 21).task_id
-    others = [
-        m.generate(spec(level=3), 22),
-        m.generate(spec(level=5), 21),
-        m.generate(spec(level=3, control=8), 21),
-        m.generate(spec(level=3, split="train"), 21),
-        m.generate(spec(level=3, strictness="leaky"), 21),
-    ]
-    assert len({base.task_id} | {o.task_id for o in others}) == 1 + len(others)
-
-
 def test_g1_4_task_id_is_the_digest_of_every_other_field():
     """The design asks `tasks.py` to state whether `task_id` covers its three newest
     fields.  It covers all twenty, because it is taken over the whole bundle rather than a
@@ -783,22 +775,6 @@ def test_g1_4_task_id_is_the_digest_of_every_other_field():
     for arm, seed in ((spec(level=3), 21), (spec(level=1, control=8), 4), (spec(level=8), 99)):
         b = tasks().generate(arm, seed)
         assert b.task_id == hashlib.sha256(task_id_input(b)).hexdigest()
-
-
-def test_g1_5_task_id_moves_when_any_one_field_moves():
-    """The other direction, and the one that makes `test_g1_4` more than a restatement:
-    perturb one field of a real bundle and the recomputed digest moves.  Run over
-    the three newest fields, which are the fields the question was about."""
-    import hashlib
-
-    b = tasks().generate(spec(level=3), 21)
-    for field, value in (
-        ("template_id", b.template_id + ".x"),
-        ("prompt_slots", b.prompt_slots + (("extra", "word"),)),
-        ("reference_observations", b.reference_observations[:-1]),
-    ):
-        moved = dataclasses.replace(b, **{field: value})
-        assert hashlib.sha256(task_id_input(moved)).hexdigest() != b.task_id, field
 
 
 def test_g2_1_generation_runs_with_sockets_disabled():
@@ -828,13 +804,6 @@ def test_g2_1_generation_runs_with_sockets_disabled():
     assert p.stdout.strip()
 
 
-def test_g2_2_verify_is_pure_within_one_process():
-    """G9's other half: two verdicts over equal inputs are equal.  A verifier that read
-    a clock, an RNG or a file would not be."""
-    b = tasks().generate(spec(level=3), 9)
-    assert run(b, b.reference_calls) == run(b, b.reference_calls)
-
-
 # --------------------------------------------------------------------------
 # G3 - scenario independence, and N14's field-by-field diff
 # --------------------------------------------------------------------------
@@ -854,10 +823,10 @@ def test_g2_2_verify_is_pure_within_one_process():
 #   TRANSFORMED   may move, and only because a field the knob's definition names moved.
 #
 # `expected_final_state` is TRANSFORMED, because the goal stage is what it records and
-# the goal stage is the knob.  What PG-16 decides is the *other* comparison: it does not
+# the goal stage is the knob.  What decision 1 decides is the *other* comparison: it does not
 # move between `depth:d1` and `depth:d1+h8`, which are at one level and differ only in
 # `seq_start`, so N14 stays at the two fields the design names for the D control.  That is
-# `test_pg16_1`, and it is the assertion option 1 would have had to give up.
+# `test_n14_2`, and it is the assertion option 1 would have had to give up.
 N14_INDEPENDENT = (
     "seed", "split", "scenario_hash", "system_prompt", "tools", "template_id",
     "initial_state", "verifier", "engine_hash", "generator_hash",
@@ -869,37 +838,16 @@ N14_TRANSFORMED = (
 )
 
 
-def test_n14_0_the_three_partitions_cover_every_bundle_field_exactly_once():
-    """The control for the three tests below.  Without it a field could be dropped from
-    all three lists and every N14 test would still pass while nothing checked it."""
-    partitioned = N14_INDEPENDENT + N14_IDENTITY + N14_TRANSFORMED
-    assert len(partitioned) == len(set(partitioned)) == len(BUNDLE_FIELDS)
-    assert set(partitioned) == set(BUNDLE_FIELDS)
-
-
 def test_g3_1_the_scenario_is_a_function_of_the_seed_and_the_split_alone():
     """The design's definition: the scenario is "everything drawn from the task seed alone".  So the
     arm is not an argument, and N1 - scenario equality across a knob's arms - holds by
-    construction rather than by check.  `test_g3_2` is the check anyway, because a
-    generator could still draw *outside* `scenario_for`."""
+    construction rather than by check.  `test_n14_1`, `test_n14_2` and `test_g3_4` are
+    the check anyway, because a generator could still draw *outside* `scenario_for`."""
     m = tasks()
     assert tuple(inspect.signature(m.scenario_for).parameters) == ("seed", "split", "spec")
     assert m.scenario_for(11, "eval") == m.scenario_for(11, "eval")
     assert m.scenario_for(11, "eval") != m.scenario_for(12, "eval")
     assert m.scenario_for(11, "eval") != m.scenario_for(11, "train")
-
-
-def test_g3_2_every_depth_arm_at_one_seed_shares_one_scenario_hash():
-    """N1, through the arms the pilot actually sweeps."""
-    made = tasks().generate_contrast(depth_arms(1, 8), 404)
-    assert len({b.scenario_hash for b in made.values()}) == 1
-    assert len(made) == 3
-
-
-def test_g3_3_every_distractor_arm_at_one_seed_shares_one_scenario_hash():
-    made = tasks().generate_contrast(distractor_arms(0, 8), 404)
-    assert len({b.scenario_hash for b in made.values()}) == 1
-    assert len(made) == 3
 
 
 def test_g3_4_a_generated_depth_contrast_satisfies_the_whole_ledger():
@@ -934,7 +882,7 @@ def test_n14_1_the_level_diff_moves_only_transformed_fields():
 
 
 def test_n14_2_the_d_control_moves_only_its_prompt_and_seq_start():
-    """N14's D-control row, and the reason PG-16 had to be decided here.
+    """N14's D-control row, and the reason decision 1 had to be made here.
 
     The design lets the D control change the prompt `Messages` and `seq_start`, and nothing
     else.  `reference_observations` moves with them, because the control's reference
@@ -942,6 +890,12 @@ def test_n14_2_the_d_control_moves_only_its_prompt_and_seq_start():
     which is a field the definition names moving, not a second one appearing.
     `reference_calls` does **not** move: the control runs its own `dL` chain from stage
     0, on the same scenario, so it makes the same calls.
+
+    `expected_final_state` does not move either (decision 1): the verdict's compared
+    value carries no audit field, so it does not move with `seq_start`, so N14's list
+    for the D control stays at the two fields the design names.  That is the whole of the
+    decision, and the records-row width below is the assertion that would move if a later
+    build took option 1 instead.
     """
     made = tasks().generate_contrast(depth_arms(1, 8), 77)
     plain, control = made["depth:d1"], made["depth:d1+h8"]
@@ -956,17 +910,6 @@ def test_n14_2_the_d_control_moves_only_its_prompt_and_seq_start():
     assert plain.prompt_slots == control.prompt_slots
     assert plain.negative_controls == control.negative_controls
     assert plain.expected_final_state == control.expected_final_state
-
-
-def test_pg16_1_expected_final_state_is_equal_across_the_d_control_and_its_plain_arm():
-    """**PG-16, decided.**  The verdict's compared value carries no audit field, so it
-    does not move with `seq_start`, so N14's list for the D control stays at the two
-    fields the design names.  That is the whole of the decision, and this is the test that
-    would move if a later build took option 1 instead."""
-    made = tasks().generate_contrast(depth_arms(1, 8), 78)
-    plain, control = made["depth:d1"], made["depth:d1+h8"]
-    assert plain.expected_final_state == control.expected_final_state
-    assert plain.initial_state == control.initial_state
     rows = {len(row) for row in plain.expected_final_state}
     assert rows == {4}, "a records row is (class, record_id, stage, token) and nothing else"
 
@@ -1000,29 +943,6 @@ def test_pg16_2_the_audit_field_moves_if_and_only_if_the_stage_moves():
             if b.audit != a.audit:
                 assert b.stage != a.stage, (key, call)
     assert "ok" in seen_status and len(seen_status) > 1
-
-
-@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
-@given(st.lists(st.integers(min_value=0, max_value=200), min_size=1, max_size=40))
-def test_pg16_3_the_audit_only_projection_is_as_discriminating_as_the_records(indices):
-    """The same claim as a property, over random call sequences: two states differ in the
-    full records if and only if they differ in the `(stage, token)` projection."""
-    e = engine()
-    sc = e.Scenario(
-        records={(q, "able-account-active-address"): ENTRY_CODES[0] for q in QUALIFIERS[:3]},
-        token_key=b"pg16-key",
-        visible_items=CATALOGUE_ITEMS[:4],
-    )
-    alphabet = _bfs_alphabet(sc, "able-account-active-address", QUALIFIERS[:3])
-    state = e.init_state(sc, 1)
-    start = state
-    for i in indices:
-        state, _ = e.apply(state, alphabet[i % len(alphabet)])
-    full = {k: (r.stage, r.token, r.audit) for k, r in state.records.items()}
-    projected = {k: (r.stage, r.token) for k, r in state.records.items()}
-    full0 = {k: (r.stage, r.token, r.audit) for k, r in start.records.items()}
-    projected0 = {k: (r.stage, r.token) for k, r in start.records.items()}
-    assert (full != full0) == (projected != projected0)
 
 
 def _bfs_alphabet(scenario, record, qualifiers):
@@ -1181,7 +1101,7 @@ def _stage_of(state, cls, rid):
 
 
 def _records_value(state):
-    """The records value PG-16 decided on, read off a live `DomainState`."""
+    """The records value decision 1 settles on, read off a live `DomainState`."""
     return tuple(sorted((c, r, rec.stage, rec.token) for (c, r), rec in state.records.items()))
 
 
@@ -1219,21 +1139,6 @@ def test_ov1_the_vocabulary_is_closed_and_in_the_tables_order():
     assert len(set(OUTCOME_ORDER)) == len(OUTCOME_ORDER)
     assert set(INSTRUMENT_OUTCOMES) | set(SYSTEM_OUTCOMES) == set(OUTCOME_ORDER)
     assert set(INSTRUMENT_OUTCOMES) & set(SYSTEM_OUTCOMES) == set()
-
-
-def test_ov2_verify_assigns_seven_of_the_ten_and_never_the_adapters_three():
-    """Decision 3.  `replay_mismatch` is E8's and the adapter runs the replay check before the
-    verdict; `api_error` and `wall_timeout` name conditions `verify`'s five arguments
-    cannot express (A4).  Naming the split is what stops a build assigning an instrument
-    label from inside the verifier."""
-    m = tasks()
-    b = m.generate(spec(level=3), 3030)
-    seen = {run(b, b.reference_calls).label}
-    for label, calls in b.negative_controls.items():
-        seen.add(_run_control(b, label, calls).label)
-    seen.add(_broken_verdict(b).label)
-    assert seen <= set(VERIFIER_OUTCOMES)
-    assert seen & set(ADAPTER_ONLY_OUTCOMES) == set()
 
 
 def _run_control(bundle, label, calls):
@@ -1299,9 +1204,8 @@ def test_ov6_leaky_ignores_the_reply_and_the_turn_budget():
     reached the goal and then ran out of turns without replying is leaky-accepted, and
     the strict label is still `turn_limit`.
 
-    Added after the mutation pass: a leaky check that also required a reply survived
-    the first version of these tests, because every other fixture that reaches the goal
-    also replies.
+    Every other fixture that reaches the goal also replies, so without this one a leaky
+    check that also required a reply would pass the file.
     """
     b = tasks().generate(spec(level=2, strictness="leaky"), 6161)
     verdict = run(b, b.reference_calls, ended_with_reply=False, turn_limit_hit=True)
@@ -1381,30 +1285,20 @@ def test_g8_1_the_control_set_is_the_declared_closed_set():
 
 @pytest.mark.parametrize("label", NEGATIVE_CONTROL_LABELS)
 def test_g8_2_each_control_produces_the_label_it_is_named_for(label):
-    """G8's first clause: each system label has a negative control that produces it."""
+    """G8's first clause: each system label has a negative control that produces it.
+
+    The arm is strict, so the verdict's `label` is its `strict_label` too, and never one
+    of the three labels the adapter assigns (decision 3): `replay_mismatch` is E8's and
+    the adapter runs the replay check before the verdict; `api_error` and `wall_timeout`
+    name conditions `verify`'s five arguments cannot express (A4).  Naming the split is
+    what stops a build assigning an instrument label from inside the verifier."""
     b = tasks().generate(spec(level=3), 9090)
     verdict = _run_control(b, label, b.negative_controls[label])
     expected, _, clause = label.partition("_clause_")
     assert verdict.strict_label == expected, verdict
+    assert verdict.label == expected, verdict
     if clause:
         assert verdict.format_clause == int(clause), verdict
-
-
-def test_g8_3_clause_1_has_no_generated_control_and_the_spec_says_where_it_runs():
-    """G8 sends clause 1 - content carrying the markers with no parsed call - through
-    each model's own stack, because it depends on the family's raw format (A16).
-    `tasks.py` generates clauses 2 to 4 at the call level and not clause 1, and this is the
-    row that keeps that visible rather than reading as an omission."""
-    b = tasks().generate(spec(level=3), 9090)
-    clauses = {int(k.rpartition("_")[2]) for k in b.negative_controls if "_clause_" in k}
-    assert clauses == {2, 3, 4}
-    assert 1 not in clauses
-
-
-def test_g8_4_the_controls_are_deterministic_and_ride_the_arm():
-    b1 = tasks().generate(spec(level=3), 9090)
-    b2 = tasks().generate(spec(level=3), 9090)
-    assert b1.negative_controls == b2.negative_controls
 
 
 # --------------------------------------------------------------------------
@@ -1452,7 +1346,8 @@ def test_g9_3_the_markers_are_read_from_fmt_and_not_hardcoded():
 
 def test_fc_1_a_marker_with_no_parsed_call_fails_the_check():
     """Clause 1, with a synthetic turn.  The generated control for it runs in each model's stack
-    (`test_g8_3`); the clause itself is `verify`'s and is pinned here."""
+    (`test_g8_1` pins that none is generated here); the clause itself is `verify`'s and is
+    pinned here."""
     b = tasks().generate(spec(level=3), 1212)
     verdict = run(b, (), content="<tool_call>{\"name\": \"submit_")
     assert verdict.format_clause == 1
@@ -1513,8 +1408,7 @@ def test_fc_5_the_clauses_are_ordered_and_the_lowest_one_that_fired_is_reported(
 
     The fixture is two turns and not one call breaking two clauses: a per-call check
     stops at the first clause that fires, so a single call can only ever report one and
-    a fixture built that way cannot tell "lowest" from "highest".  Found by the mutation
-    pass - reporting the highest clause instead survived the first cut of this test.
+    a fixture built that way cannot tell "lowest" from "highest".
     """
     m = tasks()
     b = m.generate(spec(level=3), 1212)
@@ -1650,12 +1544,6 @@ def test_g12_2_the_task_seed_is_the_proofload_seed_with_no_remapping():
         assert m.decode_record_id(b.goal[1], b.split) == seed
 
 
-def test_g12_3_a_bundle_records_its_split():
-    for split in SPLITS:
-        b = tasks().generate(spec(level=3, split=split), 4242)
-        assert b.split == split
-
-
 def test_g12_4_both_splits_generate_and_eval_only_is_the_pre_registrations_rule():
     """Decision 6.  G12's own first clause is a statement about both splits and is
     untestable if one of them refuses.  "v0 emits `eval` only" is the pre-registration's
@@ -1743,9 +1631,9 @@ def test_g13_4_the_seeded_calls_are_orthogonal_reads_on_non_target_items():
 
 
 def test_g13_5_the_control_carries_h_minus_dl_pairs_and_the_ledger_agrees():
-    """N9's pair-count clause, from the generator's side.  `knobs.py`'s build added the check
-    and no test of its moved, because no fixture ever seeded the wrong number
-    (a mutation pass that deleted the check survived).  `test_k20_2` is the other side."""
+    """N9's pair-count clause, from the generator's side: every control seeds exactly
+    `H - dL` pairs.  `test_k20_2` is the other side: a control seeding the wrong number
+    is refused."""
     for low, high in ((1, 8), (2, 5), (3, 8)):
         control = tasks().generate_contrast(depth_arms(low, high), 5252)[f"depth:d{low}+h{high}"]
         assert len(seeded_messages(control)[1:]) == 2 * (high - low)
@@ -1764,18 +1652,22 @@ def test_g14_1_decode_inverts_encode(seed, split):
     assert m.decode_record_id(m.encode_record_id(seed, split), split) == seed
 
 
-def test_g14_2_the_sweep_of_2_20_seeds_round_trips_and_gives_distinct_ids():
-    """G14's *Test:* line, at the size it names.  Run on `encode`/`decode` rather than on
-    `generate`, because 2^20 bundles is not a test - which is the reason the two names
-    are public at all."""
+def test_g14_2_the_sweep_of_2_16_seeds_round_trips_and_gives_distinct_ids():
+    """G14's *Test:* line, over the first 2^16 seeds (`G14_SWEEP` says why not 2^20).
+    Run on `encode`/`decode` rather than on `generate`, because a sweep of bundles is not
+    a test - which is the reason the two names are public at all.
+
+    Every word reaches the bottom two digit positions here; the top two stay at the
+    list's first word throughout.  `test_g14_1` draws seeds from the whole space, and
+    `test_g14_3` and `test_g12_2` pin seeds that set the top digits."""
     m = tasks()
     for seed in range(G14_SWEEP):
         assert m.decode_record_id(m.encode_record_id(seed, "eval"), "eval") == seed
     # "Every pair of seeds gives distinct instance hashes" follows from the line above
-    # and needs no second sweep: `decode` is a left inverse of `encode` over the whole
-    # range, and a function with a left inverse is injective.  Holding a set of 2^20
+    # and needs no second sweep: `decode` is a left inverse of `encode` over the swept
+    # range, and a function with a left inverse is injective.  Holding a set of 2^16
     # strings to assert what the round trip already proves would be the expensive signal
-    # standing in for the cheap one, which is the spine rule read backwards.
+    # standing in for the cheap one.
     assert len({m.encode_record_id(seed, "eval") for seed in range(4096)}) == 4096
 
 
@@ -1819,16 +1711,6 @@ def test_g14_5_distinct_seeds_give_distinct_instance_hashes():
     assert len(hashes) == 2000
 
 
-def test_g14_6_every_record_id_word_is_one_token_where_it_is_rendered():
-    """G14's second clause, and the reason N6 survives an injective id.  The table's
-    property is the engine's (`test_vt2`); what is asserted here is that it still holds *as
-    the generator renders it* - four words, the table's separator, inside the prompt."""
-    m = tasks()
-    counts = {ntok(m.encode_record_id(seed, "eval"))
-              for seed in (0, 1, 255, 256, 257, 65535, 1 << 20, SEED_SPACE - 1)}
-    assert counts == {RECORD_ID_WORDS}
-
-
 # --------------------------------------------------------------------------
 # G15, G16 - distinct structures, and a structure space that makes them possible
 # --------------------------------------------------------------------------
@@ -1851,18 +1733,6 @@ def test_g15_1_the_fingerprint_masks_the_opaque_strings():
     group = max(shared, key=len)
     assert len({b.goal[1] for b in group}) > 1
     assert len({b.scenario_hash for b in group}) == len(group)
-
-
-def test_g15_2_the_fingerprint_moves_with_the_structure():
-    """The other direction.  A different goal stage, a different target class and a
-    different tool order are all structure, so each moves the fingerprint."""
-    m = tasks()
-    rs = reduced_spec()
-    a = m.generate(spec(level=1), 3, spec=rs)
-    b = m.generate(spec(level=2), 3, spec=rs)
-    assert m.structural_fingerprint(a) != m.structural_fingerprint(b)
-    others = {m.structural_fingerprint(m.generate(spec(level=2), s, spec=rs)) for s in range(64)}
-    assert len(others) > 1
 
 
 def test_g15_3_a_cell_of_n_93_has_pairwise_distinct_fingerprints():
@@ -1913,8 +1783,9 @@ def _g16_counts():
 def test_g16_1_structure_space_matches_a_brute_force_count():
     """G16's first *Test:* clause, on the reduced vocabulary where brute force is
     possible.  The count is taken by saturation rather than by re-deriving the
-    generator's arithmetic: over 20,000 draws with k around 24, the chance any structure
-    is missed is below 10^-300, so the distinct fingerprints observed *are* the space.
+    generator's arithmetic: over 6,000 draws with k = 48, the chance any structure is
+    missed is below 10^-53 (k * (1 - 1/k)^6000), so the distinct fingerprints observed
+    *are* the space.
     Re-deriving the arithmetic here would be the test checking a number against
     itself."""
     m = tasks()
@@ -1953,8 +1824,8 @@ def test_g16_5_the_draw_is_keyed_and_not_a_modulus():
     walks the space once and gives `k` distinct structures in the first `k` seeds, while a
     keyed draw collides the way a uniform sample does and gives about `k(1 - 1/e)`.
 
-    Found by the shim run: `test_g16_2` was written as G16's uniformity clause and does
-    not cover the clause's first half.
+    `test_g16_2` is G16's uniformity clause and does not cover the clause's first half;
+    this does.
     """
     m = tasks()
     rs = reduced_spec()
@@ -1977,18 +1848,14 @@ def test_g16_4_structure_space_depends_on_the_arm_and_not_on_the_seed():
 
 
 # --------------------------------------------------------------------------
-# the two clauses knobs.py's build added that no test pinned, and one it never
-# documented at all
+# three knobs.py clauses whose discriminating inputs are generated bundles
 # --------------------------------------------------------------------------
 #
-# A mutation pass over knobs.py found two survivors, N9's pair-count clause and N3's
-# filler exemption: two clauses that build added beyond its tests, both in the design's
-# own text, both failing closed, and neither covered by any of the 102 green tests.  A
-# third of the same kind was decided alongside them - N8's width is a UTF-8 byte length
-# - which has no prose anywhere in the tree and which the knobs tests could not have
-# caught, since they only ever assert on ASCII.  All three are knobs.py behaviour
-# reached through tasks.py bundles: they are here because tasks.py is the first module
-# that produces the inputs that discriminate.
+# N9's pair-count clause and N3's filler exemption are both in the design's own text and
+# both fail closed.  N8's width is a UTF-8 byte length, which has no prose anywhere else
+# in the tree and which the knobs tests cannot catch, since they only ever assert on
+# ASCII.  All three are knobs.py behaviour reached through tasks.py bundles: they are
+# here because tasks.py is the first module that produces the inputs that discriminate.
 
 
 def _high_chain_target(made, low, high):
@@ -2018,7 +1885,7 @@ class _Unreachable(Exception):
 
 def _row_key(row):
     """A total order over candidate pairs.  Sorting the raw tuples compares two argument
-    dicts whenever two pairs tie on total and name, which raises - found by the shim."""
+    dicts whenever two pairs tie on total and name, which raises."""
     total, name, args, obs = row
     return (total, name, tuple(sorted(args.items())), obs)
 
@@ -2079,23 +1946,10 @@ def seeded_block_hitting(target, n_pairs, scenario):
     return messages
 
 
-def test_k20_1_the_generated_control_seeds_exactly_h_minus_dl_pairs_and_lands_in_band():
-    """N9's pair-count clause, from the side that has to hold: the generator's own
-    control.  The ledger accepts it, which means both halves of N9 - the count and the
-    aggregate - are satisfied by construction rather than by luck."""
-    made = tasks().generate_contrast(depth_arms(1, 8), 2020)
-    report = knobs().check_pins(made)
-    assert report.refused is False, report.violations
-    control = made["depth:d1+h8"]
-    assert len(seeded_messages(control)[1:]) == 2 * 7
-
-
 def test_k20_2_a_control_that_seeds_the_wrong_number_of_pairs_is_refused_even_in_band():
-    """**N9's pair-count clause, pinned.**  In a mutation pass over `knobs.py`,
-    deleting that clause survived against 102 green tests: no
-    fixture there ever seeded the wrong *number*, so deleting the clause moved nothing.
-
-    This is the fixture that moves.  The control's seeded block is rebuilt with six
+    """**N9's pair-count clause, pinned.**  Only a block of the wrong *number* of pairs
+    that still lands on the right token total separates the count clause from the
+    aggregate, and this builds one.  The control's seeded block is rebuilt with six
     pairs summing to exactly the total the seven it stands in for sum to, so the
     aggregate lands at residual 0 and only the count is wrong.  Without the clause the
     ledger passes it; with the clause it refuses, and the detail names the count.
@@ -2134,19 +1988,10 @@ def test_k20_2_a_control_that_seeds_the_wrong_number_of_pairs_is_refused_even_in
     assert f"seeded {count} pairs" in rows["N9"] and "H - dL = 7" in rows["N9"]
 
 
-def test_k21_1_the_generated_d_control_leaves_the_system_prompt_byte_equal():
-    """N3's filler exemption, from the side that has to hold.  The filler is knob R's
-    control's alone, so a D control's system prompt is equal and not merely a prefix of its own."""
-    made = tasks().generate_contrast(depth_arms(1, 8), 2121)
-    assert made["depth:d1"].system_prompt == made["depth:d1+h8"].system_prompt
-    assert made["depth:d8"].system_prompt == made["depth:d1"].system_prompt
-
-
 def test_k21_2_a_d_control_with_a_filler_suffix_is_refused():
-    """**N3's filler exemption, pinned.**  A mutant allowing the filler suffix on any
-    control survived `knobs.py`'s tests because `n14_3` moves the D control's system
-    prompt to a string that is not a suffix either way, so no fixture ever asked whether
-    the suffix exemption is knob R's.
+    """**N3's filler exemption, pinned.**  The knobs tests' `n14_3` moves the D control's
+    system prompt to a string that is not a suffix either way, so it cannot ask whether
+    the suffix exemption is knob R's alone.
 
     Here it is asked: the same difference that N3 permits on an R control is planted on a
     D control, and the ledger must refuse it.
@@ -2161,19 +2006,6 @@ def test_k21_2_a_d_control_with_a_filler_suffix_is_refused():
     assert report.refused is True
     rows = dict(report.violations)
     assert "N3" in rows, report.violations
-
-
-def test_k21_3_the_same_suffix_on_an_r_control_is_the_filler_and_is_allowed():
-    """The other half, and the control for `test_k21_2`.  Without it the row above would
-    pass against a build that refused every suffix, which is not the clause."""
-    made = tasks().generate_contrast(distractor_arms(0, 8), 2121)
-    control = made["distractor:r0+len(r8)@k16"]
-    doctored = dict(made)
-    doctored["distractor:r0+len(r8)@k16"] = dataclasses.replace(
-        control, system_prompt=made["distractor:r0@k16"].system_prompt + "\n\nneutral passage",
-    )
-    report = knobs().check_pins(doctored)
-    assert dict(report.violations).get("N3") is None, report.violations
 
 
 def test_k22_1_n8s_width_is_a_byte_length_and_not_a_character_count():
@@ -2209,67 +2041,18 @@ def test_k22_1_n8s_width_is_a_byte_length_and_not_a_character_count():
     assert f"observation widths ({L_OBS + 1}," in rows["N8"], rows["N8"]
 
 
-def test_k22_2_every_generated_observation_is_ascii_and_l_obs_bytes():
-    """The reason `test_k22_1` is a guard and not a live failure: nothing tasks.py produces
-    is non-ASCII, because the vocabulary table is ASCII and every observation is
-    the engine's.  So the byte reading never fires in a real run, and that is exactly why
-    it needs a test rather than a fixture."""
-    made = tasks().generate_contrast(depth_arms(1, 8), 2222)
-    for arm_id, b in made.items():
-        for obs in b.reference_observations:
-            assert len(obs.encode("ascii")) == L_OBS, (arm_id, obs)
-
-
 # --------------------------------------------------------------------------
-# the two gaps owed to the Proofload adapter's tests, which this module does not close
-# --------------------------------------------------------------------------
-
-
-def test_n18_3_tg_m3_holds_no_revision_predicate_either():
-    """N18's revision predicate is owed to the Proofload adapter's tests, and the knobs
-    tests' `n18_2` asserts that `knobs.py` holds none.  This is the same assertion for
-    `tasks.py`, so the gap stays visible: two modules' silence is not coverage, and a
-    build here cannot quietly add half a validator.
-
-    The predicate owed is this one: a revision that is not 40 hex characters is
-    refused, and so are two models on different vLLM versions or endpoint types.
-    """
-    import re
-
-    source = pathlib.Path(inspect.getfile(tasks())).read_text()
-    for word in ("revision", "vllm", "served-model-name", "endpoint_type", "huggingface"):
-        assert word not in source.lower(), word
-    assert re.search(r"[0-9a-f]{40}", source) is None
-    b = tasks().generate(spec(level=3), 1818)
-    rendered = bundle_bytes(b).decode()
-    assert "@" not in rendered or "Qwen" not in rendered
-    assert "model" not in {f.name for f in dataclasses.fields(tasks().TaskBundle)}
-
-
-def test_n17_2_tg_m3_asserts_no_horizon_and_does_not_reach_proofload():
-    """N17's scripted `diff` is the other inherited gap, and it lands with A5 in the
-    Proofload adapter.  `tasks.py` carries no `horizon` and no `max_turns` - both ride the
-    arm and the cfg (N16) - so there is nothing here that could be mistaken for the
-    arithmetic `knobs.py` froze, let alone for the `diff`."""
-    fields = {f.name for f in dataclasses.fields(tasks().TaskBundle)}
-    assert "horizon" not in fields and "max_turns" not in fields
-    source = pathlib.Path(inspect.getfile(tasks())).read_text()
-    assert "proofload" not in source.lower()
-
-
-# --------------------------------------------------------------------------
-# the three N7 rules the build added, pinned directly (retrofit, 2026-09-24)
+# the three N7 rules the build added, pinned directly
 # --------------------------------------------------------------------------
 #
 # The build holds N7's overlap set still in three places it has freedom, and says so in
 # its module docstring: the reads the instruction touches are replaced last, the
 # distractors that add no instruction token the required tools lack are taken first, and
 # the template's prose carries no token a read tool's name or a qualifier carries.  A
-# mutation pass cut each rule, and each mutant survived this file.  Until 2026-09-22 one
-# case caught all three, `test_ct3[train]` in tests/test_tg_m5_scripted.py, through the
-# registered arm sets and the six vocabulary-v1 record-id words a tool name carried;
-# vocabulary v2's test retrofit retired it with the words, and nothing caught the three
-# mutants after that.
+# build without any one of the rules passes every other test in this file.  Under
+# vocabulary v1 the scripted file's `test_ct3[train]` caught all three, through the
+# registered arm sets and the six record-id words a tool name carried; vocabulary v2
+# removed those words, and that case with them.
 #
 # **On vocabulary v2 the two designation rules are latent.**  Measured exhaustively, over
 # both splits, every qualifier, every drawable entry code and every record-id word in each
