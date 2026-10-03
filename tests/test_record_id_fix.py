@@ -45,7 +45,7 @@ import pathlib
 import pytest
 
 from poisson_tasks.engine import EngineSpec
-from poisson_tasks.knobs import ArmSpec
+from poisson_tasks.knobs import ArmSpec, levels
 from poisson_tasks.tasks import encode_record_id, generate_contrast
 
 # --------------------------------------------------------------------------
@@ -149,3 +149,49 @@ def test_ri2_the_top_contrast_holds_at_every_first_word(split):
     )
     assert len(seeds) == 1024
     assert refusals(split, seeds) == []
+
+
+# ===========================================================================
+# CT · every registered arm of a knob in one contrast, across the seed space
+#
+# The task-layer tests build one knob R contrast, `r0` against `r8`, at three seeds.  These
+# run every arm of a knob at once -- each level and both control arms, the arm sets a sweep
+# registers -- over a spread of the 32-bit seed space, so a level or a control that broke the
+# pin ledger at some seed would refuse here.  They need no adapter, so they run without
+# Proofload.
+# ===========================================================================
+
+D_CONTROLS = ((1, 8), (2, 5))
+R_CONTROLS = ((0, 8), (2, 14))
+SPREAD = (0, 1, 2, 55, 404, 2121, 65535, 2**24, 2**31 - 1, 2**32 - 1)
+SPACED = tuple((7 + i * (2**32 // 24)) % 2**32 for i in range(24))
+
+
+def registered_arms(knob: str, controls: tuple[tuple[int, int], ...]) -> tuple[ArmSpec, ...]:
+    def arm(level: int, control: int | None) -> ArmSpec:
+        return ArmSpec(knob=knob, level=level, control=control, strictness="strict",
+                       split="eval", generator_version="0")
+
+    return tuple(arm(level, None) for level in levels(knob)) + tuple(
+        arm(level, control) for level, control in controls)
+
+
+def contrast_ok(arms: tuple[ArmSpec, ...], seeds: tuple[int, ...]) -> int:
+    made = 0
+    for seed in seeds:
+        generate_contrast(arms, seed)  # raises ValueError if the ledger refuses
+        made += 1
+    return made
+
+
+def test_ct1_every_registered_depth_arm_holds_the_ledger_across_the_seed_space():
+    arms = registered_arms("depth", D_CONTROLS)
+    assert len(arms) == 7
+    assert contrast_ok(arms, SPREAD + SPACED) == len(SPREAD + SPACED)
+
+
+def test_ct2_every_registered_distractor_arm_holds_the_ledger_across_the_seed_space():
+    """Every level `r0` to `r14` and both controls at once: nothing here is one pair."""
+    arms = registered_arms("distractor", R_CONTROLS)
+    assert len(arms) == 7
+    assert contrast_ok(arms, SPREAD + SPACED) == len(SPREAD + SPACED)

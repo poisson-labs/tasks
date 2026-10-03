@@ -205,7 +205,6 @@ from poisson_tasks.tasks import (
     FormatSpec,
     Turn,
     generate,
-    generate_contrast,
     scenario_for,
     verify,
 )
@@ -336,13 +335,7 @@ def bundle_of(spec: ArmSpec, seed: int) -> Any:
 # ---------------------------------------------------------------------------
 
 
-def spaced(count: int, offset: int = 7) -> tuple[int, ...]:
-    step = 2**32 // count
-    return tuple((offset + i * step) % 2**32 for i in range(count))
-
-
 SPREAD = (0, 1, 2, 55, 404, 2121, 65535, 2**24, 2**31 - 1, 2**32 - 1)
-SPACED = spaced(24)
 
 
 # ---------------------------------------------------------------------------
@@ -2226,32 +2219,4 @@ def test_f9_a_sealed_file_that_cannot_be_read_as_plants_is_refused_at_load(tmp_p
     reg, sha, _ = pilot_files(tmp_path)
     with pytest.raises(ValueError, match=re.escape(needle) if needle else None):
         adapter().load_registry(reg, sha256=sha, sealed=sealed_file(tmp_path, text))
-
-
-# ===========================================================================
-# CT · inherited coverage: the task layer's knob R level axis, at the contrast the adapter pairs.
-#
-# The task layer's tests build one knob R contrast, `r0` against `r8`, at three seeds.  These
-# tests are task-layer behaviour reached through the registered arm sets -- the arms this adapter
-# runs against one salt and compares -- over every level and a spread of seeds.  None of them
-# imports the adapter.
-# ===========================================================================
-
-
-def contrast_ok(specs: Iterable[ArmSpec], seeds: Iterable[int], split: str = "eval") -> int:
-    arms = tuple(dataclasses.replace(s, split=split) for s in specs)
-    made = 0
-    for seed in seeds:
-        generate_contrast(arms, seed)  # raises ValueError if the ledger refuses
-        made += 1
-    return made
-
-
-def test_ct1_every_registered_depth_arm_holds_the_ledger_across_the_seed_space():
-    assert contrast_ok(D_SPECS, SPREAD + SPACED) == len(SPREAD + SPACED)
-
-
-def test_ct2_every_registered_distractor_arm_holds_the_ledger_across_the_seed_space():
-    """Every level `r0` to `r14` and both controls at once: nothing here is one pair."""
-    assert contrast_ok(R_SPECS, SPREAD + SPACED) == len(SPREAD + SPACED)
 
