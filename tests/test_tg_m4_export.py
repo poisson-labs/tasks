@@ -1178,6 +1178,15 @@ def test_x8_6_the_export_never_shuffles():
     assert not {name for name in imported_modules(tree) if name.split(".")[0] == "random"}
 
 
+def test_x8_7_a_long_seed_list_loads_in_the_order_declared():
+    """X8's order past `test_x8_3`'s four seeds: twelve, in no sorted order and with no
+    symmetry, so a load that reorders a long list -- reversed, sorted or shuffled -- yields
+    the tasks in another order."""
+    seeds = [907, 3, 2121, 55, 0, 404, 77_777, 18, 6, 5151, 2**32 - 1, 42]
+    tasks = list(taskset(spec_of("depth", 2), seeds).load())
+    assert [task.data.seed for task in tasks] == seeds
+
+
 # --------------------------------------------------------------------------
 # VAL - validate is G4
 # --------------------------------------------------------------------------
