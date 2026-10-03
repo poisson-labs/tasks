@@ -1,8 +1,7 @@
 """The tests for the domain engine, engine.py: E1-E10, P1, T1-T3, VT1-VT4.
 
-Written on 2026-09-11, before the module. The module is written against this
-file, which is not edited to suit it. Where the design could not be used as
-written, this docstring is authoritative.
+The tests were written before the module, and the module is written against
+them.  Where the design leaves a shape open, this docstring fixes it.
 
 The public surface these tests pin
 ----------------------------------
@@ -61,14 +60,14 @@ from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 # --------------------------------------------------------------------------
-# frozen literals
+# pinned literals
 # --------------------------------------------------------------------------
 
 DATA = pathlib.Path(__file__).resolve().parent.parent / "src" / "poisson_tasks" / "data"
 TABLE_PATH = DATA / "vocabulary-v2.json"
 ENCODING_PATH = DATA / "o200k_base.tiktoken"
 
-# VT4: the table as it was frozen, at commit zero.
+# VT4: the sha256 of the frozen vocabulary table.
 TABLE_SHA256 = "9f3a8c4f4711574e947ec8b3396ff552c9b7aa730fbb5d565db4f10776653037"
 
 ENGINE_EXPORTS = (
@@ -93,8 +92,8 @@ DENY_NAMES = DENY + (
     "head", "tail", "front", "rear", "chain", "queue", "cursor",
 )
 
-# T3: minted at step zero from tiktoken.get_encoding("o200k_base"), which is an
-# independent source and not the offline encoder's own output read back.  No test
+# T3: taken from tiktoken.get_encoding("o200k_base"), which is an independent
+# source and not the offline encoder's own output read back.  No test
 # in this file touches the network.
 PINNED_TOKEN_COUNTS = (
     ('submit', 1),
@@ -385,8 +384,9 @@ def test_e1_two_processes_agree_byte_for_byte():
     ]
     a = _run_child(calls, "0")
     b = _run_child(calls, "1")
-    # mutation-harness fact 1: if the children import the original tree instead of
-    # the copy under test, every row of a mutation table reads "survives".
+    # The children must import the same engine as this process.  If they imported
+    # another copy, a run against a modified engine would compare that other copy
+    # with itself and pass whatever the modification.
     assert a["file"] == engine.__file__ == b["file"]
     assert a["digest"] == b["digest"]
     assert a["next_seq"] == b["next_seq"]
@@ -519,8 +519,8 @@ def test_e2_every_status_code_renders_l_obs_bytes():
 def test_e2_observation_token_count_in_band(payload_seed):
     """E2: the token count under the reference tokenizer lies in the declared band.
 
-    The band is a frozen literal minted at step zero on a 300k sample and checked
-    on a disjoint 300k sample.  This test draws fresh payloads,
+    The band is a table value, measured on a 300k sample and checked on a
+    disjoint 300k sample.  This test draws fresh payloads,
     so it is a third sample and can disagree with both.
     """
     from poisson_tasks.engine import apply, init_state
@@ -1274,8 +1274,7 @@ def test_t2_tokenizer_builds_with_sockets_disabled(tmp_path):
     Run in a fresh interpreter, not in this one.  The encoding is expensive, so
     any sane tokenizer caches it; an earlier test in the same interpreter would then
     have built it already and this test would assert on a cached object, having
-    disabled nothing.  That is not hypothetical -- it is how the first draft of
-    this test let the get_encoding fallback through the whole mutation pass.
+    disabled nothing, and a get_encoding fallback would pass it.
     """
     cache = tmp_path / "tiktoken-cache"
     cache.mkdir()
@@ -1288,7 +1287,7 @@ def test_t2_tokenizer_builds_with_sockets_disabled(tmp_path):
 
 
 def test_t3_offline_counts_match_the_pinned_pairs():
-    """T3: the offline counts equal pairs minted from get_encoding at step zero.
+    """T3: the offline counts equal pairs taken from tiktoken.get_encoding.
 
     An independent source, not this encoder's own output read back.  No test here
     touches the network.
