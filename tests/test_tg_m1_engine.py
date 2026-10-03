@@ -57,7 +57,7 @@ import subprocess
 import sys
 import textwrap
 
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 # --------------------------------------------------------------------------
@@ -812,37 +812,6 @@ def test_e5_seq_start_is_an_argument_not_a_scenario_field():
         assert obs_fields(x)[1:] == obs_fields(y)[1:]
         assert obs_seq(y) - obs_seq(x) == 499
 
-
-def test_e5_replay_numbers_in_list_order():
-    """E5: replay numbers calls in list order from seq_start.
-
-    The caller sorts the sampled calls by the seq in their tool messages (X4, in
-    tasks.py and export.py); replay numbers what it is handed, in the order it is handed.
-    """
-    from poisson_tasks.engine import replay
-
-    scenario = make_scenario()
-    cls, rid = a_record(scenario)
-    entry = scenario.records[(cls, rid)]
-    calls = [
-        (stage_tool(TABLE["stage_names"][0], cls), {"record_id": rid, "entry_code": entry}),
-        ("nope", {}),
-        (all_read_tools()[0], {"item_code": TABLE["catalogue_items"][0],
-                               "page_key": TABLE["page_keys"][0]}),
-    ]
-    for seq_start in (1, 42, 900):
-        _, observations = replay(scenario, calls, seq_start)
-        assert [obs_seq(o) for o in observations] == \
-            [seq_start, seq_start + 1, seq_start + 2]
-    # order is the list's, not the calls' own: reversing the list renumbers them
-    _, forward = replay(scenario, calls, 1)
-    _, backward = replay(scenario, list(reversed(calls)), 1)
-    assert [obs_seq(o) for o in backward] == [1, 2, 3]
-    # position 0 holds a different call in each list, so its payload differs; the
-    # rejected call sits at index 1 in both and is numbered 2 in both
-    assert obs_fields(forward[0])[2] != obs_fields(backward[0])[2]
-    assert obs_status(forward[1]) == obs_status(backward[1]) == "no_such_tool"
-
 # --------------------------------------------------------------------------
 # E6 Closed vocabulary
 # --------------------------------------------------------------------------
@@ -1053,10 +1022,33 @@ def test_mutations_against_hand_built_state_pairs():
 # --------------------------------------------------------------------------
 
 
-@given(data=st.data())
+# A fixed case for E8: a valid stage-1 call on the first record make_scenario builds,
+# an unknown tool and a read.  Each call differs from the others, so a replay that
+# reordered them, or numbered them from anything but seq_start, differs from the fold.
+_REPLAY_CALLS = [
+    (stage_tool(TABLE["stage_names"][0], TABLE["qualifiers"][0]),
+     {"record_id": record_id([TABLE["record_id_words"]["eval"][(k * 11) % 256]
+                              for k in range(4)]),
+      "entry_code": TABLE["entry_codes"][0]}),
+    ("nope", {}),
+    (all_read_tools()[0], {"item_code": TABLE["catalogue_items"][0],
+                           "page_key": TABLE["page_keys"][0]}),
+]
+
+
+@given(seq_start=st.integers(min_value=1, max_value=5000),
+       calls=st.deferred(lambda: call_sequences(make_scenario(n_records=4))))
+@example(seq_start=42, calls=_REPLAY_CALLS)
+@example(seq_start=900, calls=list(reversed(_REPLAY_CALLS)))
 @SLOW
-def test_e8_replay_equals_the_left_fold_of_apply(data):
-    """E8 in the engine: replay is the left fold of apply from init_state.
+def test_e8_replay_equals_the_left_fold_of_apply(seq_start, calls):
+    """E8 in the engine, with E5's numbering: replay is the left fold of apply from
+    init_state(scenario, seq_start).
+
+    So replay numbers the calls seq_start, seq_start + 1, ... in list order.  The caller
+    sorts the sampled calls by the seq in their tool messages (X4, in tasks.py and
+    export.py); replay numbers what it is handed, in the order it is handed.  The two
+    explicit examples are the same three calls forward and reversed.
 
     The comparison against the live toolset is A8, run per episode in the Proofload
     adapter (adapter.py).  Nothing in this file can see a live toolset.
@@ -1064,8 +1056,6 @@ def test_e8_replay_equals_the_left_fold_of_apply(data):
     from poisson_tasks.engine import apply, init_state, replay
 
     scenario = make_scenario(n_records=4)
-    seq_start = data.draw(st.integers(min_value=1, max_value=5000))
-    calls = data.draw(call_sequences(scenario))
 
     state = init_state(scenario, seq_start)
     folded = []
