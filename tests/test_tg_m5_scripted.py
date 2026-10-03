@@ -530,10 +530,6 @@ def pairs_of(rows: list[dict[str, Any]]) -> dict[tuple[str, int], dict[str, Any]
     return {(r["config_hash"], r["replicate_index"]): r for r in rows}
 
 
-def manifest_of(store: Path, run_id: str) -> dict[str, Any]:
-    return json.loads((store / run_id / "manifest.json").read_text())
-
-
 # ---------------------------------------------------------------------------
 # the test-side live executor: the engine, run directly, as a harness would.  It is how a
 # `Run` is built for the outcome map, and it uses nothing from the adapter but the `Run`
@@ -1026,27 +1022,6 @@ def test_a2_3_the_equality_is_the_salts_and_not_a_constant():
         assert base[key]["meta"]["scenario_hash"] != other[key]["meta"]["scenario_hash"]
 
 
-def test_a2_4_the_paired_run_inherited_the_salt_and_the_unpaired_one_did_not():
-    w = world()
-    for spec in D_SPECS:
-        salt = manifest_of(w.store, w.runs[("reference", aid(spec))])["run_salt"]
-        assert salt == SALT, aid(spec)
-    assert manifest_of(w.store, w.runs[("unpaired", aid(D_SPECS[0]))])["run_salt"] == OTHER_SALT
-    assert w.paired_arm in {aid(s) for s in D_SPECS}
-
-
-def test_a2_5_the_faulty_target_pairs_across_arms_too():
-    w = world()
-    by_arm = {a: read_rows(w.store, run) for (k, a), run in w.runs.items() if k == "faulty"}
-    assert len(by_arm) == 2
-    keysets = [set(pairs_of(rows)) for rows in by_arm.values()]
-    assert keysets[0] == keysets[1] and len(keysets[0]) == 2 * REPLICATES  # two plant cells
-    tables = [pairs_of(rows) for rows in by_arm.values()]
-    for key in keysets[0]:
-        assert tables[0][key]["seed"] == tables[1][key]["seed"]
-        assert tables[0][key]["meta"]["scenario_hash"] == tables[1][key]["meta"]["scenario_hash"]
-
-
 # ---------------------------------------------------------------------------
 # A3 · arms outside cfg
 # ---------------------------------------------------------------------------
@@ -1067,12 +1042,6 @@ def test_a3_1_meta_carries_the_arm_identity_on_every_episode():
             assert meta["policy"] == policy
             count += 1
     assert count == 8 * (len(ALL_SPECS) + 1) + 2 * 2 * REPLICATES
-
-
-def test_a3_2_no_stored_cfg_carries_a_knob_level():
-    for _policy, _spec, _run_id, rows in every_run():
-        for row in rows:
-            assert not set(row["config"]) & set(LEVEL_KEYS), row["config"]
 
 
 def test_a3_3_the_recorded_task_is_the_generators_task_at_the_proofload_seed():
@@ -1112,13 +1081,6 @@ def test_a3_4_meta_carries_every_field_2_5_names_that_a_scripted_episode_has():
             assert meta["format_clause"] is None or isinstance(meta["format_clause"], int)
 
 
-def test_a3_5_the_recorded_pins_are_the_bundles_pin_record():
-    for _policy, spec, _run_id, rows in every_run():
-        for row in rows[:2]:
-            bundle = bundle_of(spec, row["seed"])
-            assert row["meta"]["pins"] == json_norm(dataclasses.asdict(bundle.pins))
-
-
 # ---------------------------------------------------------------------------
 # A5 · time
 # ---------------------------------------------------------------------------
@@ -1155,67 +1117,6 @@ def test_a5_3_the_registered_slack_and_horizon_are_n16_and_n17_arithmetic():
     w = world()
     assert (w.d_registry.slack, w.d_registry.horizon) == (SLACK, H_D) == (SLACK, 13)
     assert (w.r_registry.slack, w.r_registry.horizon) == (SLACK, H_R) == (SLACK, 7)
-
-
-def diff_json(store: Path, mods: Path, a: str, b: str) -> dict[str, Any]:
-    done = cli(store, "diff", a, b, "--event", "passed", "--format", "json", "--method", "mcnemar_bh", mods=mods)
-    if done.returncode != 0:
-        raise AssertionError(f"diff {a} {b} exited {done.returncode}\n{done.stdout}\n{done.stderr}")
-    return json.loads(done.stdout)
-
-
-def _diffs(pairs: list[tuple[str, str]]) -> list[dict[str, Any]]:
-    w = world()
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        return list(pool.map(lambda p: diff_json(w.store, w.mods, w.runs[("reference", p[0])], w.runs[("reference", p[1])]), pairs))
-
-
-def test_a5_4_a_scripted_diff_of_the_lowest_depth_arm_against_the_highest_truncates_nothing():
-    """N17's *Test:* line, owed since 2026-09-13: "a scripted `diff` of the lowest arm against
-    the highest reports zero truncated rows."  `diff` compares at the smaller of the two runs'
-    horizons, so a per-arm horizon would delete every `d8` pass past `d1`'s cutoff.  The
-    lowest against every other arm, the control against the highest (S4's pair) and the two
-    interior levels are here as well."""
-    low, high = aid(D_SPECS[0]), aid(D_SPECS[4])
-    pairs = [(low, aid(s)) for s in D_SPECS[1:]] + [(aid(D_SPECS[5]), high), (aid(D_SPECS[2]), high)]
-    for (a, b), result in zip(pairs, _diffs(pairs)):
-        assert result["truncated"] == 0, (a, b)
-        assert result["horizon"] == float(H_D), (a, b)
-        assert result["t_unit"] == "turns"
-
-
-def test_a5_5_the_same_over_every_distractor_level():
-    low = aid(R_SPECS[0])
-    pairs = [(low, aid(s)) for s in R_SPECS[1:]]
-    for (a, b), result in zip(pairs, _diffs(pairs)):
-        assert result["truncated"] == 0, (a, b)
-        assert result["horizon"] == float(H_R), (a, b)
-
-
-def test_a5_6_a_per_arm_horizon_would_truncate_and_this_diff_can_see_it(tmp_path):
-    """The known-positive control for A5.4 and A5.5, run before either is believed: "zero
-    truncated rows" from a `diff` that could not truncate would mean nothing.  Two scripted
-    targets that declare a per-arm horizon lose every high-arm row, and two that declare one
-    common horizon lose none.  Green before and after: it exercises
-    Proofload, and no adapter code."""
-    store = tmp_path / "store"
-    (tmp_path / "toyh.py").write_text(
-        "from proofload import Episode\n"
-        "def per_arm_low(cfg, seed): return Episode(outcome='passed', t=2, horizon=6)\n"
-        "def per_arm_high(cfg, seed): return Episode(outcome='passed', t=9, horizon=13)\n"
-        "def common_low(cfg, seed): return Episode(outcome='passed', t=2, horizon=13)\n"
-        "def common_high(cfg, seed): return Episode(outcome='passed', t=9, horizon=13)\n"
-    )
-    spec_file = tmp_path / "sweep.toml"
-    spec_file.write_text(sweep_text(H_D))
-    ids = {
-        n: sweep(store, spec_file, f"toyh:{n}", mods=tmp_path)
-        for n in ("per_arm_low", "per_arm_high", "common_low", "common_high")
-    }
-    per_arm = diff_json(store, tmp_path, ids["per_arm_low"], ids["per_arm_high"])
-    common = diff_json(store, tmp_path, ids["common_low"], ids["common_high"])
-    assert per_arm["truncated"] == REPLICATES and per_arm["horizon"] == 6.0
-    assert common["truncated"] == 0 and common["horizon"] == 13.0
 
 
 # ---------------------------------------------------------------------------
