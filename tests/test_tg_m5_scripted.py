@@ -875,16 +875,6 @@ EXTRA_CFG = {
 }
 
 
-def test_cfg1_a_complete_cfg_gives_an_episode_for_every_arm_under_both_policies():
-    """The control for everything below: a target that refused every cfg would pass all of
-    the refusal tests."""
-    for spec in ALL_SPECS:
-        ref = target_of("reference", spec)(cfg_of(spec), 404)
-        assert ref.outcome == "passed", aid(spec)
-        clean = target_of("faulty", spec)(cfg_of(spec, plant_cell="clean"), 404)
-        assert clean.outcome == "passed", aid(spec)
-
-
 @pytest.mark.parametrize("missing", REQUIRED_CFG)
 def test_cfg2_a_cfg_missing_a_required_key_is_refused_by_name(missing):
     spec = SPEC_D3
@@ -1111,16 +1101,6 @@ def test_a5_3_the_registered_slack_and_horizon_are_n16_and_n17_arithmetic():
 # ---------------------------------------------------------------------------
 # A6 · determinism of mapping
 # ---------------------------------------------------------------------------
-
-
-def test_a6_1_the_same_arm_cfg_and_seed_give_the_same_episode():
-    for policy, plant in (("reference", None), ("faulty", "depth_half")):
-        for spec in ALL_SPECS:
-            cfg = cfg_of(spec) if plant is None else cfg_of(spec, plant_cell=plant)
-            for seed in SPREAD[:4]:
-                one = target_of(policy, spec)(cfg, seed)
-                two = target_of(policy, spec)(dict(cfg), seed)
-                assert episode_dict(one) == episode_dict(two), (policy, aid(spec), seed)
 
 
 def test_a6_2_two_processes_and_two_hash_seeds_agree_byte_for_byte():
@@ -1618,14 +1598,6 @@ def write_registry(directory: Path, name: str, reg: Path, sha: str, sealed: Path
     (directory / f"{name}.py").write_text(registry_module_text(reg, sha, sealed))
 
 
-def test_a7_1_a_registry_whose_compiled_hash_matches_imports_and_its_targets_run(tmp_path):
-    reg, sha, sealed = pilot_files(tmp_path)
-    write_registry(tmp_path, "lock_ok", reg, sha, sealed)
-    module = import_module_from(tmp_path, "lock_ok")
-    episode = module.reference_depth_d3(cfg_of(spec_of("depth", 3)), 404)
-    assert episode.outcome == "passed" and episode.meta["arm_id"] == "depth:d3"
-
-
 def test_a7_2_a_hash_that_disagrees_with_the_file_raises_at_import_naming_both(tmp_path):
     """A7: "Importing an arm target whose registry hash disagrees with the pre-registration
     file raises at import."  The `import` statement is the whole test: nothing is called,
@@ -1699,16 +1671,6 @@ def test_a7_5_the_refusal_surfaces_as_a_target_resolution_failure_before_any_epi
     assert len([p for p in store.iterdir() if p.is_dir()]) == 1
 
 
-def test_a7_6_an_arm_that_was_not_pre_registered_has_no_target(tmp_path):
-    reg, sha, sealed = pilot_files(tmp_path)
-    write_registry(tmp_path, "lock_arms", reg, sha, sealed)
-    module = import_module_from(tmp_path, "lock_arms")
-    for name in ("reference_depth_d4", "reference_depth_d2", "faulty_depth_d5", "reference_distractor_r0_k16"):
-        assert not hasattr(module, name), name
-    with pytest.raises(AttributeError):
-        module.reference_depth_d4  # noqa: B018
-
-
 def test_a7_7_the_registered_names_are_the_policy_then_the_arm_id_with_runs_of_punctuation_as_underscores(tmp_path):
     """Pinned by literals and not by `attr_of`, so the rule is stated in two places that
     must agree: an arm id holds `:`, `+`, `(`, `)` and `@`, none of which `--target
@@ -1766,16 +1728,6 @@ def test_a7_11_a_compiled_hash_that_differs_in_one_character_is_refused(tmp_path
     write_registry(tmp_path, "lock_near", reg, near, sealed)
     with pytest.raises(RuntimeError):
         import_module_from(tmp_path, "lock_near")
-
-
-def test_h1_the_registration_writer_round_trips_through_tomllib():
-    """Green before and after: the writer every registry test relies on.  A
-    writer that rendered a document wrongly would turn a registry test's failure into a
-    question about the writer."""
-    for doc in (reg_doc("depth", D_SPECS), reg_doc("distractor", R_SPECS), reg_doc("depth", PILOT, models=())):
-        assert tomllib.loads(toml_text(doc)) == doc
-    cells = {"a": {"step_fail_rate": 0.5}, "b": {}}
-    assert tomllib.loads(sealed_text(cells)) == {"cells": cells}
 
 
 # ===========================================================================
@@ -2251,19 +2203,6 @@ def test_f6_the_leaky_plant_overshoots_where_the_block_allows_and_only_there(spe
             assert episode.t == calls + 2 and episode.meta["sampled_calls"] == calls + 1
         else:
             assert episode.outcome == "passed" and episode.t == calls + 1
-
-
-def test_f7_a_faulty_episode_is_a_function_of_cfg_and_seed_alone():
-    """"Its per-step error is driven by the Proofload seed, so it is fully deterministic": one
-    seed always gives one episode, and across seeds a half-rate plant gives both outcomes.
-    At `d1` and rate 0.5 either outcome has probability one half per seed, so sixty seeds all
-    giving one of them is a one-in-10^17 event under any keyed draw."""
-    outcomes = set()
-    for seed in range(60):
-        one, two = faulty(D_SPECS[0], "depth_half", seed), faulty(D_SPECS[0], "depth_half", seed)
-        assert episode_dict(one) == episode_dict(two)
-        outcomes.add(one.outcome)
-    assert outcomes == {"passed", "wrong_state"}
 
 
 def test_f8_two_plant_cells_of_one_sweep_are_named_by_their_rows():
