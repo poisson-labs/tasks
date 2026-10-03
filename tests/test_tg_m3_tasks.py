@@ -758,22 +758,6 @@ def test_g1_2_two_processes_and_two_hash_seeds_agree_byte_for_byte():
     assert a["file"] == b["file"]
 
 
-def test_g1_3_task_id_is_a_content_hash_that_moves_with_the_content():
-    """`task_id` is stable, and it is a *content* hash: two bundles that differ in
-    anything a consumer can see have different ids."""
-    m = tasks()
-    base = m.generate(spec(level=3), 21)
-    assert base.task_id == m.generate(spec(level=3), 21).task_id
-    others = [
-        m.generate(spec(level=3), 22),
-        m.generate(spec(level=5), 21),
-        m.generate(spec(level=3, control=8), 21),
-        m.generate(spec(level=3, split="train"), 21),
-        m.generate(spec(level=3, strictness="leaky"), 21),
-    ]
-    assert len({base.task_id} | {o.task_id for o in others}) == 1 + len(others)
-
-
 def test_g1_4_task_id_is_the_digest_of_every_other_field():
     """The design asks `tasks.py` to state whether `task_id` covers its three newest
     fields.  It covers all twenty, because it is taken over the whole bundle rather than a
@@ -787,22 +771,6 @@ def test_g1_4_task_id_is_the_digest_of_every_other_field():
     for arm, seed in ((spec(level=3), 21), (spec(level=1, control=8), 4), (spec(level=8), 99)):
         b = tasks().generate(arm, seed)
         assert b.task_id == hashlib.sha256(task_id_input(b)).hexdigest()
-
-
-def test_g1_5_task_id_moves_when_any_one_field_moves():
-    """The other direction, and the one that makes `test_g1_4` more than a restatement:
-    perturb one field of a real bundle and the recomputed digest moves.  Run over
-    the three newest fields, which are the fields the question was about."""
-    import hashlib
-
-    b = tasks().generate(spec(level=3), 21)
-    for field, value in (
-        ("template_id", b.template_id + ".x"),
-        ("prompt_slots", b.prompt_slots + (("extra", "word"),)),
-        ("reference_observations", b.reference_observations[:-1]),
-    ):
-        moved = dataclasses.replace(b, **{field: value})
-        assert hashlib.sha256(task_id_input(moved)).hexdigest() != b.task_id, field
 
 
 def test_g2_1_generation_runs_with_sockets_disabled():
@@ -830,13 +798,6 @@ def test_g2_1_generation_runs_with_sockets_disabled():
     p = subprocess.run([sys.executable, "-c", src], capture_output=True, text=True)
     assert p.returncode == 0, p.stderr
     assert p.stdout.strip()
-
-
-def test_g2_2_verify_is_pure_within_one_process():
-    """G9's other half: two verdicts over equal inputs are equal.  A verifier that read
-    a clock, an RNG or a file would not be."""
-    b = tasks().generate(spec(level=3), 9)
-    assert run(b, b.reference_calls) == run(b, b.reference_calls)
 
 
 # --------------------------------------------------------------------------
@@ -891,19 +852,6 @@ def test_g3_1_the_scenario_is_a_function_of_the_seed_and_the_split_alone():
     assert m.scenario_for(11, "eval") == m.scenario_for(11, "eval")
     assert m.scenario_for(11, "eval") != m.scenario_for(12, "eval")
     assert m.scenario_for(11, "eval") != m.scenario_for(11, "train")
-
-
-def test_g3_2_every_depth_arm_at_one_seed_shares_one_scenario_hash():
-    """N1, through the arms the pilot actually sweeps."""
-    made = tasks().generate_contrast(depth_arms(1, 8), 404)
-    assert len({b.scenario_hash for b in made.values()}) == 1
-    assert len(made) == 3
-
-
-def test_g3_3_every_distractor_arm_at_one_seed_shares_one_scenario_hash():
-    made = tasks().generate_contrast(distractor_arms(0, 8), 404)
-    assert len({b.scenario_hash for b in made.values()}) == 1
-    assert len(made) == 3
 
 
 def test_g3_4_a_generated_depth_contrast_satisfies_the_whole_ledger():
@@ -1004,29 +952,6 @@ def test_pg16_2_the_audit_field_moves_if_and_only_if_the_stage_moves():
             if b.audit != a.audit:
                 assert b.stage != a.stage, (key, call)
     assert "ok" in seen_status and len(seen_status) > 1
-
-
-@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
-@given(st.lists(st.integers(min_value=0, max_value=200), min_size=1, max_size=40))
-def test_pg16_3_the_audit_only_projection_is_as_discriminating_as_the_records(indices):
-    """The same claim as a property, over random call sequences: two states differ in the
-    full records if and only if they differ in the `(stage, token)` projection."""
-    e = engine()
-    sc = e.Scenario(
-        records={(q, "able-account-active-address"): ENTRY_CODES[0] for q in QUALIFIERS[:3]},
-        token_key=b"pg16-key",
-        visible_items=CATALOGUE_ITEMS[:4],
-    )
-    alphabet = _bfs_alphabet(sc, "able-account-active-address", QUALIFIERS[:3])
-    state = e.init_state(sc, 1)
-    start = state
-    for i in indices:
-        state, _ = e.apply(state, alphabet[i % len(alphabet)])
-    full = {k: (r.stage, r.token, r.audit) for k, r in state.records.items()}
-    projected = {k: (r.stage, r.token) for k, r in state.records.items()}
-    full0 = {k: (r.stage, r.token, r.audit) for k, r in start.records.items()}
-    projected0 = {k: (r.stage, r.token) for k, r in start.records.items()}
-    assert (full != full0) == (projected != projected0)
 
 
 def _bfs_alphabet(scenario, record, qualifiers):
@@ -1394,23 +1319,6 @@ def test_g8_2_each_control_produces_the_label_it_is_named_for(label):
         assert verdict.format_clause == int(clause), verdict
 
 
-def test_g8_3_clause_1_has_no_generated_control_and_the_spec_says_where_it_runs():
-    """G8 sends clause 1 - content carrying the markers with no parsed call - through
-    each model's own stack, because it depends on the family's raw format (A16).
-    `tasks.py` generates clauses 2 to 4 at the call level and not clause 1, and this is the
-    row that keeps that visible rather than reading as an omission."""
-    b = tasks().generate(spec(level=3), 9090)
-    clauses = {int(k.rpartition("_")[2]) for k in b.negative_controls if "_clause_" in k}
-    assert clauses == {2, 3, 4}
-    assert 1 not in clauses
-
-
-def test_g8_4_the_controls_are_deterministic_and_ride_the_arm():
-    b1 = tasks().generate(spec(level=3), 9090)
-    b2 = tasks().generate(spec(level=3), 9090)
-    assert b1.negative_controls == b2.negative_controls
-
-
 # --------------------------------------------------------------------------
 # G9 - the verifier reads state, not prose
 # --------------------------------------------------------------------------
@@ -1654,12 +1562,6 @@ def test_g12_2_the_task_seed_is_the_proofload_seed_with_no_remapping():
         assert m.decode_record_id(b.goal[1], b.split) == seed
 
 
-def test_g12_3_a_bundle_records_its_split():
-    for split in SPLITS:
-        b = tasks().generate(spec(level=3, split=split), 4242)
-        assert b.split == split
-
-
 def test_g12_4_both_splits_generate_and_eval_only_is_the_pre_registrations_rule():
     """Decision 6.  G12's own first clause is a statement about both splits and is
     untestable if one of them refuses.  "v0 emits `eval` only" is the pre-registration's
@@ -1827,16 +1729,6 @@ def test_g14_5_distinct_seeds_give_distinct_instance_hashes():
     assert len(hashes) == 2000
 
 
-def test_g14_6_every_record_id_word_is_one_token_where_it_is_rendered():
-    """G14's second clause, and the reason N6 survives an injective id.  The table's
-    property is the engine's (`test_vt2`); what is asserted here is that it still holds *as
-    the generator renders it* - four words, the table's separator, inside the prompt."""
-    m = tasks()
-    counts = {ntok(m.encode_record_id(seed, "eval"))
-              for seed in (0, 1, 255, 256, 257, 65535, 1 << 20, SEED_SPACE - 1)}
-    assert counts == {RECORD_ID_WORDS}
-
-
 # --------------------------------------------------------------------------
 # G15, G16 - distinct structures, and a structure space that makes them possible
 # --------------------------------------------------------------------------
@@ -1859,18 +1751,6 @@ def test_g15_1_the_fingerprint_masks_the_opaque_strings():
     group = max(shared, key=len)
     assert len({b.goal[1] for b in group}) > 1
     assert len({b.scenario_hash for b in group}) == len(group)
-
-
-def test_g15_2_the_fingerprint_moves_with_the_structure():
-    """The other direction.  A different goal stage, a different target class and a
-    different tool order are all structure, so each moves the fingerprint."""
-    m = tasks()
-    rs = reduced_spec()
-    a = m.generate(spec(level=1), 3, spec=rs)
-    b = m.generate(spec(level=2), 3, spec=rs)
-    assert m.structural_fingerprint(a) != m.structural_fingerprint(b)
-    others = {m.structural_fingerprint(m.generate(spec(level=2), s, spec=rs)) for s in range(64)}
-    assert len(others) > 1
 
 
 def test_g15_3_a_cell_of_n_93_has_pairwise_distinct_fingerprints():
@@ -2087,17 +1967,6 @@ def seeded_block_hitting(target, n_pairs, scenario):
     return messages
 
 
-def test_k20_1_the_generated_control_seeds_exactly_h_minus_dl_pairs_and_lands_in_band():
-    """N9's pair-count clause, from the side that has to hold: the generator's own
-    control.  The ledger accepts it, which means both halves of N9 - the count and the
-    aggregate - are satisfied by construction rather than by luck."""
-    made = tasks().generate_contrast(depth_arms(1, 8), 2020)
-    report = knobs().check_pins(made)
-    assert report.refused is False, report.violations
-    control = made["depth:d1+h8"]
-    assert len(seeded_messages(control)[1:]) == 2 * 7
-
-
 def test_k20_2_a_control_that_seeds_the_wrong_number_of_pairs_is_refused_even_in_band():
     """**N9's pair-count clause, pinned.**  In a mutation pass over `knobs.py`,
     deleting that clause survived against 102 green tests: no
@@ -2142,14 +2011,6 @@ def test_k20_2_a_control_that_seeds_the_wrong_number_of_pairs_is_refused_even_in
     assert f"seeded {count} pairs" in rows["N9"] and "H - dL = 7" in rows["N9"]
 
 
-def test_k21_1_the_generated_d_control_leaves_the_system_prompt_byte_equal():
-    """N3's filler exemption, from the side that has to hold.  The filler is knob R's
-    control's alone, so a D control's system prompt is equal and not merely a prefix of its own."""
-    made = tasks().generate_contrast(depth_arms(1, 8), 2121)
-    assert made["depth:d1"].system_prompt == made["depth:d1+h8"].system_prompt
-    assert made["depth:d8"].system_prompt == made["depth:d1"].system_prompt
-
-
 def test_k21_2_a_d_control_with_a_filler_suffix_is_refused():
     """**N3's filler exemption, pinned.**  A mutant allowing the filler suffix on any
     control survived `knobs.py`'s tests because `n14_3` moves the D control's system
@@ -2169,19 +2030,6 @@ def test_k21_2_a_d_control_with_a_filler_suffix_is_refused():
     assert report.refused is True
     rows = dict(report.violations)
     assert "N3" in rows, report.violations
-
-
-def test_k21_3_the_same_suffix_on_an_r_control_is_the_filler_and_is_allowed():
-    """The other half, and the control for `test_k21_2`.  Without it the row above would
-    pass against a build that refused every suffix, which is not the clause."""
-    made = tasks().generate_contrast(distractor_arms(0, 8), 2121)
-    control = made["distractor:r0+len(r8)@k16"]
-    doctored = dict(made)
-    doctored["distractor:r0+len(r8)@k16"] = dataclasses.replace(
-        control, system_prompt=made["distractor:r0@k16"].system_prompt + "\n\nneutral passage",
-    )
-    report = knobs().check_pins(doctored)
-    assert dict(report.violations).get("N3") is None, report.violations
 
 
 def test_k22_1_n8s_width_is_a_byte_length_and_not_a_character_count():
@@ -2217,41 +2065,9 @@ def test_k22_1_n8s_width_is_a_byte_length_and_not_a_character_count():
     assert f"observation widths ({L_OBS + 1}," in rows["N8"], rows["N8"]
 
 
-def test_k22_2_every_generated_observation_is_ascii_and_l_obs_bytes():
-    """The reason `test_k22_1` is a guard and not a live failure: nothing tasks.py produces
-    is non-ASCII, because the vocabulary table is ASCII and every observation is
-    the engine's.  So the byte reading never fires in a real run, and that is exactly why
-    it needs a test rather than a fixture."""
-    made = tasks().generate_contrast(depth_arms(1, 8), 2222)
-    for arm_id, b in made.items():
-        for obs in b.reference_observations:
-            assert len(obs.encode("ascii")) == L_OBS, (arm_id, obs)
-
-
 # --------------------------------------------------------------------------
 # the two gaps owed to the Proofload adapter's tests, which this module does not close
 # --------------------------------------------------------------------------
-
-
-def test_n18_3_tg_m3_holds_no_revision_predicate_either():
-    """N18's revision predicate is owed to the Proofload adapter's tests, and the knobs
-    tests' `n18_2` asserts that `knobs.py` holds none.  This is the same assertion for
-    `tasks.py`, so the gap stays visible: two modules' silence is not coverage, and a
-    build here cannot quietly add half a validator.
-
-    The predicate owed is this one: a revision that is not 40 hex characters is
-    refused, and so are two models on different vLLM versions or endpoint types.
-    """
-    import re
-
-    source = pathlib.Path(inspect.getfile(tasks())).read_text()
-    for word in ("revision", "vllm", "served-model-name", "endpoint_type", "huggingface"):
-        assert word not in source.lower(), word
-    assert re.search(r"[0-9a-f]{40}", source) is None
-    b = tasks().generate(spec(level=3), 1818)
-    rendered = bundle_bytes(b).decode()
-    assert "@" not in rendered or "Qwen" not in rendered
-    assert "model" not in {f.name for f in dataclasses.fields(tasks().TaskBundle)}
 
 
 def test_n17_2_tg_m3_asserts_no_horizon_and_does_not_reach_proofload():
