@@ -541,7 +541,223 @@ def expect_attempt_weighted_unequal(survivors: Sequence[tuple[int, int]]) -> flo
 
 
 # ---------------------------------------------------------------------------
-# B - the arithmetic.  CAL6 to CAL16
+# A - what runs.  CAL1 to CAL4
+# ---------------------------------------------------------------------------
+
+
+def test_cal1_1_the_seed_list_is_declared_and_has_S_distinct_seeds() -> None:
+    """CAL1: the list is fixed before the first episode, holds `S` distinct seeds, and is
+    published.  S = 60 is the declared design's number."""
+    seeds = cal().seed_list()
+    assert len(seeds) == S
+    assert len(set(seeds)) == S
+    assert all(isinstance(seed, int) for seed in seeds)
+
+
+def test_cal1_2_the_same_list_at_every_arm() -> None:
+    """"is the **same list at every arm**" -- that is what makes the level comparison paired,
+    and CAL10 refuses a pair whose seed sets differ."""
+    for spec in ALL_SPECS:
+        assert list(cal().seed_list(spec)) == list(cal().seed_list()), arm_id(spec)
+
+
+def test_cal1_3_the_seed_list_is_disjoint_from_the_pilot_stages() -> None:
+    """"is disjoint from every seed the pilot's stages 2, 3 and 5 declare"."""
+    seeds = set(cal().seed_list())
+    for stage in (2, 3, 5):
+        assert seeds.isdisjoint(set(cal().pilot_seeds(stage))), stage
+
+
+def test_cal1_4_every_arm_declares_the_eval_split() -> None:
+    """**The declared design:** calibrate on the eval split.  G12 also says v0 emits `eval`
+    only, so an arm declaring `train` would be the first thing v0 ever emitted from it."""
+    for spec in cal().arm_specs():
+        assert spec.split == SPLIT, arm_id(spec)
+
+
+def test_cal2_1_the_run_covers_all_fourteen_arms() -> None:
+    """CAL2: `levels("depth")` and `levels("distractor")` in full, plus both control arms of
+    each.  **The standing inheritance:** no test and no runner hard-codes a level pair."""
+    assert sorted(arm_id(s) for s in cal().arm_specs()) == sorted(ARM_IDS)
+    assert len(ARM_IDS) == 14
+
+
+def test_cal2_4_the_arms_are_derived_from_the_level_axis_not_written_out() -> None:
+    """The standing inheritance, checked rather than promised.  The module must reach its
+    levels through `levels(knob)`; a build that wrote the ten plain levels out as literals
+    would pass CAL2_1 today and silently stop covering a level the day `knobs.py` gains one.
+
+    The check is the one that has teeth: **add a level to the knob and the arm list must
+    grow.**  It is done by monkeypatching the axis the module reads, so it tests the
+    derivation and not the spelling of the source."""
+    import poisson_tasks.knobs as knobs_module
+
+    before = len(cal().arm_specs())
+    real = knobs_module.levels
+    try:
+        knobs_module.levels = lambda knob: (  # type: ignore[assignment]
+            tuple(real(knob)) + (99,) if knob == "depth" else real(knob)
+        )
+        importlib.reload(cal())
+        after = len(cal().arm_specs())
+    finally:
+        knobs_module.levels = real  # type: ignore[assignment]
+        importlib.reload(cal())
+    assert after == before + 1, (before, after)
+    assert len(cal().arm_specs()) == before
+
+
+def test_cal3_1_the_n_attempts_are_attempts_at_one_task() -> None:
+    """CAL3: "the `n` records of a cell group to exactly S distinct `task_id`s, each with n
+    rows"."""
+    cell = cell_from((3,) * S)
+    blocks: dict[str, int] = {}
+    for row in cell:
+        blocks[row.task_id] = blocks.get(row.task_id, 0) + 1
+    assert len(blocks) == S
+    assert set(blocks.values()) == {N}
+    assert cal().check_attempts(cell, S=S, n=N) is True
+
+
+def test_cal3_2_a_cell_whose_attempts_are_distinct_tasks_refuses() -> None:
+    """The control, and the reason CAL3 exists at all: **A21's distinct-instance rule does
+    not apply to this module.**  That rule exists so no two of the pilot's replicates
+    are the same instance; here the opposite is required, because pass@k is defined over
+    repeated attempts at *one* task.  A build that carries A21 across by reflex salts the
+    replicates apart and silently computes something that is not pass@k."""
+    salted = [
+        record(task_id=f"salted{i}", seed=1000 + i, attempt=0, strict=(i % 2 == 0))
+        for i in range(S * N)
+    ]
+    with pytest.raises(ValueError) as caught:
+        cal().check_attempts(salted, S=S, n=N)
+    assert "attempt" in str(caught.value).lower() or "task" in str(caught.value).lower()
+
+
+def test_cal3_1b_a_task_short_of_n_attempts_refuses() -> None:
+    """CAL3's per-task clause, isolated.  **A mutant survived without this**: a cell with
+    the right number of tasks passed even when a task had fewer than `n` attempts, because
+    every other CAL3 test hands over a well-formed cell.  A short task is what a resume that
+    under-serves looks like from the records, and CAL23 depends on it being visible."""
+    short = cell_from((3,) * S)
+    short = [row for row in short if not (row.task_id == "t000" and row.attempt == N - 1)]
+    with pytest.raises(ValueError) as caught:
+        cal().check_attempts(short, S=S, n=N)
+    assert "t000" in str(caught.value) or str(N) in str(caught.value)
+
+
+def test_cal3_1c_a_cell_with_the_wrong_number_of_tasks_refuses() -> None:
+    """CAL3's task-count clause, isolated.  **A mutant survived without this**: removing the
+    `S` check still raised, but from the *other* clause, because the salted fixture also has
+    the wrong attempts-per-task.  A clause a second clause covers for is not tested."""
+    well_formed_but_short = cell_from((3,) * (S - 1))
+    with pytest.raises(ValueError) as caught:
+        cal().check_attempts(well_formed_but_short, S=S, n=N)
+    message = str(caught.value)
+    assert str(S) in message and str(S - 1) in message
+
+
+def test_cal3_3_the_module_says_a21_does_not_apply() -> None:
+    """"**A21's distinct-instance rule is declared not to apply here**, with the reason, in
+    the module docstring."  A rule that is silently not applied is a rule somebody reapplies."""
+    doc = cal().__doc__ or ""
+    assert "A21" in doc, "the module docstring must name A21"
+    lowered = doc.lower()
+    assert "pass@k" in lowered or "same task" in lowered
+    # **A mutant survived the substring check alone**: dropping the declaration sentence
+    # left the word "A21" elsewhere in the docstring, so the test passed on a module that no
+    # longer says the rule is disapplied.  The declaration itself is what CAL3 asks for.
+    declaration = [
+        line for line in doc.splitlines()
+        if "A21" in line and ("does not apply" in line or "not apply" in line)
+    ]
+    assert declaration, (
+        "the docstring names A21 but nowhere says its distinct-instance rule does not apply "
+        "here; that sentence is the invariant, not the mention"
+    )
+
+
+def test_cal4_4_the_wheel_builds_toolsets_inside_the_rollout() -> None:
+    """CAL4's other half, which the wheel owns.  Measured at `rollout.py:248`:
+    `toolsets = self.task.toolsets(self.task.config)`, inside the rollout's own setup and not
+    once per task.  Pinned by walking the wheel's AST rather than by running an episode --
+    an episode through the full lifecycle costs a `uv` build and a tool-server subprocess per
+    attempt and would buy this same fact.
+
+    **This is a pin on a third-party source and is expected to need re-reading on a wheel
+    bump.**  Decision 7 says so; a failure here is a re-measurement, not necessarily a bug."""
+    import verifiers.v1.rollout as rollout_module
+
+    source = Path(inspect.getfile(rollout_module)).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    found = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)):
+            continue
+        for inner in ast.walk(node):
+            if (
+                isinstance(inner, ast.Call)
+                and isinstance(inner.func, ast.Attribute)
+                and inner.func.attr == "toolsets"
+            ):
+                found.append(node.name)
+    assert found, "the wheel no longer calls `.toolsets(...)` inside a function"
+    assert "toolsets = self.task.toolsets(self.task.config)" in source
+
+
+# ---------------------------------------------------------------------------
+# CAL5 - decoding is declared and not deterministic
+# ---------------------------------------------------------------------------
+
+
+def test_cal5_1_an_unset_sampling_field_is_refused_and_the_refusal_names_it() -> None:
+    """CAL5: "a configuration ... which leaves a sampling field unset so the provider's
+    default applies, is **refused before the first episode**, and the refusal names the
+    field"."""
+    for missing in SAMPLING_FIELDS:
+        declared = {f: (0.7 if f == "temperature" else 1) for f in SAMPLING_FIELDS}
+        declared["reasoning_effort"] = "low"
+        declared.pop(missing)
+        with pytest.raises(ValueError) as caught:
+            cal().check_decoding(declared)
+        assert missing in str(caught.value), (missing, str(caught.value))
+
+
+def test_cal5_2_a_full_declaration_is_accepted() -> None:
+    """CAL5's own control: "a run declaring the full set is accepted"."""
+    declared = {"temperature": 0.7, "top_p": 1.0, "reasoning_effort": "low", "max_tokens": 2048}
+    assert cal().check_decoding(declared) is True
+
+
+def test_cal5_3_a_deterministic_decoding_is_refused() -> None:
+    """"a configuration whose decoding would make attempts identical ... is refused".  At
+    temperature 0 the five attempts are one attempt repeated, pass@5 is pass@1, and the whole
+    `k` axis is empty."""
+    declared = {"temperature": 0.0, "top_p": 1.0, "reasoning_effort": "low", "max_tokens": 2048}
+    with pytest.raises(ValueError) as caught:
+        cal().check_decoding(declared)
+    assert "temperature" in str(caught.value)
+
+
+def test_cal5_4_the_wheel_sends_nothing_for_an_unset_field() -> None:
+    """**The measurement CAL5 rests on, and it is stronger than first assumed.**
+    `SamplingConfig`'s four fields all default to `None`, and `wire_args` dumps with
+    `exclude_none=True` -- so an unset field is not sent as a null, it is **absent from the
+    request** and the provider's own default applies.  "Undeclared" is exact, not likely."""
+    import verifiers.v1 as vf
+
+    empty = vf.SamplingConfig()
+    for field in SAMPLING_FIELDS:
+        assert getattr(empty, field) is None, field
+    assert empty.wire_args() == {}
+    declared = vf.SamplingConfig(temperature=0.7, top_p=1.0, reasoning_effort="low", max_tokens=16)
+    wired = declared.wire_args()
+    for field in SAMPLING_FIELDS:
+        assert field in wired or field == "max_tokens", field
+
+
+# ---------------------------------------------------------------------------
+# B - the arithmetic.  CAL6 to CAL8
 # ---------------------------------------------------------------------------
 
 
@@ -905,6 +1121,8 @@ def test_cal11_2_moving_delta_star_moves_no_estimate() -> None:
 # interval is (-0.500, +0.750) and contains zero.  Measured.  It is the only fixture here that
 # isolates clause 1, and without it a build that checked only |Delta| >= delta* would pass.
 STRADDLING_A = (5, 5, 5, 5, 0, 0, 0, 5)
+
+
 STRADDLING_B = (0, 0, 0, 0, 5, 5, 5, 0)
 
 
@@ -1205,906 +1423,6 @@ def test_cal16_6_a_cell_under_the_threshold_publishes_with_its_count_shown() -> 
 
 
 # ---------------------------------------------------------------------------
-# C - publication.  CAL17 to CAL19
-# ---------------------------------------------------------------------------
-
-
-def test_cal17_3_the_readme_lines_render_from_the_same_artifact() -> None:
-    """"and so do the README's difficulty lines" -- one line per level, naming the model."""
-    artifact = sample_artifact()
-    lines = cal().render_readme_lines(artifact).splitlines()
-    assert lines
-    for line in lines:
-        assert MODEL_A in line, line
-    assert cal().render_readme_lines(artifact) == cal().render_readme_lines(artifact)
-
-
-def test_cal17_4_the_control_arms_are_in_their_own_table() -> None:
-    """**Decided 2026-09-22:** the two control arms go in a separate table, not on
-    the level card.  `depth:d1+h8` exists to separate depth from history, not to be a
-    difficulty level, and a stranger reading a level table would read it as one."""
-    document = cal().render_document(sample_artifact())
-    level_table, _, instrument_table = document.partition(cal().INSTRUMENT_TABLE_HEADING)
-    assert instrument_table, "the document has no separate instrument table"
-    for spec in CONTROL_SPECS:
-        assert arm_id(spec) not in level_table, arm_id(spec)
-        assert arm_id(spec) in instrument_table, arm_id(spec)
-    for spec in PLAIN_SPECS:
-        assert arm_id(spec) in level_table, arm_id(spec)
-
-
-def test_cal17_5_the_card_states_its_own_staleness() -> None:
-    """**Decided 2026-09-22:** there is no automatic regeneration when
-    `generator_hash` moves; the card states its staleness instead.  So the rendered document
-    names the generator hash it was measured at and says, in words, that an edit to the
-    generator stales it."""
-    document = cal().render_document(sample_artifact())
-    assert "g" * 64 in document
-    lowered = document.lower()
-    assert "stale" in lowered
-
-
-@pytest.mark.parametrize("missing", PROVENANCE_FIELDS)
-def test_cal18_2_a_missing_field_refuses_the_write(missing: str, tmp_path: Path) -> None:
-    """"**A missing field refuses the write.**"  One test per field, so a build that checks
-    nineteen of the twenty is red."""
-    fields = {f: getattr(provenance(), f) for f in PROVENANCE_FIELDS}
-    fields.pop(missing)
-    with pytest.raises((ValueError, TypeError)) as caught:
-        cal().Provenance(**fields)
-    assert missing in str(caught.value), (missing, str(caught.value))
-
-
-def test_cal18_3_the_seed_list_hash_is_over_the_seed_list() -> None:
-    """The provenance's two seed fields have to agree, or the published list and the hash a
-    reader checks it against are two different things."""
-    with pytest.raises(ValueError) as caught:
-        cal().build_artifact(
-            {("depth:d3", MODEL_A): cal().scored(cell_from(HETEROGENEOUS_COUNTS))},
-            provenance(seed_list_hash="0" * 64),
-        )
-    assert "seed" in str(caught.value).lower()
-
-
-LOOPBACK = {"127.0.0.1", "::1", "localhost"}
-
-
-def no_sockets() -> Any:
-    """G2's discipline, applied to the estimator: every connection this process opens is
-    refused.  Used by CAL19, where the point is that a published number recomputes from the
-    stored records with no model and no network."""
-
-    class Guard:
-        def __init__(self) -> None:
-            self.attempts: list[Any] = []
-            self._connect = socket.socket.connect
-            self._connect_ex = socket.socket.connect_ex
-
-        def __enter__(self) -> Guard:
-            def connect(inner: Any, address: Any) -> Any:
-                self.attempts.append(address)
-                raise OSError(f"CAL19 forbids the network; tried {address!r}")
-
-            def connect_ex(inner: Any, address: Any) -> int:
-                self.attempts.append(address)
-                return 111
-
-            socket.socket.connect = connect  # type: ignore[method-assign]
-            socket.socket.connect_ex = connect_ex  # type: ignore[method-assign]
-            return self
-
-        def __exit__(self, *exc: Any) -> None:
-            socket.socket.connect = self._connect  # type: ignore[method-assign]
-            socket.socket.connect_ex = self._connect_ex  # type: ignore[method-assign]
-
-    return Guard()
-
-
-def test_cal19_1_every_number_recomputes_with_sockets_disabled() -> None:
-    """CAL19: "The estimator runs from the stored per-episode records **with sockets
-    disabled** ... and reproduces the artifact's every figure" -- the cells, and the paired
-    differences between adjacent levels on both predicates, whose intervals are seeded
-    bootstraps of their own."""
-    artifact = sample_artifact()
-    paired = two_level_artifact()
-    wire = json.loads(json.dumps([artifact.cells, paired.pairs, paired.reach_pairs]))
-    with no_sockets() as guard:
-        again = sample_artifact()
-        paired_again = two_level_artifact()
-    assert guard.attempts == []
-    assert json.loads(json.dumps([again.cells, paired_again.pairs, paired_again.reach_pairs])) == wire
-    # the pair rows have a real interval to reproduce, not a single point
-    for row in paired.pairs + paired.reach_pairs:
-        assert row["low"] < row["high"], row
-
-
-def test_cal19_2_the_records_round_trip_through_their_own_wire_format() -> None:
-    """The per-episode records are committed to the repo, so the artifact has to recompute
-    from what is on disk and not from objects that never left memory."""
-    cell = cell_from(HETEROGENEOUS_COUNTS)
-    lines = [cal().EpisodeRecord.to_json(row) for row in cell]
-    restored = [cal().EpisodeRecord.from_json(line) for line in lines]
-    assert cal().pass_at_1(cal().scored(restored)) == pytest.approx(
-        cal().pass_at_1(cal().scored(cell))
-    )
-    for k in K_VALUES:
-        assert cal().pass_at_k(cal().scored(restored), k) == pytest.approx(
-            expect_pass_at_k_closed(HETEROGENEOUS_COUNTS, k)
-        )
-
-
-def budget(**over: Any) -> dict[str, Any]:
-    base = {"tokens": 1000, "wall_clock_seconds": 600}
-    base.update(over)
-    return base
-
-
-def test_cal20_1_the_stop_is_checked_before_each_episode() -> None:
-    """CAL20: "A ceiling is checked before each episode".  **Decided 2026-09-22:** the
-    ceiling is no longer a token budget alone."""
-    spent = 0
-    stopped_at = None
-    for index in range(100):
-        verdict = cal().within_budget(
-            tokens=spent, elapsed_seconds=0, provider_exhausted=False, budget=budget()
-        )
-        if not verdict.ok:
-            stopped_at = index
-            break
-        spent += 150
-    assert stopped_at == 7, stopped_at
-
-
-@pytest.mark.parametrize("reason", STOP_REASONS)
-def test_cal20_1b_each_of_the_three_limits_stops_the_run_on_its_own(reason: str) -> None:
-    """**The three limits' whole point, and the row a token-only stop fails.**  The run stops
-    on whichever limit arrives first: the token budget, the wall clock, or the provider saying
-    out of credit.  An earlier $75 ceiling was withdrawn in favour of balances that already
-    exist, and **a balance is not a token count** — an OpenAI credit runs out on its own
-    arithmetic and a Colab allowance is wall-clock. Each limit is tripped alone here, with the
-    other two slack, so a stop that watches only one is red on the other two."""
-    slack = {"tokens": 0, "elapsed_seconds": 0, "provider_exhausted": False}
-    tripped = dict(slack)
-    if reason == "tokens":
-        tripped["tokens"] = budget()["tokens"] + 1
-    elif reason == "wall_clock":
-        tripped["elapsed_seconds"] = budget()["wall_clock_seconds"] + 1
-    else:
-        tripped["provider_exhausted"] = True
-    verdict = cal().within_budget(budget=budget(), **tripped)
-    assert verdict.ok is False, (reason, verdict)
-    assert verdict.reason == reason, (reason, verdict)
-
-
-def test_cal20_1c_a_run_inside_every_limit_continues() -> None:
-    """The three limits' control.  Without it `within_budget` could refuse unconditionally."""
-    verdict = cal().within_budget(
-        tokens=1, elapsed_seconds=1, provider_exhausted=False, budget=budget()
-    )
-    assert verdict.ok is True
-    assert verdict.reason is None
-
-
-def test_cal20_1e_a_limit_stops_the_run_when_it_is_reached() -> None:
-    """A limit is reached at its own value, not only past it: a run that has spent exactly
-    its token budget has nothing left for the next episode, and a wall clock at exactly its
-    budget is out of time.  One token or half a second under, the run continues."""
-    limits = budget()
-    cases = (
-        ({"tokens": limits["tokens"], "elapsed_seconds": 0}, (False, "tokens")),
-        ({"tokens": limits["tokens"] - 1, "elapsed_seconds": 0}, (True, None)),
-        ({"tokens": 0, "elapsed_seconds": limits["wall_clock_seconds"]}, (False, "wall_clock")),
-        ({"tokens": 0, "elapsed_seconds": limits["wall_clock_seconds"] - 0.5}, (True, None)),
-    )
-    for spent, expected in cases:
-        verdict = cal().within_budget(provider_exhausted=False, budget=limits, **spent)
-        assert (verdict.ok, verdict.reason) == expected, (spent, verdict)
-
-
-def test_cal20_3_a_short_cell_is_marked_incomplete_and_never_a_smaller_S() -> None:
-    """"a stop leaves partial records that still recompute; the artifact marks the cell
-    **incomplete** and never silently reports a smaller `S`"."""
-    partial = cell_from(HETEROGENEOUS_COUNTS[:5])
-    figures = cal().build_artifact({("depth:d3", MODEL_A): cal().scored(partial)}, provenance()).cells[0]
-    assert figures["pass_at_1"] == pytest.approx(expect_pass_at_1(HETEROGENEOUS_COUNTS[:5]))
-    assert figures["incomplete"] is True
-    assert figures["S_declared"] == S
-    assert figures["S_observed"] == 5
-    assert figures["S_observed"] != figures["S_declared"]
-
-
-def test_cal20_4_a_full_cell_is_not_marked_incomplete() -> None:
-    """The control.  Without it, `incomplete: True` could be a constant."""
-    full = cell_from((3,) * S)
-    figures = cal().build_artifact({("depth:d3", MODEL_A): cal().scored(full)}, provenance()).cells[0]
-    assert figures["incomplete"] is False
-    assert figures["S_observed"] == figures["S_declared"] == S
-
-
-# ---------------------------------------------------------------------------
-# CAL23 - checkpoint and resume.  Decided 2026-09-22
-#
-# Colab runtimes drop, so an interrupt is expected and this module's run is 4,200 episodes
-# long.  Decision 6: the checkpoint is the wheel's own -- `traces.jsonl` plus `--resume` --
-# because using it is what keeps CAL21 reachable, and a private checkpoint would be a private
-# code path.  What is pinned is the multiset of `(task_id, arm_id, seed)` with exactly `n`
-# rows each, not byte identity, which CAL5 makes unattainable (an open question).
-# ---------------------------------------------------------------------------
-
-
-def wheel_resume() -> Any:
-    """The wheel's own resume.  Named here because the calibration runner uses it rather than
-    checkpointing privately; PG-19's row covers the loader names, and this is owed one too."""
-    return importlib.import_module("verifiers.v1.cli.eval.resume")
-
-
-def traces_file(path: Path, rows: Sequence[tuple[str, bool]]) -> Path:
-    """A `traces.jsonl` in the shape `resume.load` reads: one episode per line, each carrying
-    `task.hash` and an `ok` flag.  `rows` is `(task hash, ok)` in the order they were written,
-    so truncating the list is exactly an interrupt at that point."""
-    out = path / "traces.jsonl"
-    with out.open("w", encoding="utf-8") as handle:
-        for task_hash, ok in rows:
-            handle.write(json.dumps({
-                "id": f"ep-{task_hash}-{ok}",
-                "task": {"type": "ExportTask", "hash": task_hash, "data": {"task_id": task_hash}},
-                "ok": ok,
-                "errors": [],
-                "traces": [],
-            }) + "\n")
-    return out
-
-
-PLAN_TASKS = ("h0", "h1", "h2")
-PLAN_N = 3
-
-
-def full_rows() -> list[tuple[str, bool]]:
-    """An uninterrupted run: every task's `n` attempts, task by task."""
-    return [(task, True) for task in PLAN_TASKS for _ in range(PLAN_N)]
-
-
-@pytest.mark.parametrize("cut", range(len(PLAN_TASKS) * PLAN_N + 1))
-def test_cal23_1_a_resume_owes_exactly_what_the_interrupt_left(cut: int, tmp_path: Path) -> None:
-    """**CAL23 at every interrupt point**, including the ones inside a task.
-
-    `cut` walks every position a runtime could die at: before the first episode (0), after
-    each attempt, **mid-task between attempts** (1, 2, 4, 5, 7, 8) and after the last (9).
-    At each, the rows already on disk plus the rows still owed must be exactly the
-    uninterrupted run: **no episode run twice, and none skipped.**"""
-    directory = tmp_path / f"cut{cut}"
-    directory.mkdir()
-    rows = full_rows()[:cut]
-    traces_file(directory, rows)
-    keys = list(PLAN_TASKS)
-    kept, owed = wheel_resume().load(directory, keys, PLAN_N)
-    assert len(kept) == cut, (cut, len(kept))
-    assert sum(owed.values()) == len(PLAN_TASKS) * PLAN_N - cut
-    for task in PLAN_TASKS:
-        done = sum(1 for name, _ in rows if name == task)
-        assert done + owed.get(task, 0) == PLAN_N, (task, done, owed)
-
-
-def test_cal23_4_a_torn_final_line_is_owed_again_and_never_a_crash(tmp_path: Path) -> None:
-    """A dropped Colab runtime dies mid-write, so the last line of `traces.jsonl` is half a
-    row.  It must be owed again rather than raising -- which is the difference between a
-    resumable run and a lost one."""
-    directory = tmp_path / "torn"
-    directory.mkdir()
-    path = traces_file(directory, [("h0", True), ("h0", True)])
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write('{"task": {"hash": "h0"}, "ok": tr')
-    kept, owed = wheel_resume().load(directory, ["h0"], PLAN_N)
-    assert len(kept) == 2
-    assert owed.get("h0") == 1
-
-
-# Rows with a failure in them.  **A mutant survived a fixture of all-ok rows**: an
-# implementation that counts lines instead of asking the keep-verdict agrees with the wheel
-# exactly as long as nothing errored, and a Colab run that drops mid-episode is precisely
-# where something errors.  Two of these nine are `ok: False`.
-MIXED_ROWS: list[tuple[str, bool]] = [
-    ("h0", True), ("h0", False), ("h0", True),
-    ("h1", True), ("h1", True), ("h1", True),
-    ("h2", False), ("h2", True), ("h2", True),
-]
-
-
-def test_cal23_5b_resume_load_rewrites_the_trace_file(tmp_path: Path) -> None:
-    """**Measured, and it is a hazard for anything that reads the checkpoint.**
-    `resume.load` is **not read-only**: it rewrites `traces.jsonl` to the rows it kept, via a
-    temp file and an atomic rename. So the file a second reader sees is not the file the run
-    wrote, and two implementations compared over one directory will agree no matter what they
-    do -- which is exactly how a mutant once survived.
-
-    A build that treats `load` as a query, or that reads the trace file after calling it and
-    expects the run's own rows, is reading a pruned file.
-
-    What it prunes is the errored rows: `load` keeps a saved rollout only if the keep-verdict
-    accepts it, and the default verdict is `episode.ok`, so a failed attempt is dropped and
-    owed again, not kept."""
-    directory = tmp_path / "rewrite"
-    directory.mkdir()
-    path = traces_file(directory, [("h0", True), ("h0", False), ("h0", True)])
-    assert len(path.read_text(encoding="utf-8").splitlines()) == 3
-    kept, owed = wheel_resume().load(directory, ["h0"], PLAN_N)
-    assert len(kept) == 2
-    after = len(path.read_text(encoding="utf-8").splitlines())
-    assert after == 2, f"load kept {after} rows; the errored one is dropped and owed again"
-    assert owed == {"h0": 1}
-
-
-# Rows with a failure in them.  **A mutant survived a fixture of all-ok rows**: an
-# implementation that counts written lines instead of kept ones agrees with the wheel exactly
-# as long as nothing errored, and a Colab run that drops mid-episode is precisely where
-# something errors.  Two of these nine are `ok: False`.
-MIXED_ROWS: list[tuple[str, bool]] = [
-    ("h0", True), ("h0", False), ("h0", True),
-    ("h1", True), ("h1", True), ("h1", True),
-    ("h2", False), ("h2", True), ("h2", True),
-]
-
-
-@pytest.mark.parametrize("rows_name", ["all_ok", "with_errors"])
-def test_cal23_6_owed_after_interrupt_agrees_with_the_wheel(
-    rows_name: str, tmp_path: Path
-) -> None:
-    """The calibration runner's own bookkeeping must agree with the mechanism it runs on, at
-    every interrupt point **and when episodes have failed**.
-
-    `owed_after_interrupt` is the escape hatch of decision 6: a build that checkpoints its own
-    way implements this one function and every test above is unchanged.
-
-    **Each side gets its own directory.**  `resume.load` rewrites the trace file it reads
-    (`test_cal23_5b`), so running the two over one directory would have the second read the
-    first's pruned output and agree unconditionally.  That is not a hypothetical: it is how
-    a mutant once survived."""
-    rows = full_rows() if rows_name == "all_ok" else MIXED_ROWS
-    if rows_name == "with_errors":
-        assert any(not ok for _, ok in rows), "this fixture must contain a failed episode"
-    for cut in range(len(rows) + 1):
-        theirs = tmp_path / f"w{rows_name}{cut}"
-        ours = tmp_path / f"o{rows_name}{cut}"
-        theirs.mkdir()
-        ours.mkdir()
-        traces_file(theirs, rows[:cut])
-        traces_file(ours, rows[:cut])
-        _, wheel_owed = wheel_resume().load(theirs, list(PLAN_TASKS), PLAN_N)
-        mine = cal().owed_after_interrupt(ours, list(PLAN_TASKS), PLAN_N)
-        assert dict(mine) == dict(wheel_owed), (rows_name, cut, mine, wheel_owed)
-
-
-def test_cal23_7_resume_keys_on_task_hash_and_the_export_leaves_it_stable() -> None:
-    """**The silent failure this invariant is really about.**  Measured: the wheel matches a
-    saved rollout by `episode.task.hash` -- the wire content hash -- and **not** by
-    `task.key`, which is the field the export overrides to `task_id` (X7).  Two identities,
-    and resume uses the one the export does not control.
-
-    It is stable here only because `TaskData.idx` is `None` and drops out of the dump under
-    `exclude_none=True`.  **A build that ever populates `idx` moves every hash, and a resumed
-    run silently re-runs the whole cell.**  This test is the tripwire."""
-    from poisson_tasks.export import task_from_bundle
-
-    spec = spec_of("depth", 3)
-    first = task_from_bundle(generate(spec, 404))
-    second = task_from_bundle(generate(spec, 404))
-    assert first.data.idx is None, "idx is populated: every resume key has moved"
-    assert first.hash == second.hash
-    assert first.key != first.hash, "key and hash are two identities; resume uses hash"
-    hashes = {task_from_bundle(generate(spec, seed)).hash for seed in range(500, 512)}
-    assert len(hashes) == 12, "two distinct seeds share a resume key"
-
-
-def test_cal23_8_the_seed_set_is_injective_in_the_resume_key() -> None:
-    """The consequence of CAL23_7 over the whole level axis: `resume.load` aggregates its
-    target by key (`Counter(selected_keys)`), so two tasks in one cell that shared a hash
-    would be interchangeable -- one seed could take 2n attempts and another none, and the
-    records would attribute them to the wrong seed.  G14 makes instances injective; this
-    checks the property survives into the field resume actually reads."""
-    from poisson_tasks.export import task_from_bundle
-
-    seeds = tuple(range(700, 712))
-    for spec in PLAN_SPECS_FOR_HASHES:
-        hashes = [task_from_bundle(generate(spec, seed)).hash for seed in seeds]
-        assert len(set(hashes)) == len(seeds), arm_id(spec)
-
-
-# One plain arm per level of each knob (decision 5), kept small: each entry generates
-# len(seeds) bundles and generation is the slow part.
-PLAN_SPECS_FOR_HASHES = tuple(spec_of("depth", lvl) for lvl in levels("depth")) + tuple(
-    spec_of("distractor", lvl) for lvl in levels("distractor")
-)
-
-
-# ---------------------------------------------------------------------------
-# A - what runs.  CAL1 to CAL5
-# ---------------------------------------------------------------------------
-
-
-def test_cal1_1_the_seed_list_is_declared_and_has_S_distinct_seeds() -> None:
-    """CAL1: the list is fixed before the first episode, holds `S` distinct seeds, and is
-    published.  S = 60 is the declared design's number."""
-    seeds = cal().seed_list()
-    assert len(seeds) == S
-    assert len(set(seeds)) == S
-    assert all(isinstance(seed, int) for seed in seeds)
-
-
-def test_cal1_2_the_same_list_at_every_arm() -> None:
-    """"is the **same list at every arm**" -- that is what makes the level comparison paired,
-    and CAL10 refuses a pair whose seed sets differ."""
-    for spec in ALL_SPECS:
-        assert list(cal().seed_list(spec)) == list(cal().seed_list()), arm_id(spec)
-
-
-def test_cal1_3_the_seed_list_is_disjoint_from_the_pilot_stages() -> None:
-    """"is disjoint from every seed the pilot's stages 2, 3 and 5 declare"."""
-    seeds = set(cal().seed_list())
-    for stage in (2, 3, 5):
-        assert seeds.isdisjoint(set(cal().pilot_seeds(stage))), stage
-
-
-def test_cal1_4_every_arm_declares_the_eval_split() -> None:
-    """**The declared design:** calibrate on the eval split.  G12 also says v0 emits `eval`
-    only, so an arm declaring `train` would be the first thing v0 ever emitted from it."""
-    for spec in cal().arm_specs():
-        assert spec.split == SPLIT, arm_id(spec)
-
-
-def test_cal2_1_the_run_covers_all_fourteen_arms() -> None:
-    """CAL2: `levels("depth")` and `levels("distractor")` in full, plus both control arms of
-    each.  **The standing inheritance:** no test and no runner hard-codes a level pair."""
-    assert sorted(arm_id(s) for s in cal().arm_specs()) == sorted(ARM_IDS)
-    assert len(ARM_IDS) == 14
-
-
-def test_cal2_4_the_arms_are_derived_from_the_level_axis_not_written_out() -> None:
-    """The standing inheritance, checked rather than promised.  The module must reach its
-    levels through `levels(knob)`; a build that wrote the ten plain levels out as literals
-    would pass CAL2_1 today and silently stop covering a level the day `knobs.py` gains one.
-
-    The check is the one that has teeth: **add a level to the knob and the arm list must
-    grow.**  It is done by monkeypatching the axis the module reads, so it tests the
-    derivation and not the spelling of the source."""
-    import poisson_tasks.knobs as knobs_module
-
-    before = len(cal().arm_specs())
-    real = knobs_module.levels
-    try:
-        knobs_module.levels = lambda knob: (  # type: ignore[assignment]
-            tuple(real(knob)) + (99,) if knob == "depth" else real(knob)
-        )
-        importlib.reload(cal())
-        after = len(cal().arm_specs())
-    finally:
-        knobs_module.levels = real  # type: ignore[assignment]
-        importlib.reload(cal())
-    assert after == before + 1, (before, after)
-    assert len(cal().arm_specs()) == before
-
-
-def test_cal3_1_the_n_attempts_are_attempts_at_one_task() -> None:
-    """CAL3: "the `n` records of a cell group to exactly S distinct `task_id`s, each with n
-    rows"."""
-    cell = cell_from((3,) * S)
-    blocks: dict[str, int] = {}
-    for row in cell:
-        blocks[row.task_id] = blocks.get(row.task_id, 0) + 1
-    assert len(blocks) == S
-    assert set(blocks.values()) == {N}
-    assert cal().check_attempts(cell, S=S, n=N) is True
-
-
-def test_cal3_2_a_cell_whose_attempts_are_distinct_tasks_refuses() -> None:
-    """The control, and the reason CAL3 exists at all: **A21's distinct-instance rule does
-    not apply to this module.**  That rule exists so no two of the pilot's replicates
-    are the same instance; here the opposite is required, because pass@k is defined over
-    repeated attempts at *one* task.  A build that carries A21 across by reflex salts the
-    replicates apart and silently computes something that is not pass@k."""
-    salted = [
-        record(task_id=f"salted{i}", seed=1000 + i, attempt=0, strict=(i % 2 == 0))
-        for i in range(S * N)
-    ]
-    with pytest.raises(ValueError) as caught:
-        cal().check_attempts(salted, S=S, n=N)
-    assert "attempt" in str(caught.value).lower() or "task" in str(caught.value).lower()
-
-
-def test_cal3_1b_a_task_short_of_n_attempts_refuses() -> None:
-    """CAL3's per-task clause, isolated.  **A mutant survived without this**: a cell with
-    the right number of tasks passed even when a task had fewer than `n` attempts, because
-    every other CAL3 test hands over a well-formed cell.  A short task is what a resume that
-    under-serves looks like from the records, and CAL23 depends on it being visible."""
-    short = cell_from((3,) * S)
-    short = [row for row in short if not (row.task_id == "t000" and row.attempt == N - 1)]
-    with pytest.raises(ValueError) as caught:
-        cal().check_attempts(short, S=S, n=N)
-    assert "t000" in str(caught.value) or str(N) in str(caught.value)
-
-
-def test_cal3_1c_a_cell_with_the_wrong_number_of_tasks_refuses() -> None:
-    """CAL3's task-count clause, isolated.  **A mutant survived without this**: removing the
-    `S` check still raised, but from the *other* clause, because the salted fixture also has
-    the wrong attempts-per-task.  A clause a second clause covers for is not tested."""
-    well_formed_but_short = cell_from((3,) * (S - 1))
-    with pytest.raises(ValueError) as caught:
-        cal().check_attempts(well_formed_but_short, S=S, n=N)
-    message = str(caught.value)
-    assert str(S) in message and str(S - 1) in message
-
-
-def test_cal3_3_the_module_says_a21_does_not_apply() -> None:
-    """"**A21's distinct-instance rule is declared not to apply here**, with the reason, in
-    the module docstring."  A rule that is silently not applied is a rule somebody reapplies."""
-    doc = cal().__doc__ or ""
-    assert "A21" in doc, "the module docstring must name A21"
-    lowered = doc.lower()
-    assert "pass@k" in lowered or "same task" in lowered
-    # **A mutant survived the substring check alone**: dropping the declaration sentence
-    # left the word "A21" elsewhere in the docstring, so the test passed on a module that no
-    # longer says the rule is disapplied.  The declaration itself is what CAL3 asks for.
-    declaration = [
-        line for line in doc.splitlines()
-        if "A21" in line and ("does not apply" in line or "not apply" in line)
-    ]
-    assert declaration, (
-        "the docstring names A21 but nowhere says its distinct-instance rule does not apply "
-        "here; that sentence is the invariant, not the mention"
-    )
-
-
-def test_cal4_4_the_wheel_builds_toolsets_inside_the_rollout() -> None:
-    """CAL4's other half, which the wheel owns.  Measured at `rollout.py:248`:
-    `toolsets = self.task.toolsets(self.task.config)`, inside the rollout's own setup and not
-    once per task.  Pinned by walking the wheel's AST rather than by running an episode --
-    an episode through the full lifecycle costs a `uv` build and a tool-server subprocess per
-    attempt and would buy this same fact.
-
-    **This is a pin on a third-party source and is expected to need re-reading on a wheel
-    bump.**  Decision 7 says so; a failure here is a re-measurement, not necessarily a bug."""
-    import verifiers.v1.rollout as rollout_module
-
-    source = Path(inspect.getfile(rollout_module)).read_text(encoding="utf-8")
-    tree = ast.parse(source)
-    found = []
-    for node in ast.walk(tree):
-        if not isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)):
-            continue
-        for inner in ast.walk(node):
-            if (
-                isinstance(inner, ast.Call)
-                and isinstance(inner.func, ast.Attribute)
-                and inner.func.attr == "toolsets"
-            ):
-                found.append(node.name)
-    assert found, "the wheel no longer calls `.toolsets(...)` inside a function"
-    assert "toolsets = self.task.toolsets(self.task.config)" in source
-
-
-# ---------------------------------------------------------------------------
-# CAL5 - decoding is declared and not deterministic
-# ---------------------------------------------------------------------------
-
-
-def test_cal5_1_an_unset_sampling_field_is_refused_and_the_refusal_names_it() -> None:
-    """CAL5: "a configuration ... which leaves a sampling field unset so the provider's
-    default applies, is **refused before the first episode**, and the refusal names the
-    field"."""
-    for missing in SAMPLING_FIELDS:
-        declared = {f: (0.7 if f == "temperature" else 1) for f in SAMPLING_FIELDS}
-        declared["reasoning_effort"] = "low"
-        declared.pop(missing)
-        with pytest.raises(ValueError) as caught:
-            cal().check_decoding(declared)
-        assert missing in str(caught.value), (missing, str(caught.value))
-
-
-def test_cal5_2_a_full_declaration_is_accepted() -> None:
-    """CAL5's own control: "a run declaring the full set is accepted"."""
-    declared = {"temperature": 0.7, "top_p": 1.0, "reasoning_effort": "low", "max_tokens": 2048}
-    assert cal().check_decoding(declared) is True
-
-
-def test_cal5_3_a_deterministic_decoding_is_refused() -> None:
-    """"a configuration whose decoding would make attempts identical ... is refused".  At
-    temperature 0 the five attempts are one attempt repeated, pass@5 is pass@1, and the whole
-    `k` axis is empty."""
-    declared = {"temperature": 0.0, "top_p": 1.0, "reasoning_effort": "low", "max_tokens": 2048}
-    with pytest.raises(ValueError) as caught:
-        cal().check_decoding(declared)
-    assert "temperature" in str(caught.value)
-
-
-def test_cal5_4_the_wheel_sends_nothing_for_an_unset_field() -> None:
-    """**The measurement CAL5 rests on, and it is stronger than first assumed.**
-    `SamplingConfig`'s four fields all default to `None`, and `wire_args` dumps with
-    `exclude_none=True` -- so an unset field is not sent as a null, it is **absent from the
-    request** and the provider's own default applies.  "Undeclared" is exact, not likely."""
-    import verifiers.v1 as vf
-
-    empty = vf.SamplingConfig()
-    for field in SAMPLING_FIELDS:
-        assert getattr(empty, field) is None, field
-    assert empty.wire_args() == {}
-    declared = vf.SamplingConfig(temperature=0.7, top_p=1.0, reasoning_effort="low", max_tokens=16)
-    wired = declared.wire_args()
-    for field in SAMPLING_FIELDS:
-        assert field in wired or field == "max_tokens", field
-
-
-# ---------------------------------------------------------------------------
-# CAL21 - the stranger's path, and CAL22 - Prove stays optional
-# ---------------------------------------------------------------------------
-
-
-def test_cal21_1_the_run_config_is_the_documented_command_plus_an_enumerable_difference() -> None:
-    """CAL21: "the run config the calibration runner produces is the documented command's
-    config plus exactly the seed list, `-r` and the declared sampling fields, and the
-    difference is enumerable"."""
-    documented, calibration = cal().run_config_for(spec_of("depth", 3))
-    difference = cal().config_difference(documented, calibration)
-    assert set(difference) == {"seeds", "num_rollouts", "sampling"}, difference
-
-
-def test_cal21_1b_the_difference_is_measured_on_the_configs_not_reported_by_the_build() -> None:
-    """**A mutant survived `test_cal21_1`**: changing the calibration run's *model* left the
-    build's own `config_difference` unchanged, because a build that enumerates its own
-    difference will not report one it does not look for.
-
-    So the difference is recomputed here, from the two configs' serialised forms, by a diff
-    this file owns.  CAL21 says the difference is "exactly the seed list, `-r` and the
-    declared sampling fields" -- a fourth difference of any kind is a private code path
-    creeping into the published numbers, and it must be visible whether or not the build
-    names it."""
-    documented, calibration = cal().run_config_for(spec_of("depth", 3))
-    left = json.loads(documented.model_dump_json())
-    right = json.loads(calibration.model_dump_json())
-
-    def flatten(node: Any, prefix: str = "") -> dict[str, Any]:
-        out: dict[str, Any] = {}
-        if isinstance(node, dict):
-            for key, value in node.items():
-                out.update(flatten(value, f"{prefix}.{key}" if prefix else key))
-        else:
-            out[prefix] = node
-        return out
-
-    flat_left, flat_right = flatten(left), flatten(right)
-    changed = {
-        key for key in set(flat_left) | set(flat_right)
-        if flat_left.get(key) != flat_right.get(key)
-    }
-    # the run's own identity is not a difference in the configuration it runs
-    changed = {key for key in changed if not key.startswith("run.")}
-    for key in sorted(changed):
-        assert (
-            "seeds" in key or "num_rollouts" in key or key.startswith("sampling")
-        ), f"a fourth difference from the documented command: {key}"
-
-
-def test_cal21_2_the_run_resolves_the_taskset_by_its_id_and_the_null_harness() -> None:
-    """"the taskset resolved by its id `poisson-tasks`, the `null` harness by MP3's default,
-    `--no-push`" -- the documented one-liner and not a private code path."""
-    _, calibration = cal().run_config_for(spec_of("depth", 3))
-    assert calibration.env.taskset.id == "poisson-tasks"
-    assert calibration.env.agent_harnesses()["agent"].id == "null"
-    assert calibration.push is False
-
-
-def test_cal21_3_num_rollouts_is_n() -> None:
-    """Measured: `--num-rollouts` / `-r` is "Independent episodes per task", default 1, and
-    the runner plans `[(task, config.num_rollouts) for task in tasks]`.  So `n` attempts is a
-    flag on the documented command, and no custom repeat loop is needed or allowed."""
-    _, calibration = cal().run_config_for(spec_of("depth", 3))
-    assert calibration.num_rollouts == N
-
-
-def test_cal22_1_the_calibration_module_imports_no_proofload() -> None:
-    """CAL22: "Every module the calibration code imports, transitively, imports no
-    `proofload` and no `poisson_tasks.adapter`"."""
-    import sys
-
-    for name in list(sys.modules):
-        if name == "proofload" or name.startswith("proofload."):
-            del sys.modules[name]
-    module = cal()
-    seen = {module.__name__}
-    stack = [module]
-    while stack:
-        current = stack.pop()
-        for value in vars(current).values():
-            name = getattr(value, "__module__", None) or getattr(value, "__name__", None)
-            if isinstance(name, str) and name.startswith("poisson_tasks") and name not in seen:
-                seen.add(name)
-                stack.append(importlib.import_module(name))
-    assert "poisson_tasks.adapter" not in seen, seen
-    for name in seen:
-        source = inspect.getsource(importlib.import_module(name))
-        assert "import proofload" not in source, name
-        assert "from proofload" not in source, name
-        assert "poisson_tasks.adapter" not in source, name
-
-
-def test_cal22_2_this_file_is_not_prove_gated() -> None:
-    """"the whole calibration test file passes with Proofload unimportable, the way [the
-    verifiers export's] 377 cases and layer 1's 84 do".  There is no Prove-gated half here,
-    and this file must never be added to `conftest.py`'s skip list."""
-    from tests.conftest import PROOFLOAD_TEST_FILES  # type: ignore[import-not-found]
-
-    assert Path(__file__).name not in PROOFLOAD_TEST_FILES
-
-
-def test_cal22_3_no_name_in_this_file_reaches_proofload() -> None:
-    """This test file holds itself to CAL22 as well as the build: this file imports nothing that
-    would make it skip."""
-    source = Path(__file__).read_text(encoding="utf-8")
-    tree = ast.parse(source)
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                assert not alias.name.startswith("proofload"), alias.name
-        elif isinstance(node, ast.ImportFrom):
-            assert not (node.module or "").startswith("proofload"), node.module
-    # Deliberately not a substring check on this file's own text: CAL22_1 quotes the module
-    # name in its assertions, so a naive scan here would match this file quoting the rule.
-    # The AST walk above is the content; it is what an import would have to go through.
-
-
-def test_the_module_exports_exactly_the_names_this_oracle_names() -> None:
-    """Decision 1's escape hatch, made checkable: `CAL_NAMES` is the whole surface these
-    tests reach, so a build that lands a name elsewhere fails here and in one place."""
-    module = cal()
-    missing = [name for name in CAL_NAMES if not hasattr(module, name)]
-    assert missing == [], missing
-
-
-# ---------------------------------------------------------------------------
-# CAL23, end to end: the runner itself, against a stub endpoint, interrupted and resumed
-#
-# The tests above drive `resume.load` over a `traces.jsonl` written by hand, which is exact
-# and exhaustive and fast.  This one is the other half: `run_arm`, the calibration runner,
-# through the wheel's own lifecycle against a stub OpenAI-compatible endpoint on loopback --
-# interrupted mid-task between attempts, and resumed by a second `run_arm` on the same run
-# directory.  It needs `uv` on PATH, because the `null` harness launches its program through
-# it, so it is marked and skipped where `uv` is missing rather than failing for a reason that
-# is not this invariant's.
-# ---------------------------------------------------------------------------
-
-Script = list[tuple[str, tuple[str, Any] | None]]
-
-
-def stub_endpoint(script: Script) -> Any:
-    """An OpenAI-compatible chat endpoint on loopback that answers turn `i` with `script[i]`
-    (the last entry repeats) and counts every request.  No key is loaded and nothing leaves
-    the machine."""
-    import contextlib
-
-    @contextlib.contextmanager
-    def run() -> Iterator[tuple[str, list[dict[str, Any]]]]:
-        log: list[dict[str, Any]] = []
-        state = {"turn": 0}
-
-        class Stub(BaseHTTPRequestHandler):
-            def log_message(self, *args: Any) -> None:
-                pass
-
-            def do_POST(self) -> None:
-                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-                log.append({"model": body.get("model")})
-                kind, call = script[min(state["turn"], len(script) - 1)]
-                state["turn"] += 1
-                if kind == "tool_calls":
-                    assert call is not None
-                    name, arguments = call
-                    message: dict[str, Any] = {
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": [{
-                            "id": f"call_{state['turn']}", "type": "function",
-                            "function": {"name": name, "arguments": json.dumps(arguments)},
-                        }],
-                    }
-                else:
-                    message = {"role": "assistant", "content": "Done."}
-                out = {
-                    "id": "chatcmpl-stub", "object": "chat.completion", "created": 0,
-                    "model": body.get("model"),
-                    "choices": [{"index": 0, "message": message, "finish_reason": kind}],
-                    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
-                }
-                data = json.dumps(out).encode("utf-8")
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(data)))
-                self.end_headers()
-                self.wfile.write(data)
-
-        server = HTTPServer(("127.0.0.1", 0), Stub)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        try:
-            yield f"http://127.0.0.1:{server.server_port}/v1", log
-        finally:
-            server.shutdown()
-            server.server_close()
-
-    return run()
-
-
-def have_uv() -> bool:
-    import shutil
-
-    return shutil.which("uv") is not None
-
-
-# No `slow` marker: this repository registers none, and this file does not depend on pytest
-# configuration that is not there.  The skip is on `uv`, which is a real precondition.
-@pytest.mark.skipif(not have_uv(), reason="the `null` harness launches its program through uv")
-def test_cal23_9_an_interrupted_run_against_a_stub_endpoint_resumes_to_the_same_multiset(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """**CAL23 end to end, on the runner.**  Two tasks at `n = 2` through `run_arm` against a
-    stub endpoint, one episode at a time.  The first run is interrupted after its first
-    episode -- **mid-task, between the two attempts of task 1** -- by its own token limit
-    (CAL20's stop, checked before each episode), and a torn half-row is appended the way a
-    runtime that died mid-write leaves one.  A second `run_arm` on the same directory resumes.
-
-    The resumed run must keep the episode that ran, run exactly the three the interrupt left
-    owed, and finish with the same multiset -- each task with exactly its `n` -- which is
-    where "no episode is run twice and none is skipped" is checked against episodes that
-    ran, in the run directory the runner itself wrote."""
-    from collections import Counter
-
-    import verifiers.v1 as vf
-
-    module = cal()
-    seeds = (404, 55)
-    monkeypatch.setattr(module, "_SEEDS", seeds)
-    monkeypatch.setattr(module, "N", 2)
-    real_config = module.run_config_for
-
-    def one_at_a_time(*args: Any, **kwargs: Any) -> tuple[Any, Any]:
-        documented, calibration = real_config(*args, **kwargs)
-        return documented, calibration.model_copy(update={"max_concurrent": 1})
-
-    monkeypatch.setattr(module, "run_config_for", one_at_a_time)
-    monkeypatch.setenv(KEY_VAR, "stub-secret")
-    spec = spec_of("depth", 1)
-    with stub_endpoint([("stop", None)]) as (base_url, log):
-        client = vf.EvalClientConfig(base_url=base_url, api_key_var=KEY_VAR)
-        first = module.run_arm(
-            spec, output_dir=tmp_path, model="stub/model", client=client,
-            budget={"tokens": 1, "wall_clock_seconds": 3600},
-        )
-        assert first.stop is not None and first.stop.reason == "tokens", first
-        assert (first.episodes_run, first.episodes_owed) == (1, 3), first
-        traces = first.run_dir / "traces.jsonl"
-        (survivor,) = [json.loads(line) for line in traces.read_text(encoding="utf-8").splitlines()]
-        with traces.open("a", encoding="utf-8") as handle:
-            handle.write('{"task": {"hash": "')
-        requests_before = len(log)
-
-        second = module.run_arm(
-            spec, output_dir=tmp_path, model="stub/model", client=client,
-            budget={"tokens": 10**9, "wall_clock_seconds": 3600},
-        )
-
-    assert second.run_dir == first.run_dir
-    assert second.stop is None, second
-    assert (second.episodes_kept, second.episodes_run, second.episodes_owed) == (1, 3, 0), second
-    assert len(log) - requests_before == 3, "an episode was run twice or skipped"
-    rows = [json.loads(line) for line in traces.read_text(encoding="utf-8").splitlines()]
-    assert rows[0]["id"] == survivor["id"], "the episode that ran before the interrupt was not kept"
-    assert all(row["ok"] for row in rows), [row.get("errors") for row in rows]
-    per_task = Counter(row["task"]["hash"] for row in rows)
-    assert len(per_task) == len(seeds) and set(per_task.values()) == {2}, per_task
-    records = module.records_from_run(second.run_dir, model="stub/model")
-    assert sorted((record.seed, record.attempt) for record in records) == [
-        (seed, attempt) for seed in sorted(seeds) for attempt in range(2)
-    ]
-
-
-# ---------------------------------------------------------------------------
 # CAL16 - a tooling failure is read from the signals the run already carries
 #
 # Decided 2026-09-22.  Three of the four instrument labels are assigned in
@@ -2263,40 +1581,43 @@ def test_cal16_15_the_threshold_gate_reads_the_tally_and_not_the_survivors(tmp_p
 
 
 # ---------------------------------------------------------------------------
-# CAL17, CAL18 - what the card and the provenance block carry
+# C - publication.  CAL17 to CAL19
 # ---------------------------------------------------------------------------
 
 
-SERVING_FIELDS = ("kind", "stack", "stack_version", "flags", "gpu", "revision")
+def test_cal17_3_the_readme_lines_render_from_the_same_artifact() -> None:
+    """"and so do the README's difficulty lines" -- one line per level, naming the model."""
+    artifact = sample_artifact()
+    lines = cal().render_readme_lines(artifact).splitlines()
+    assert lines
+    for line in lines:
+        assert MODEL_A in line, line
+    assert cal().render_readme_lines(artifact) == cal().render_readme_lines(artifact)
 
 
-def test_cal18_5_a_locally_served_model_missing_its_stack_refuses_the_write() -> None:
-    """CAL18's "a missing field refuses the write" reaches the serving fields.  One test per field,
-    so a build that checks five of the six is red."""
-    for field in SERVING_FIELDS:
-        if field == "kind":
-            continue
-        broken = dict(provenance().serving[MODEL_B])
-        broken.pop(field)
-        with pytest.raises(ValueError) as caught:
-            cal().build_artifact(
-                {("depth:d3", MODEL_B): cal().scored(cell_from(HETEROGENEOUS_COUNTS, model=MODEL_B))},
-                provenance(serving={MODEL_B: broken},
-                           models=[{"id": MODEL_B, "revision": "b" * 40, "endpoint_host": "localhost"}]),
-            )
-        assert field in str(caught.value), (field, str(caught.value))
+def test_cal17_4_the_control_arms_are_in_their_own_table() -> None:
+    """**Decided 2026-09-22:** the two control arms go in a separate table, not on
+    the level card.  `depth:d1+h8` exists to separate depth from history, not to be a
+    difficulty level, and a stranger reading a level table would read it as one."""
+    document = cal().render_document(sample_artifact())
+    level_table, _, instrument_table = document.partition(cal().INSTRUMENT_TABLE_HEADING)
+    assert instrument_table, "the document has no separate instrument table"
+    for spec in CONTROL_SPECS:
+        assert arm_id(spec) not in level_table, arm_id(spec)
+        assert arm_id(spec) in instrument_table, arm_id(spec)
+    for spec in PLAIN_SPECS:
+        assert arm_id(spec) in level_table, arm_id(spec)
 
 
-def test_cal18_7_the_pinned_revision_is_forty_hex_characters() -> None:
-    """N18 already says what a pinned open-weights revision looks like: a full
-    40-character commit hash, never a branch or a tag.  A locally served model whose revision
-    is anything else refuses the provenance block; the control differs only in the revision
-    and is accepted."""
-    good = dict(provenance().serving[MODEL_B])
-    assert provenance(serving={MODEL_B: good}).serving[MODEL_B]["revision"] == "b" * 40
-    for bad in ("main", "v1.0", "b" * 39, "b" * 41, "g" * 40):
-        with pytest.raises(ValueError):
-            provenance(serving={MODEL_B: dict(good, revision=bad)})
+def test_cal17_5_the_card_states_its_own_staleness() -> None:
+    """**Decided 2026-09-22:** there is no automatic regeneration when
+    `generator_hash` moves; the card states its staleness instead.  So the rendered document
+    names the generator hash it was measured at and says, in words, that an edit to the
+    generator stales it."""
+    document = cal().render_document(sample_artifact())
+    assert "g" * 64 in document
+    lowered = document.lower()
+    assert "stale" in lowered
 
 
 def test_cal17_6_the_card_states_the_resume_guarantee_in_words() -> None:
@@ -2381,3 +1702,682 @@ def test_cal17_8_the_card_carries_three_k_values_and_the_artifact_carries_all() 
         assert f"pass@{k}" not in document, k
     for cell in artifact.cells:
         assert sorted(int(k) for k in cell["pass_at_k"]) == list(range(1, N + 1)), cell["pass_at_k"]
+
+
+@pytest.mark.parametrize("missing", PROVENANCE_FIELDS)
+def test_cal18_2_a_missing_field_refuses_the_write(missing: str, tmp_path: Path) -> None:
+    """"**A missing field refuses the write.**"  One test per field, so a build that checks
+    nineteen of the twenty is red."""
+    fields = {f: getattr(provenance(), f) for f in PROVENANCE_FIELDS}
+    fields.pop(missing)
+    with pytest.raises((ValueError, TypeError)) as caught:
+        cal().Provenance(**fields)
+    assert missing in str(caught.value), (missing, str(caught.value))
+
+
+def test_cal18_3_the_seed_list_hash_is_over_the_seed_list() -> None:
+    """The provenance's two seed fields have to agree, or the published list and the hash a
+    reader checks it against are two different things."""
+    with pytest.raises(ValueError) as caught:
+        cal().build_artifact(
+            {("depth:d3", MODEL_A): cal().scored(cell_from(HETEROGENEOUS_COUNTS))},
+            provenance(seed_list_hash="0" * 64),
+        )
+    assert "seed" in str(caught.value).lower()
+
+
+SERVING_FIELDS = ("kind", "stack", "stack_version", "flags", "gpu", "revision")
+
+
+def test_cal18_5_a_locally_served_model_missing_its_stack_refuses_the_write() -> None:
+    """CAL18's "a missing field refuses the write" reaches the serving fields.  One test per field,
+    so a build that checks five of the six is red."""
+    for field in SERVING_FIELDS:
+        if field == "kind":
+            continue
+        broken = dict(provenance().serving[MODEL_B])
+        broken.pop(field)
+        with pytest.raises(ValueError) as caught:
+            cal().build_artifact(
+                {("depth:d3", MODEL_B): cal().scored(cell_from(HETEROGENEOUS_COUNTS, model=MODEL_B))},
+                provenance(serving={MODEL_B: broken},
+                           models=[{"id": MODEL_B, "revision": "b" * 40, "endpoint_host": "localhost"}]),
+            )
+        assert field in str(caught.value), (field, str(caught.value))
+
+
+def test_cal18_7_the_pinned_revision_is_forty_hex_characters() -> None:
+    """N18 already says what a pinned open-weights revision looks like: a full
+    40-character commit hash, never a branch or a tag.  A locally served model whose revision
+    is anything else refuses the provenance block; the control differs only in the revision
+    and is accepted."""
+    good = dict(provenance().serving[MODEL_B])
+    assert provenance(serving={MODEL_B: good}).serving[MODEL_B]["revision"] == "b" * 40
+    for bad in ("main", "v1.0", "b" * 39, "b" * 41, "g" * 40):
+        with pytest.raises(ValueError):
+            provenance(serving={MODEL_B: dict(good, revision=bad)})
+
+
+LOOPBACK = {"127.0.0.1", "::1", "localhost"}
+
+
+def no_sockets() -> Any:
+    """G2's discipline, applied to the estimator: every connection this process opens is
+    refused.  Used by CAL19, where the point is that a published number recomputes from the
+    stored records with no model and no network."""
+
+    class Guard:
+        def __init__(self) -> None:
+            self.attempts: list[Any] = []
+            self._connect = socket.socket.connect
+            self._connect_ex = socket.socket.connect_ex
+
+        def __enter__(self) -> Guard:
+            def connect(inner: Any, address: Any) -> Any:
+                self.attempts.append(address)
+                raise OSError(f"CAL19 forbids the network; tried {address!r}")
+
+            def connect_ex(inner: Any, address: Any) -> int:
+                self.attempts.append(address)
+                return 111
+
+            socket.socket.connect = connect  # type: ignore[method-assign]
+            socket.socket.connect_ex = connect_ex  # type: ignore[method-assign]
+            return self
+
+        def __exit__(self, *exc: Any) -> None:
+            socket.socket.connect = self._connect  # type: ignore[method-assign]
+            socket.socket.connect_ex = self._connect_ex  # type: ignore[method-assign]
+
+    return Guard()
+
+
+def test_cal19_1_every_number_recomputes_with_sockets_disabled() -> None:
+    """CAL19: "The estimator runs from the stored per-episode records **with sockets
+    disabled** ... and reproduces the artifact's every figure" -- the cells, and the paired
+    differences between adjacent levels on both predicates, whose intervals are seeded
+    bootstraps of their own."""
+    artifact = sample_artifact()
+    paired = two_level_artifact()
+    wire = json.loads(json.dumps([artifact.cells, paired.pairs, paired.reach_pairs]))
+    with no_sockets() as guard:
+        again = sample_artifact()
+        paired_again = two_level_artifact()
+    assert guard.attempts == []
+    assert json.loads(json.dumps([again.cells, paired_again.pairs, paired_again.reach_pairs])) == wire
+    # the pair rows have a real interval to reproduce, not a single point
+    for row in paired.pairs + paired.reach_pairs:
+        assert row["low"] < row["high"], row
+
+
+def test_cal19_2_the_records_round_trip_through_their_own_wire_format() -> None:
+    """The per-episode records are committed to the repo, so the artifact has to recompute
+    from what is on disk and not from objects that never left memory."""
+    cell = cell_from(HETEROGENEOUS_COUNTS)
+    lines = [cal().EpisodeRecord.to_json(row) for row in cell]
+    restored = [cal().EpisodeRecord.from_json(line) for line in lines]
+    assert cal().pass_at_1(cal().scored(restored)) == pytest.approx(
+        cal().pass_at_1(cal().scored(cell))
+    )
+    for k in K_VALUES:
+        assert cal().pass_at_k(cal().scored(restored), k) == pytest.approx(
+            expect_pass_at_k_closed(HETEROGENEOUS_COUNTS, k)
+        )
+
+
+# ---------------------------------------------------------------------------
+# CAL20 - the stop
+# ---------------------------------------------------------------------------
+
+
+def budget(**over: Any) -> dict[str, Any]:
+    base = {"tokens": 1000, "wall_clock_seconds": 600}
+    base.update(over)
+    return base
+
+
+def test_cal20_1_the_stop_is_checked_before_each_episode() -> None:
+    """CAL20: "A ceiling is checked before each episode".  **Decided 2026-09-22:** the
+    ceiling is no longer a token budget alone."""
+    spent = 0
+    stopped_at = None
+    for index in range(100):
+        verdict = cal().within_budget(
+            tokens=spent, elapsed_seconds=0, provider_exhausted=False, budget=budget()
+        )
+        if not verdict.ok:
+            stopped_at = index
+            break
+        spent += 150
+    assert stopped_at == 7, stopped_at
+
+
+@pytest.mark.parametrize("reason", STOP_REASONS)
+def test_cal20_1b_each_of_the_three_limits_stops_the_run_on_its_own(reason: str) -> None:
+    """**The three limits' whole point, and the row a token-only stop fails.**  The run stops
+    on whichever limit arrives first: the token budget, the wall clock, or the provider saying
+    out of credit.  An earlier $75 ceiling was withdrawn in favour of balances that already
+    exist, and **a balance is not a token count** — an OpenAI credit runs out on its own
+    arithmetic and a Colab allowance is wall-clock. Each limit is tripped alone here, with the
+    other two slack, so a stop that watches only one is red on the other two."""
+    slack = {"tokens": 0, "elapsed_seconds": 0, "provider_exhausted": False}
+    tripped = dict(slack)
+    if reason == "tokens":
+        tripped["tokens"] = budget()["tokens"] + 1
+    elif reason == "wall_clock":
+        tripped["elapsed_seconds"] = budget()["wall_clock_seconds"] + 1
+    else:
+        tripped["provider_exhausted"] = True
+    verdict = cal().within_budget(budget=budget(), **tripped)
+    assert verdict.ok is False, (reason, verdict)
+    assert verdict.reason == reason, (reason, verdict)
+
+
+def test_cal20_1c_a_run_inside_every_limit_continues() -> None:
+    """The three limits' control.  Without it `within_budget` could refuse unconditionally."""
+    verdict = cal().within_budget(
+        tokens=1, elapsed_seconds=1, provider_exhausted=False, budget=budget()
+    )
+    assert verdict.ok is True
+    assert verdict.reason is None
+
+
+def test_cal20_1e_a_limit_stops_the_run_when_it_is_reached() -> None:
+    """A limit is reached at its own value, not only past it: a run that has spent exactly
+    its token budget has nothing left for the next episode, and a wall clock at exactly its
+    budget is out of time.  One token or half a second under, the run continues."""
+    limits = budget()
+    cases = (
+        ({"tokens": limits["tokens"], "elapsed_seconds": 0}, (False, "tokens")),
+        ({"tokens": limits["tokens"] - 1, "elapsed_seconds": 0}, (True, None)),
+        ({"tokens": 0, "elapsed_seconds": limits["wall_clock_seconds"]}, (False, "wall_clock")),
+        ({"tokens": 0, "elapsed_seconds": limits["wall_clock_seconds"] - 0.5}, (True, None)),
+    )
+    for spent, expected in cases:
+        verdict = cal().within_budget(provider_exhausted=False, budget=limits, **spent)
+        assert (verdict.ok, verdict.reason) == expected, (spent, verdict)
+
+
+def test_cal20_3_a_short_cell_is_marked_incomplete_and_never_a_smaller_S() -> None:
+    """"a stop leaves partial records that still recompute; the artifact marks the cell
+    **incomplete** and never silently reports a smaller `S`"."""
+    partial = cell_from(HETEROGENEOUS_COUNTS[:5])
+    figures = cal().build_artifact({("depth:d3", MODEL_A): cal().scored(partial)}, provenance()).cells[0]
+    assert figures["pass_at_1"] == pytest.approx(expect_pass_at_1(HETEROGENEOUS_COUNTS[:5]))
+    assert figures["incomplete"] is True
+    assert figures["S_declared"] == S
+    assert figures["S_observed"] == 5
+    assert figures["S_observed"] != figures["S_declared"]
+
+
+def test_cal20_4_a_full_cell_is_not_marked_incomplete() -> None:
+    """The control.  Without it, `incomplete: True` could be a constant."""
+    full = cell_from((3,) * S)
+    figures = cal().build_artifact({("depth:d3", MODEL_A): cal().scored(full)}, provenance()).cells[0]
+    assert figures["incomplete"] is False
+    assert figures["S_observed"] == figures["S_declared"] == S
+
+
+# ---------------------------------------------------------------------------
+# CAL21 - the stranger's path, and CAL22 - Prove stays optional
+# ---------------------------------------------------------------------------
+
+
+def test_cal21_1_the_run_config_is_the_documented_command_plus_an_enumerable_difference() -> None:
+    """CAL21: "the run config the calibration runner produces is the documented command's
+    config plus exactly the seed list, `-r` and the declared sampling fields, and the
+    difference is enumerable"."""
+    documented, calibration = cal().run_config_for(spec_of("depth", 3))
+    difference = cal().config_difference(documented, calibration)
+    assert set(difference) == {"seeds", "num_rollouts", "sampling"}, difference
+
+
+def test_cal21_1b_the_difference_is_measured_on_the_configs_not_reported_by_the_build() -> None:
+    """**A mutant survived `test_cal21_1`**: changing the calibration run's *model* left the
+    build's own `config_difference` unchanged, because a build that enumerates its own
+    difference will not report one it does not look for.
+
+    So the difference is recomputed here, from the two configs' serialised forms, by a diff
+    this file owns.  CAL21 says the difference is "exactly the seed list, `-r` and the
+    declared sampling fields" -- a fourth difference of any kind is a private code path
+    creeping into the published numbers, and it must be visible whether or not the build
+    names it."""
+    documented, calibration = cal().run_config_for(spec_of("depth", 3))
+    left = json.loads(documented.model_dump_json())
+    right = json.loads(calibration.model_dump_json())
+
+    def flatten(node: Any, prefix: str = "") -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        if isinstance(node, dict):
+            for key, value in node.items():
+                out.update(flatten(value, f"{prefix}.{key}" if prefix else key))
+        else:
+            out[prefix] = node
+        return out
+
+    flat_left, flat_right = flatten(left), flatten(right)
+    changed = {
+        key for key in set(flat_left) | set(flat_right)
+        if flat_left.get(key) != flat_right.get(key)
+    }
+    # the run's own identity is not a difference in the configuration it runs
+    changed = {key for key in changed if not key.startswith("run.")}
+    for key in sorted(changed):
+        assert (
+            "seeds" in key or "num_rollouts" in key or key.startswith("sampling")
+        ), f"a fourth difference from the documented command: {key}"
+
+
+def test_cal21_2_the_run_resolves_the_taskset_by_its_id_and_the_null_harness() -> None:
+    """"the taskset resolved by its id `poisson-tasks`, the `null` harness by MP3's default,
+    `--no-push`" -- the documented one-liner and not a private code path."""
+    _, calibration = cal().run_config_for(spec_of("depth", 3))
+    assert calibration.env.taskset.id == "poisson-tasks"
+    assert calibration.env.agent_harnesses()["agent"].id == "null"
+    assert calibration.push is False
+
+
+def test_cal21_3_num_rollouts_is_n() -> None:
+    """Measured: `--num-rollouts` / `-r` is "Independent episodes per task", default 1, and
+    the runner plans `[(task, config.num_rollouts) for task in tasks]`.  So `n` attempts is a
+    flag on the documented command, and no custom repeat loop is needed or allowed."""
+    _, calibration = cal().run_config_for(spec_of("depth", 3))
+    assert calibration.num_rollouts == N
+
+
+def test_cal22_1_the_calibration_module_imports_no_proofload() -> None:
+    """CAL22: "Every module the calibration code imports, transitively, imports no
+    `proofload` and no `poisson_tasks.adapter`"."""
+    import sys
+
+    for name in list(sys.modules):
+        if name == "proofload" or name.startswith("proofload."):
+            del sys.modules[name]
+    module = cal()
+    seen = {module.__name__}
+    stack = [module]
+    while stack:
+        current = stack.pop()
+        for value in vars(current).values():
+            name = getattr(value, "__module__", None) or getattr(value, "__name__", None)
+            if isinstance(name, str) and name.startswith("poisson_tasks") and name not in seen:
+                seen.add(name)
+                stack.append(importlib.import_module(name))
+    assert "poisson_tasks.adapter" not in seen, seen
+    for name in seen:
+        source = inspect.getsource(importlib.import_module(name))
+        assert "import proofload" not in source, name
+        assert "from proofload" not in source, name
+        assert "poisson_tasks.adapter" not in source, name
+
+
+def test_cal22_2_this_file_is_not_prove_gated() -> None:
+    """"the whole calibration test file passes with Proofload unimportable, the way [the
+    verifiers export's] 377 cases and layer 1's 84 do".  There is no Prove-gated half here,
+    and this file must never be added to `conftest.py`'s skip list."""
+    from tests.conftest import PROOFLOAD_TEST_FILES  # type: ignore[import-not-found]
+
+    assert Path(__file__).name not in PROOFLOAD_TEST_FILES
+
+
+def test_cal22_3_no_name_in_this_file_reaches_proofload() -> None:
+    """This test file holds itself to CAL22 as well as the build: this file imports nothing that
+    would make it skip."""
+    source = Path(__file__).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                assert not alias.name.startswith("proofload"), alias.name
+        elif isinstance(node, ast.ImportFrom):
+            assert not (node.module or "").startswith("proofload"), node.module
+
+
+# ---------------------------------------------------------------------------
+# CAL23 - checkpoint and resume
+#
+# Colab runtimes drop, so an interrupt is expected and this module's run is 4,200 episodes
+# long.  Decision 6: the checkpoint is the wheel's own -- `traces.jsonl` plus `--resume` --
+# because using it is what keeps CAL21 reachable, and a private checkpoint would be a private
+# code path.  What is pinned is the multiset of `(task_id, arm_id, seed)` with exactly `n`
+# rows each, not byte identity, which CAL5 makes unattainable (an open question).
+# ---------------------------------------------------------------------------
+
+
+def wheel_resume() -> Any:
+    """The wheel's own resume.  Named here because the calibration runner uses it rather than
+    checkpointing privately; PG-19's row covers the loader names, and this is owed one too."""
+    return importlib.import_module("verifiers.v1.cli.eval.resume")
+
+
+def traces_file(path: Path, rows: Sequence[tuple[str, bool]]) -> Path:
+    """A `traces.jsonl` in the shape `resume.load` reads: one episode per line, each carrying
+    `task.hash` and an `ok` flag.  `rows` is `(task hash, ok)` in the order they were written,
+    so truncating the list is exactly an interrupt at that point."""
+    out = path / "traces.jsonl"
+    with out.open("w", encoding="utf-8") as handle:
+        for task_hash, ok in rows:
+            handle.write(json.dumps({
+                "id": f"ep-{task_hash}-{ok}",
+                "task": {"type": "ExportTask", "hash": task_hash, "data": {"task_id": task_hash}},
+                "ok": ok,
+                "errors": [],
+                "traces": [],
+            }) + "\n")
+    return out
+
+
+PLAN_TASKS = ("h0", "h1", "h2")
+
+
+PLAN_N = 3
+
+
+def full_rows() -> list[tuple[str, bool]]:
+    """An uninterrupted run: every task's `n` attempts, task by task."""
+    return [(task, True) for task in PLAN_TASKS for _ in range(PLAN_N)]
+
+
+@pytest.mark.parametrize("cut", range(len(PLAN_TASKS) * PLAN_N + 1))
+def test_cal23_1_a_resume_owes_exactly_what_the_interrupt_left(cut: int, tmp_path: Path) -> None:
+    """**CAL23 at every interrupt point**, including the ones inside a task.
+
+    `cut` walks every position a runtime could die at: before the first episode (0), after
+    each attempt, **mid-task between attempts** (1, 2, 4, 5, 7, 8) and after the last (9).
+    At each, the rows already on disk plus the rows still owed must be exactly the
+    uninterrupted run: **no episode run twice, and none skipped.**"""
+    directory = tmp_path / f"cut{cut}"
+    directory.mkdir()
+    rows = full_rows()[:cut]
+    traces_file(directory, rows)
+    keys = list(PLAN_TASKS)
+    kept, owed = wheel_resume().load(directory, keys, PLAN_N)
+    assert len(kept) == cut, (cut, len(kept))
+    assert sum(owed.values()) == len(PLAN_TASKS) * PLAN_N - cut
+    for task in PLAN_TASKS:
+        done = sum(1 for name, _ in rows if name == task)
+        assert done + owed.get(task, 0) == PLAN_N, (task, done, owed)
+
+
+def test_cal23_4_a_torn_final_line_is_owed_again_and_never_a_crash(tmp_path: Path) -> None:
+    """A dropped Colab runtime dies mid-write, so the last line of `traces.jsonl` is half a
+    row.  It must be owed again rather than raising -- which is the difference between a
+    resumable run and a lost one."""
+    directory = tmp_path / "torn"
+    directory.mkdir()
+    path = traces_file(directory, [("h0", True), ("h0", True)])
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write('{"task": {"hash": "h0"}, "ok": tr')
+    kept, owed = wheel_resume().load(directory, ["h0"], PLAN_N)
+    assert len(kept) == 2
+    assert owed.get("h0") == 1
+
+
+def test_cal23_5b_resume_load_rewrites_the_trace_file(tmp_path: Path) -> None:
+    """**Measured, and it is a hazard for anything that reads the checkpoint.**
+    `resume.load` is **not read-only**: it rewrites `traces.jsonl` to the rows it kept, via a
+    temp file and an atomic rename. So the file a second reader sees is not the file the run
+    wrote, and two implementations compared over one directory will agree no matter what they
+    do -- which is exactly how a mutant once survived.
+
+    A build that treats `load` as a query, or that reads the trace file after calling it and
+    expects the run's own rows, is reading a pruned file.
+
+    What it prunes is the errored rows: `load` keeps a saved rollout only if the keep-verdict
+    accepts it, and the default verdict is `episode.ok`, so a failed attempt is dropped and
+    owed again, not kept."""
+    directory = tmp_path / "rewrite"
+    directory.mkdir()
+    path = traces_file(directory, [("h0", True), ("h0", False), ("h0", True)])
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 3
+    kept, owed = wheel_resume().load(directory, ["h0"], PLAN_N)
+    assert len(kept) == 2
+    after = len(path.read_text(encoding="utf-8").splitlines())
+    assert after == 2, f"load kept {after} rows; the errored one is dropped and owed again"
+    assert owed == {"h0": 1}
+
+
+# Rows with a failure in them.  **A mutant survived a fixture of all-ok rows**: an
+# implementation that counts written lines instead of kept ones agrees with the wheel exactly
+# as long as nothing errored, and a Colab run that drops mid-episode is precisely where
+# something errors.  Two of these nine are `ok: False`.
+MIXED_ROWS: list[tuple[str, bool]] = [
+    ("h0", True), ("h0", False), ("h0", True),
+    ("h1", True), ("h1", True), ("h1", True),
+    ("h2", False), ("h2", True), ("h2", True),
+]
+
+
+@pytest.mark.parametrize("rows_name", ["all_ok", "with_errors"])
+def test_cal23_6_owed_after_interrupt_agrees_with_the_wheel(
+    rows_name: str, tmp_path: Path
+) -> None:
+    """The calibration runner's own bookkeeping must agree with the mechanism it runs on, at
+    every interrupt point **and when episodes have failed**.
+
+    `owed_after_interrupt` is the escape hatch of decision 6: a build that checkpoints its own
+    way implements this one function and every test above is unchanged.
+
+    **Each side gets its own directory.**  `resume.load` rewrites the trace file it reads
+    (`test_cal23_5b`), so running the two over one directory would have the second read the
+    first's pruned output and agree unconditionally.  That is not a hypothetical: it is how
+    a mutant once survived."""
+    rows = full_rows() if rows_name == "all_ok" else MIXED_ROWS
+    if rows_name == "with_errors":
+        assert any(not ok for _, ok in rows), "this fixture must contain a failed episode"
+    for cut in range(len(rows) + 1):
+        theirs = tmp_path / f"w{rows_name}{cut}"
+        ours = tmp_path / f"o{rows_name}{cut}"
+        theirs.mkdir()
+        ours.mkdir()
+        traces_file(theirs, rows[:cut])
+        traces_file(ours, rows[:cut])
+        _, wheel_owed = wheel_resume().load(theirs, list(PLAN_TASKS), PLAN_N)
+        mine = cal().owed_after_interrupt(ours, list(PLAN_TASKS), PLAN_N)
+        assert dict(mine) == dict(wheel_owed), (rows_name, cut, mine, wheel_owed)
+
+
+def test_cal23_7_resume_keys_on_task_hash_and_the_export_leaves_it_stable() -> None:
+    """**The silent failure this invariant is really about.**  Measured: the wheel matches a
+    saved rollout by `episode.task.hash` -- the wire content hash -- and **not** by
+    `task.key`, which is the field the export overrides to `task_id` (X7).  Two identities,
+    and resume uses the one the export does not control.
+
+    It is stable here only because `TaskData.idx` is `None` and drops out of the dump under
+    `exclude_none=True`.  **A build that ever populates `idx` moves every hash, and a resumed
+    run silently re-runs the whole cell.**  This test is the tripwire."""
+    from poisson_tasks.export import task_from_bundle
+
+    spec = spec_of("depth", 3)
+    first = task_from_bundle(generate(spec, 404))
+    second = task_from_bundle(generate(spec, 404))
+    assert first.data.idx is None, "idx is populated: every resume key has moved"
+    assert first.hash == second.hash
+    assert first.key != first.hash, "key and hash are two identities; resume uses hash"
+    hashes = {task_from_bundle(generate(spec, seed)).hash for seed in range(500, 512)}
+    assert len(hashes) == 12, "two distinct seeds share a resume key"
+
+
+def test_cal23_8_the_seed_set_is_injective_in_the_resume_key() -> None:
+    """The consequence of CAL23_7 over the whole level axis: `resume.load` aggregates its
+    target by key (`Counter(selected_keys)`), so two tasks in one cell that shared a hash
+    would be interchangeable -- one seed could take 2n attempts and another none, and the
+    records would attribute them to the wrong seed.  G14 makes instances injective; this
+    checks the property survives into the field resume actually reads."""
+    from poisson_tasks.export import task_from_bundle
+
+    seeds = tuple(range(700, 712))
+    for spec in PLAN_SPECS_FOR_HASHES:
+        hashes = [task_from_bundle(generate(spec, seed)).hash for seed in seeds]
+        assert len(set(hashes)) == len(seeds), arm_id(spec)
+
+
+# One plain arm per level of each knob (decision 5), kept small: each entry generates
+# len(seeds) bundles and generation is the slow part.
+PLAN_SPECS_FOR_HASHES = tuple(spec_of("depth", lvl) for lvl in levels("depth")) + tuple(
+    spec_of("distractor", lvl) for lvl in levels("distractor")
+)
+
+
+# ---------------------------------------------------------------------------
+# CAL23, end to end: the runner itself, against a stub endpoint, interrupted and resumed
+#
+# The tests above drive `resume.load` over a `traces.jsonl` written by hand, which is exact
+# and exhaustive and fast.  This one is the other half: `run_arm`, the calibration runner,
+# through the wheel's own lifecycle against a stub OpenAI-compatible endpoint on loopback --
+# interrupted mid-task between attempts, and resumed by a second `run_arm` on the same run
+# directory.  It needs `uv` on PATH, because the `null` harness launches its program through
+# it, so it is marked and skipped where `uv` is missing rather than failing for a reason that
+# is not this invariant's.
+# ---------------------------------------------------------------------------
+
+
+Script = list[tuple[str, tuple[str, Any] | None]]
+
+
+def stub_endpoint(script: Script) -> Any:
+    """An OpenAI-compatible chat endpoint on loopback that answers turn `i` with `script[i]`
+    (the last entry repeats) and counts every request.  No key is loaded and nothing leaves
+    the machine."""
+    import contextlib
+
+    @contextlib.contextmanager
+    def run() -> Iterator[tuple[str, list[dict[str, Any]]]]:
+        log: list[dict[str, Any]] = []
+        state = {"turn": 0}
+
+        class Stub(BaseHTTPRequestHandler):
+            def log_message(self, *args: Any) -> None:
+                pass
+
+            def do_POST(self) -> None:
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                log.append({"model": body.get("model")})
+                kind, call = script[min(state["turn"], len(script) - 1)]
+                state["turn"] += 1
+                if kind == "tool_calls":
+                    assert call is not None
+                    name, arguments = call
+                    message: dict[str, Any] = {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [{
+                            "id": f"call_{state['turn']}", "type": "function",
+                            "function": {"name": name, "arguments": json.dumps(arguments)},
+                        }],
+                    }
+                else:
+                    message = {"role": "assistant", "content": "Done."}
+                out = {
+                    "id": "chatcmpl-stub", "object": "chat.completion", "created": 0,
+                    "model": body.get("model"),
+                    "choices": [{"index": 0, "message": message, "finish_reason": kind}],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                }
+                data = json.dumps(out).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+        server = HTTPServer(("127.0.0.1", 0), Stub)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            yield f"http://127.0.0.1:{server.server_port}/v1", log
+        finally:
+            server.shutdown()
+            server.server_close()
+
+    return run()
+
+
+def have_uv() -> bool:
+    import shutil
+
+    return shutil.which("uv") is not None
+
+
+# No `slow` marker: this repository registers none, and this file does not depend on pytest
+# configuration that is not there.  The skip is on `uv`, which is a real precondition.
+@pytest.mark.skipif(not have_uv(), reason="the `null` harness launches its program through uv")
+def test_cal23_9_an_interrupted_run_against_a_stub_endpoint_resumes_to_the_same_multiset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """**CAL23 end to end, on the runner.**  Two tasks at `n = 2` through `run_arm` against a
+    stub endpoint, one episode at a time.  The first run is interrupted after its first
+    episode -- **mid-task, between the two attempts of task 1** -- by its own token limit
+    (CAL20's stop, checked before each episode), and a torn half-row is appended the way a
+    runtime that died mid-write leaves one.  A second `run_arm` on the same directory resumes.
+
+    The resumed run must keep the episode that ran, run exactly the three the interrupt left
+    owed, and finish with the same multiset -- each task with exactly its `n` -- which is
+    where "no episode is run twice and none is skipped" is checked against episodes that
+    ran, in the run directory the runner itself wrote."""
+    from collections import Counter
+
+    import verifiers.v1 as vf
+
+    module = cal()
+    seeds = (404, 55)
+    monkeypatch.setattr(module, "_SEEDS", seeds)
+    monkeypatch.setattr(module, "N", 2)
+    real_config = module.run_config_for
+
+    def one_at_a_time(*args: Any, **kwargs: Any) -> tuple[Any, Any]:
+        documented, calibration = real_config(*args, **kwargs)
+        return documented, calibration.model_copy(update={"max_concurrent": 1})
+
+    monkeypatch.setattr(module, "run_config_for", one_at_a_time)
+    monkeypatch.setenv(KEY_VAR, "stub-secret")
+    spec = spec_of("depth", 1)
+    with stub_endpoint([("stop", None)]) as (base_url, log):
+        client = vf.EvalClientConfig(base_url=base_url, api_key_var=KEY_VAR)
+        first = module.run_arm(
+            spec, output_dir=tmp_path, model="stub/model", client=client,
+            budget={"tokens": 1, "wall_clock_seconds": 3600},
+        )
+        assert first.stop is not None and first.stop.reason == "tokens", first
+        assert (first.episodes_run, first.episodes_owed) == (1, 3), first
+        traces = first.run_dir / "traces.jsonl"
+        (survivor,) = [json.loads(line) for line in traces.read_text(encoding="utf-8").splitlines()]
+        with traces.open("a", encoding="utf-8") as handle:
+            handle.write('{"task": {"hash": "')
+        requests_before = len(log)
+
+        second = module.run_arm(
+            spec, output_dir=tmp_path, model="stub/model", client=client,
+            budget={"tokens": 10**9, "wall_clock_seconds": 3600},
+        )
+
+    assert second.run_dir == first.run_dir
+    assert second.stop is None, second
+    assert (second.episodes_kept, second.episodes_run, second.episodes_owed) == (1, 3, 0), second
+    assert len(log) - requests_before == 3, "an episode was run twice or skipped"
+    rows = [json.loads(line) for line in traces.read_text(encoding="utf-8").splitlines()]
+    assert rows[0]["id"] == survivor["id"], "the episode that ran before the interrupt was not kept"
+    assert all(row["ok"] for row in rows), [row.get("errors") for row in rows]
+    per_task = Counter(row["task"]["hash"] for row in rows)
+    assert len(per_task) == len(seeds) and set(per_task.values()) == {2}, per_task
+    records = module.records_from_run(second.run_dir, model="stub/model")
+    assert sorted((record.seed, record.attempt) for record in records) == [
+        (seed, attempt) for seed in sorted(seeds) for attempt in range(2)
+    ]
+
+
+# ---------------------------------------------------------------------------
+# the module's names
+# ---------------------------------------------------------------------------
+
+
+    # Deliberately not a substring check on this file's own text: CAL22_1 quotes the module
+    # name in its assertions, so a naive scan here would match this file quoting the rule.
+    # The AST walk above is the content; it is what an import would have to go through.
+def test_the_module_exports_exactly_the_names_this_oracle_names() -> None:
+    """Decision 1's escape hatch, made checkable: `CAL_NAMES` is the whole surface these
+    tests reach, so a build that lands a name elsewhere fails here and in one place."""
+    module = cal()
+    missing = [name for name in CAL_NAMES if not hasattr(module, name)]
+    assert missing == [], missing
+
