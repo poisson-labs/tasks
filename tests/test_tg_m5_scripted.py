@@ -1500,12 +1500,16 @@ def test_map1_meta_is_the_bundles_identity_and_the_verdicts_predicates(spec):
 
 
 def test_map2_a_caller_meta_is_merged_and_does_not_displace_the_required_keys():
+    """The caller's meta carries a `task_id` of its own, so a merge that let a caller's key
+    overwrite a required one would show here."""
     spec = SPEC_D3
     bundle = bundle_of(spec, 404)
     run = make_run(bundle, bundle.reference_calls)
     plain = adapter().to_episode(spec, bundle, run, slack=SLACK, horizon=H_D)
-    extra = adapter().to_episode(spec, bundle, run, slack=SLACK, horizon=H_D, meta={"policy": "reference", "note": 7})
+    caller = {"policy": "reference", "note": 7, "task_id": "x"}
+    extra = adapter().to_episode(spec, bundle, run, slack=SLACK, horizon=H_D, meta=caller)
     assert extra.meta["policy"] == "reference" and extra.meta["note"] == 7
+    assert extra.meta["task_id"] == bundle.task_id != "x"
     assert {k: v for k, v in dict(extra.meta).items() if k not in ("policy", "note")} == dict(plain.meta)
 
 
