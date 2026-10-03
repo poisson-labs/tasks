@@ -113,6 +113,17 @@ class ExportTaskConfig(_vf.TaskConfig):
     arm_id: str = ""
 
 
+def _arm_mapping(arm: _Any) -> _Any:
+    """The declared arm as the six-field mapping, checked, before the config is validated.
+
+    The hook FD1 builds (`tests/test_fd1_export_arm.py`): an id string such as `depth:d3`
+    becomes the mapping; an unknown strictness and a level below the knob's lowest are refused;
+    an arm no published card covers is taken with a note.  In this skeleton it passes the arm
+    through unchanged.
+    """
+    return arm
+
+
 class ExportTasksetConfig(_vf.TasksetConfig):
     """The taskset's config: the arm spec plus the declared seed list, which is finite.
 
@@ -170,6 +181,8 @@ class ExportTasksetConfig(_vf.TasksetConfig):
                 "than once, and one seed is one task"
             )
         arm = data.get("arm")
+        if arm:
+            arm = data["arm"] = _arm_mapping(arm)
         if isinstance(arm, dict) and arm and data.get("task") is None:
             spec = _ArmSpec(**arm)
             data["task"] = ExportTaskConfig(
