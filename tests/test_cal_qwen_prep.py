@@ -1,11 +1,10 @@
 """Model B's card, prepared: Qwen3-8B served by vLLM inside a Colab notebook.
 
-The decisions of 2026-09-25: model B is Qwen3-8B with thinking off, served by vLLM on a
-Colab L4 with existing credits; the run probes the hardest levels first and stops if the
-model floors there; phase 3 is model A's design (14 arms x 60 seeds x 5 attempts, through the
-plumbing gate and CAL24); a dropped runtime must never lose a finished episode or run one
-twice (CAL23); and the card records the serving stack, as a locally served model's
-provenance requires.
+Model B is Qwen3-8B with thinking off, served by vLLM on a Colab L4 with existing credits;
+the run probes the hardest levels first and stops if the model floors there; phase 3 is model
+A's design (14 arms x 60 seeds x 5 attempts, through the plumbing gate and CAL24); a dropped
+runtime must never lose a finished episode or run one twice (CAL23); and the card records the
+serving stack, as a locally served model's provenance requires.
 
 These tests pin the driver the notebook calls, `poisson_tasks.calibration_run`, with no GPU
 and nothing off loopback:
@@ -493,9 +492,8 @@ def test_the_probe_proceeds_when_the_model_reaches_the_goal() -> None:
 def test_the_floor_is_on_leaky_so_overshooting_every_goal_is_not_a_floor() -> None:
     """A model that carries every record past its goal fails strict everywhere and reaches
     every goal.  That is a finding about stopping (model A's depth:d5 was strict 0.177, leaky
-    0.713), not a model that cannot do the level, and the card must run.  The mutation pass
-    found a floor read on strict survived every other probe test, whose records never
-    separate the two."""
+    0.713), not a model that cannot do the level, and the card must run.  The other probe
+    tests' records never separate the two, so a floor read on strict would pass them."""
     module = run_module()
     records = [_record("depth:d5", i, 0, label="overshoot", calls=6) for i in range(24)]
     verdict = module.probe_verdict(records, {}, max_prompt_tokens=3000, context_stops=0,

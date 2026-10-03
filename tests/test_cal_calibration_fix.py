@@ -5,26 +5,25 @@ gave the record id and the entry code as bare English words, the model did not r
 values, and in 3,045 of 4,200 episodes its first reply asked for them and called no tool.
 Quoting the two values fixed it in a probe: 16 of 16 first replies made the reference call.
 
-These tests pin the decisions of 2026-09-25, numbered as the test names below number them,
-and are written before the change:
+These tests pin the fix, one group of tests per change:
 
-1. The prompt template puts the record id and the entry code in double quotes.  The entry
-   codes stay the vocabulary table's words, and `template_id` stays `ledger-chain/v1`.
-3. A plumbing gate: phase 1 fails unless every episode makes at least one tool call and at
-   least half of them reach their structural minimum number of calls.
-4. CAL24: every card cell carries the share of episodes that made no tool call and the share
-   that stopped short of the minimum, and a cell whose no-call share is above 0.10 refuses to
-   publish.
-5. Knob D's ordering is shown on the leaky rate beside the strict one, with a note that
-   strict at every depth below the top includes a stop-at-the-goal test the top cannot have.
-   Strict stays the headline rate.
+- `test_fix1_*`: the prompt template puts the record id and the entry code in double quotes.
+  The entry codes stay the vocabulary table's words, and `template_id` stays
+  `ledger-chain/v1`.
+- `test_fix3_*`: a plumbing gate: phase 1 fails unless every episode makes at least one tool
+  call and at least half of them reach their structural minimum number of calls.
+- `test_cal24_*`: every card cell carries the share of episodes that made no tool call and the
+  share that stopped short of the minimum, and a cell whose no-call share is above 0.10
+  refuses to publish.
+- `test_fix5_*`: knob D's ordering is shown on the leaky rate beside the strict one, with a
+  note that strict at every depth below the top includes a stop-at-the-goal test the top
+  cannot have.  Strict stays the headline rate.
 
 Also pinned: the two figures that were named for the wrong thing.  The records' `sampled_calls`
 counts tool calls and their `turns` counts model calls, so the artifact and the card name them
 `tool_calls` and model calls.
 
-`tests/test_cal_calibration.py` is frozen and is not edited here.  No test in this
-file calls a model, loads a key or leaves loopback.
+No test in this file calls a model, loads a key or leaves loopback.
 """
 
 from __future__ import annotations
@@ -141,7 +140,7 @@ def columns_of(line: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# item 1: the record id and the entry code go out in quotes
+# the record id and the entry code go out in quotes
 # ---------------------------------------------------------------------------
 
 
@@ -156,7 +155,7 @@ def user_text(prompt: Any) -> str:
 
 @pytest.mark.parametrize("spec", cal.arm_specs(), ids=lambda spec: arm_id(spec))
 def test_fix1_1_every_arms_prompt_quotes_the_record_id_and_the_entry_code(spec: ArmSpec) -> None:
-    """Item 1, at every one of the fourteen arms: the value the model has to copy is
+    """At every one of the fourteen arms: the value the model has to copy is
     delimited, so it cannot be read as a word of the sentence."""
     for seed in cal.DOCUMENTED_SEEDS:
         bundle = generate(spec, seed)
@@ -167,7 +166,7 @@ def test_fix1_1_every_arms_prompt_quotes_the_record_id_and_the_entry_code(spec: 
 
 
 def test_fix1_2_the_slots_carry_the_bare_values_and_the_template_id_is_unchanged() -> None:
-    """Item 1's other half: the quotes are the template's, not the value's.
+    """The other half of the quoting: the quotes are the template's, not the value's.
     The slot is what G15 masks and what the ledger checks, so it stays the bare word, and
     `template_id` stays `ledger-chain/v1` (the generator hash records the change)."""
     bundle = generate(spec_of("depth", 3), 404)
@@ -219,7 +218,7 @@ def recording_endpoint() -> Iterator[tuple[str, list[dict[str, Any]]]]:
     shutil.which("uv") is None, reason="the `null` harness launches its program through uv"
 )
 def test_fix1_3_the_served_task_carries_the_record_id_and_the_entry_code_in_quotes() -> None:
-    """**The test that fails on today's prompt, at the point the model reads it.**  One
+    """**The fix, at the point the model reads it** (the unquoted prompt fails here).  One
     calibration episode through the wheel, with `run_config_for`'s sampling, against a
     loopback endpoint that keeps the request: the user message the model receives carries
     both values in double quotes."""
@@ -263,7 +262,7 @@ def test_fix1_3_the_served_task_carries_the_record_id_and_the_entry_code_in_quot
 
 
 # ---------------------------------------------------------------------------
-# item 3: the plumbing gate
+# the plumbing gate
 # ---------------------------------------------------------------------------
 
 
@@ -291,7 +290,7 @@ def todays_phase1() -> list[cal.EpisodeRecord]:
 
 
 def test_fix3_1_todays_phase1_fails_the_gate() -> None:
-    """Item 3's own motivating case: 5 of 6 episodes made no tool call.  Every one was
+    """The gate's own motivating case: 5 of 6 episodes made no tool call.  Every one was
     scored and none carried an instrument label, so the old gate passed it."""
     rows = todays_phase1()
     assert all(row.label not in cal.INSTRUMENT_LABELS for row in rows)
@@ -376,7 +375,7 @@ def test_fix3_7_the_verdict_lists_each_episodes_calls_against_its_minimum() -> N
 
 
 # ---------------------------------------------------------------------------
-# item 4: CAL24, the no-call and stopped-short columns and the publish refusal
+# CAL24: the no-call and stopped-short columns and the publish refusal
 # ---------------------------------------------------------------------------
 
 
@@ -421,7 +420,7 @@ def test_cal24_3_the_share_is_over_scored_episodes() -> None:
 
 
 def test_cal24_4_the_threshold_is_declared_and_carried_in_the_provenance() -> None:
-    """0.10 is the number item 4 set.  It is carried in the block, like CAL16's, so a
+    """0.10 is the threshold CAL24 sets.  It is carried in the block, like CAL16's, so a
     card says what it was held to, and it is a rate."""
     assert cal.NO_CALL_THRESHOLD == 0.10
     block = provenance()
@@ -437,8 +436,8 @@ def test_cal24_4_the_threshold_is_declared_and_carried_in_the_provenance() -> No
 
 def test_cal24_5_the_card_prints_both_shares_in_their_columns() -> None:
     """The two columns are on every level row and every instrument-arm row, read by the
-    position the header gives them, not by searching the row (a deliberately broken build once
-    passed a card test that searched the row)."""
+    position the header gives them, not by searching the row (a search finds a figure in the
+    wrong column too)."""
     cells = {}
     for spec in cal.arm_specs():
         arm = arm_id(spec)
@@ -468,7 +467,7 @@ def test_cal24_5_the_card_prints_both_shares_in_their_columns() -> None:
 
 
 # ---------------------------------------------------------------------------
-# item 5: knob D's ordering on the leaky rate beside the strict one
+# knob D's ordering on the leaky rate beside the strict one
 # ---------------------------------------------------------------------------
 
 # Per depth level: (strict passes, leaky passes) per task, of N.  Strict dips then rises at

@@ -1,4 +1,4 @@
-"""Model B's notebook, run again in the same runtime: the install fix of 2026-09-26.
+"""Model B's notebook, run again in the same runtime: the install fix.
 
 On Colab the notebook's `install-vllm` cell stopped at its first command, `uv venv --python
 3.12 /content/vllm-venv`, with exit status 2.  The notebook had been started once before in

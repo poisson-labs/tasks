@@ -15,13 +15,13 @@ The probe exists to catch this before the card: it stops when a prompt passes 75
 the cap leaves.  But it ran only `depth:d5` and `depth:d8`, which carry no history, so it never
 saw a long prompt.
 
-Decided 2026-09-28, all four:
-1. `--max-model-len` 16384.  The decoding, including the 2,048-token completion limit, is
-   unchanged, so the card stays comparable with model A's.
-2. The probe also runs the two history controls, for their prompts, context stops and
-   instrument failures only.  The floor stays a question about the hardest levels.
-3. The phase 3 line names the refusal it printed as CAL24.
-4. The pin's note, which said a context stop is the model's own, is corrected.
+So:
+- `--max-model-len` is 16384.  The decoding, including the 2,048-token completion limit, is
+  unchanged, so the card stays comparable with model A's.
+- The probe also runs the two history controls, for their prompts, context stops and
+  instrument failures only.  The floor stays a question about the hardest levels.
+- The phase 3 line gives the refusal's own reason, where it printed "CAL24: refused".
+- The pin's note, which said a context stop is the model's own, is corrected.
 
 The pin itself, 16,384 with the completion limit unchanged, is checked with the other serve
 flags in `tests/test_cal_qwen_prep.py`, and that file's end-to-end run checks that the probe's

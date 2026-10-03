@@ -10,7 +10,7 @@ Across all 14 arms, Qwen's ordinary episodes end within 17 model calls, and mode
 was 18.  Above that sit the loops: 24 or more calls, most past 100.  A cap anywhere from 24 to
 50 changes 1 episode of the 900 in the three arms that loop.
 
-Decided 2026-09-28: a default of 32 model calls, four times the deepest task's minimum (8 at
+So the taskset has a default of 32 model calls, four times the deepest task's minimum (8 at
 `depth:d8`), pinned in the taskset's own env config beside the measured harness.  The
 documented command and the calibration run then behave the same, and a flag overrides the
 cap as it overrides the harness.  An episode that reaches it stops as `max_turns`, which the
