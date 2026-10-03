@@ -1151,7 +1151,7 @@ def test_e10_hash_moves_on_any_single_change():
         assert moved[key] != base, key
 
 
-def test_e10_hash_is_stable_across_everything_else():
+def test_e10_hash_is_stable_across_everything_else(tmp_path):
     """E10's "only if": nothing but the spec, table or version moves the hash.
 
     Not the process, not PYTHONHASHSEED, not the insertion order of a spec built
@@ -1174,12 +1174,9 @@ def test_e10_hash_is_stable_across_everything_else():
     assert engine_hash(EngineSpec.from_mapping(deep)) == base
 
     # the same table at a different path
-    copy = pathlib.Path(os.environ.get("TMPDIR", "/tmp")) / "tg_m1_table_copy.json"
+    copy = tmp_path / "table_copy.json"
     copy.write_text(TABLE_PATH.read_text())
-    try:
-        assert engine_hash(EngineSpec.load(copy)) == base, "the load path reached the hash"
-    finally:
-        copy.unlink(missing_ok=True)
+    assert engine_hash(EngineSpec.load(copy)) == base, "the load path reached the hash"
 
     # two fresh processes at different PYTHONHASHSEED values
     src = ("import poisson_tasks.engine as E;"
