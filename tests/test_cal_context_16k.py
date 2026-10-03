@@ -31,7 +31,10 @@ commit, and nothing else in that file moves.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
+
+import pytest
 
 from tests.test_cal_qwen_prep import needs_uv, rig  # noqa: F401  (the rig fixture)
 
@@ -110,6 +113,48 @@ def test_an_instrument_failure_on_a_history_control_still_stops_the_probe() -> N
     verdict = module.probe_verdict(records, {}, max_prompt_tokens=1000, context_stops=0,
                                    prompt_cap=14336, floor_arms=module.PROBE_ARMS)
     assert not verdict.proceed
+
+
+def _probe_step(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+                history: dict[str, int]) -> tuple[int, dict[str, Any]]:
+    """The driver's `probe` step on a passed phase 1, with no server and no episode run: every
+    arm comes back with twelve passing records, the hardest levels' prompts at 3,000 tokens
+    and no context stop, and the history controls' trace facts as given."""
+    module = run_module()
+    ctx = module.Context(local=tmp_path / "local", durable=tmp_path / "durable", port=1,
+                         mirror_interval=60.0)
+    ctx.local.mkdir(parents=True)
+    (ctx.local / "phase1.json").write_text(json.dumps({"passed": True}))
+
+    def arm_rows(_run_dir: Path, arm: str, _served: str) -> tuple[Any, ...]:
+        rows = [_record(arm, seed, leaky=True) for seed in range(12)]
+        facts = {"episodes": 12, "max_prompt_tokens": 3000, "context_stops": 0}
+        if arm in HISTORY_CONTROLS:
+            facts.update(history)
+        return rows, {}, facts
+
+    monkeypatch.setattr(module, "_serving", lambda _ctx: {})
+    monkeypatch.setattr(module, "_run_arms", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_arm_rows", arm_rows)
+    code = module.cmd_probe(ctx)
+    return code, json.loads((ctx.local / "probe.json").read_text())
+
+
+@pytest.mark.parametrize("history", [
+    {"max_prompt_tokens": 12000}, {"context_stops": 1},
+], ids=["long_prompt", "context_stop"])
+def test_the_probe_step_stops_on_what_only_a_history_control_saw(
+    history: dict[str, int], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The Colab card's failure, caught where it was missed: the hardest levels' prompts are
+    short, and only a history control sends a prompt past 75% of the 14,336 tokens the cap
+    leaves, or is ended by the cap.  The step's verdict reads those controls' trace facts
+    and stops; the same probe without them proceeds."""
+    code, report = _probe_step(tmp_path / "short", monkeypatch, {})
+    assert (code, report["proceed"]) == (0, True), report["reasons"]
+    code, report = _probe_step(tmp_path / "long", monkeypatch, history)
+    assert (code, report["proceed"]) == (3, False), report["reasons"]
+    assert report["leaky"] == 1.0, "the floor is not what stopped it"
 
 
 def test_without_floor_arms_the_verdict_pools_every_record() -> None:
