@@ -309,11 +309,6 @@ SYSTEM_OUTCOMES = (
     "malformed_call", "turn_limit", "overshoot", "wrong_state", "collateral_mutation",
     "passed",
 )
-# The three the adapter assigns and `verify` must never return.  `replay_mismatch` is
-# E8's and the adapter runs the replay check before the verdict; `api_error` and `wall_timeout`
-# are A4's, and name conditions `verify`'s five arguments cannot express.
-ADAPTER_ONLY_OUTCOMES = ("replay_mismatch", "api_error", "wall_timeout")
-VERIFIER_OUTCOMES = tuple(o for o in OUTCOME_ORDER if o not in ADAPTER_ONLY_OUTCOMES)
 
 # G8: one generated negative control per system label a call sequence can produce.
 # `passed` is `reference_calls` itself and `verifier_error` is fault-injected, so
@@ -596,9 +591,16 @@ def test_sf4_task_bundle_carries_2_3s_fields_and_no_others():
     the same way an extra public symbol is - and the two fields named below are the two
     a build would most plausibly add: the scenario, which the design keeps out of the
     bundle, and an audit field, which PG-16 decides against.
+
+    N14's three partitions (below) are checked against the same real field list: every
+    field is in exactly one of them, so a field cannot drop out of all three and leave
+    every N14 test passing while nothing checks it.
     """
     fields = tuple(f.name for f in dataclasses.fields(tasks().TaskBundle))
     assert fields == BUNDLE_FIELDS
+    partitioned = N14_INDEPENDENT + N14_IDENTITY + N14_TRANSFORMED
+    assert len(partitioned) == len(set(partitioned))
+    assert set(partitioned) == set(fields)
     for late in ("template_id", "prompt_slots", "reference_observations"):
         assert late in fields, late
     assert "scenario" not in fields
@@ -834,14 +836,6 @@ N14_TRANSFORMED = (
 )
 
 
-def test_n14_0_the_three_partitions_cover_every_bundle_field_exactly_once():
-    """The control for the three tests below.  Without it a field could be dropped from
-    all three lists and every N14 test would still pass while nothing checked it."""
-    partitioned = N14_INDEPENDENT + N14_IDENTITY + N14_TRANSFORMED
-    assert len(partitioned) == len(set(partitioned)) == len(BUNDLE_FIELDS)
-    assert set(partitioned) == set(BUNDLE_FIELDS)
-
-
 def test_g3_1_the_scenario_is_a_function_of_the_seed_and_the_split_alone():
     """The design's definition: the scenario is "everything drawn from the task seed alone".  So the
     arm is not an argument, and N1 - scenario equality across a knob's arms - holds by
@@ -894,6 +888,12 @@ def test_n14_2_the_d_control_moves_only_its_prompt_and_seq_start():
     which is a field the definition names moving, not a second one appearing.
     `reference_calls` does **not** move: the control runs its own `dL` chain from stage
     0, on the same scenario, so it makes the same calls.
+
+    `expected_final_state` does not move either (decision 1): the verdict's compared
+    value carries no audit field, so it does not move with `seq_start`, so N14's list
+    for the D control stays at the two fields the design names.  That is the whole of the
+    decision, and the records-row width below is the assertion that would move if a later
+    build took option 1 instead.
     """
     made = tasks().generate_contrast(depth_arms(1, 8), 77)
     plain, control = made["depth:d1"], made["depth:d1+h8"]
@@ -908,17 +908,6 @@ def test_n14_2_the_d_control_moves_only_its_prompt_and_seq_start():
     assert plain.prompt_slots == control.prompt_slots
     assert plain.negative_controls == control.negative_controls
     assert plain.expected_final_state == control.expected_final_state
-
-
-def test_pg16_1_expected_final_state_is_equal_across_the_d_control_and_its_plain_arm():
-    """**PG-16, decided.**  The verdict's compared value carries no audit field, so it
-    does not move with `seq_start`, so N14's list for the D control stays at the two
-    fields the design names.  That is the whole of the decision, and this is the test that
-    would move if a later build took option 1 instead."""
-    made = tasks().generate_contrast(depth_arms(1, 8), 78)
-    plain, control = made["depth:d1"], made["depth:d1+h8"]
-    assert plain.expected_final_state == control.expected_final_state
-    assert plain.initial_state == control.initial_state
     rows = {len(row) for row in plain.expected_final_state}
     assert rows == {4}, "a records row is (class, record_id, stage, token) and nothing else"
 
@@ -1150,21 +1139,6 @@ def test_ov1_the_vocabulary_is_closed_and_in_the_tables_order():
     assert set(INSTRUMENT_OUTCOMES) & set(SYSTEM_OUTCOMES) == set()
 
 
-def test_ov2_verify_assigns_seven_of_the_ten_and_never_the_adapters_three():
-    """Decision 3.  `replay_mismatch` is E8's and the adapter runs the replay check before the
-    verdict; `api_error` and `wall_timeout` name conditions `verify`'s five arguments
-    cannot express (A4).  Naming the split is what stops a build assigning an instrument
-    label from inside the verifier."""
-    m = tasks()
-    b = m.generate(spec(level=3), 3030)
-    seen = {run(b, b.reference_calls).label}
-    for label, calls in b.negative_controls.items():
-        seen.add(_run_control(b, label, calls).label)
-    seen.add(_broken_verdict(b).label)
-    assert seen <= set(VERIFIER_OUTCOMES)
-    assert seen & set(ADAPTER_ONLY_OUTCOMES) == set()
-
-
 def _run_control(bundle, label, calls):
     """Every generated control runs as an ordinary episode, except `turn_limit`.
 
@@ -1310,11 +1284,18 @@ def test_g8_1_the_control_set_is_the_declared_closed_set():
 
 @pytest.mark.parametrize("label", NEGATIVE_CONTROL_LABELS)
 def test_g8_2_each_control_produces_the_label_it_is_named_for(label):
-    """G8's first clause: each system label has a negative control that produces it."""
+    """G8's first clause: each system label has a negative control that produces it.
+
+    The arm is strict, so the verdict's `label` is its `strict_label` too, and never one
+    of the three labels the adapter assigns (decision 3): `replay_mismatch` is E8's and
+    the adapter runs the replay check before the verdict; `api_error` and `wall_timeout`
+    name conditions `verify`'s five arguments cannot express (A4).  Naming the split is
+    what stops a build assigning an instrument label from inside the verifier."""
     b = tasks().generate(spec(level=3), 9090)
     verdict = _run_control(b, label, b.negative_controls[label])
     expected, _, clause = label.partition("_clause_")
     assert verdict.strict_label == expected, verdict
+    assert verdict.label == expected, verdict
     if clause:
         assert verdict.format_clause == int(clause), verdict
 
