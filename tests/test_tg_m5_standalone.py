@@ -67,9 +67,8 @@ reader layer 1 has: the export's `leaky_pass` metric.  A trace the wheel stopped
 limit or a context length is truncated but not turn-limited, and with no reply it is
 `verifier_error` -- an episode that ended for a reason the verdict's five arguments cannot
 see.  Measured in a live run: the wheel stamps `max_turns` at the turn cap and
-`agent_completed` on a normal end.  The built export reads `is_truncated`; no frozen export
-test pins that (a mutation of that read survives the export's tests by design), and the build
-that follows this file moves it.
+`agent_completed` on a normal end.  The export reads `stop_condition`, and `test_tl1` to
+`test_tl3` pin that read; `test_tl2` is the row `is_truncated` would fail.
 
 **5. The one-liner is read from the document and dry-run.**  MP9's byte-for-byte clause
 needs the live smoke and cannot be closed here; what can be is that the fenced
@@ -78,18 +77,20 @@ with `--dry-run`, and that the config it resolves to loads by the id, runs `null
 subprocess with no harness named, pushes nothing, and declares an arm and seeds.
 *Escape hatch:* the fenced block's first line; `one_liner()` moves.
 
-**7. The resolved env config survives its own wire format.**  Decided 2026-09-22 out of the
-live smoke, whose whole cost bought this one row: `resolve_env_config(env_config_data(cfg))`
-validates and is a fixed point.  It is the only place the config crosses a process boundary,
-and `--dry-run` -- which every other config test here goes through -- exits before the serve
-pool starts, so nothing else in this file reaches it.  The control is the same round trip on
-a config with no arm, whose `task` stays the base `TaskConfig`.
-*Escape hatch:* `env_config_data`'s name; `wire()` moves.
-
 **6. A run's egress is measured in the test process.**  The interception server and its
 outbound client run in the pytest process, so a guard on `socket.connect` that allows loopback
 only holds for the whole run; the harness program and the tool server are child processes on
 loopback and are outside the guard, which is recorded and not claimed.
+
+**7. The resolved env config survives its own wire format.**  Decided 2026-09-22 out of the
+live smoke, whose whole cost bought this one row: `resolve_env_config(env_config_data(cfg))`
+validates and is a fixed point.  It is the only place the config crosses a process boundary,
+and `--dry-run` -- which every other config test here goes through -- exits before the serve
+pool starts, so nothing else in this file reaches it.  The control, `test_w2`, is the same
+round trip on a config with no arm: its `task` is the export's own task config at its
+defaults, and on a tree whose taskset config does not re-declare `task` it is the base
+`TaskConfig`, so there `test_w2` passes while `test_w1` fails.
+*Escape hatch:* `env_config_data`'s name; `wire()` moves.
 
 Open, and not settled here (each waits on a decision)
 -----------------------------------------------------
@@ -1053,10 +1054,11 @@ def test_w1_the_resolved_env_config_survives_its_own_wire_format():
 
 
 def test_w2_a_config_with_no_arm_round_trips_the_known_positive_control():
-    """The control: the same round trip on a config whose `task` is the base `TaskConfig`,
-    because no arm was given and the taskset config derives nothing.  It passes on the tree
-    that fails `test_w1`, which is what locates the failure in the derived subclass rather
-    than in the wheel's dump-and-load."""
+    """The control: the same round trip on a config with no arm, from which the taskset
+    config derives nothing.  Its `task` is the export's own task config at its defaults
+    here; on a tree whose taskset config does not re-declare `task`, it is the base
+    `TaskConfig`, and there this test passes while `test_w1` fails, which is what locates
+    that failure in the derived subclass rather than in the wheel's dump-and-load."""
     config = env_config()
     data = wire(config)
     again = vf.resolve_env_config(data)

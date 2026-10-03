@@ -102,8 +102,9 @@ So a call that fails its own schema must come back as the engine's observation
 (`test_ts2`).
 
 **12. The harness declaration is a constant and a document.**  `MEASURED_HARNESS == "null"`,
-and `docs/verifiers-export.md` states the three things X9 lists.  See *Open* item 2: this
-is the least the clause can mean, and whether it should mean more is not settled here.
+and `docs/verifiers-export.md` states the three things X9 lists.  The run-time default --
+`eval` on this taskset runs `null` with no harness named -- is the taskset's own `Env`,
+tested in `tests/test_tg_m5_standalone.py` (MP3).
 
 Open, and not settled here (each waits on a decision)
 -----------------------------------------------------
@@ -114,25 +115,22 @@ Open, and not settled here (each waits on a decision)
    the round trip holds.  **Not pinned:** whether altered task data yields an altered
    bundle, which is what would tell "carries the bundle" from "carries `(arm, seed)` and
    regenerates".
-2. **X9's "names `null`" has no mechanism at 0.3.1.**  A taskset package's default harness
-   is `bash` unless the package ships its own `Harness` subclass (measured:
-   `default_harness_id`), so `eval` on this taskset with no harness flag runs `bash`, outside
-   the pin ledger.  **Not pinned:** any run-time default.
-3. **"Runs under `eval` like any hub taskset" names no taskset id**, and 0.3.1 resolves an id
-   to a *top-level* module that exports exactly one `Taskset` subclass through `__all__`; a
-   dotted id is refused (measured).  **Not pinned:** `load_taskset`, or any id.
-4. **X4's order key is missing for a call the harness refused.**  Its tool message has no
+2. **X4's order key is missing for a call the harness refused.**  Its tool message has no
    `seq` (decision 6).  Such a call mutates nothing wherever it is placed, so the verdict
    does not depend on the answer; the tests need only that the reward returns 0.0 and does
    not raise.  **Not pinned:** where such a call sorts.
-5. **How `turn_limit_hit` is read off a `vf.Trace`.**  The verified list has `is_truncated`,
-   which is also true for a token limit or a length-finished reply.  `strict` cannot depend on it
-   (`passed` needs a reply), `leaky_pass` can.  **Not pinned:** `leaky_pass` on a trace that
-   does not end with a reply.
-6. **Whether a `TasksetConfig.system_prompt` override is refused.**  It rewrites N3's pinned
+3. **Whether a `TasksetConfig.system_prompt` override is refused.**  It rewrites N3's pinned
    system prompt while the key stays the `task_id`.  **Not pinned.**
-7. **A `task` config that disagrees with the arm** (a leaky task config on a strict arm).
+4. **A `task` config that disagrees with the arm** (a leaky task config on a strict arm).
    Nothing reads the task config's strictness for a reward.  **Not pinned.**
+
+Three points that were open here are settled by the standalone path and tested in
+`tests/test_tg_m5_standalone.py`: the run-time default harness (a taskset's default is
+`bash` unless its own `Env` says otherwise, and this one's pins `null`: MP3); the taskset
+id (`poisson-tasks`, which the wheel resolves to the package root: MP1); and how
+`turn_limit_hit` is read off a `vf.Trace` (`stop_condition == "max_turns"`, not
+`is_truncated`, which is also true for a token limit or a length-finished reply: `test_tl1`
+to `test_tl3`).
 
 What this file does not freeze: anything that needs a model, an interception server or a
 harness run (`Env.run_episode`, the `null` harness's own program, `eval`); the adapter's
@@ -941,9 +939,11 @@ def test_x4_1_strict_is_one_exactly_when_verify_says_passed(spec):
 
 @pytest.mark.parametrize("spec", ALL_SPECS, ids=spec_ids(ALL_SPECS))
 def test_x4_2_leaky_pass_is_verifys_on_every_trace_that_ends_with_a_reply(spec):
-    """Open item 5 is why the no-reply trace is left out.  The last lines are G7 seen from
-    here: some control is accepted by leaky and rejected by strict, or the two signals would
-    be pinned by nothing that tells them apart."""
+    """The no-reply trace is left out: how `leaky_pass` reads a trace that stops without a
+    reply is the turn-limit read, tested in `tests/test_tg_m5_standalone.py` (`test_tl1` to
+    `test_tl3`).  The last lines are G7 seen from here: some control is accepted by leaky
+    and rejected by strict, or the two signals would be pinned by nothing that tells them
+    apart."""
     separated = 0
     for seed in SEEDS[:3]:
         bundle = generate(spec, seed)
