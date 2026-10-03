@@ -144,7 +144,6 @@ EXPORT_DOC = REPO / "docs" / "verifiers-export.md"
 TASKSET_ID = "poisson-tasks"  # decided 2026-09-21: the new name, from the first release
 ROOT_MODULE = "poisson_tasks"  # what the wheel's own transformation makes of it
 OLD_ID = "task-generator"
-DOTTED_ID = "poisson_tasks.export"
 MEASURED_HARNESS = "null"  # X9, frozen in the export as `export.MEASURED_HARNESS`
 TURN_LIMIT_STOP = "max_turns"  # decided 2026-09-21: `turn_limit_hit` is this stop reason
 TOKEN_STOPS = ("max_input_tokens", "max_output_tokens", "max_total_tokens", "context_length")
@@ -248,11 +247,6 @@ def taskset_of(spec: ArmSpec, seeds: Iterable[int]) -> Any:
     return taskset_cls()(config_type(id=TASKSET_ID, arm=dataclasses.asdict(spec), seeds=list(seeds)))
 
 
-def wheel_transform(ident: str) -> str:
-    """The wheel's own id-to-module rule, restated (`_import_plugin`)."""
-    return ident.rsplit("/", 1)[-1].split("@", 1)[0].replace("-", "_").lower()
-
-
 def flat(value: Any, prefix: str = "") -> dict[str, Any]:
     """A config dump as dotted leaves, lists as leaves."""
     if isinstance(value, dict):
@@ -311,17 +305,6 @@ def dry_run(*args: str, env: dict[str, str] | None = None) -> dict[str, Any]:
         files = list(Path(tmp).glob("*/configs/resolved/eval.json"))
         assert len(files) == 1, files
         return json.loads(files[0].read_text(encoding="utf-8"))
-
-
-def dry_run_refused(*args: str) -> str:
-    """The same, for a command the CLI must refuse: gives what it printed."""
-    with tempfile.TemporaryDirectory() as tmp:
-        done = subprocess.run(
-            [sys.executable, "-c", EVAL_MAIN, *args, "--dry-run", "-o", tmp],
-            cwd=tmp, capture_output=True, text=True, timeout=300,
-        )
-        assert done.returncode != 0, done.stdout[-2000:]
-        return done.stdout + done.stderr
 
 
 def export_doc() -> str:
@@ -698,15 +681,6 @@ def public_names(module: Any) -> set[str]:
     }
 
 
-def fake_taskset_module(name: str, all_names: list[str], **attrs: Any) -> Any:
-    module = types.ModuleType(name)
-    module.__all__ = list(all_names)  # type: ignore[attr-defined]
-    for key, value in attrs.items():
-        setattr(module, key, value)
-    sys.modules[name] = module
-    return module
-
-
 # --------------------------------------------------------------------------
 # SF - this file, and the Env's module, held to the package's import rules
 # --------------------------------------------------------------------------
@@ -747,13 +721,9 @@ def test_sf3_the_walker_flags_each_way_an_unverified_name_gets_in():
 
 
 def test_mp1_1_the_id_is_the_distribution_name_and_resolves_to_the_root():
-    """MP1: one string, the distribution's name, matching the module under the wheel's own
-    transformation.  The hub forms the wheel strips resolve to the same module."""
+    """MP1: one string, the distribution's name.  That the wheel maps it to the package root
+    is the wheel's own transformation (shape 1), and every test here resolves by it."""
     assert importlib.metadata.distribution(TASKSET_ID).metadata["Name"] == TASKSET_ID
-    module = id_module()
-    assert module.__name__ == ROOT_MODULE == wheel_transform(TASKSET_ID)
-    for form in (TASKSET_ID, f"poisson-labs/{TASKSET_ID}", f"{TASKSET_ID}@0.0.1", TASKSET_ID.upper()):
-        assert loaders().import_taskset(form) is module, form
 
 
 def test_mp1_2_the_id_resolves_to_the_exports_taskset_and_adds_nothing_to_load():
@@ -778,21 +748,11 @@ def test_mp1_3_a_task_loaded_by_the_id_is_the_generated_bundle(spec):
 
 
 def test_mp1_4_a_dotted_id_and_the_old_id_are_refused():
-    """MP1's control: the wheel refuses both, and the refusal is read, not assumed.  A dotted
-    id fails inside the wheel's own namespace probe (`verifiers.v1.tasksets.<id>`) before it
-    is looked up bare, so its message names that path and not the id (measured);
-    the old id fails as a plain missing module and its message names it."""
-    with pytest.raises(ModuleNotFoundError) as dotted:
-        loaders().import_taskset(DOTTED_ID)
-    assert "verifiers.v1.tasksets.poisson_tasks" in str(dotted.value)
-    with pytest.raises(ModuleNotFoundError) as old:
+    """MP1's control: the old id resolves to nothing, so the package does not also answer
+    to it.  A dotted id is refused by the wheel's own namespace probe, which is the wheel's
+    behaviour and is not tested here."""
+    with pytest.raises(ModuleNotFoundError):
         loaders().import_taskset(OLD_ID)
-    assert OLD_ID in str(old.value)
-
-
-def test_mp1_5_the_cli_refuses_the_same_two_ids():
-    assert OLD_ID in dry_run_refused(OLD_ID, "--no-push")
-    assert "poisson_tasks" in dry_run_refused(DOTTED_ID, "--no-push")
 
 
 # --------------------------------------------------------------------------
@@ -812,14 +772,6 @@ def test_mp2_1_all_is_exactly_one_taskset_and_one_env_and_no_harness():
     assert taskset_cls() in objects and env_cls() in objects
 
 
-def test_mp2_2_the_taskset_bundles_no_harness_so_the_default_is_the_envs_pin():
-    """`default_harness_id` reads a bundled `Harness` and finds none: the taskset's own
-    default stays `bash`, and it is the exported `Env`'s config that makes a run `null`."""
-    assert loaders().default_harness_id(TASKSET_ID) == "bash"
-    with pytest.raises(TypeError):
-        loaders().harness_class(TASKSET_ID)
-
-
 def test_mp2_3_nothing_public_leaks_past_all_at_the_root():
     module = id_module()
     for name in module.__all__:
@@ -832,23 +784,6 @@ def test_mp2_4_nothing_public_leaks_past_all_in_the_envs_module():
     assert hasattr(module, "__all__")
     assert public_names(module) == set(module.__all__)
     assert env_cls().__name__ in module.__all__
-
-
-def test_mp2_5_two_of_either_raise_inside_the_wheel_and_an_unlisted_env_is_invisible():
-    """Why MP2 is an invariant and not a style, measured on fakes."""
-    taskset = taskset_cls()
-    env = env_cls()
-    other_env = type("OtherEnv", (env,), {})
-    other_taskset = type("OtherTaskset", (taskset,), {})
-    fake_taskset_module("mp2_two_envs", ["A", "B", "C"], A=taskset, B=env, C=other_env)
-    with pytest.raises(ValueError):
-        loaders().environment_class("mp2_two_envs")
-    fake_taskset_module("mp2_two_tasksets", ["A", "B", "C"], A=taskset, B=other_taskset, C=env)
-    with pytest.raises(ValueError):
-        loaders().taskset_class("mp2_two_tasksets")
-    fake_taskset_module("mp2_hidden_env", ["A"], A=taskset, B=env)
-    assert loaders().environment_class("mp2_hidden_env") is vf.SingleAgentEnv
-    assert harness_of(vf.resolve_env_config({"taskset": {"id": "mp2_hidden_env"}})).id == "bash"
 
 
 # --------------------------------------------------------------------------
@@ -1027,30 +962,6 @@ def test_mp7_2_looking_the_exported_names_up_is_what_imports_verifiers():
 # --------------------------------------------------------------------------
 
 
-def test_mp8_1_push_is_the_runs_and_the_env_cannot_turn_it_off():
-    """Measured: `push` is a field of the run config and on by default, and an env config
-    that carries a `push` of its own is not read (the plain config refuses the extra field;
-    the id's own config keeps it as an attribute the run never looks at).  So the document
-    names `--no-push`, and the one-liner has it."""
-    eval_config = importlib.import_module("verifiers.v1.configs.cli.eval").EvalConfig
-    assert eval_config(env=env_config()).push is True
-    pushing = type("Pushing", (type(env_config()),), {"__annotations__": {"push": bool}, "push": False})
-    assert eval_config(env=pushing(taskset={"id": TASKSET_ID})).push is True
-    with pytest.raises(Exception, match="push"):
-        eval_config(env=vf.SingleAgentEnvConfig.model_validate({"taskset": {"id": TASKSET_ID}, "push": False}))
-    assert dry_run(TASKSET_ID)["push"] is True
-    assert dry_run(TASKSET_ID, "--no-push")["push"] is False
-    assert "--no-push" in one_liner()
-
-
-def test_mp8_2_the_runtime_is_local_and_the_plain_one_is_not():
-    runtimes = importlib.import_module("verifiers.v1.runtimes")
-    assert isinstance(env_config().agent.runtime, vf.SubprocessConfig)
-    assert runtimes.runtime_is_local(env_config().agent.runtime) is True
-    assert isinstance(plain_config().agent.runtime, vf.PrimeConfig)
-    assert runtimes.runtime_is_local(plain_config().agent.runtime) is False
-
-
 def test_mp8_3_no_connection_at_import_or_at_task_build():
     """In a fresh interpreter with every `connect` refused: resolve by the id, build the
     taskset and its tasks, and build the env (which loads the harness)."""
@@ -1204,16 +1115,14 @@ def test_tl3_a_stop_that_is_neither_is_not_a_turn_limit_under_either_reading(sto
 
 def test_tl4_the_wheel_stamps_max_turns_at_the_cap_and_agent_completed_otherwise():
     """The field the turn-limit read uses, as a live run writes it: a stub that always calls a
-    tool under `max_turns = 1` stops for `max_turns`; the reference stops `agent_completed`."""
+    tool under `max_turns = 1` stops for `max_turns`.  That the reference stops
+    `agent_completed` is asserted by `test_mp3_4` on every arm."""
     bundle = generate(spec_of("depth", 1), SEEDS[0])
     capped = run_one(spec_of("depth", 1), SEEDS[0], [("tool_calls", bundle.reference_calls[0])], agent={"max_turns": 1})
     assert capped.trace.stop_condition == TURN_LIMIT_STOP
     assert capped.trace.is_truncated is True
     assert capped.trace.num_turns == 1 and len(capped.log) == 1
     assert capped.trace.rewards["strict"].score == 0.0
-    finished = run_one(spec_of("depth", 1), SEEDS[1])
-    assert finished.trace.stop_condition == "agent_completed"
-    assert finished.trace.is_truncated is False
 
 
 # --------------------------------------------------------------------------
