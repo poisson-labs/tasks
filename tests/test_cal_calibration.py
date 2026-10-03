@@ -220,7 +220,7 @@ RESAMPLES = 2000  # CAL9
 SATURATED_HIGH = 0.95  # CAL12
 SATURATED_LOW = 0.05  # CAL12
 MODEL_A = "gpt-5-nano-2025-08-07"  # model A
-MODEL_B = "Qwen/Qwen3.5-9B"  # class only; the exact revision is owed before the run
+MODEL_B = "Qwen/Qwen3-8B"  # model B; the fixtures give it a placeholder revision
 
 # Decided 2026-09-22: the run stops on whichever limit arrives first.  A token budget alone
 # cannot see an OpenAI balance or a Colab compute allowance.
@@ -1668,7 +1668,7 @@ def test_cal17_7_both_predicates_are_published_with_strict_as_the_headline() -> 
     assert cal().HEADLINE_PREDICATE == "strict"
     assert level_table.lower().index("strict") < level_table.lower().index("leaky")
     strict_rate, leaky_rate = artifact.cells[0]["pass_at_1"], artifact.cells[0]["leaky_at_1"]
-    assert strict_rate != pytest.approx(leaky_rate), "this fixture cannot test R15"
+    assert strict_rate != pytest.approx(leaky_rate), "this fixture cannot tell the two predicates apart"
 
     # **By column, not by substring.**  A substring check is not enough and that mutant proved it:
     # the leaky rate here is 1.000 and so is pass@5, so "1.000 is somewhere in the row" is
