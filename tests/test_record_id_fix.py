@@ -18,8 +18,10 @@ orthogonal read tool at all: `city` (`eval`) at 60 of 60 seeds, `grad` and `port
 **The fix.**  The table's coverage requirements, the entry-code draw's escape hatch and
 the measurement all say the same thing: it closes outright the day a vocabulary version
 draws its record-id word lists disjoint from every tool name.  `RI1` is that check -- a
-one-time check nobody will think to run unless it is written down -- and `RI2` to `RI4`
-are the comparison itself, at the contrast and the density first measured.
+one-time check nobody will think to run unless it is written down -- and `RI2`
+is the comparison itself, at every first word.  Vocabulary v2 draws the lists that way:
+`city` and `face` left `eval`, `disc`, `elect`, `grad` and `port` left `train`, and
+`circle`, `email`, `disable`, `east`, `gray` and `point` took their places.
 
 **Which of two counts this file is written against.**  The task layer's six design
 choices can be counted two ways, and the counts differ by one: one counts the entry-code
@@ -28,13 +30,11 @@ the draw under `_drawable_entry_codes` instead.  This file is written against **
 that count the entry-code draw**.  The entry-code draw is the same invariant one table field
 away -- *draw only from strings no tool name carries* -- and it is the rule this fix
 generalises from the 32 entry codes to the 512 record-id words, so it is the shape `RI1`
-stands beside and the docstring this fix has to rewrite.  The docstring's sixth, opaque
-slot values, is about G15's fingerprint and not about N7's overlap set, and nothing here
-reaches it.  Which count is the right one is not settled and is not settled here.
+stands beside.  The docstring's sixth, opaque slot values, is about G15's fingerprint
+and not about N7's overlap set, and nothing here reaches it.
 
-**Green before and after**: `RI5` alone.  It is a guard, not
-coverage -- it holds on the table as frozen and on the revised one -- and it is here so
-that the new coverage item cannot be met by breaking VT2's.
+The lists' own shape -- 256 words a side, disjoint, one token in every id position -- is
+VT2's, in the engine tests, and the round trip is G14's, in the task tests.
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ from poisson_tasks.knobs import ArmSpec
 from poisson_tasks.tasks import encode_record_id, generate_contrast
 
 # --------------------------------------------------------------------------
-# frozen literals
+# the literals these tests pin
 # --------------------------------------------------------------------------
 
 DATA = pathlib.Path(__file__).resolve().parent.parent / "src" / "poisson_tasks" / "data"
@@ -109,7 +109,7 @@ def refusals(split: str, seeds: tuple[int, ...]) -> list[int]:
 
 
 # ===========================================================================
-# RI1 · the coverage item any future vocabulary version owes
+# RI1 · the coverage item every vocabulary version must meet
 # ===========================================================================
 
 
@@ -131,7 +131,7 @@ def test_ri1_no_record_id_word_is_carried_by_a_tool_name(split):
 
 
 # ===========================================================================
-# RI2-RI4 · the comparison, at the contrast and the densities first measured
+# RI2 · the comparison, at every first word
 # ===========================================================================
 
 
