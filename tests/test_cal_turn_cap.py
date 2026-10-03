@@ -122,6 +122,37 @@ def test_model_b_cards_are_built_with_the_cap() -> None:
     assert run_module().CARD_MAX_MODEL_CALLS == taskset().MAX_MODEL_CALLS
 
 
+def test_the_card_the_driver_writes_records_the_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`finalize`, the driver's last step, on one arm's records as a run leaves them (read
+    here without a run): the artifact it writes carries the taskset's cap in its provenance,
+    and the card prints it."""
+    run = run_module()
+    served = run.QWEN3_8B.served_name
+
+    def arm_rows(_run_dir: Path, arm: str, _served: str) -> tuple[Any, ...]:
+        rows = [
+            cal.EpisodeRecord(task_id=f"t{seed}", arm_id=arm, model=served, seed=seed,
+                              attempt=attempt, strict=True, leaky=True, label="passed",
+                              turns=2, sampled_calls=1, prompt_tokens=10,
+                              cached_input_tokens=0, completion_tokens=5, reasoning_tokens=0)
+            for seed in range(cal.S) for attempt in range(cal.N)
+        ]
+        return rows, {}, {"episodes": len(rows), "max_prompt_tokens": 10, "context_stops": 0}
+
+    monkeypatch.setattr(run, "_arm_rows", arm_rows)
+    result = run.finalize(
+        tmp_path, tmp_path / "card",
+        serving={"stack_version": "0.29.0+cu129", "gpu": "NVIDIA L4", "date": "2026-09-28"},
+        arms=["depth:d1"], wall_clock_hours=1.0, served=served,
+    )
+    assert result["cal24"] == "published", result
+    stored = json.loads((tmp_path / "card" / "artifact.json").read_text())
+    assert stored["provenance"]["max_model_calls"] == taskset().MAX_MODEL_CALLS == CAP
+    assert f"{CAP} model calls" in (tmp_path / "card" / "card.md").read_text()
+
+
 # ---------------------------------------------------------------------------
 # a model that never stops, end to end
 # ---------------------------------------------------------------------------
