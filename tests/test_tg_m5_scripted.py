@@ -1875,12 +1875,20 @@ def test_n18_1_a_revision_that_is_not_forty_hex_characters_is_refused(name, posi
 
 
 @pytest.mark.parametrize(
-    "value",
-    ["Qwen/Qwen3.5-9B", f"@{GOOD_REVISION}", f"a@b@{GOOD_REVISION}", 123],
+    "value, needle",
+    [
+        ("Qwen/Qwen3.5-9B", "model"),
+        (f"@{GOOD_REVISION}", "model"),
+        (f"Qwen/X@{GOOD_REVISION}@{GOOD_REVISION}", "exactly one"),
+        (123, "model"),
+    ],
     ids=["no_at", "empty_id", "two_ats", "not_a_string"],
 )
-def test_n18_2_a_model_that_is_not_an_id_at_a_revision_is_refused(value):
-    refused(with_models(model(model=value)), "model")
+def test_n18_2_a_model_that_is_not_an_id_at_a_revision_is_refused(value, needle):
+    """`two_ats` carries a valid revision after its first `@`, so only the one-`@` clause can
+    refuse it, and its needle is that clause's own words: with a non-hex text after the first
+    `@`, the revision clause would refuse it too, in a message that also says "model"."""
+    refused(with_models(model(model=value)), needle)
 
 
 def test_n18_3_models_on_different_vllm_versions_are_refused():
