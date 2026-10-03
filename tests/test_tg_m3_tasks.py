@@ -633,7 +633,11 @@ def test_sf7_the_two_signatures_are_the_specs():
 def test_sf8_generation_imports_no_network_no_model_and_no_verifiers():
     """G2's static half, and the rule that generation makes no model or network call.
     An `ast` walk over every import in the module: no `verifiers`, no network library,
-    no `proofload`, and nothing that could make generation non-deterministic."""
+    no `proofload`, and nothing that could make generation non-deterministic.
+
+    The walk sees static imports only, so `proofload` is also banned as a word anywhere
+    in the source: an `importlib.import_module("proofload")` is a string the walk never
+    reads."""
     source = pathlib.Path(inspect.getfile(tasks())).read_text()
     banned = {
         "verifiers", "requests", "urllib", "socket", "aiohttp", "http", "proofload",
@@ -646,6 +650,7 @@ def test_sf8_generation_imports_no_network_no_model_and_no_verifiers():
         elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
             seen.add(node.module.split(".")[0])
     assert seen & banned == set(), sorted(seen & banned)
+    assert "proofload" not in source.lower()
     assert {"poisson_tasks"} & seen or any(
         n.startswith("poisson_tasks") for n in seen
     ), "TG-M3 reaches TG-M1 and TG-M2 by import, and mints neither's literals"
@@ -2044,22 +2049,6 @@ def test_k22_1_n8s_width_is_a_byte_length_and_not_a_character_count():
     rows = dict(report.violations)
     assert "N8" in rows, report.violations
     assert f"observation widths ({L_OBS + 1}," in rows["N8"], rows["N8"]
-
-
-# --------------------------------------------------------------------------
-# the two gaps owed to the Proofload adapter's tests, which this module does not close
-# --------------------------------------------------------------------------
-
-
-def test_n17_2_tg_m3_asserts_no_horizon_and_does_not_reach_proofload():
-    """N17's scripted `diff` is the other inherited gap, and it lands with A5 in the
-    Proofload adapter.  `tasks.py` carries no `horizon` and no `max_turns` - both ride the
-    arm and the cfg (N16) - so there is nothing here that could be mistaken for the
-    arithmetic `knobs.py` froze, let alone for the `diff`."""
-    fields = {f.name for f in dataclasses.fields(tasks().TaskBundle)}
-    assert "horizon" not in fields and "max_turns" not in fields
-    source = pathlib.Path(inspect.getfile(tasks())).read_text()
-    assert "proofload" not in source.lower()
 
 
 # --------------------------------------------------------------------------
