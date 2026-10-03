@@ -279,6 +279,10 @@ class EpisodeRecord:
     `sampled_calls` is the number of **tool calls** the model made (the export's metric of
     that name) and `turns` is the number of **model calls** (`trace.num_turns`).  The names
     are the tests' and stay; the artifact publishes them as `tool_calls` and `model_calls`.
+
+    The five fields after `cost` are the episode's time and its first request's size, read
+    from the trace (`records_from_run`); each is `None` when it was not recorded.  Declared
+    here and not yet built: `tests/test_k0_record.py` says what each one holds.
     """
 
     task_id: str
@@ -296,6 +300,11 @@ class EpisodeRecord:
     completion_tokens: int
     reasoning_tokens: int
     cost: float | None = None
+    episode_seconds: float | None = None
+    model_seconds: float | None = None
+    harness_seconds: float | None = None
+    setup_seconds: float | None = None
+    first_request_prompt_tokens: int | None = None
 
     def __post_init__(self) -> None:
         if self.label not in OUTCOME_LABELS:
@@ -672,6 +681,9 @@ class Provenance:
     max_model_calls: int | None = None
     """The run's turn limit, when it had one.  Model A's run had none; a run through the
     taskset's own config has `poisson_tasks.taskset.MAX_MODEL_CALLS`."""
+    concurrency: int | None = None
+    """How many episodes ran at once.  Declared here and not yet built:
+    `tests/test_k0_card.py` says what the card does with it."""
 
     def __post_init__(self) -> None:
         for name in ("package_version", "engine_hash", "generator_hash", "vocabulary_hash",
@@ -743,6 +755,9 @@ class Provenance:
         if out.get("max_model_calls") is None:
             # A run with no turn limit serialises exactly as it did before the field existed.
             out.pop("max_model_calls", None)
+        if out.get("concurrency") is None:
+            # Nor does a run that recorded no concurrency.
+            out.pop("concurrency", None)
         return out
 
     def rates_for(self, model: str) -> _Mapping[str, _Any] | None:
@@ -769,9 +784,10 @@ class Provenance:
         instrument_threshold: float = INSTRUMENT_THRESHOLD,
         no_call_threshold: float = NO_CALL_THRESHOLD,
         max_model_calls: int | None = None,
+        concurrency: int | None = None,
     ) -> Provenance:
         """The block for a real run, with every hash and version read from the package and
-        the wheel rather than typed."""
+        the wheel rather than typed.  `concurrency` is declared and not yet carried."""
         seeds = seed_list()
         spec = _EngineSpec.load()
         bundle = _generate(arm_specs()[0], seeds[0])
