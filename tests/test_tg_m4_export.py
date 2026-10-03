@@ -160,9 +160,10 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 from mcp.server.fastmcp import FastMCP
 
-from poisson_tasks.engine import apply, init_state, replay
+from poisson_tasks.engine import replay
 from poisson_tasks.knobs import ArmSpec, arm_id, levels
-from poisson_tasks.tasks import FormatSpec, TaskBundle, Turn, generate, scenario_for, verify
+from poisson_tasks.tasks import FormatSpec, TaskBundle, generate, scenario_for, verify
+from tests.helpers import live_observations, seeded_nodes, turns_of
 
 REPO = Path(__file__).resolve().parents[1]
 THIS_FILE = Path(__file__).resolve()
@@ -296,13 +297,6 @@ def canonical_hash(bundle: TaskBundle) -> str:
 NO_MARKERS = FormatSpec(name="test", markers=())
 
 
-def turns_of(calls: Iterable[tuple[str, Any]], reply: bool) -> tuple[Turn, ...]:
-    turns = [Turn(content="", calls=(call,), finish_reason="tool_calls") for call in calls]
-    if reply:
-        turns.append(Turn(content="Done.", calls=(), finish_reason="stop"))
-    return tuple(turns)
-
-
 def expected_verdict(bundle: TaskBundle, calls: Iterable[tuple[str, Any]], reply: bool) -> Any:
     """The task layer's own verdict, on turns built straight from the calls (decision 7)."""
     return verify(
@@ -313,40 +307,6 @@ def expected_verdict(bundle: TaskBundle, calls: Iterable[tuple[str, Any]], reply
 
 def block_names(bundle: TaskBundle) -> set[str]:
     return {str(tool["name"]) for tool in bundle.tools}
-
-
-def live_observations(bundle: TaskBundle, calls: Iterable[tuple[str, Any]]) -> list[str]:
-    """What each call's tool message holds under the `null` harness at 0.3.1 (decision 6).
-
-    The two `error:` strings are the harness's own, from `harnesses/null/program.py`.  A
-    call the harness refuses never reaches the server, so the engine's counter stays put.
-    """
-    state = init_state(scenario_for(bundle.seed, bundle.split), bundle.seq_start)
-    names = block_names(bundle)
-    out: list[str] = []
-    for name, args in calls:
-        if not isinstance(args, dict):
-            out.append(
-                "error: tool arguments must be a JSON object, got "
-                f"{type(json.loads(json.dumps(args))).__name__}; resend as an object"
-            )
-        elif name not in names:
-            out.append(f"error: unknown tool {name!r}")
-        else:
-            state, observation = apply(state, (name, args))
-            out.append(observation)
-    return out
-
-
-def seeded_nodes(task: Any) -> list[Any]:
-    """The prompt as the trace holds it: every message prompt-supplied, `sampled=False`."""
-    prompt = task.data.prompt
-    if isinstance(prompt, str):
-        return [vf.MessageNode(parent=None, message=vf.UserMessage(content=prompt), sampled=False)]
-    nodes = []
-    for index, message in enumerate(prompt):
-        nodes.append(vf.MessageNode(parent=index - 1 if index else None, message=message, sampled=False))
-    return nodes
 
 
 def trace_of(

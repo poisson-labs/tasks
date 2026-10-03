@@ -16,22 +16,14 @@ from __future__ import annotations
 
 import ast
 import json
-import re
 from pathlib import Path
 
 import pytest
 
 from poisson_tasks import calibration as cal
+from tests.helpers import INTERNAL, rebuild_committed_card
 
 REPO = Path(__file__).resolve().parent.parent
-
-# Identifiers of internal decisions and test groups, spec section numbers, and the names of
-# private places and people.  Whole words only, so a model name or a version number does not
-# trip it.
-INTERNAL = re.compile(
-    r"\b(?:R(?:[1-9]|1[0-7])|CAL\d+|MP\d+|[XNGAE]\d+)\b"
-    r"|\b2\.\d defines\b|§|\bTG-(?:ADR|M)\d*|\b[Vv]ault\b|\bTaylor\b|\bruling\b|\bhandoff\b"
-)
 
 MODULES = ["calibration.py", "calibration_run.py", "export.py", "taskset.py", "__init__.py"]
 
@@ -65,15 +57,7 @@ def test_the_notebook_says_nothing_a_reader_cannot_look_up() -> None:
 
 @pytest.mark.parametrize("folder", ["gpt-5-nano-2025-08-07", "qwen3-8b-b968826d"])
 def test_each_committed_card_renders_in_plain_words(folder: str) -> None:
-    root = REPO / "calibration" / folder
-    stored = json.loads((root / "artifact.json").read_text())
-    cells: dict[tuple[str, str], list[cal.EpisodeRecord]] = {}
-    for record in cal.read_records(root / "episodes.jsonl"):
-        cells.setdefault((record.arm_id, record.model), []).append(record)
-    tallies_path = root / "tallies.json"
-    tallies = json.loads(tallies_path.read_text()) if tallies_path.exists() else {}
-    artifact = cal.build_artifact(cells, cal.Provenance(**stored["provenance"]),
-                                  tally={key: tallies.get(key[0], {}) for key in cells})
+    artifact, _ = rebuild_committed_card(REPO / "calibration" / folder)
     document = cal.render_document(artifact)
     hits = [line for line in document.splitlines() if INTERNAL.search(line)]
     assert not hits, hits

@@ -32,6 +32,7 @@ import pytest
 
 from poisson_tasks import calibration as cal
 from poisson_tasks.knobs import levels
+from tests.helpers import rebuild_committed_card
 
 REPO = Path(__file__).resolve().parent.parent
 N = 5
@@ -162,15 +163,8 @@ def test_one_model_twice_is_refused() -> None:
 
 
 def _committed(folder: str) -> cal.Artifact:
-    root = REPO / "calibration" / folder
-    stored = json.loads((root / "artifact.json").read_text())
-    cells: dict[tuple[str, str], list[cal.EpisodeRecord]] = {}
-    for record in cal.read_records(root / "episodes.jsonl"):
-        cells.setdefault((record.arm_id, record.model), []).append(record)
-    tallies_path = root / "tallies.json"
-    tallies = json.loads(tallies_path.read_text()) if tallies_path.exists() else {}
-    return cal.build_artifact(cells, cal.Provenance(**stored["provenance"]),
-                              tally={key: tallies.get(key[0], {}) for key in cells})
+    artifact, _ = rebuild_committed_card(REPO / "calibration" / folder)
+    return artifact
 
 
 def test_docs_calibration_md_is_the_rendering_of_the_committed_cards() -> None:

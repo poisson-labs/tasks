@@ -34,6 +34,8 @@ from typing import Any
 
 import pytest
 
+from tests.helpers import run_module
+
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 SRC = REPO / "src"
@@ -41,12 +43,6 @@ TEMPLATE_FIXTURE = HERE / "fixtures" / "qwen3-8b-chat-template.json"
 FAILURE_LOG = HERE / "fixtures" / "vllm-serve-ninja-failure.log"
 NINJA = "FileNotFoundError: [Errno 2] No such file or directory: 'ninja'"
 SETTING = "VLLM_USE_FLASHINFER_SAMPLER"
-
-
-def run_module() -> Any:
-    import importlib
-
-    return importlib.import_module("poisson_tasks.calibration_run")
 
 
 def _driver(*args: str) -> list[str]:

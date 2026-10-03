@@ -29,15 +29,12 @@ No test in this file calls a model, loads a key or leaves loopback.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import dataclasses
 import hashlib
 import json
 import os
 import shutil
-import threading
-from collections.abc import Iterator, Sequence
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from collections.abc import Sequence
 from typing import Any
 
 import pytest
@@ -45,6 +42,7 @@ import pytest
 from poisson_tasks import calibration as cal
 from poisson_tasks.knobs import ArmSpec, arm_id, levels
 from poisson_tasks.tasks import generate
+from tests.helpers import recording_endpoint
 
 MODEL_A = cal.MODEL_A
 S = 60
@@ -175,43 +173,6 @@ def test_fix1_2_the_slots_carry_the_bare_values_and_the_template_id_is_unchanged
     assert bundle.template_id == "ledger-chain/v1"
     assert any(slots["entry_code"] in str(call) for call in bundle.reference_calls[:1]), (
         slots, bundle.reference_calls[:1])
-
-
-@contextlib.contextmanager
-def recording_endpoint() -> Iterator[tuple[str, list[dict[str, Any]]]]:
-    """An OpenAI-compatible chat endpoint on loopback that ends every episode on its first
-    turn and keeps each request body whole."""
-    bodies: list[dict[str, Any]] = []
-
-    class Stub(BaseHTTPRequestHandler):
-        def log_message(self, *args: Any) -> None:
-            pass
-
-        def do_POST(self) -> None:
-            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            bodies.append(body)
-            out = {
-                "id": "chatcmpl-stub", "object": "chat.completion", "created": 0,
-                "model": body.get("model"),
-                "choices": [{"index": 0, "finish_reason": "stop",
-                             "message": {"role": "assistant", "content": "Done."}}],
-                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
-            }
-            data = json.dumps(out).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
-
-    server = HTTPServer(("127.0.0.1", 0), Stub)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield f"http://127.0.0.1:{server.server_port}/v1", bodies
-    finally:
-        server.shutdown()
-        server.server_close()
 
 
 @pytest.mark.skipif(

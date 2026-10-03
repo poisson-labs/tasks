@@ -29,7 +29,7 @@ from poisson_tasks import calibration as cal
 from poisson_tasks.knobs import pin_ledger
 from poisson_tasks.tasks import generate
 
-from tests.test_cal_plain_words import INTERNAL
+from tests.helpers import INTERNAL
 
 REPO = Path(__file__).resolve().parent.parent
 ROW_ID = re.compile(r"N(?:[1-9]|1[0-3])")

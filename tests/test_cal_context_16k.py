@@ -37,15 +37,10 @@ from typing import Any
 import pytest
 
 from poisson_tasks import calibration as cal
+from tests.helpers import run_module
 
 MODEL = "Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218"
 HISTORY_CONTROLS = ("depth:d1+h8", "depth:d2+h5")
-
-
-def run_module() -> Any:
-    import importlib
-
-    return importlib.import_module("poisson_tasks.calibration_run")
 
 
 def _record(arm: str, seed: int, *, leaky: bool, label: str | None = None) -> cal.EpisodeRecord:

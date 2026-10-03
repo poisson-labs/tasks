@@ -122,9 +122,9 @@ from typing import Any
 import pytest
 import verifiers.v1 as vf
 
-from poisson_tasks.engine import apply, init_state
 from poisson_tasks.knobs import ArmSpec, arm_id, levels
-from poisson_tasks.tasks import FormatSpec, TaskBundle, Turn, generate, scenario_for, verify
+from poisson_tasks.tasks import FormatSpec, TaskBundle, generate, verify
+from tests.helpers import live_observations, seeded_nodes, turns_of
 
 REPO = Path(__file__).resolve().parents[1]
 THIS_FILE = Path(__file__).resolve()
@@ -506,39 +506,6 @@ def same_message(wire: dict[str, Any], expected: dict[str, Any]) -> bool:
 # --------------------------------------------------------------------------
 
 NO_MARKERS = FormatSpec(name="test", markers=())
-
-
-def turns_of(calls: Iterable[tuple[str, Any]], reply: bool) -> tuple[Turn, ...]:
-    turns = [Turn(content="", calls=(call,), finish_reason="tool_calls") for call in calls]
-    if reply:
-        turns.append(Turn(content="Done.", calls=(), finish_reason="stop"))
-    return tuple(turns)
-
-
-def live_observations(bundle: TaskBundle, calls: Iterable[tuple[str, Any]]) -> list[str]:
-    state = init_state(scenario_for(bundle.seed, bundle.split), bundle.seq_start)
-    names = {str(tool["name"]) for tool in bundle.tools}
-    out: list[str] = []
-    for name, args in calls:
-        if not isinstance(args, dict):
-            out.append("error: tool arguments must be a JSON object, got "
-                       f"{type(json.loads(json.dumps(args))).__name__}; resend as an object")
-        elif name not in names:
-            out.append(f"error: unknown tool {name!r}")
-        else:
-            state, observation = apply(state, (name, args))
-            out.append(observation)
-    return out
-
-
-def seeded_nodes(task: Any) -> list[Any]:
-    prompt = task.data.prompt
-    if isinstance(prompt, str):
-        return [vf.MessageNode(parent=None, message=vf.UserMessage(content=prompt), sampled=False)]
-    return [
-        vf.MessageNode(parent=index - 1 if index else None, message=message, sampled=False)
-        for index, message in enumerate(prompt)
-    ]
 
 
 def trace_of(task: Any, bundle: TaskBundle, calls: Iterable[tuple[str, Any]], *,

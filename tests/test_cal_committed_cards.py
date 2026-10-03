@@ -22,6 +22,7 @@ import pytest
 
 from poisson_tasks import calibration as cal
 from poisson_tasks.taskset import MAX_MODEL_CALLS
+from tests.helpers import rebuild_committed_card
 
 CARDS = Path(__file__).resolve().parent.parent / "calibration"
 MODEL_A = CARDS / "gpt-5-nano-2025-08-07"
@@ -36,15 +37,7 @@ def _provenance(folder: Path) -> dict[str, object]:
 @pytest.mark.parametrize("folder", [MODEL_A, MODEL_B], ids=["model_a", "model_b"])
 def test_the_committed_card_recomputes_byte_for_byte(folder: Path) -> None:
     committed = (folder / "artifact.json").read_bytes()
-    provenance = cal.Provenance(**json.loads(committed)["provenance"])
-    cells: dict[tuple[str, str], list[cal.EpisodeRecord]] = {}
-    for record in cal.read_records(folder / "episodes.jsonl"):
-        cells.setdefault((record.arm_id, record.model), []).append(record)
-    tallies_path = folder / "tallies.json"
-    tallies = json.loads(tallies_path.read_text()) if tallies_path.exists() else {}
-    artifact = cal.build_artifact(
-        cells, provenance, tally={key: tallies.get(key[0], {}) for key in cells}
-    )
+    artifact, cells = rebuild_committed_card(folder)
     with tempfile.TemporaryDirectory() as scratch:
         rebuilt = cal.write_artifact(artifact, Path(scratch) / "artifact.json").read_bytes()
     assert rebuilt == committed

@@ -31,7 +31,7 @@ from typing import Any
 import pytest
 
 from poisson_tasks import calibration as cal
-from tests.test_cal_qwen_prep import needs_uv
+from tests.helpers import needs_uv, run_module
 
 CAP = 32
 
@@ -40,12 +40,6 @@ def taskset() -> Any:
     import importlib
 
     return importlib.import_module("poisson_tasks.taskset")
-
-
-def run_module() -> Any:
-    import importlib
-
-    return importlib.import_module("poisson_tasks.calibration_run")
 
 
 # ---------------------------------------------------------------------------

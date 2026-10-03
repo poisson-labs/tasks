@@ -17,63 +17,19 @@ is loaded and nothing leaves the machine.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import dataclasses
-import json
 import os
 import shutil
-import threading
-from collections.abc import Iterator
-from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 
 import pytest
 
 from poisson_tasks import calibration as cal
 from poisson_tasks.knobs import ArmSpec
+from tests.helpers import recording_endpoint
 
 KEY_VAR = "POISSON_TASKS_CAL_WIRE_TEST_KEY"
 MODEL_B = "Qwen/Qwen3-8B"
-
-
-@contextlib.contextmanager
-def recording_endpoint() -> Iterator[tuple[str, list[dict[str, Any]]]]:
-    """An OpenAI-compatible chat endpoint on loopback that ends every episode on its first
-    turn and keeps each request body whole."""
-    bodies: list[dict[str, Any]] = []
-
-    class Stub(BaseHTTPRequestHandler):
-        def log_message(self, *args: Any) -> None:
-            pass
-
-        def do_POST(self) -> None:
-            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            bodies.append(body)
-            out = {
-                "id": "chatcmpl-stub", "object": "chat.completion", "created": 0,
-                "model": body.get("model"),
-                "choices": [{
-                    "index": 0,
-                    "message": {"role": "assistant", "content": "Done."},
-                    "finish_reason": "stop",
-                }],
-                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
-            }
-            data = json.dumps(out).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
-
-    server = HTTPServer(("127.0.0.1", 0), Stub)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield f"http://127.0.0.1:{server.server_port}/v1", bodies
-    finally:
-        server.shutdown()
-        server.server_close()
 
 
 def one_episode_body(model: str) -> dict[str, Any]:

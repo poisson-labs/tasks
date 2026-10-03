@@ -44,6 +44,7 @@ from typing import Any
 import pytest
 
 from poisson_tasks import calibration as cal
+from tests.helpers import HELPER_MARK, Rig, needs_uv, run_module
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
@@ -64,20 +65,10 @@ NAMES = (
 )
 
 
-def run_module() -> Any:
-    import importlib
-
-    return importlib.import_module("poisson_tasks.calibration_run")
-
-
 def stock_template() -> str:
     data = json.loads(FIXTURE.read_text(encoding="utf-8"))
     template: str = data["chat_template"]
     return template
-
-
-def have_uv() -> bool:
-    return shutil.which("uv") is not None
 
 
 # ---------------------------------------------------------------------------
@@ -524,134 +515,9 @@ def test_the_probe_stops_for_what_would_spoil_the_card(case: str) -> None:
 # end to end against the fake server, launched through the driver's own `serve`
 # ---------------------------------------------------------------------------
 
-REDUCED = textwrap.dedent("""
-    import sys
-    from poisson_tasks import calibration as cal
-    from poisson_tasks import calibration_run as run
-
-    # The reduced design: the notebook's commands and code path, on fewer tasks.
-    run.PHASE1_DESIGN = run.Design(seeds=(404, 55), n=2, k_values=(1, 2))
-    run.PROBE_DESIGN = run.Design(seeds=(404, 55), n=2, k_values=(1, 2))
-    run.CARD_DESIGN = run.Design(seeds=(404, 55, 2121), n=2, k_values=(1, 2))
-    run.CARD_ARMS = ("depth:d1", "distractor:r0@k16")
-    sys.exit(run.main(sys.argv[1:]))
-""")
-
-
-class Rig:
-    """The notebook's filesystem and processes, on a laptop: a local disk, a durable folder,
-    a fake `vllm` and a fake `nvidia-smi` on PATH, and the driver run as a subprocess."""
-
-    def __init__(self, tmp: Path, mode: str = "reference", delay: float = 0.0) -> None:
-        self.tmp = tmp
-        self.local = tmp / "local"
-        self.durable = tmp / "durable"
-        self.bin = tmp / "bin"
-        self.bin.mkdir()
-        vllm = self.bin / "vllm"
-        vllm.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{FAKE}" "$@"\n')
-        vllm.chmod(0o755)
-        smi = self.bin / "nvidia-smi"
-        smi.write_text("#!/bin/sh\necho 'NVIDIA L4, 580.82.07'\n")
-        smi.chmod(0o755)
-        self.driver = tmp / "driver.py"
-        self.driver.write_text(REDUCED)
-        self.port = _free_port()
-        self.env = {
-            **os.environ,
-            "PATH": f"{self.bin}{os.pathsep}{os.environ['PATH']}",
-            "FAKE_MODE": mode, "FAKE_DELAY": str(delay), "FAKE_SEEDS": "404,55,2121",
-            "PYTHONPATH": str(REPO / "src"),
-        }
-        self.env.pop("FAKE_VERSION", None)
-        self.started: list[subprocess.Popen[bytes]] = []
-        self.server_pids: list[int] = []
-
-    def argv(self, command: str, *extra: str) -> list[str]:
-        if command == "verify":  # the laptop's step, after the download: no runtime folders
-            return [sys.executable, str(self.driver), command, *extra]
-        common = ["--local", str(self.local), "--durable", str(self.durable),
-                  "--port", str(self.port), "--mirror-interval", "0.2"]
-        return [sys.executable, str(self.driver), command, *common, *extra]
-
-    def run(self, command: str, *extra: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-        done = subprocess.run(self.argv(command, *extra), env=self.env, capture_output=True,
-                              text=True, timeout=600)
-        if check and done.returncode != 0:
-            raise AssertionError(f"{command} exited {done.returncode}\n{done.stdout}\n{done.stderr}")
-        return done
-
-    def start(self, command: str, *extra: str) -> subprocess.Popen[bytes]:
-        proc = subprocess.Popen(self.argv(command, *extra), env=self.env,
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.started.append(proc)
-        return proc
-
-    def serve(self) -> None:
-        self.run("serve", "--vllm", str(self.bin / "vllm"), "--tokenizer-config",
-                 str(self.tmp / "tokenizer_config.json"), "--timeout", "60")
-        self.server_pids.append(int((self.local / "vllm.pid").read_text()))
-
-    def stop_server(self) -> None:
-        self.run("stop-server", check=False)
-
-    def close(self) -> None:
-        """Stop every process this rig started, by the PIDs it recorded."""
-        for proc in self.started:
-            if proc.poll() is None:
-                proc.kill()
-                proc.wait(timeout=30)
-        self.stop_server()
-        for pid in self.server_pids:
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except ProcessLookupError:
-                continue
-
-    def durable_ids(self, phase: str) -> set[str]:
-        ids: set[str] = set()
-        for path in (self.durable / phase).glob("*/traces.jsonl"):
-            for line in path.read_bytes().splitlines():
-                if line.strip():
-                    ids.add(json.loads(line)["id"])
-        return ids
-
-
-def _free_port() -> int:
-    import socket
-
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        port: int = sock.getsockname()[1]
-        return port
-
-
-@pytest.fixture
-def rig(tmp_path: Path) -> Iterator[Any]:
-    data = json.loads(FIXTURE.read_text(encoding="utf-8"))
-    (tmp_path / "tokenizer_config.json").write_text(
-        json.dumps({"chat_template": data["chat_template"]}), encoding="utf-8"
-    )
-    made: list[Rig] = []
-
-    def factory(mode: str = "reference", delay: float = 0.0) -> Rig:
-        sub = tmp_path / f"rig{len(made)}"
-        sub.mkdir()
-        shutil.copy(tmp_path / "tokenizer_config.json", sub / "tokenizer_config.json")
-        made.append(Rig(sub, mode=mode, delay=delay))
-        return made[-1]
-
-    yield factory
-    for each in made:
-        each.close()
-
-
 def _records_by_task(path: Path) -> Counter[tuple[str, str]]:
     rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
     return Counter((row["arm_id"], row["task_id"]) for row in rows)
-
-
-needs_uv = pytest.mark.skipif(not have_uv(), reason="the `null` harness launches its program through uv")
 
 
 @needs_uv
@@ -856,9 +722,6 @@ def _notebook_commands() -> list[str]:
     for source in _notebook_cells():
         commands += re.findall(r'\bstep\(\s*"([a-z0-9-]+)"', source)
     return commands
-
-
-HELPER_MARK = "# the driver helper"
 
 
 def _helper_source() -> str:
