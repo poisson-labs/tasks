@@ -856,11 +856,28 @@ def test_ts6_every_advertised_tool_is_the_engines_tool_of_that_name(spec):
     assert call_live(mcp, calls) == expected
 
 
-def test_ts3_concurrent_calls_are_numbered_without_a_gap_or_a_repeat():
-    """"Tool bodies call `apply` under an in-process lock" (E5: no gap and no repeat)."""
+def test_ts3_concurrent_calls_are_numbered_without_a_gap_or_a_repeat(monkeypatch):
+    """"Tool bodies call `apply` under an in-process lock" (E5: no gap and no repeat).
+
+    Numbering alone cannot show the lock: as built, nothing in a body awaits between
+    reading the engine state and writing it back, so 24 calls gathered on one loop never
+    interleave there, with the lock or without it.  `apply` is synchronous and cannot be
+    made to yield from outside, so the engine step the module calls is wrapped instead,
+    and each call records whether an `asyncio.Lock` the toolset owns is held while it
+    runs.  A body that calls `apply` outside the lock fails here; one that holds it keeps
+    the numbering right even if an `await` is added inside."""
     bundle = generate(spec_of("depth", 3), 404)
-    _toolset, mcp = started_toolset(task_of(bundle))
+    toolset, mcp = started_toolset(task_of(bundle))
     name, args = bundle.reference_calls[0]
+    locks = [value for value in vars(toolset).values() if isinstance(value, asyncio.Lock)]
+    held: list[bool] = []
+    engine_apply = export()._apply
+
+    def watched(state: Any, call: Any) -> Any:
+        held.append(any(lock.locked() for lock in locks))
+        return engine_apply(state, call)
+
+    monkeypatch.setattr(export(), "_apply", watched)
 
     async def go() -> list[str]:
         results = await asyncio.gather(*(mcp.call_tool(name, args) for _ in range(24)))
@@ -868,6 +885,7 @@ def test_ts3_concurrent_calls_are_numbered_without_a_gap_or_a_repeat():
 
     seqs = sorted(seq_of(observation) for observation in run(go()))
     assert seqs == list(range(bundle.seq_start, bundle.seq_start + 24))
+    assert held == [True] * 24, held
 
 
 def test_ts4_each_rollout_gets_its_own_engine_state():
@@ -1203,7 +1221,8 @@ def export_doc() -> str:
 
 
 def test_x9_2_the_docs_name_the_measured_harness():
-    assert "`null`" in export_doc()
+    """The sentence that names it, not any backticked `null` in the document."""
+    assert "The measured harness is `null`." in " ".join(export_doc().split())
 
 
 def test_x9_3_the_docs_say_another_harness_is_outside_the_pin_ledger():
