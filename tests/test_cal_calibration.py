@@ -734,6 +734,22 @@ def test_cal9_4_resampling_tasks_is_strictly_wider_than_resampling_attempts() ->
     assert width(clustered) > 1.25 * width(by_attempt), (clustered, by_attempt)
 
 
+def test_cal9_7_each_bound_is_a_value_some_resample_produced() -> None:
+    """The quantile rule: a bound is the smallest resampled value whose cumulative share
+    reaches the quantile, so it is always a value some resample produced and never a point
+    between two of them.  At 2,000 resamples neighbouring order statistics coincide and
+    CAL9_1 cannot see the difference; at five they rarely do.
+
+    On a cell where every task is all-pass or all-fail, every resample's pass@1 is a multiple
+    of 1/S, so every bound must be one too.  An interpolated quantile lands between."""
+    counts = (0, 0, N, N, N)
+    scored = cal().scored(cell_from(counts))
+    for seed in range(40):
+        bounds = cal().cluster_bootstrap(scored, cal().pass_at_1, resamples=5, seed=seed)
+        for bound in bounds:
+            assert bound * len(counts) == pytest.approx(round(bound * len(counts))), (seed, bounds)
+
+
 # ---------------------------------------------------------------------------
 # CAL10 - the paired difference.  Mutant M3 lives here
 # ---------------------------------------------------------------------------
@@ -1367,6 +1383,22 @@ def test_cal20_1c_a_run_inside_every_limit_continues() -> None:
     )
     assert verdict.ok is True
     assert verdict.reason is None
+
+
+def test_cal20_1e_a_limit_stops_the_run_when_it_is_reached() -> None:
+    """A limit is reached at its own value, not only past it: a run that has spent exactly
+    its token budget has nothing left for the next episode, and a wall clock at exactly its
+    budget is out of time.  One token or half a second under, the run continues."""
+    limits = budget()
+    cases = (
+        ({"tokens": limits["tokens"], "elapsed_seconds": 0}, (False, "tokens")),
+        ({"tokens": limits["tokens"] - 1, "elapsed_seconds": 0}, (True, None)),
+        ({"tokens": 0, "elapsed_seconds": limits["wall_clock_seconds"]}, (False, "wall_clock")),
+        ({"tokens": 0, "elapsed_seconds": limits["wall_clock_seconds"] - 0.5}, (True, None)),
+    )
+    for spent, expected in cases:
+        verdict = cal().within_budget(provider_exhausted=False, budget=limits, **spent)
+        assert (verdict.ok, verdict.reason) == expected, (spent, verdict)
 
 
 def test_cal20_3_a_short_cell_is_marked_incomplete_and_never_a_smaller_S() -> None:
@@ -2117,6 +2149,17 @@ def test_cal16_8_a_wall_timeout_is_a_tooling_failure() -> None:
     )
     assert label == "wall_timeout", label
     assert label in INSTRUMENT_LABELS
+
+
+def test_cal16_8b_a_wall_timeout_stop_needs_no_deadline_message() -> None:
+    """The stop condition alone is enough: an episode whose trace stopped at `wall_timeout`
+    is `wall_timeout` whatever its error messages say, or with none at all.  Read only from
+    the messages, a deadline that left no message, or a different one, would be `api_error`."""
+    for has_error, errors in ((False, ()), (True, ()), (True, ("connection reset by peer",))):
+        label = cal().label_from_signals(
+            signals(ok=False, has_error=has_error, errors=errors, stop_condition="wall_timeout")
+        )
+        assert label == "wall_timeout", (has_error, errors, label)
 
 
 def test_cal16_9_a_clean_episode_carries_no_instrument_label() -> None:
