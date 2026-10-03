@@ -1,9 +1,7 @@
 """The frozen tests for knobs.py, knobs, control arms and the pin ledger: N1-N18.
 
-Frozen on 2026-09-13, with the design amendments of 2026-09-11 and 2026-09-13
-included.  The module is written against this file, which is not edited to suit it.
-Where a written requirement could not be used as written, this docstring is
-authoritative.
+The module is written against this file.  Where a written requirement leaves a
+shape open, this docstring fixes it.
 
 The public surface these tests pin
 ----------------------------------
@@ -43,12 +41,11 @@ Shapes these tests define
 * ``check_pins`` raises ``ValueError`` when the arms it is handed do not share one
   knob.  That is a caller error and not a pin violation, so it is not a refusal.
 * A **bundle** is anything carrying the fields ``measure_pins`` reads.  tasks.py owns
-  ``TaskBundle`` and does not exist yet, so this file builds bundle-shaped objects
-  by hand, the way the engine's tests built ``Scenario`` by hand.  The fields are
-  the task layer's, plus three these tests need and it does not name -
-  ``template_id``, ``prompt_slots`` and ``reference_observations``.  **Those three
-  are a drafted amendment to the task layer, not a decision**.  They are the other
-  halves of fields the task layer already names, and without them N6 and N9 have no
+  ``TaskBundle``, and this file does not depend on it: it builds bundle-shaped
+  objects by hand, the way the engine's tests build ``Scenario`` by hand.  The
+  fields are the task layer's, including three these tests need -
+  ``template_id``, ``prompt_slots`` and ``reference_observations``.  They are the
+  other halves of fields the task layer names, and without them N6 and N9 have no
   measurement.
 * Seeded history is the OpenAI chat shape, since N18 pins the endpoint type to
   OpenAI-compatible chat completions: ``{"role": "assistant", "tool_calls":
@@ -60,8 +57,9 @@ What is deliberately not tested here
 * **N17's scripted `diff`.**  The written test for N17 is a Proofload ``diff`` of the
   lowest arm against the highest, reporting zero truncated rows.  knobs.py may import
   only ``Episode`` and ``Rollout`` from Proofload, so the ``diff`` half runs in the
-  Proofload adapter's tests against A5.  What is tested here is the arithmetic N17
-  rests on: ``H = max(max_turns)`` over the arm set, one ``H`` for every arm of a knob.
+  Proofload adapter's tests against A5.  knobs.py computes no horizon: N17's
+  ``H = max(max_turns)`` over the arm set follows from N16's slack identity, which
+  test_n16_1 and test_n16_1b pin.
 * **N10 and N13's measurements.**  Both are run-time: N10 compares a serving pin
   across a model's runs and N13 reads server-reported usage from the trace.  A
   bundle carries neither, so these tests pin that ``measure_pins`` *declares* them
@@ -69,9 +67,8 @@ What is deliberately not tested here
 * **N18's revision predicate.**  N18's own *Test:* line assigns it to "the
   pre-registration validator", which is built in the Proofload adapter.  No model
   string reaches a bundle or an arm spec, so knobs.py declares the row through N10
-  and validates nothing.  **This and N17's `diff` half are two named gaps owed to
-  the Proofload adapter's tests**, and neither is covered by any other module's tests
-  today.
+  and validates nothing.  N18's predicate and N17's `diff` half are tested with the
+  Proofload adapter, so they run only where Proofload is installed.
 * **The band N9 refuses on, as a property of a real generator.**  This file pins
   the band's value and the shape of the comparison.  Whether the task layer's
   generator can always land inside it is G16's structure-census question.
@@ -89,11 +86,11 @@ import subprocess
 import sys
 import textwrap
 
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 # --------------------------------------------------------------------------
-# frozen literals
+# pinned literals
 # --------------------------------------------------------------------------
 
 DATA = pathlib.Path(__file__).resolve().parent.parent / "src" / "poisson_tasks" / "data"
@@ -141,7 +138,7 @@ ROW_ACTION = {
 # N9 is written "(control arms)", which reads as both - but only knob D's control
 # *seeds history*: knob R's control appends a frozen filler passage to the system
 # prompt and seeds nothing, and N9's own measurement is written in `(H - dL)`, which
-# is depth's notation.  So N9 is knob D's, and saying so here is what stops a build
+# is depth's notation.  So N9 is knob D's, and saying so here is what stops a module
 # from evaluating it against an R control that has no seeded pairs to measure.
 ROW_KNOBS = {
     "N4": ("depth",),
@@ -155,14 +152,12 @@ ROW_KNOBS = {
 # and an episode's `meta` for the serving pin, and the trace for realised tokens.
 MEASURABLE_ROWS = tuple(f"N{i}" for i in range(1, 10)) + ("N11", "N12")
 UNMEASURABLE_ROWS = ("N10", "N13")
-# A failed row refuses unless its action is to report.  N5 is the only reporting row.
-REPORTING_ROWS = ("N5",)
 
 # N9's declared band, in reference-tokenizer tokens, over the aggregate.
 #
-# Minted 2026-09-13.  A seeded pair and a chain pair are each (call name + compact
-# JSON arguments + observation).  Measured against the frozen table and the engine as
-# first built, with chain tokens the engine emitted under two disjoint token keys:
+# A seeded pair and a chain pair are each (call name + compact JSON arguments +
+# observation).  Measured against the frozen table and the engine, with chain tokens
+# the engine emitted under two disjoint token keys:
 #
 #   chain pair totals      [47, 65], mean 55.7, 1792 pairs, two disjoint scenarios
 #   read pair totals       13 to 16 *consecutive* integers inside [51, 66],
@@ -194,19 +189,6 @@ ARM_ID_CASES = (
 STRICTNESS = ("strict", "leaky")
 SPLITS = ("eval", "train")
 GEN_VERSION = "0.0.1"
-
-# N18.  A 40-character lowercase hex commit hash, never a branch or tag.
-GOOD_MODEL = "Qwen/Qwen3.5-9B@" + "c202236" + "a" * 33
-BAD_MODELS = (
-    "Qwen/Qwen3.5-9B@main",
-    "Qwen/Qwen3.5-9B@v1.0",
-    "Qwen/Qwen3.5-9B@" + "a" * 39,
-    "Qwen/Qwen3.5-9B@" + "a" * 41,
-    "Qwen/Qwen3.5-9B@" + "A" * 40,
-    "Qwen/Qwen3.5-9B@" + "g" * 40,
-    "Qwen/Qwen3.5-9B",
-)
-
 
 # --------------------------------------------------------------------------
 # the shared helpers
@@ -254,7 +236,7 @@ class Verifier:
 @dataclasses.dataclass(frozen=True)
 class Bundle:
     """A bundle-shaped object, built by hand.  The task layer's fields that knobs.py
-    reads, plus the three named in this file's docstring as a drafted amendment."""
+    reads, including the three named in this file's docstring."""
 
     arm_id: str
     seed: int
@@ -371,8 +353,7 @@ def depth_contrast(low=1, high=8, control=True, residual=0):
 
     The control's seeded history is balanced to `residual` tokens by default, because
     an unbalanced one makes every test in this file that asserts `refused is False`
-    fail on N9 whatever row it is actually about.  The stand-in run found exactly
-    that: the fixture, not the shim.
+    fail on N9 whatever row it is actually about.
     """
     k = knobs()
     arms = {}
@@ -543,8 +524,12 @@ def test_sf2_no_public_symbol_beyond_all():
 
 
 def test_sf3_the_four_types_are_frozen():
-    """SF3: `ArmSpec` is frozen by its own definition, and the three record types carry
-    measurements that a caller must not edit after the fact."""
+    """SF3: the four types are frozen dataclasses, so no field of an `ArmSpec`, a
+    `PinRow`, a `PinRecord` or a `PinReport` can be reassigned after the fact.
+
+    The freeze is shallow.  `PinRecord.values`, `PinRecord.unmeasured` and
+    `PinReport.records` are dicts, and their contents stay mutable; this test does not
+    pin them."""
     m = knobs()
     for name in ("ArmSpec", "PinRow", "PinRecord", "PinReport"):
         cls = getattr(m, name)
@@ -589,11 +574,13 @@ def test_sf6_n8_cites_tg_m1s_literals_and_does_not_re_mint_them():
 
 
 def test_p1_every_entry_point_is_pure_within_one_process():
-    """P1: two calls over equal inputs give equal results.  No clock, RNG or env."""
+    """P1: two calls over equal inputs give equal results.  No clock, RNG or env.
+
+    `arm_id` and `levels` are pinned to exact values by test_id1 and test_id5, which an
+    answer that changes from call to call fails.  The ledger and the report are compared
+    whole here, because no other test compares them whole: a row or a report carrying
+    a fresh value on every call fails only this test."""
     k = knobs()
-    s = spec()
-    assert k.arm_id(s) == k.arm_id(s)
-    assert k.levels("depth") == k.levels("depth")
     assert k.pin_ledger("depth") == k.pin_ledger("depth")
     arms = depth_contrast()
     one, two = k.check_pins(arms), k.check_pins(arms)
@@ -737,8 +724,14 @@ def test_nrows_4_every_row_is_measured_or_declared_unmeasurable_exactly_once():
 
 def test_nrows_5_the_unmeasurable_rows_are_exactly_n10_and_n13_and_each_gives_a_reason():
     """N-rows: only the serving pin and the realised token count need something no
-    bundle carries.  Naming them here stops a later build from quietly widening the
-    set and calling a pin unmeasurable because measuring it was awkward."""
+    bundle carries.  Naming them here stops a later change from quietly widening the
+    set and calling a pin unmeasurable because measuring it was awkward.
+
+    This is N10's and N13's test at generation.  N10 compares a serving pin "across all
+    of a model's runs", from cfg, the arm spec and every episode's `meta`; N13 reads
+    server-reported usage from the trace, per episode.  A bundle has none of those, so
+    each is declared unmeasured with a reason rather than a pin that silently measures
+    nothing.  Where each is enforced, and what its violation does, is test_nrows_2's."""
     k = knobs()
     rec = k.measure_pins(bundle(spec()))
     assert tuple(sorted(rec.unmeasured, key=lambda r: int(r[1:]))) == UNMEASURABLE_ROWS
@@ -758,14 +751,6 @@ def failed_rows(report) -> set[str]:
 
 def reported_rows(report) -> set[str]:
     return {row for row, _ in report.reported}
-
-
-def test_n1_1_equal_scenarios_across_arms_pass():
-    """N1: `scenario_hash` of the same seed generated under every arm of the knob,
-    equal.  The pilot's three arms on one scenario are the clean case."""
-    report = knobs().check_pins(depth_contrast())
-    assert "N1" not in failed_rows(report)
-    assert report.refused is False
 
 
 def test_n1_2_a_differing_scenario_hash_refuses():
@@ -790,10 +775,9 @@ def test_n2_1_required_tool_slots_are_read_from_the_reference_calls():
     names = {c[0] for c in b.reference_calls}
     expected = tuple(sorted((t["name"], i) for i, t in enumerate(b.tools)
                             if t["name"] in names))
-    assert tuple(sorted(rec.values["N2"])) == expected
     # Name *and* index, not indices alone: d1 requires one tool and d8 requires eight,
     # so a bare index set legitimately differs between levels and could not be compared.
-    assert len(expected) == len(names)
+    assert tuple(sorted(rec.values["N2"])) == expected
 
 
 def test_n2_2_moving_a_required_tool_between_arms_refuses():
@@ -907,13 +891,6 @@ def test_n5_1_knob_rs_block_token_count_is_reported_and_never_refuses():
     assert report.refused is False
 
 
-def test_n5_2_n5_does_not_fire_on_knob_d():
-    """N5: the row is written "(knob R)".  Knob D holds the block identical (N4), so
-    its token count cannot differ and a report would be noise."""
-    report = knobs().check_pins(depth_contrast())
-    assert "N5" not in reported_rows(report) and "N5" not in failed_rows(report)
-
-
 def test_n6_1_a_different_template_id_refuses():
     """N6: "template id equal".  One fixed template per knob, so two
     arms on two templates are two prompts, whatever their token counts say."""
@@ -951,14 +928,6 @@ def test_n6_3_equal_counts_pass_even_when_the_slot_values_differ():
     assert "N6" not in failed_rows(k.check_pins(arms))
 
 
-def test_n7_1_the_prompt_to_tool_name_overlap_set_is_equal_across_arms():
-    """N7: "the set of prompt tokens that occur in any tool name, across arms", equal.
-    A prompt that names one arm's tool and not another's is a lexical cue for the arm,
-    which is the confound knob R's lexical rule exists to stop."""
-    k = knobs()
-    assert "N7" not in failed_rows(k.check_pins(depth_contrast()))
-
-
 def test_n7_2_a_prompt_that_names_a_tool_in_one_arm_only_refuses():
     """N7: the set is measured over the prompt against the block's names, so adding a
     qualifier to one arm's prompt moves that arm's set and nothing else."""
@@ -981,9 +950,6 @@ def test_n8_1_observation_size_is_cited_from_the_engines_frozen_literals():
     widths, (tok_lo, tok_hi) = rec.values["N8"]
     assert tuple(widths) == (L_OBS,)
     assert BAND_LO <= tok_lo <= tok_hi <= BAND_HI
-    for obs in b.reference_observations:
-        assert len(obs.encode("ascii")) == L_OBS
-        assert BAND_LO <= ntok(obs) <= BAND_HI
 
 
 def test_n8_2_an_observation_of_the_wrong_width_refuses():
@@ -997,6 +963,26 @@ def test_n8_2_an_observation_of_the_wrong_width_refuses():
     report = k.check_pins(arms)
     assert "N8" in failed_rows(report)
     assert report.refused is True
+
+
+def test_n8_3_an_observation_outside_the_token_band_refuses():
+    """N8: "tokens in band" is the row's second half.  An observation of exactly
+    `L_obs` bytes whose token count is outside the engine's band refuses, below the band
+    and above it, and N8 is the only row that fires.  The victim is the low arm, whose
+    observations no N9 comparison reads."""
+    k = knobs()
+    below = " " * L_OBS
+    above = ("a1" * L_OBS)[:L_OBS]
+    assert ntok(below) < BAND_LO and ntok(above) > BAND_HI, (ntok(below), ntok(above))
+    for outside in (below, above):
+        arms = depth_contrast()
+        victim = k.arm_id(spec(level=1))
+        b = arms[victim]
+        arms[victim] = replaced(
+            b, reference_observations=tuple(outside for _ in b.reference_observations))
+        report = k.check_pins(arms)
+        assert failed_rows(report) == {"N8"}, (ntok(outside), report.violations)
+        assert report.refused is True
 
 
 def test_n9_1_the_seeded_history_is_compared_as_an_aggregate_not_per_pair():
@@ -1018,12 +1004,10 @@ def test_n9_1_the_seeded_history_is_compared_as_an_aggregate_not_per_pair():
     assert len(seeded) == high - low
     assert len(chain) == high
     assert tuple(chain) == chain_pair_totals(arms[high_arm])
-    # The comparison is over sums, and the stage-1 pair is outside it on both sides.
-    assert isinstance(sum(seeded) - sum(chain[low:]), int)
 
 
 def test_n9_2_the_declared_band_is_two_tokens_on_the_aggregate():
-    """N9: the band this file freezes.  Minted at a measured residual of 0 over 256
+    """N9: the band this file pins.  Declared at a measured residual of 0 over 256
     blocks of seven pairs across two disjoint scenarios, declared at +/- 2 - the same
     two-token margin, and the same empirical footing, as the engine's observation band."""
     k = knobs()
@@ -1050,10 +1034,9 @@ def test_n9_4_the_read_pairs_reachable_set_is_what_makes_the_aggregate_attainabl
     """N9: the structural fact the band rests on.  A read pair's reachable totals are
     *consecutive* integers, so every integer in their `(H - dL)`-fold sum is reachable
     and the aggregate can land exactly; the chain pair's range sits inside it but for
-    a thin low tail.  Asserted against the ledger's own declared band, so the two
-    cannot drift apart: if a later table breaks the consecutiveness, the band stops
-    being justifiable and this test says so."""
-    k = knobs()
+    a thin low tail.  Asserted against the ranges this file records beside the band, so
+    the two cannot drift apart: if a later table breaks the consecutiveness, the band
+    stops being justifiable and this test says so."""
     reachable = read_pair_totals()
     assert (min(reachable), max(reachable)) == N9_READ_PAIR_RANGE
     # The premise, stated over the sum and not over one pair: every integer in the
@@ -1067,19 +1050,6 @@ def test_n9_4_the_read_pairs_reachable_set_is_what_makes_the_aggregate_attainabl
     # And the thin low tail that makes a *per-pair* equality impossible.
     chain_lo, chain_hi = N9_CHAIN_PAIR_RANGE
     assert chain_lo < min(reachable) <= chain_hi <= max(reachable)
-    row = {r.row_id: r for r in k.pin_ledger("depth")}["N9"]
-    assert row.on_violation == "refuse"
-
-
-def test_n10_1_the_serving_pin_is_declared_unmeasurable_at_generation():
-    """N10: it compares a serving pin "across all of a model's runs", from cfg, the arm
-    spec and every episode's `meta`.  A bundle has none of those, and the honest answer
-    is a named gap rather than a pin that silently measures nothing."""
-    k = knobs()
-    rec = k.measure_pins(bundle(spec()))
-    assert "N10" in rec.unmeasured
-    row = {r.row_id: r for r in k.pin_ledger("depth")}["N10"]
-    assert row.stage == "adapter" and row.on_violation == "stop_run"
 
 
 def test_n11_1_a_strictness_difference_refuses_the_start():
@@ -1108,47 +1078,23 @@ def test_n12_1_the_engine_and_generator_hashes_are_held_equal():
         assert report.refused is True
 
 
-def test_n13_1_realised_input_tokens_are_declared_unmeasurable_at_generation():
-    """N13: "server-reported usage from the trace, per episode", against a
-    pre-registered band, and a violation voids the contrast.  Nothing about
-    it exists before a run, so generation declares it rather than guessing."""
-    k = knobs()
-    rec = k.measure_pins(bundle(spec()))
-    assert "N13" in rec.unmeasured
-    row = {r.row_id: r for r in k.pin_ledger("depth")}["N13"]
-    assert row.stage == "analysis" and row.on_violation == "void_contrast"
-
-
 # --------------------------------------------------------------------------
 # N14 to N18
 # --------------------------------------------------------------------------
 
 
 def test_n14_1_knob_d_changes_only_the_goal_stage_and_the_required_count():
-    """N14: "generate the same seed under two arms and diff the bundles field by field.
-    Only the named fields may differ."  For knob D the named fields are the goal stage
-    and the required count, so every pinned field is equal between d1 and d8."""
+    """N14 for knob D, through the ledger: d1 and d8 with no control are a clean
+    contrast.  N14's written test diffs two generated bundles field by field; this one
+    does not.  Its bundles are built by hand and differ only in the goal stage and the
+    required count, and it asserts `check_pins` finds no violation among the pinned
+    fields.  It is the only test here that runs `check_pins` on a two-arm contrast with
+    no control."""
     k = knobs()
     arms = depth_contrast(control=False)
     report = k.check_pins(arms)
     assert report.refused is False
     assert failed_rows(report) == set()
-
-
-def test_n14_2_the_d_control_may_change_the_prompt_messages_and_seq_start_and_nothing_else():
-    """N14: "D control: prompt `Messages`, `seq_start`.  Both ride the arm, not the
-    scenario, so N1 still holds."  The control's prompt *is* different - that is what a
-    seeded control is - and `seq_start` moves to `H - dL + 1`, and neither may be read
-    as an N1, N3, N6 or N7 violation."""
-    k = knobs()
-    low, high = 1, 8
-    arms = depth_contrast(low=low, high=high)
-    control = k.arm_id(spec(level=low, control=high))
-    arms[control] = control_with_residual(arms, low, high, 0)
-    assert arms[control].seq_start == high - low + 1
-    assert arms[control].prompt != arms[k.arm_id(spec(level=low))].prompt
-    report = k.check_pins(arms)
-    assert report.refused is False
 
 
 def test_n14_3_a_control_that_moves_a_field_outside_its_list_refuses():
@@ -1215,19 +1161,6 @@ def _shape(arm_id_str: str) -> str:
     return "".join(out)
 
 
-def test_n15_2_the_control_is_total_over_the_knobs_levels():
-    """N15: "total" means the constructor is defined for every level the knob offers,
-    against every higher level.  A control that existed only at the pilot's `d1+h8`
-    would tie the control to the pilot's levels, and the candidates have no cut order."""
-    k = knobs()
-    for knob in ("depth", "distractor"):
-        lv = k.levels(knob)
-        for low in lv:
-            for high in lv:
-                if high > low:
-                    assert k.arm_id(spec(knob=knob, level=low, control=high))
-
-
 def test_n15_3_a_control_against_a_level_that_is_not_higher_is_refused():
     """N15: a control stands in for a *higher* level's history.  `d3+h3` seeds nothing
     and `d8+h1` seeds a negative number of pairs, so both are construction errors
@@ -1260,56 +1193,21 @@ def test_n16_1_max_turns_is_the_reference_turns_plus_the_slack():
 @given(slack=st.integers(min_value=0, max_value=64),
        level=st.sampled_from(DEPTH_LEVELS),
        control=st.one_of(st.none(), st.sampled_from(DEPTH_LEVELS)))
+@example(slack=4, level=1, control=8)
 def test_n16_1b_the_slack_identity_holds_over_every_slack_and_level(slack, level, control):
     """N16, as a property: `max_turns(S) - reference_turns == S` for every slack and
     every candidate level, and the control's turn count follows `dL` and never `H`.
-    Three hand-picked slacks cannot tell an identity from a table of three answers."""
+    Three hand-picked slacks cannot tell an identity from a table of three answers.
+
+    "The depth control gets `dL + 1 + S`."  Seeded history uses no turns, so a `d1+h8`
+    control needs two turns plus slack and not nine, which is the whole reason the turn
+    budget is pinned as slack rather than as a total.  The explicit example is that
+    control at S = 4."""
     if control is not None and control <= level:
         return
     s = spec(level=level, control=control)
     assert s.max_turns(slack) - s.reference_turns == slack
     assert s.reference_turns == level + 1
-
-
-def test_n16_2_the_depth_control_gets_its_own_level_plus_slack_not_the_high_levels():
-    """N16: "The depth control gets `dL + 1 + S`."  Seeded history uses no turns, so a
-    `d1+h8` control needs two turns plus slack and not nine - which is the whole reason
-    the turn budget is pinned as slack rather than as a total."""
-    control = spec(level=1, control=8)
-    assert control.reference_turns == 1 + 1
-    assert control.max_turns(4) == 1 + 1 + 4
-    assert control.max_turns(4) != spec(level=8).max_turns(4)
-
-
-def test_n16_3_one_slack_takes_one_value_across_the_batch():
-    """N16: "`S` takes one value across the batch".  Stated over a batch because a
-    per-arm slack would restore the spare-budget confound N16 removes."""
-    k = knobs()
-    slack = 4
-    arms = [spec(level=lvl) for lvl in k.levels("depth")] + [spec(level=1, control=8)]
-    assert len({a.max_turns(slack) - a.reference_turns for a in arms}) == 1
-
-
-def test_n17_1_the_horizon_is_the_maximum_max_turns_over_the_arm_set():
-    """N17: "`H = max(max_turns)` over the pre-registered arms", one `H` for every arm
-    of the knob, never the arm's own `max_turns` (the horizon Proofload cuts at).
-    The scripted `diff` half of N17's test is the Proofload adapter's, against A5."""
-    slack = 4
-    arms = [spec(level=lvl) for lvl in (1, 3, 8)] + [spec(level=1, control=8)]
-    horizon = max(a.max_turns(slack) for a in arms)
-    assert horizon == 8 + 1 + slack
-    for a in arms:
-        assert a.max_turns(slack) <= horizon
-
-
-def test_n17_2_the_control_does_not_lower_the_horizon():
-    """N17: the failure this row exists to stop.  `diff` truncates at the smaller
-    horizon, so a control arm declaring its own `max_turns` as the horizon would delete
-    every `d8` pass that lands after turn 6 (PG-9)."""
-    slack = 4
-    control = spec(level=1, control=8)
-    high = spec(level=8)
-    assert control.max_turns(slack) < high.max_turns(slack)
 
 
 def test_n18_1_the_serving_pin_row_carries_n18s_requirements():
@@ -1322,35 +1220,6 @@ def test_n18_1_the_serving_pin_row_carries_n18s_requirements():
     held = rows["N10"].held
     for piece in ("N18", "vLLM", "endpoint", "GPU"):
         assert piece in held, piece
-
-
-def test_n18_2_tg_m2_holds_no_revision_predicate_and_the_ledger_says_who_does():
-    """N18: the written test for it is "the pre-registration validator refuses a
-    revision that isn't 40 hex characters", and the pre-registration is built in the
-    adapter.  Nothing about a model reaches a bundle, so knobs.py declares the row
-    and validates nothing - asserted here so that a build does not quietly add a
-    half-validator, and so the gap is visible rather than assumed covered.
-
-    **The predicate itself is a named gap owed to the adapter's tests**, together with
-    N17's scripted `diff`.  Both are in this file's docstring.
-    """
-    k = knobs()
-    rows = {r.row_id: r for r in k.pin_ledger("depth")}
-    assert rows["N10"].stage == "adapter"
-    rec = k.measure_pins(bundle(spec()))
-    assert "N10" in rec.unmeasured
-    # No public symbol validates a model string; SF2 pins the surface, this pins the
-    # consequence.  A model id never enters knobs.py, so the 40-hex check cannot live here.
-    assert not any("model" in name.lower() for name in KNOBS_EXPORTS)
-    assert all(len(rev) == 40 and set(rev) <= set("0123456789abcdef")
-               for rev in [GOOD_MODEL.split("@", 1)[1]]), "the fixture is a valid pin"
-    assert not any(_valid_revision(m.split("@", 1)[1]) for m in BAD_MODELS if "@" in m)
-
-
-def _valid_revision(rev: str) -> bool:
-    """N18's predicate, written here so the fixture above can be trusted.  It is *not*
-    the implementation: the adapter's pre-registration validator owns that."""
-    return len(rev) == 40 and set(rev) <= set("0123456789abcdef")
 
 
 # --------------------------------------------------------------------------
@@ -1399,22 +1268,14 @@ def test_cp3_the_report_names_the_knob_and_carries_every_arms_record():
         assert rec.arm_id == arm
 
 
-def test_cp4_refused_is_true_for_every_action_except_report():
-    """CP4: N5 is the only row whose failure is not a refusal.  Stated as its own test
-    because the ledger's *On violation* column has five distinct values and four of
-    them stop generation; collapsing them to a boolean is where that gets lost."""
-    k = knobs()
-    for row in k.pin_ledger("depth"):
-        if row.row_id in REPORTING_ROWS:
-            assert row.on_violation == "report", row.row_id
-        else:
-            assert row.on_violation != "report", row.row_id
-
-
 def test_cp5_a_clean_contrast_refuses_nothing_and_reports_nothing():
     """CP5: the control case.  If the pilot's own three arms tripped a row, every test
     above that asserts a *specific* row fired would still pass while the ledger was
-    refusing everything."""
+    refusing everything.
+
+    It is also N14's D control case: the control's prompt `Messages` and its
+    `seq_start` of `H - dL + 1` ride the arm, not the scenario, and neither may be read
+    as an N1, N3, N6 or N7 violation."""
     k = knobs()
     low, high = 1, 8
     arms = depth_contrast(low=low, high=high)

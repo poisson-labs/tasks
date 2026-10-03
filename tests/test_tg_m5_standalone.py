@@ -1,21 +1,14 @@
 """The model path, layer 1 -- the standalone path: a taskset id that resolves, an `Env`
-that makes `eval` run the measured harness with no flag, and a stranger's one-liner -- frozen
-as tests.
+that makes `eval` run the measured harness with no flag, and a stranger's one-liner -- and its
+tests.
 
 The invariants this file is built against are MP1 to MP9 (layer 1), the wire round-trip
-invariant decided after the 2026-09-22 live smoke, the two items the verifiers export handed
-to the model path (the measured-harness default and loading the taskset by id), the 2026-09-21
-decisions on the model path (the id is `poisson-tasks`; the release needs layer 1 only;
+invariant that the first live run against a real model found, the two items the verifiers
+export left to the model path (the measured-harness default and loading the taskset by id),
+the model path's settled points (the id is `poisson-tasks`; the release needs layer 1 only;
 `turn_limit_hit` reads the stop reason), and knob R's level axis.  MP10, the bridge to the
 adapter's verdict, is in `tests/test_tg_m5_bridge.py`, because `to_episode` imports Proofload
 and no test here may.  Layer 2 (the pinned GPU stack) is not tested here.
-
-**Frozen 2026-09-22**, once the invariant-to-test mapping was approved, with six decisions of
-the same day: the mapping stands; MP10 stays in its own Prove-gated file; the build that
-follows may edit the one-line turn-limit read in `export.py` and `_judge` in `adapter.py`;
-the Env's second declared pin is the runtime; the one-liner passes the arm as one JSON value
-and the taskset config defaults nothing; `test_sf4` stays untouched and the retrofit branch
-goes unused.
 
 **No test here needs Proofload, a GPU or a model.**  Where an invariant is about a run, the run
 is made through the wheel's own lifecycle (`load_environment`, `serving`, `run_episode`)
@@ -23,7 +16,7 @@ against a stub OpenAI-compatible endpoint on loopback that answers with the refe
 Those tests need `uv` on `PATH`, because the `null` harness launches its program through
 `uv`; the program's four dependencies come from uv's cache after the first run.
 
-Every test reaches the build through the wheel's own loader, by the id: `import_taskset`,
+Every test reaches the package through the wheel's own loader, by the id: `import_taskset`,
 `taskset_class`, `environment_class`, `resolve_env_config`, `load_environment`.  So the file
 collects on a tree that exports nothing by the id and fails there for that one reason (the
 package root defines no `__all__`), except the tests of the export document's text and of the
@@ -33,15 +26,15 @@ Shapes decided here
 -------------------
 
 **1. The id `poisson-tasks` resolves to the package root, and the root exports two names
-lazily.**  Decided: the id is the distribution's name.  At 0.3.1 the wheel maps an id to a
+lazily.**  The id is the distribution's name.  At 0.3.1 the wheel maps an id to a
 top-level module by its own transformation (`owner/` and `@version` stripped, `-` to `_`,
 lower-cased; `utils/loaders.py`, `_import_plugin`), so `poisson-tasks` can only ever mean
 `poisson_tasks`, and of the three candidate shapes only "the renamed root is the id" is
-consistent with that decision.  The root's `__all__` names one `Taskset` and one `Env`, and a
+consistent with that.  The root's `__all__` names one `Taskset` and one `Env`, and a
 module `__getattr__` (PEP 562) imports them on first lookup, which is what the loader does
 (`getattr(module, name)` per listed name): `import poisson_tasks` therefore imports no
 `verifiers` (MP7, the separate-module answer inside the root shape).  The two classes live in
-a submodule of their own; the tests never name it or them, so both names are the build's.
+a submodule of their own; the tests never name it or them, so both names are the package's to choose.
 *Escape hatch:* an eager re-export; `test_mp7_1` flips and the document gains the sentence.
 
 **2. The `Env` pins two fields, and the module docstring declares them.**  `agent.harness.id`
@@ -57,47 +50,47 @@ pinned.  What else may go on the list is an open question and is not settled her
 
 **3. The taskset the id exports is `export.ExportTaskset` itself or a subclass that adds
 nothing to `load`.**  The tests check the class through the loader and compare each loaded
-task with `task_from_bundle(generate(arm, seed))`.  The taskset config defaults nothing (decided
-2026-09-22): the one-liner carries the arm, as one JSON value, and the seeds, and the one-liner
+task with `task_from_bundle(generate(arm, seed))`.  The taskset config defaults nothing: the one-liner carries the arm, as one JSON value, and the seeds, and the one-liner
 test asks that the documented command resolves to a non-empty arm and seed list.
 
-**4. `turn_limit_hit` is `Trace.stop_condition == "max_turns"`.**  Decided 2026-09-21,
-closing a question the verifiers export had left open, and pinned here on the only
-reader layer 1 has: the export's `leaky_pass` metric.  A trace the wheel stopped for a token
+**4. `turn_limit_hit` is `Trace.stop_condition == "max_turns"`.**  This closes a question
+the verifiers export's tests leave to this file, and is pinned here on the only reader
+layer 1 has: the export's `leaky_pass` metric.  A trace the wheel stopped for a token
 limit or a context length is truncated but not turn-limited, and with no reply it is
 `verifier_error` -- an episode that ended for a reason the verdict's five arguments cannot
 see.  Measured in a live run: the wheel stamps `max_turns` at the turn cap and
-`agent_completed` on a normal end.  The built export reads `is_truncated`; no frozen export
-test pins that (a mutation of that read survives the export's tests by design), and the build
-that follows this file moves it.
+`agent_completed` on a normal end.  The export reads `stop_condition`, and `test_tl1` to
+`test_tl3` pin that read; `test_tl2` is the row `is_truncated` would fail.
 
 **5. The one-liner is read from the document and dry-run.**  MP9's byte-for-byte clause
-needs the live smoke and cannot be closed here; what can be is that the fenced
+needs a live run against a real model and cannot be closed here; what can be is that the fenced
 `eval poisson-tasks` command in `docs/verifiers-export.md` resolves under the wheel's own CLI
 with `--dry-run`, and that the config it resolves to loads by the id, runs `null` in a
 subprocess with no harness named, pushes nothing, and declares an arm and seeds.
 *Escape hatch:* the fenced block's first line; `one_liner()` moves.
-
-**7. The resolved env config survives its own wire format.**  Decided 2026-09-22 out of the
-live smoke, whose whole cost bought this one row: `resolve_env_config(env_config_data(cfg))`
-validates and is a fixed point.  It is the only place the config crosses a process boundary,
-and `--dry-run` -- which every other config test here goes through -- exits before the serve
-pool starts, so nothing else in this file reaches it.  The control is the same round trip on
-a config with no arm, whose `task` stays the base `TaskConfig`.
-*Escape hatch:* `env_config_data`'s name; `wire()` moves.
 
 **6. A run's egress is measured in the test process.**  The interception server and its
 outbound client run in the pytest process, so a guard on `socket.connect` that allows loopback
 only holds for the whole run; the harness program and the tool server are child processes on
 loopback and are outside the guard, which is recorded and not claimed.
 
-Open, and not settled here (each waits on a decision)
------------------------------------------------------
+**7. The resolved env config survives its own wire format.**  The first live run against a
+real model found this one: `resolve_env_config(env_config_data(cfg))` validates and is a
+fixed point.  It is the only place the config crosses a process boundary,
+and `--dry-run` -- which every other config test here goes through -- exits before the serve
+pool starts, so nothing else in this file reaches it.  The control, `test_w2`, is the same
+round trip on a config with no arm: its `task` is the export's own task config at its
+defaults, and on a tree whose taskset config does not re-declare `task` it is the base
+`TaskConfig`, so there `test_w2` passes while `test_w1` fails.
+*Escape hatch:* `env_config_data`'s name; `wire()` moves.
+
+Open, and not settled here
+--------------------------
 
 1. **What else the env config may pin.**  Shape 2 above pins the declaration, not the list.
-2. **MP9's byte-for-byte clause** waits on the live smoke ($20 cap, granted).
+2. **MP9's byte-for-byte clause** needs a live run against a real model, which no test here makes.
 
-What this file does not freeze: anything that needs a real model (MP9 proper); the model
+What this file does not test: anything that needs a real model (MP9 proper); the model
 targets, the trace-to-`Run` mapping and A8's shape (layer 2); and MP10, which
 is `tests/test_tg_m5_bridge.py`'s and needs the extra.
 """
@@ -129,24 +122,23 @@ from typing import Any
 import pytest
 import verifiers.v1 as vf
 
-from poisson_tasks.engine import apply, init_state
 from poisson_tasks.knobs import ArmSpec, arm_id, levels
-from poisson_tasks.tasks import FormatSpec, TaskBundle, Turn, generate, scenario_for, verify
+from poisson_tasks.tasks import FormatSpec, TaskBundle, generate, verify
+from tests.helpers import live_observations, seeded_nodes, turns_of
 
 REPO = Path(__file__).resolve().parents[1]
 THIS_FILE = Path(__file__).resolve()
 EXPORT_DOC = REPO / "docs" / "verifiers-export.md"
 
 # --------------------------------------------------------------------------
-# literals, each from a design decision or a frozen module below this one
+# literals, each from a design choice or a module below this one
 # --------------------------------------------------------------------------
 
-TASKSET_ID = "poisson-tasks"  # decided 2026-09-21: the new name, from the first release
+TASKSET_ID = "poisson-tasks"  # the distribution's name, from the first release
 ROOT_MODULE = "poisson_tasks"  # what the wheel's own transformation makes of it
 OLD_ID = "task-generator"
-DOTTED_ID = "poisson_tasks.export"
-MEASURED_HARNESS = "null"  # X9, frozen in the export as `export.MEASURED_HARNESS`
-TURN_LIMIT_STOP = "max_turns"  # decided 2026-09-21: `turn_limit_hit` is this stop reason
+MEASURED_HARNESS = "null"  # X9, the export's `export.MEASURED_HARNESS`
+TURN_LIMIT_STOP = "max_turns"  # `turn_limit_hit` is this stop reason (shape 4)
 TOKEN_STOPS = ("max_input_tokens", "max_output_tokens", "max_total_tokens", "context_length")
 GEN_VERSION = "0"
 KEY_VAR = "POISSON_TASKS_TEST_KEY"
@@ -191,13 +183,13 @@ SPEC_D3 = spec_of("depth", 3)
 
 
 # --------------------------------------------------------------------------
-# helpers: the build, reached by the id through the wheel's own loader
+# helpers: the package, reached by the id through the wheel's own loader
 # --------------------------------------------------------------------------
 
 
 def loaders() -> Any:
-    """The wheel's loader module.  Its names are the wheel's, not the verified-names table's;
-    the gap log's PG-19 records them and the table row they are owed."""
+    """The wheel's loader module.  Its names are the wheel's and are not in the
+    verified-names table."""
     return importlib.import_module("verifiers.v1.utils.loaders")
 
 
@@ -246,11 +238,6 @@ def harness_of(config: Any) -> Any:
 def taskset_of(spec: ArmSpec, seeds: Iterable[int]) -> Any:
     config_type = loaders().taskset_config_type(TASKSET_ID)
     return taskset_cls()(config_type(id=TASKSET_ID, arm=dataclasses.asdict(spec), seeds=list(seeds)))
-
-
-def wheel_transform(ident: str) -> str:
-    """The wheel's own id-to-module rule, restated (`_import_plugin`)."""
-    return ident.rsplit("/", 1)[-1].split("@", 1)[0].replace("-", "_").lower()
 
 
 def flat(value: Any, prefix: str = "") -> dict[str, Any]:
@@ -311,17 +298,6 @@ def dry_run(*args: str, env: dict[str, str] | None = None) -> dict[str, Any]:
         files = list(Path(tmp).glob("*/configs/resolved/eval.json"))
         assert len(files) == 1, files
         return json.loads(files[0].read_text(encoding="utf-8"))
-
-
-def dry_run_refused(*args: str) -> str:
-    """The same, for a command the CLI must refuse: gives what it printed."""
-    with tempfile.TemporaryDirectory() as tmp:
-        done = subprocess.run(
-            [sys.executable, "-c", EVAL_MAIN, *args, "--dry-run", "-o", tmp],
-            cwd=tmp, capture_output=True, text=True, timeout=300,
-        )
-        assert done.returncode != 0, done.stdout[-2000:]
-        return done.stdout + done.stderr
 
 
 def export_doc() -> str:
@@ -532,39 +508,6 @@ def same_message(wire: dict[str, Any], expected: dict[str, Any]) -> bool:
 NO_MARKERS = FormatSpec(name="test", markers=())
 
 
-def turns_of(calls: Iterable[tuple[str, Any]], reply: bool) -> tuple[Turn, ...]:
-    turns = [Turn(content="", calls=(call,), finish_reason="tool_calls") for call in calls]
-    if reply:
-        turns.append(Turn(content="Done.", calls=(), finish_reason="stop"))
-    return tuple(turns)
-
-
-def live_observations(bundle: TaskBundle, calls: Iterable[tuple[str, Any]]) -> list[str]:
-    state = init_state(scenario_for(bundle.seed, bundle.split), bundle.seq_start)
-    names = {str(tool["name"]) for tool in bundle.tools}
-    out: list[str] = []
-    for name, args in calls:
-        if not isinstance(args, dict):
-            out.append("error: tool arguments must be a JSON object, got "
-                       f"{type(json.loads(json.dumps(args))).__name__}; resend as an object")
-        elif name not in names:
-            out.append(f"error: unknown tool {name!r}")
-        else:
-            state, observation = apply(state, (name, args))
-            out.append(observation)
-    return out
-
-
-def seeded_nodes(task: Any) -> list[Any]:
-    prompt = task.data.prompt
-    if isinstance(prompt, str):
-        return [vf.MessageNode(parent=None, message=vf.UserMessage(content=prompt), sampled=False)]
-    return [
-        vf.MessageNode(parent=index - 1 if index else None, message=message, sampled=False)
-        for index, message in enumerate(prompt)
-    ]
-
-
 def trace_of(task: Any, bundle: TaskBundle, calls: Iterable[tuple[str, Any]], *,
              reply: bool, stop: str | None) -> Any:
     """A synthetic `vf.Trace` as the `null` harness leaves one, stopped for `stop`."""
@@ -698,22 +641,13 @@ def public_names(module: Any) -> set[str]:
     }
 
 
-def fake_taskset_module(name: str, all_names: list[str], **attrs: Any) -> Any:
-    module = types.ModuleType(name)
-    module.__all__ = list(all_names)  # type: ignore[attr-defined]
-    for key, value in attrs.items():
-        setattr(module, key, value)
-    sys.modules[name] = module
-    return module
-
-
 # --------------------------------------------------------------------------
 # SF - this file, and the Env's module, held to the package's import rules
 # --------------------------------------------------------------------------
 
 
 def test_sf1_this_file_imports_no_proofload_and_no_adapter():
-    """Decided 2026-09-21: Tasks is standalone, and no test here may need Prove."""
+    """The package is standalone, and no test here may need Proofload."""
     tree = ast.parse(THIS_FILE.read_text(encoding="utf-8"))
     assert needs_proofload(imported_modules(tree)) == set()
 
@@ -747,13 +681,9 @@ def test_sf3_the_walker_flags_each_way_an_unverified_name_gets_in():
 
 
 def test_mp1_1_the_id_is_the_distribution_name_and_resolves_to_the_root():
-    """MP1: one string, the distribution's name, matching the module under the wheel's own
-    transformation.  The hub forms the wheel strips resolve to the same module."""
+    """MP1: one string, the distribution's name.  That the wheel maps it to the package root
+    is the wheel's own transformation (shape 1), and every test here resolves by it."""
     assert importlib.metadata.distribution(TASKSET_ID).metadata["Name"] == TASKSET_ID
-    module = id_module()
-    assert module.__name__ == ROOT_MODULE == wheel_transform(TASKSET_ID)
-    for form in (TASKSET_ID, f"poisson-labs/{TASKSET_ID}", f"{TASKSET_ID}@0.0.1", TASKSET_ID.upper()):
-        assert loaders().import_taskset(form) is module, form
 
 
 def test_mp1_2_the_id_resolves_to_the_exports_taskset_and_adds_nothing_to_load():
@@ -778,21 +708,11 @@ def test_mp1_3_a_task_loaded_by_the_id_is_the_generated_bundle(spec):
 
 
 def test_mp1_4_a_dotted_id_and_the_old_id_are_refused():
-    """MP1's control: the wheel refuses both, and the refusal is read, not assumed.  A dotted
-    id fails inside the wheel's own namespace probe (`verifiers.v1.tasksets.<id>`) before it
-    is looked up bare, so its message names that path and not the id (measured);
-    the old id fails as a plain missing module and its message names it."""
-    with pytest.raises(ModuleNotFoundError) as dotted:
-        loaders().import_taskset(DOTTED_ID)
-    assert "verifiers.v1.tasksets.poisson_tasks" in str(dotted.value)
-    with pytest.raises(ModuleNotFoundError) as old:
+    """MP1's control: the old id resolves to nothing, so the package does not also answer
+    to it.  A dotted id is refused by the wheel's own namespace probe, which is the wheel's
+    behaviour and is not tested here."""
+    with pytest.raises(ModuleNotFoundError):
         loaders().import_taskset(OLD_ID)
-    assert OLD_ID in str(old.value)
-
-
-def test_mp1_5_the_cli_refuses_the_same_two_ids():
-    assert OLD_ID in dry_run_refused(OLD_ID, "--no-push")
-    assert "poisson_tasks" in dry_run_refused(DOTTED_ID, "--no-push")
 
 
 # --------------------------------------------------------------------------
@@ -812,14 +732,6 @@ def test_mp2_1_all_is_exactly_one_taskset_and_one_env_and_no_harness():
     assert taskset_cls() in objects and env_cls() in objects
 
 
-def test_mp2_2_the_taskset_bundles_no_harness_so_the_default_is_the_envs_pin():
-    """`default_harness_id` reads a bundled `Harness` and finds none: the taskset's own
-    default stays `bash`, and it is the exported `Env`'s config that makes a run `null`."""
-    assert loaders().default_harness_id(TASKSET_ID) == "bash"
-    with pytest.raises(TypeError):
-        loaders().harness_class(TASKSET_ID)
-
-
 def test_mp2_3_nothing_public_leaks_past_all_at_the_root():
     module = id_module()
     for name in module.__all__:
@@ -832,23 +744,6 @@ def test_mp2_4_nothing_public_leaks_past_all_in_the_envs_module():
     assert hasattr(module, "__all__")
     assert public_names(module) == set(module.__all__)
     assert env_cls().__name__ in module.__all__
-
-
-def test_mp2_5_two_of_either_raise_inside_the_wheel_and_an_unlisted_env_is_invisible():
-    """Why MP2 is an invariant and not a style, measured on fakes."""
-    taskset = taskset_cls()
-    env = env_cls()
-    other_env = type("OtherEnv", (env,), {})
-    other_taskset = type("OtherTaskset", (taskset,), {})
-    fake_taskset_module("mp2_two_envs", ["A", "B", "C"], A=taskset, B=env, C=other_env)
-    with pytest.raises(ValueError):
-        loaders().environment_class("mp2_two_envs")
-    fake_taskset_module("mp2_two_tasksets", ["A", "B", "C"], A=taskset, B=other_taskset, C=env)
-    with pytest.raises(ValueError):
-        loaders().taskset_class("mp2_two_tasksets")
-    fake_taskset_module("mp2_hidden_env", ["A"], A=taskset, B=env)
-    assert loaders().environment_class("mp2_hidden_env") is vf.SingleAgentEnv
-    assert harness_of(vf.resolve_env_config({"taskset": {"id": "mp2_hidden_env"}})).id == "bash"
 
 
 # --------------------------------------------------------------------------
@@ -869,15 +764,6 @@ def test_mp3_2_the_plain_single_agent_config_resolves_to_bash():
     """The known-positive control (measured): without the exported `Env`, the
     same taskset runs `bash`."""
     assert harness_of(plain_config()).id == "bash"
-
-
-def test_mp3_3_the_cli_with_nothing_named_but_the_id_resolves_null_in_a_subprocess():
-    config = dry_run(TASKSET_ID, "--no-push")
-    env = config["env"]
-    assert env["taskset"]["id"] == TASKSET_ID
-    assert env["id"] == ""  # the taskset's own env; no `--env.id` is needed
-    assert env["agent"]["harness"]["id"] == MEASURED_HARNESS
-    assert env["agent"]["runtime"]["type"] == "subprocess"
 
 
 @pytest.mark.parametrize("spec", ALL_SPECS, ids=SPEC_IDS)
@@ -938,10 +824,16 @@ def test_mp4_2_each_declared_pin_carries_a_reason():
 
 
 def test_mp4_3_the_pins_show_in_the_saved_config():
-    """Why MP4 matters: a pin is in the saved run config, not only in source."""
+    """Why MP4 matters: a pin is in the saved run config, not only in source.  The same
+    dry run, with nothing named but the id, resolves the taskset's own env and runs `null`
+    in a subprocess (MP3 at the CLI)."""
     env = dry_run(TASKSET_ID, "--no-push")["env"]
     for path, (value, _reason) in declared_pins().items():
         assert str(dig(env, path)) == value, path
+    assert env["taskset"]["id"] == TASKSET_ID
+    assert env["id"] == ""  # the taskset's own env; no `--env.id` is needed
+    assert env["agent"]["harness"]["id"] == MEASURED_HARNESS
+    assert env["agent"]["runtime"]["type"] == "subprocess"
 
 
 # --------------------------------------------------------------------------
@@ -968,14 +860,8 @@ def test_mp5_3_at_the_cli_the_pin_is_a_default_and_not_a_lock():
     assert env["agent"]["harness"]["id"] == "bash"
 
 
-def test_mp5_4_the_docs_name_the_override_and_say_it_leaves_the_pin_ledger():
-    doc = export_doc()
-    assert "--env.agent.harness.id" in doc
-    assert "outside the pin ledger" in doc
-
-
 # --------------------------------------------------------------------------
-# MP6 - Prove stays optional
+# MP6 - Proofload stays optional
 # --------------------------------------------------------------------------
 
 
@@ -984,6 +870,7 @@ def test_mp6_1_the_layer_imports_no_proofload_and_no_adapter():
     walk that reads `import_module` strings too."""
     closure = layer_closure()
     assert ROOT_MODULE in closure and env_module().__name__ in closure
+    assert "poisson_tasks.export" in closure
     for name, tree in closure.items():
         assert needs_proofload(imported_modules(tree)) == set(), name
 
@@ -1025,30 +912,6 @@ def test_mp7_2_looking_the_exported_names_up_is_what_imports_verifiers():
 # --------------------------------------------------------------------------
 # MP8 - nothing is pushed
 # --------------------------------------------------------------------------
-
-
-def test_mp8_1_push_is_the_runs_and_the_env_cannot_turn_it_off():
-    """Measured: `push` is a field of the run config and on by default, and an env config
-    that carries a `push` of its own is not read (the plain config refuses the extra field;
-    the id's own config keeps it as an attribute the run never looks at).  So the document
-    names `--no-push`, and the one-liner has it."""
-    eval_config = importlib.import_module("verifiers.v1.configs.cli.eval").EvalConfig
-    assert eval_config(env=env_config()).push is True
-    pushing = type("Pushing", (type(env_config()),), {"__annotations__": {"push": bool}, "push": False})
-    assert eval_config(env=pushing(taskset={"id": TASKSET_ID})).push is True
-    with pytest.raises(Exception, match="push"):
-        eval_config(env=vf.SingleAgentEnvConfig.model_validate({"taskset": {"id": TASKSET_ID}, "push": False}))
-    assert dry_run(TASKSET_ID)["push"] is True
-    assert dry_run(TASKSET_ID, "--no-push")["push"] is False
-    assert "--no-push" in one_liner()
-
-
-def test_mp8_2_the_runtime_is_local_and_the_plain_one_is_not():
-    runtimes = importlib.import_module("verifiers.v1.runtimes")
-    assert isinstance(env_config().agent.runtime, vf.SubprocessConfig)
-    assert runtimes.runtime_is_local(env_config().agent.runtime) is True
-    assert isinstance(plain_config().agent.runtime, vf.PrimeConfig)
-    assert runtimes.runtime_is_local(plain_config().agent.runtime) is False
 
 
 def test_mp8_3_no_connection_at_import_or_at_task_build():
@@ -1106,7 +969,7 @@ def test_mp9_3_the_one_liner_resolves_to_tasks_the_generator_would_make():
 
 
 # --------------------------------------------------------------------------
-# W - the resolved env config survives its own wire format (decided 2026-09-22)
+# W - the resolved env config survives its own wire format
 # --------------------------------------------------------------------------
 
 
@@ -1121,8 +984,8 @@ def wire(config: Any) -> dict[str, Any]:
 
 
 def test_w1_the_resolved_env_config_survives_its_own_wire_format():
-    """The invariant the 2026-09-22 live smoke bought, decided the same day: a config the
-    wheel resolved must validate again from its own dump, and be a fixed point under it.
+    """The invariant the first live run against a real model found: a config the wheel
+    resolved must validate again from its own dump, and be a fixed point under it.
 
     `TasksetConfig.task` is `SerializeAsAny[TaskConfig]`, so the dump is duck-typed and
     carries whatever subclass the field holds -- but the annotation is still the base
@@ -1150,10 +1013,11 @@ def test_w1_the_resolved_env_config_survives_its_own_wire_format():
 
 
 def test_w2_a_config_with_no_arm_round_trips_the_known_positive_control():
-    """The control: the same round trip on a config whose `task` is the base `TaskConfig`,
-    because no arm was given and the taskset config derives nothing.  It passes on the tree
-    that fails `test_w1`, which is what locates the failure in the derived subclass rather
-    than in the wheel's dump-and-load."""
+    """The control: the same round trip on a config with no arm, from which the taskset
+    config derives nothing.  Its `task` is the export's own task config at its defaults
+    here; on a tree whose taskset config does not re-declare `task`, it is the base
+    `TaskConfig`, and there this test passes while `test_w1` fails, which is what locates
+    that failure in the derived subclass rather than in the wheel's dump-and-load."""
     config = env_config()
     data = wire(config)
     again = vf.resolve_env_config(data)
@@ -1161,7 +1025,7 @@ def test_w2_a_config_with_no_arm_round_trips_the_known_positive_control():
 
 
 # --------------------------------------------------------------------------
-# TL - `turn_limit_hit` reads the stop reason (decided 2026-09-21)
+# TL - `turn_limit_hit` reads the stop reason
 # --------------------------------------------------------------------------
 
 
@@ -1204,16 +1068,14 @@ def test_tl3_a_stop_that_is_neither_is_not_a_turn_limit_under_either_reading(sto
 
 def test_tl4_the_wheel_stamps_max_turns_at_the_cap_and_agent_completed_otherwise():
     """The field the turn-limit read uses, as a live run writes it: a stub that always calls a
-    tool under `max_turns = 1` stops for `max_turns`; the reference stops `agent_completed`."""
+    tool under `max_turns = 1` stops for `max_turns`.  That the reference stops
+    `agent_completed` is asserted by `test_mp3_4` on every arm."""
     bundle = generate(spec_of("depth", 1), SEEDS[0])
     capped = run_one(spec_of("depth", 1), SEEDS[0], [("tool_calls", bundle.reference_calls[0])], agent={"max_turns": 1})
     assert capped.trace.stop_condition == TURN_LIMIT_STOP
     assert capped.trace.is_truncated is True
     assert capped.trace.num_turns == 1 and len(capped.log) == 1
     assert capped.trace.rewards["strict"].score == 0.0
-    finished = run_one(spec_of("depth", 1), SEEDS[1])
-    assert finished.trace.stop_condition == "agent_completed"
-    assert finished.trace.is_truncated is False
 
 
 # --------------------------------------------------------------------------

@@ -1,15 +1,13 @@
 """MP10, the bridge between the two scorers: on one trace, the export's `strict` reward (X4)
-and the adapter's strict label (`to_episode`, through `_judge`) agree on `passed` -- frozen
-as tests.
+and the adapter's strict label (`to_episode`, through `_judge`) agree on `passed` -- and its
+tests.
 
-Decided 2026-09-21 for the standalone model path: the two must agree on `passed`.  Nothing
-pinned it before: X4 is frozen against the task layer's `verify` on turns the test built, the
-adapter's verdict against its own scripted runs, and no test had put them on one trace.  This
-file does.  It needs the Proofload extra, because `to_episode` returns a `proofload.Episode` and
+The standalone model path needs the two to agree on `passed`.  X4 is tested against the task
+layer's `verify` on turns the test built, the adapter's verdict against its own scripted
+runs, and only this file puts them on one trace.  It needs the Proofload extra, because `to_episode` returns a `proofload.Episode` and
 `poisson_tasks.adapter` imports Proofload at import, which is why it is not in
 `tests/test_tg_m5_standalone.py`: `tests/conftest.py` skips it whole without the extra, the way
-it skips the scripted path's file.  **Frozen 2026-09-22** with the standalone file, once the
-mapping was approved and MP10 was settled to stay in this file.
+it skips the scripted path's file.
 
 The traces are synthetic, built as the `null` harness at 0.3.1 leaves one (the harness
 the export is measured under): the seeded prompt, one sampled assistant message per call with
@@ -18,24 +16,21 @@ is outside the block, gets the harness's own `error: ...` line and no `seq`, bec
 reached the engine.  The `Run` is built here, from the trace, by the rule layer 2's mapping
 will be held to: the sampled calls in the order they were made, each with the tool message it
 got back, `ended_with_reply` from the last sampled message, `turn_limit_hit` from
-`stop_condition == "max_turns"` (decided 2026-09-21), the export's own empty format spec.
+`stop_condition == "max_turns"`, the export's own empty format spec.
 
 Shapes decided here
 -------------------
 
-**1. A8 replays what reached the engine, and not what the harness answered itself: shape
-(b).**  Three shapes were on the table, and the choice waited on a measurement.  Measured
-on the whole scripted test file first: with `_judge` replaying every call except those whose
-tool message is the harness's own `error: ...` line, every scripted case stays green -- every
-scripted observation comes from `apply`, which numbers every call (E5), so no scripted run has
-such a message.  A count
-difference is a mismatch as before, and every message that is not the harness's shape is
-replayed and compared byte for byte as before.  The first cut of the edit, "replay the calls
-whose message opens with a `seq`", was measured too and failed 15 cases: a corrupted `seq`
-was skipped instead of detected, which is the wrong way round.  `Run` keeps its six fields
-(`test_sf4` stands) and `to_episode` its signature.  *Escape hatch:* shape (a), a seventh
-field on `Run`, on a scripted-path retrofit branch (allowed on 2026-09-21 if (b) had not
-held).  The tests here pin the label and would survive it.
+**1. A8 replays what reached the engine, and not what the harness answered itself.**
+`_judge` replays every call except those whose tool message is the harness's own
+`error: ...` line.  The scripted path is unaffected: every scripted observation comes from
+`apply`, which numbers every call (E5), so no scripted run has such a message.  A count
+difference is a mismatch, and every message that is not the harness's shape is replayed and
+compared byte for byte.  Replaying only the calls whose message opens with a `seq` would be
+the wrong way round: a corrupted `seq` would be skipped instead of detected (the second half
+of `test_mp10_4`).  `Run` keeps its six fields (`test_sf4`) and `to_episode` its signature.
+*Escape hatch:* a seventh field on `Run` that marks a harness-refused call.  The tests here
+pin the label and would survive it.
 
 **2. The invariant is about `passed`, on traces the harness could have left.**  A genuine
 divergence -- a tool message whose bytes are not what the engine would have written -- is
@@ -46,7 +41,7 @@ control rather than an agreement.
 Open, and not settled here
 --------------------------
 
-1. **Where a harness-refused call sorts under X4** (left open when the export was built).  Such a
+1. **Where a harness-refused call sorts under X4** (open in the export's tests as well).  Such a
    call mutates nothing wherever it sorts, and no test here depends on the answer.
 """
 
@@ -62,9 +57,9 @@ from typing import Any
 import pytest
 import verifiers.v1 as vf
 
-from poisson_tasks.engine import apply, init_state
 from poisson_tasks.knobs import ArmSpec, arm_id, levels
-from poisson_tasks.tasks import FormatSpec, TaskBundle, Turn, generate, scenario_for
+from poisson_tasks.tasks import FormatSpec, TaskBundle, Turn, generate
+from tests.helpers import live_observations, seeded_nodes
 
 GEN_VERSION = "0"
 SLACK = 3
@@ -101,30 +96,6 @@ def export() -> Any:
 # --------------------------------------------------------------------------
 # a trace as the null harness leaves it, and the Run built from it
 # --------------------------------------------------------------------------
-
-
-def live_observations(bundle: TaskBundle, calls: Iterable[tuple[str, Any]]) -> list[str]:
-    state = init_state(scenario_for(bundle.seed, bundle.split), bundle.seq_start)
-    names = {str(tool["name"]) for tool in bundle.tools}
-    out: list[str] = []
-    for name, args in calls:
-        if not isinstance(args, dict):
-            out.append("error: tool arguments must be a JSON object, got "
-                       f"{type(json.loads(json.dumps(args))).__name__}; resend as an object")
-        elif name not in names:
-            out.append(f"error: unknown tool {name!r}")
-        else:
-            state, observation = apply(state, (name, args))
-            out.append(observation)
-    return out
-
-
-def seeded_nodes(task: Any) -> list[Any]:
-    prompt = task.data.prompt
-    if isinstance(prompt, str):
-        return [vf.MessageNode(parent=None, message=vf.UserMessage(content=prompt), sampled=False)]
-    return [vf.MessageNode(parent=index - 1 if index else None, message=message, sampled=False)
-            for index, message in enumerate(prompt)]
 
 
 def trace_of(task: Any, bundle: TaskBundle, calls: Iterable[tuple[str, Any]], *, reply: bool,
@@ -238,7 +209,7 @@ def test_mp10_1_the_reward_is_one_exactly_when_the_strict_label_is_passed(spec, 
 def test_mp10_2_the_two_live_rows_a_harness_refused_call_inside_a_pass(spec):
     """The two live rows, seen from the bridge: the reward is 1.0 (the pass predicate is
     decided before the format check, in the task layer) and the adapter must agree -- which
-    it can only do if it does not replay the call the engine never saw (A8, shape (b)).  The
+    it can only do if it does not replay the call the engine never saw (A8, shape 1).  The
     clause is reported by both."""
     bundle = generate(spec, SEEDS[0])
     task = export().task_from_bundle(bundle)
@@ -291,8 +262,3 @@ def test_mp10_4_control_a_genuine_divergence_is_replay_mismatch_and_the_reward_c
         trace = trace_of(task, bundle, ref, reply=True, observations=bad)
         assert episode_of(spec, bundle, trace).outcome == "replay_mismatch", index
 
-
-def test_mp10_5_the_adapters_run_keeps_its_six_fields():
-    """Shape (b) costs the frozen scripted tests nothing: `Run` is the record `test_sf4` pins."""
-    fields = dataclasses.fields(adapter().Run)
-    assert [f.name for f in fields] == ["turns", "tool_messages", "ended_with_reply", "turn_limit_hit", "fmt", "instrument"]

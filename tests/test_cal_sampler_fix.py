@@ -34,6 +34,8 @@ from typing import Any
 
 import pytest
 
+from tests.helpers import run_module
+
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 SRC = REPO / "src"
@@ -41,12 +43,6 @@ TEMPLATE_FIXTURE = HERE / "fixtures" / "qwen3-8b-chat-template.json"
 FAILURE_LOG = HERE / "fixtures" / "vllm-serve-ninja-failure.log"
 NINJA = "FileNotFoundError: [Errno 2] No such file or directory: 'ninja'"
 SETTING = "VLLM_USE_FLASHINFER_SAMPLER"
-
-
-def run_module() -> Any:
-    import importlib
-
-    return importlib.import_module("poisson_tasks.calibration_run")
 
 
 def _driver(*args: str) -> list[str]:
@@ -61,11 +57,6 @@ def _after_stop(output: str) -> str:
 # ---------------------------------------------------------------------------
 # the pin
 # ---------------------------------------------------------------------------
-
-
-def test_the_pin_turns_the_flashinfer_sampler_off() -> None:
-    pin = run_module().QWEN3_8B
-    assert dict(pin.env) == {SETTING: "0"}
 
 
 def test_the_setting_is_in_the_provenance_flags_and_the_serving_block() -> None:

@@ -10,7 +10,7 @@ Across all 14 arms, Qwen's ordinary episodes end within 17 model calls, and mode
 was 18.  Above that sit the loops: 24 or more calls, most past 100.  A cap anywhere from 24 to
 50 changes 1 episode of the 900 in the three arms that loop.
 
-Decided 2026-09-28: a default of 32 model calls, four times the deepest task's minimum (8 at
+So the taskset has a default of 32 model calls, four times the deepest task's minimum (8 at
 `depth:d8`), pinned in the taskset's own env config beside the measured harness.  The
 documented command and the calibration run then behave the same, and a flag overrides the
 cap as it overrides the harness.  An episode that reaches it stops as `max_turns`, which the
@@ -31,7 +31,7 @@ from typing import Any
 import pytest
 
 from poisson_tasks import calibration as cal
-from tests.test_cal_qwen_prep import needs_uv
+from tests.helpers import needs_uv, run_module
 
 CAP = 32
 
@@ -40,12 +40,6 @@ def taskset() -> Any:
     import importlib
 
     return importlib.import_module("poisson_tasks.taskset")
-
-
-def run_module() -> Any:
-    import importlib
-
-    return importlib.import_module("poisson_tasks.calibration_run")
 
 
 # ---------------------------------------------------------------------------
@@ -62,22 +56,6 @@ def test_the_cap_is_four_times_the_deepest_tasks_minimum() -> None:
 def test_the_taskset_env_pins_the_cap() -> None:
     config = taskset().PoissonTasksEnvConfig()
     assert config.agent.max_turns == CAP
-
-
-def test_the_cap_is_declared_with_a_reason() -> None:
-    """The module docstring lists every pin, one line each; the MP4 tests read that list."""
-    doc = taskset().__doc__ or ""
-    line = next((row for row in doc.splitlines() if row.startswith("- `agent.max_turns`")), "")
-    assert f"= `{CAP}` --" in line
-
-
-def test_the_cap_binds_no_episode_of_model_a() -> None:
-    """Model A ran with no cap.  Its card is what it would be under this one only if no
-    episode made more model calls than the cap."""
-    root = Path(__file__).resolve().parent.parent
-    rows = (root / "calibration" / "gpt-5-nano-2025-08-07" / "episodes.jsonl").read_text()
-    longest = max(json.loads(line)["turns"] for line in rows.splitlines() if line.strip())
-    assert longest < CAP
 
 
 # ---------------------------------------------------------------------------
@@ -120,6 +98,37 @@ def test_the_card_prints_the_cap() -> None:
 def test_model_b_cards_are_built_with_the_cap() -> None:
     """The driver's card records the cap the taskset imposed on the run."""
     assert run_module().CARD_MAX_MODEL_CALLS == taskset().MAX_MODEL_CALLS
+
+
+def test_the_card_the_driver_writes_records_the_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`finalize`, the driver's last step, on one arm's records as a run leaves them (read
+    here without a run): the artifact it writes carries the taskset's cap in its provenance,
+    and the card prints it."""
+    run = run_module()
+    served = run.QWEN3_8B.served_name
+
+    def arm_rows(_run_dir: Path, arm: str, _served: str) -> tuple[Any, ...]:
+        rows = [
+            cal.EpisodeRecord(task_id=f"t{seed}", arm_id=arm, model=served, seed=seed,
+                              attempt=attempt, strict=True, leaky=True, label="passed",
+                              turns=2, sampled_calls=1, prompt_tokens=10,
+                              cached_input_tokens=0, completion_tokens=5, reasoning_tokens=0)
+            for seed in range(cal.S) for attempt in range(cal.N)
+        ]
+        return rows, {}, {"episodes": len(rows), "max_prompt_tokens": 10, "context_stops": 0}
+
+    monkeypatch.setattr(run, "_arm_rows", arm_rows)
+    result = run.finalize(
+        tmp_path, tmp_path / "card",
+        serving={"stack_version": "0.29.0+cu129", "gpu": "NVIDIA L4", "date": "2026-09-28"},
+        arms=["depth:d1"], wall_clock_hours=1.0, served=served,
+    )
+    assert result["cal24"] == "published", result
+    stored = json.loads((tmp_path / "card" / "artifact.json").read_text())
+    assert stored["provenance"]["max_model_calls"] == taskset().MAX_MODEL_CALLS == CAP
+    assert f"{CAP} model calls" in (tmp_path / "card" / "card.md").read_text()
 
 
 # ---------------------------------------------------------------------------

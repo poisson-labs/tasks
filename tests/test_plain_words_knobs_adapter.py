@@ -10,7 +10,7 @@ The check reads every string literal in the two modules that is not a docstring,
 calibration module's pattern widened by three kinds of reference these modules carried.  Three things are allowed, each for a reason:
 - a ledger row id on its own (`"N3"`): the rows N1 to N13 are the ledger's public names, and
   `docs/knobs-and-arms.md` lists every one;
-- "N18" in N10's held text: the frozen test `test_n18_1` requires it there, as the ledger's
+- "N18" in N10's held text: the test `test_n18_1` requires it there, as the ledger's
   pointer to the serving pin, and the text says in words what that pin covers;
 - N10's and N13's `unmeasured` reasons: they are written into every task bundle, which the
   task id hashes, so rewording them moves every task id and stales both calibration cards.
@@ -29,7 +29,7 @@ from poisson_tasks import calibration as cal
 from poisson_tasks.knobs import pin_ledger
 from poisson_tasks.tasks import generate
 
-from tests.test_cal_plain_words import INTERNAL
+from tests.helpers import INTERNAL
 
 REPO = Path(__file__).resolve().parent.parent
 ROW_ID = re.compile(r"N(?:[1-9]|1[0-3])")
