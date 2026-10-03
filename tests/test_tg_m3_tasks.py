@@ -71,8 +71,7 @@ is the only one of the three that leaves N14 at the two fields the design names.
 than asserted**.  `apply` writes the audit field only inside the one
 branch that also writes `stage` and `token` (`engine.py`'s `_stage_call`), so a record's
 audit field moves if and only if its stage moves.  `test_pg16_2` measures that over the
-status codes the engine can emit and `test_pg16_3` over random call sequences, rather
-than reading it off the source - which is the half of the claim a source read
+status codes the engine can emit, rather than reading it off the source - which is the half of the claim a source read
 would have got wrong in either direction.  So dropping the audit field from the compared
 value loses no discrimination in either place that reads it: `passed` compares the final
 records, and `collateral_mutation` asks whether another record was mutated, and a record
@@ -106,7 +105,9 @@ are A4's fault-injection labels and name conditions - a transport failure, a
 wall-clock deadline - that `verify`'s
 five arguments cannot express.  So `verify` returns one of `verifier_error`,
 `malformed_call`, `turn_limit`, `overshoot`, `wrong_state`, `collateral_mutation`,
-`passed`, and `test_g10_3` asserts it never returns the other three.  Naming the split
+`passed`: `test_g8_2` asserts the label of every generated control, `test_g4_1` the
+reference solution's and `test_g10_1` a raised verifier's, so none of them can be one of
+the other three.  Naming the split
 is what stops a later build from quietly assigning an instrument label from inside the
 verifier, which A4 exists to prevent.
 
@@ -210,18 +211,17 @@ Shapes the design names but does not define
 
 What is deliberately not tested here
 ------------------------------------
-* **N17's scripted `diff` and N18's revision predicate.**  Both are filed as
-  owed to the Proofload adapter's tests, and **nothing covers either one today**.  This
-  file does not either: `tasks.py` imports nothing from Proofload and no model string
-  reaches a bundle.  `test_n18_3` asserts that `tasks.py`, like `knobs.py` before it,
-  holds **no** revision predicate, so the gap stays visible and a later reader cannot
-  take two modules' silence for coverage.  The knobs tests' `n18_2` makes the same
-  assertion about `knobs.py` and this file does not weaken it.
+* **N17's scripted `diff` and N18's revision predicate.**  Both belong to the Proofload
+  adapter, and `tests/test_tg_m5_scripted.py` covers them **only with Proofload
+  installed**: without it that file is skipped whole, and neither is covered.  This file
+  does not cover them either: `tasks.py` imports nothing from Proofload (`test_sf8`) and
+  the bundle carries no model field (`test_sf4`), so there is nothing here for either
+  check to read.
 * **Format-check clause 1's generated control.**  G8 assigns clauses 2-4 to the task layer "at
   the call level" and sends clause 1 - content carrying the markers with no parsed call -
   through each model's own stack, because it depends on the family's raw format
   (A16).  The *clause* is pinned here with a synthetic turn (`test_fc_1`); the
-  *generated negative control* for it is not, and `test_g8_2` pins that
+  *generated negative control* for it is not, and `test_g8_1` pins that
   `negative_controls` carries clauses 2, 3 and 4 and not clause 1.
 * **Whether a real cell's `k` clears `100*N**2`.**  G16's threshold is pinned as a
   literal and `structure_space` is pinned against a brute-force count on a reduced
@@ -829,7 +829,7 @@ def test_g2_1_generation_runs_with_sockets_disabled():
 # the goal stage is the knob.  What PG-16 decides is the *other* comparison: it does not
 # move between `depth:d1` and `depth:d1+h8`, which are at one level and differ only in
 # `seq_start`, so N14 stays at the two fields the design names for the D control.  That is
-# `test_pg16_1`, and it is the assertion option 1 would have had to give up.
+# `test_n14_2`, and it is the assertion option 1 would have had to give up.
 N14_INDEPENDENT = (
     "seed", "split", "scenario_hash", "system_prompt", "tools", "template_id",
     "initial_state", "verifier", "engine_hash", "generator_hash",
@@ -844,8 +844,8 @@ N14_TRANSFORMED = (
 def test_g3_1_the_scenario_is_a_function_of_the_seed_and_the_split_alone():
     """The design's definition: the scenario is "everything drawn from the task seed alone".  So the
     arm is not an argument, and N1 - scenario equality across a knob's arms - holds by
-    construction rather than by check.  `test_g3_2` is the check anyway, because a
-    generator could still draw *outside* `scenario_for`."""
+    construction rather than by check.  `test_n14_1`, `test_n14_2` and `test_g3_4` are
+    the check anyway, because a generator could still draw *outside* `scenario_for`."""
     m = tasks()
     assert tuple(inspect.signature(m.scenario_for).parameters) == ("seed", "split", "spec")
     assert m.scenario_for(11, "eval") == m.scenario_for(11, "eval")
@@ -1350,7 +1350,8 @@ def test_g9_3_the_markers_are_read_from_fmt_and_not_hardcoded():
 
 def test_fc_1_a_marker_with_no_parsed_call_fails_the_check():
     """Clause 1, with a synthetic turn.  The generated control for it runs in each model's stack
-    (`test_g8_3`); the clause itself is `verify`'s and is pinned here."""
+    (`test_g8_1` pins that none is generated here); the clause itself is `verify`'s and is
+    pinned here."""
     b = tasks().generate(spec(level=3), 1212)
     verdict = run(b, (), content="<tool_call>{\"name\": \"submit_")
     assert verdict.format_clause == 1
@@ -1787,8 +1788,9 @@ def _g16_counts():
 def test_g16_1_structure_space_matches_a_brute_force_count():
     """G16's first *Test:* clause, on the reduced vocabulary where brute force is
     possible.  The count is taken by saturation rather than by re-deriving the
-    generator's arithmetic: over 20,000 draws with k around 24, the chance any structure
-    is missed is below 10^-300, so the distinct fingerprints observed *are* the space.
+    generator's arithmetic: over 6,000 draws with k = 48, the chance any structure is
+    missed is below 10^-53 (k * (1 - 1/k)^6000), so the distinct fingerprints observed
+    *are* the space.
     Re-deriving the arithmetic here would be the test checking a number against
     itself."""
     m = tasks()
