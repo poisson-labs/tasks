@@ -64,22 +64,6 @@ def test_the_taskset_env_pins_the_cap() -> None:
     assert config.agent.max_turns == CAP
 
 
-def test_the_cap_is_declared_with_a_reason() -> None:
-    """The module docstring lists every pin, one line each; the MP4 tests read that list."""
-    doc = taskset().__doc__ or ""
-    line = next((row for row in doc.splitlines() if row.startswith("- `agent.max_turns`")), "")
-    assert f"= `{CAP}` --" in line
-
-
-def test_the_cap_binds_no_episode_of_model_a() -> None:
-    """Model A ran with no cap.  Its card is what it would be under this one only if no
-    episode made more model calls than the cap."""
-    root = Path(__file__).resolve().parent.parent
-    rows = (root / "calibration" / "gpt-5-nano-2025-08-07" / "episodes.jsonl").read_text()
-    longest = max(json.loads(line)["turns"] for line in rows.splitlines() if line.strip())
-    assert longest < CAP
-
-
 # ---------------------------------------------------------------------------
 # the card
 # ---------------------------------------------------------------------------

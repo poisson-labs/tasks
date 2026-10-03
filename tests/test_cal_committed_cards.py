@@ -21,6 +21,7 @@ from pathlib import Path
 import pytest
 
 from poisson_tasks import calibration as cal
+from poisson_tasks.taskset import MAX_MODEL_CALLS
 
 CARDS = Path(__file__).resolve().parent.parent / "calibration"
 MODEL_A = CARDS / "gpt-5-nano-2025-08-07"
@@ -60,6 +61,8 @@ def test_model_b_records_its_serving_settings_and_the_cap() -> None:
 
 
 def test_model_a_ran_without_a_cap_and_never_reached_it() -> None:
+    """Model A ran with no cap.  Its card is what it would be under the taskset's cap only if
+    no episode made as many model calls as the cap allows."""
     assert "max_model_calls" not in _provenance(MODEL_A)
     longest = max(r.turns for r in cal.read_records(MODEL_A / "episodes.jsonl"))
-    assert longest < 32
+    assert longest < MAX_MODEL_CALLS
