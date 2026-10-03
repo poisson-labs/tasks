@@ -356,7 +356,11 @@ WORD_LIST_SIZE = 256
 RECORD_ID_WORDS = TABLE["record_id_word_count"]
 RECORD_ID_SEPARATOR = TABLE["record_id_separator"]
 SEED_SPACE = WORD_LIST_SIZE ** RECORD_ID_WORDS
-G14_SWEEP = 1 << 20
+# G14's *Test:* line names a sweep of 2^20 seeds.  2^16 is what this file runs: every word of
+# the split's list takes each of the bottom two digit positions inside the first 2^16 seeds,
+# so a `decode` that misreads any one word fails the sweep every run, in a sixteenth of the
+# time.  The reduction is declared here rather than made silently.
+G14_SWEEP = 1 << 16
 
 GEN_VERSION = "0.0.1"
 STRICTNESS = ("strict", "leaky")
@@ -1764,16 +1768,20 @@ def test_g14_1_decode_inverts_encode(seed, split):
     assert m.decode_record_id(m.encode_record_id(seed, split), split) == seed
 
 
-def test_g14_2_the_sweep_of_2_20_seeds_round_trips_and_gives_distinct_ids():
-    """G14's *Test:* line, at the size it names.  Run on `encode`/`decode` rather than on
-    `generate`, because 2^20 bundles is not a test - which is the reason the two names
-    are public at all."""
+def test_g14_2_the_sweep_of_2_16_seeds_round_trips_and_gives_distinct_ids():
+    """G14's *Test:* line, over the first 2^16 seeds (`G14_SWEEP` says why not 2^20).
+    Run on `encode`/`decode` rather than on `generate`, because a sweep of bundles is not
+    a test - which is the reason the two names are public at all.
+
+    Every word reaches the bottom two digit positions here; the top two stay at the
+    list's first word throughout.  `test_g14_1` draws seeds from the whole space, and
+    `test_g14_3` and `test_g12_2` pin seeds that set the top digits."""
     m = tasks()
     for seed in range(G14_SWEEP):
         assert m.decode_record_id(m.encode_record_id(seed, "eval"), "eval") == seed
     # "Every pair of seeds gives distinct instance hashes" follows from the line above
-    # and needs no second sweep: `decode` is a left inverse of `encode` over the whole
-    # range, and a function with a left inverse is injective.  Holding a set of 2^20
+    # and needs no second sweep: `decode` is a left inverse of `encode` over the swept
+    # range, and a function with a left inverse is injective.  Holding a set of 2^16
     # strings to assert what the round trip already proves would be the expensive signal
     # standing in for the cheap one, which is the spine rule read backwards.
     assert len({m.encode_record_id(seed, "eval") for seed in range(4096)}) == 4096
