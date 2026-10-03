@@ -11,9 +11,10 @@ wheel, nothing here settles it**: the test pins only what every reading shares, 
 open point is listed under *Open, and not settled here*.
 
 **No test here needs Proofload.**  The task generator is standalone and Proofload is an
-optional extra, so this file imports neither `proofload` nor `poisson_tasks.adapter`, and
-the module it tests may import neither (`test_pv1`, `test_pv2`).  `verifiers==0.3.1` is a
-plain dependency and the tests drive the installed wheel.
+optional extra, so this file imports neither `proofload` nor `poisson_tasks.adapter`
+(`test_pv2`), and the module it tests may import neither (`test_mp6_1` in
+`tests/test_tg_m5_standalone.py`, whose walk covers the export module).
+`verifiers==0.3.1` is a plain dependency and the tests drive the installed wheel.
 
 Every test reaches the module through `importlib`, inside `export()`, so the file collects
 on a tree that has no `poisson_tasks.export` and its tests fail there for that one reason.
@@ -558,13 +559,6 @@ def needs_proofload(modules: set[str]) -> set[str]:
     }
 
 
-def test_pv1_the_export_imports_no_proofload_and_no_adapter():
-    """Decided 2026-09-21: the task generator is standalone and Proofload is an optional
-    extra.  The rule, in prose: no import in the export module names `proofload` or
-    `poisson_tasks.adapter`, by an `ast` walk that also reads `import_module` strings."""
-    assert needs_proofload(imported_modules(export_source())) == set()
-
-
 def test_pv2_this_file_imports_no_proofload_and_no_adapter():
     """The same walk over this file, so no test here can need the extra.  Green before and
     after the build: it reads this file only."""
@@ -573,7 +567,7 @@ def test_pv2_this_file_imports_no_proofload_and_no_adapter():
 
 
 def test_pv3_the_walker_sees_each_shape_of_import():
-    """The known positive for PV1, PV2 and X1.3's import half.  Green before and after."""
+    """The known positive for PV2, MP6.1's walk and X1.3's import half.  Green before and after."""
     shapes = {
         "import proofload": {"proofload"},
         "from proofload import Episode": {"proofload"},
@@ -593,16 +587,12 @@ def test_pv3_the_walker_sees_each_shape_of_import():
 
 
 def test_x1_1_the_installed_wheel_is_the_pinned_one():
-    """The pinned release.  Green before and after: it reads the environment, not the module."""
+    """The pinned release, and X1's "a CI test imports each one from the pinned 0.3.1
+    wheel": every verified name is an attribute of `verifiers.v1` and is in its `__all__`.
+    Green before and after: it reads the environment, not the module."""
     assert importlib.metadata.version("verifiers") == PINNED_VERIFIERS
-
-
-@pytest.mark.parametrize("name", sorted(VERIFIED_NAMES))
-def test_x1_2_each_verified_name_imports_from_the_pinned_wheel(name):
-    """X1's "a CI test imports each one from the pinned 0.3.1 wheel".  Green before and
-    after.  Fixture could disagree: yes, the list is ours and the wheel is PyPI's."""
-    assert hasattr(vf, name), name
-    assert name in vf.__all__, name
+    assert {name for name in VERIFIED_NAMES if not hasattr(vf, name)} == set()
+    assert VERIFIED_NAMES - set(vf.__all__) == set()
 
 
 def test_x1_3_the_export_takes_only_verified_names_from_verifiers():
@@ -1217,6 +1207,9 @@ def test_x9_2_the_docs_name_the_measured_harness():
 
 
 def test_x9_3_the_docs_say_another_harness_is_outside_the_pin_ledger():
+    """Why another harness is outside the pin ledger (it changes the system prompt), and
+    the flag that names one over the environment's pin (MP5)."""
     text = " ".join(export_doc().split())
     assert "outside the pin ledger" in text
     assert "system prompt" in text
+    assert "--env.agent.harness.id" in text

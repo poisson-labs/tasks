@@ -806,15 +806,6 @@ def test_mp3_2_the_plain_single_agent_config_resolves_to_bash():
     assert harness_of(plain_config()).id == "bash"
 
 
-def test_mp3_3_the_cli_with_nothing_named_but_the_id_resolves_null_in_a_subprocess():
-    config = dry_run(TASKSET_ID, "--no-push")
-    env = config["env"]
-    assert env["taskset"]["id"] == TASKSET_ID
-    assert env["id"] == ""  # the taskset's own env; no `--env.id` is needed
-    assert env["agent"]["harness"]["id"] == MEASURED_HARNESS
-    assert env["agent"]["runtime"]["type"] == "subprocess"
-
-
 @pytest.mark.parametrize("spec", ALL_SPECS, ids=SPEC_IDS)
 def test_mp3_4_the_measured_harness_runs_the_reference_by_the_id_alone(spec):
     """The invariant at run time, over every arm: resolved by the id with no harness named,
@@ -873,10 +864,16 @@ def test_mp4_2_each_declared_pin_carries_a_reason():
 
 
 def test_mp4_3_the_pins_show_in_the_saved_config():
-    """Why MP4 matters: a pin is in the saved run config, not only in source."""
+    """Why MP4 matters: a pin is in the saved run config, not only in source.  The same
+    dry run, with nothing named but the id, resolves the taskset's own env and runs `null`
+    in a subprocess (MP3 at the CLI)."""
     env = dry_run(TASKSET_ID, "--no-push")["env"]
     for path, (value, _reason) in declared_pins().items():
         assert str(dig(env, path)) == value, path
+    assert env["taskset"]["id"] == TASKSET_ID
+    assert env["id"] == ""  # the taskset's own env; no `--env.id` is needed
+    assert env["agent"]["harness"]["id"] == MEASURED_HARNESS
+    assert env["agent"]["runtime"]["type"] == "subprocess"
 
 
 # --------------------------------------------------------------------------
@@ -903,12 +900,6 @@ def test_mp5_3_at_the_cli_the_pin_is_a_default_and_not_a_lock():
     assert env["agent"]["harness"]["id"] == "bash"
 
 
-def test_mp5_4_the_docs_name_the_override_and_say_it_leaves_the_pin_ledger():
-    doc = export_doc()
-    assert "--env.agent.harness.id" in doc
-    assert "outside the pin ledger" in doc
-
-
 # --------------------------------------------------------------------------
 # MP6 - Prove stays optional
 # --------------------------------------------------------------------------
@@ -919,6 +910,7 @@ def test_mp6_1_the_layer_imports_no_proofload_and_no_adapter():
     walk that reads `import_module` strings too."""
     closure = layer_closure()
     assert ROOT_MODULE in closure and env_module().__name__ in closure
+    assert "poisson_tasks.export" in closure
     for name, tree in closure.items():
         assert needs_proofload(imported_modules(tree)) == set(), name
 
