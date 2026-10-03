@@ -127,6 +127,14 @@ def _whole_number(value: _Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
+def _shown(value: _Any) -> str:
+    """A value as the command line or a TOML file gave it, for a message: `"leakey"`, `true`."""
+    try:
+        return _json.dumps(value)
+    except (TypeError, ValueError):
+        return type(value).__name__
+
+
 def _arm_mapping(arm: _Any) -> dict[str, _Any]:
     """The declared arm as the six-field mapping, checked, before the config is validated.
 
@@ -164,11 +172,11 @@ def _arm_mapping(arm: _Any) -> dict[str, _Any]:
     knob, level, control = arm["knob"], arm["level"], arm["control"]
     if not isinstance(knob, str) or knob not in _CONTROL_PAIRS:
         raise ValueError(
-            f"knob {knob!r} is not a knob: the knobs are {' and '.join(_CONTROL_PAIRS)}"
+            f"knob {_shown(knob)} is not a knob: the knobs are {' and '.join(_CONTROL_PAIRS)}"
         )
     lowest, highest = min(_levels(knob)), max(_levels(knob))
     if not _whole_number(level):
-        raise ValueError(f"level {level!r} is not a whole number")
+        raise ValueError(f"level {_shown(level)} is not a whole number")
     if not lowest <= level <= highest:
         raise ValueError(
             f"level {level} is not a {knob} level the generator can make: {knob} runs from "
@@ -176,7 +184,7 @@ def _arm_mapping(arm: _Any) -> dict[str, _Any]:
         )
     if control is not None:
         if not _whole_number(control):
-            raise ValueError(f"control {control!r} is neither null nor a whole number")
+            raise ValueError(f"control {_shown(control)} is neither null nor a whole number")
         if not level < control <= highest:
             raise ValueError(
                 f"control {control} cannot stand in for {knob} level {level}: a control is a "
@@ -184,15 +192,17 @@ def _arm_mapping(arm: _Any) -> dict[str, _Any]:
             )
     if arm["strictness"] not in _STRICTNESSES:
         raise ValueError(
-            f"strictness {arm['strictness']!r} is not a strictness: it is "
+            f"strictness {_shown(arm['strictness'])} is not a strictness: it is "
             + " or ".join(_STRICTNESSES)
         )
     if arm["split"] not in _SPLITS:
-        raise ValueError(f"split {arm['split']!r} is not a split: it is " + " or ".join(_SPLITS))
+        raise ValueError(
+            f"split {_shown(arm['split'])} is not a split: it is " + " or ".join(_SPLITS)
+        )
     if not isinstance(arm["generator_version"], str):
         raise ValueError(
-            f"generator_version {arm['generator_version']!r} is not text; the published cards' "
-            f'is "{_DEFAULT_GENERATOR_VERSION}"'
+            f"generator_version {_shown(arm['generator_version'])} is not text; the published "
+            f'cards\' is "{_DEFAULT_GENERATOR_VERSION}"'
         )
 
     spec = _ArmSpec(**arm)
