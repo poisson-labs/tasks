@@ -400,9 +400,10 @@ def test_e1_repeat_within_one_process_agrees():
     inherited at import, an environment variable read at module load, a value
     that resets per process.  Cross-process determinism rests on
     test_e1_two_processes_agree_byte_for_byte and on E10's "only if" direction,
-    not on this test.  It is here because it is the only clause that catches a
-    module-level counter, which two fresh processes agree on and therefore
-    cannot see.
+    not on this test.  It is here for a module-level counter, which two fresh
+    processes agree on and therefore cannot see.  In this file it is the only test
+    that catches a counter reaching the chain tokens of stage 1 and above; it is not
+    the only test in the suite that can catch a counter.
     """
     from poisson_tasks.engine import apply, init_state
 

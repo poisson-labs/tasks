@@ -529,8 +529,12 @@ def test_sf2_no_public_symbol_beyond_all():
 
 
 def test_sf3_the_four_types_are_frozen():
-    """SF3: `ArmSpec` is frozen by its own definition, and the three record types carry
-    measurements that a caller must not edit after the fact."""
+    """SF3: the four types are frozen dataclasses, so no field of an `ArmSpec`, a
+    `PinRow`, a `PinRecord` or a `PinReport` can be reassigned after the fact.
+
+    The freeze is shallow.  `PinRecord.values`, `PinRecord.unmeasured` and
+    `PinReport.records` are dicts, and their contents stay mutable; this test does not
+    pin them."""
     m = knobs()
     for name in ("ArmSpec", "PinRow", "PinRecord", "PinReport"):
         cls = getattr(m, name)
@@ -1085,9 +1089,12 @@ def test_n12_1_the_engine_and_generator_hashes_are_held_equal():
 
 
 def test_n14_1_knob_d_changes_only_the_goal_stage_and_the_required_count():
-    """N14: "generate the same seed under two arms and diff the bundles field by field.
-    Only the named fields may differ."  For knob D the named fields are the goal stage
-    and the required count, so every pinned field is equal between d1 and d8."""
+    """N14 for knob D, through the ledger: d1 and d8 with no control are a clean
+    contrast.  N14's written test diffs two generated bundles field by field; this one
+    does not.  Its bundles are built by hand and differ only in the goal stage and the
+    required count, and it asserts `check_pins` finds no violation among the pinned
+    fields.  It is the only test here that runs `check_pins` on a two-arm contrast with
+    no control."""
     k = knobs()
     arms = depth_contrast(control=False)
     report = k.check_pins(arms)
