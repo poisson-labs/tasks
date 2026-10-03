@@ -1777,13 +1777,18 @@ def test_a12_3_a_refused_call_poisons_nothing_and_the_target_still_works_outside
 
 def test_a12_4_a_call_starts_no_thread_and_leaves_no_loop():
     """Each call owns what it uses.  On the scripted path that is nothing that outlives it: no
-    thread, and no event loop left running or set on the calling thread."""
+    thread, and no event loop left running or set on the calling thread.  `get_running_loop`
+    cannot see a loop that is set but not running, so the thread starts with no loop set and
+    `get_event_loop`, which returns a set loop, must still find none afterwards."""
+    asyncio.set_event_loop(None)
     before = {t.ident for t in threading.enumerate()}
     for policy, spec, cfg, seed in battery()[:12]:
         target_of(policy, spec)(cfg, seed)
     assert {t.ident for t in threading.enumerate()} == before
     with pytest.raises(RuntimeError):
         asyncio.get_running_loop()
+    with pytest.raises(RuntimeError):
+        asyncio.get_event_loop()
 
 
 def test_a12_5_the_adapter_source_declares_no_global():
