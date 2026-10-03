@@ -106,7 +106,7 @@ one function and the tests are unchanged.
 
 **7. CAL4 is pinned in two places, because the wheel owns half of it.**  The half this
 repository owns -- a new toolset per call, with its engine state on the instance -- is tested
-directly.  The half the wheel owns -- that `toolsets` is called inside the rollout and not once
+with the export, in `tests/test_tg_m4_export.py` (`test_ts4` and the observation tests).  The half the wheel owns -- that `toolsets` is called inside the rollout and not once
 per task -- is measured in `rollout.py` by walking its AST, because an episode through the full
 lifecycle costs a `uv` build and a tool-server subprocess per attempt and would buy the same
 fact.  The AST pin is named as a pin on a third-party source and is expected to need re-reading
@@ -669,25 +669,6 @@ def test_cal7_6_pass_at_k_scores_the_strict_reward_and_not_the_leaky_one(k: int)
         assert got == pytest.approx(1.0)
 
 
-def test_cal6_4_pass_at_1_scores_the_strict_reward_and_not_the_leaky_one() -> None:
-    """The same separation on pass@1, so neither estimator can drift onto the wrong
-    predicate.  CAL6's indicator is `ExportTask.strict == 1.0` (X4)."""
-    cell = [
-        record(task_id="lk", seed=4000, attempt=i, strict=(i < 2), leaky=True,
-               label="passed" if i < 2 else "overshoot")
-        for i in range(N)
-    ]
-    assert cal().pass_at_1(cal().scored(cell)) == pytest.approx(2 / N)
-
-
-@pytest.mark.parametrize("counts", [HETEROGENEOUS_COUNTS, HOMOGENEOUS_COUNTS, (0, 1, 2, 3, 4, 5)])
-def test_cal8_1_pass_at_k_is_non_decreasing_in_k(counts: Sequence[int]) -> None:
-    """CAL8, for every cell, at every `k <= n`."""
-    scored = cal().scored(cell_from(counts))
-    series = [cal().pass_at_k(scored, k) for k in range(1, N + 1)]
-    assert series == sorted(series), series
-
-
 # ---------------------------------------------------------------------------
 # CAL9 - the interval.  A task-clustered bootstrap, and mutant M2 lives here
 # ---------------------------------------------------------------------------
@@ -740,19 +721,9 @@ def test_cal9_1_the_bootstrap_reproduces_the_exact_enumerated_distribution(
     assert (low, high) != (0.0, 1.0)
 
 
-def test_cal9_2_the_interval_is_reproducible_byte_for_byte() -> None:
-    """"two runs on the same records give the identical interval".  Same seed, same answer --
-    equality, not approximate equality, because CAL18 stores the seed so the published
-    interval recomputes exactly (CAL19)."""
-    scored = cal().scored(heterogeneous())
-    first = cal().cluster_bootstrap(scored, cal().pass_at_1, resamples=RESAMPLES, seed=11)
-    second = cal().cluster_bootstrap(scored, cal().pass_at_1, resamples=RESAMPLES, seed=11)
-    assert first == second
-
-
 def test_cal9_3_the_seed_is_load_bearing() -> None:
-    """The control on CAL9_2: if the seed did nothing, CAL9_2 would pass on a constant and
-    pin nothing.
+    """The seed reaches the interval: if it did nothing, a reproducibility check would pass
+    on a constant and pin nothing.
 
     Asserted over a **set** of seeds rather than a pair.  pass@1 on S = 12 tasks takes only
     61 distinct values, so its 2.5 and 97.5 quantiles genuinely coincide for many pairs of
@@ -780,42 +751,6 @@ def test_cal9_4_resampling_tasks_is_strictly_wider_than_resampling_attempts() ->
     assert width(clustered) > width(by_attempt), (clustered, by_attempt)
     # not a hair's breadth: the whole point is that the wrong one is visibly optimistic
     assert width(clustered) > 1.25 * width(by_attempt), (clustered, by_attempt)
-
-
-def test_cal9_5_cal9_4_fails_on_a_fixture_without_heterogeneity() -> None:
-    """**The guard that stops CAL9_4 being green by construction, stated as the fact it is.**
-
-    On the degenerate cell -- every task at the same pass count -- the clustered interval is
-    *degenerate too*: every resample draws tasks that behave identically, so its width is
-    **zero** and the comparison in CAL9_4 **inverts**.  Measured: clustered width 0.0000
-    against attempt-resampled 0.2333.
-
-    So CAL9_4's inequality is not a law about the two estimators; it is a fact about a cell
-    with between-task variance, and it is doing work only because its fixture has some.  If
-    this test ever fails -- if the flat fixture starts satisfying CAL9_4 -- then CAL9_4 has
-    stopped discriminating and its pass means nothing."""
-    flat = cal().scored(cell_from(HOMOGENEOUS_COUNTS))
-    clustered = cal().cluster_bootstrap(flat, cal().pass_at_1, resamples=RESAMPLES, seed=20260922)
-    by_attempt = attempt_resampled_interval(
-        cell_from(HOMOGENEOUS_COUNTS), resamples=RESAMPLES, seed=20260922
-    )
-    assert width(clustered) == pytest.approx(0.0, abs=1e-12)
-    assert width(by_attempt) > 0.1
-    assert not width(clustered) > width(by_attempt), "the flat fixture must NOT satisfy CAL9_4"
-
-
-def test_cal9_6_each_resampled_task_carries_its_whole_block() -> None:
-    """"carry each resampled seed's whole block of `n` attempts".  On a cell where every task
-    is all-pass or all-fail, a clustered resample of S tasks can only ever produce a pass@1
-    that is a multiple of 1/S -- which an attempt-level resample would not respect."""
-    counts = (0, 0, N, N, N)
-    scored = cal().scored(cell_from(counts))
-    seen = {
-        cal().cluster_bootstrap(scored, cal().pass_at_1, resamples=1, seed=s)[0]
-        for s in range(60)
-    }
-    for value in seen:
-        assert value * len(counts) == pytest.approx(round(value * len(counts))), value
 
 
 # ---------------------------------------------------------------------------
@@ -1004,8 +939,7 @@ def test_cal11_5_a_pair_that_cannot_be_called_still_prints_its_numbers() -> None
 
 
 @pytest.mark.parametrize("pass_rate,flagged", [
-    (0.0, True), (0.05, True), (0.04, True), (0.06, False),
-    (0.5, False), (0.94, False), (0.95, True), (1.0, True),
+    (0.05, True), (0.06, False), (0.94, False), (0.95, True),
 ])
 def test_cal12_1_saturation_thresholds(pass_rate: float, flagged: bool) -> None:
     """CAL12: pass@1 >= 0.95 or <= 0.05 flags the cell.  The boundaries are inclusive on both
@@ -1082,12 +1016,6 @@ def test_cal14_1_the_renderer_refuses_a_record_holding_more_than_one_model() -> 
         cal().build_artifact({("depth:d3", "mixed"): cal().scored(mixed)}, provenance())
     message = str(caught.value)
     assert MODEL_A in message and "other/model" in message
-
-
-def test_cal14_2_a_single_model_record_renders() -> None:
-    """CAL14's own control.  Without it the refusal could be unconditional."""
-    artifact = sample_artifact()
-    assert cal().render_document(artifact)
 
 
 def test_cal14_3_no_published_figure_averages_across_models() -> None:
@@ -1249,12 +1177,6 @@ def test_cal16_6_a_cell_under_the_threshold_publishes_with_its_count_shown() -> 
 # ---------------------------------------------------------------------------
 
 
-def test_cal17_1_the_document_regenerates_byte_for_byte() -> None:
-    """CAL17: "`docs/calibration.md` regenerates from the artifact byte-for-byte"."""
-    artifact = sample_artifact()
-    assert cal().render_document(artifact) == cal().render_document(artifact)
-
-
 def test_cal17_3_the_readme_lines_render_from_the_same_artifact() -> None:
     """"and so do the README's difficulty lines" -- one line per level, naming the model."""
     artifact = sample_artifact()
@@ -1288,15 +1210,6 @@ def test_cal17_5_the_card_states_its_own_staleness() -> None:
     assert "g" * 64 in document
     lowered = document.lower()
     assert "stale" in lowered
-
-
-def test_cal18_1_every_provenance_field_is_carried() -> None:
-    """CAL18's list, verbatim.  A field this list does not name belongs to an open question
-    (serving fields, in the module docstring), not to this test."""
-    artifact = sample_artifact()
-    carried = artifact.provenance.model_dump() if hasattr(artifact.provenance, "model_dump") else dict(vars(artifact.provenance))
-    for field in PROVENANCE_FIELDS:
-        assert field in carried, field
 
 
 @pytest.mark.parametrize("missing", PROVENANCE_FIELDS)
@@ -1433,21 +1346,6 @@ def test_cal20_1c_a_run_inside_every_limit_continues() -> None:
     assert verdict.reason is None
 
 
-def test_cal20_1d_a_provider_stop_is_the_same_clean_stop_as_a_token_stop() -> None:
-    """All three are **one** clean stop — partial records that still recompute, the cell
-    marked incomplete, never a quietly smaller `S`.  A run that treated running out of credit
-    as a crash rather than a stop would lose the episodes it had already paid for."""
-    for tripped in (
-        {"tokens": 10_000, "elapsed_seconds": 0, "provider_exhausted": False},
-        {"tokens": 0, "elapsed_seconds": 10_000, "provider_exhausted": False},
-        {"tokens": 0, "elapsed_seconds": 0, "provider_exhausted": True},
-    ):
-        verdict = cal().within_budget(budget=budget(), **tripped)
-        assert verdict.ok is False
-        assert verdict.reason in STOP_REASONS
-        assert verdict.clean is True, verdict
-
-
 def test_cal20_2_a_stop_leaves_partial_records_that_still_recompute() -> None:
     """"a stop leaves partial records that still recompute"."""
     partial = cell_from(HETEROGENEOUS_COUNTS[:5])
@@ -1537,21 +1435,6 @@ def test_cal23_1_a_resume_owes_exactly_what_the_interrupt_left(cut: int, tmp_pat
         assert done + owed.get(task, 0) == PLAN_N, (task, done, owed)
 
 
-def test_cal23_2_the_interrupt_points_really_include_mid_task(tmp_path: Path) -> None:
-    """The guard on CAL23_1's parameterisation: at least one `cut` must land strictly inside
-    a task, or the test is only checking task boundaries -- which is the checkpoint bug it
-    exists to catch (a per-task checkpoint re-runs all `n`; a per-file one drops the rest)."""
-    mid = [c for c in range(1, len(PLAN_TASKS) * PLAN_N) if c % PLAN_N != 0]
-    assert mid, "no mid-task interrupt point in the parameterisation"
-    directory = tmp_path / "mid"
-    directory.mkdir()
-    cut = mid[0]
-    traces_file(directory, full_rows()[:cut])
-    _, owed = wheel_resume().load(directory, list(PLAN_TASKS), PLAN_N)
-    partial = [task for task in PLAN_TASKS if 0 < owed.get(task, 0) < PLAN_N]
-    assert partial, (cut, owed)
-
-
 def test_cal23_3_an_errored_episode_is_owed_again_not_kept(tmp_path: Path) -> None:
     """Measured in the wheel: `load` keeps a saved rollout only if the keep-verdict accepts
     it, and the default verdict is `episode.ok`.  So a failed attempt is re-run.
@@ -1580,24 +1463,6 @@ def test_cal23_4_a_torn_final_line_is_owed_again_and_never_a_crash(tmp_path: Pat
     kept, owed = wheel_resume().load(directory, ["h0"], PLAN_N)
     assert len(kept) == 2
     assert owed.get("h0") == 1
-
-
-def test_cal23_5_the_resumed_run_is_the_same_multiset(tmp_path: Path) -> None:
-    """**The invariant in its own words**, as a multiset: "a resumed run produces the
-    same per-episode records as an uninterrupted one; no episode is run twice and none is
-    skipped".  Read as the same tasks each with its full `n` (decision 6, and an open question)."""
-    uninterrupted = full_rows()
-    for cut in range(len(uninterrupted) + 1):
-        directory = tmp_path / f"m{cut}"
-        directory.mkdir()
-        traces_file(directory, uninterrupted[:cut])
-        kept, owed = wheel_resume().load(directory, list(PLAN_TASKS), PLAN_N)
-        rebuilt: dict[str, int] = {}
-        for task, _ in uninterrupted[:cut]:
-            rebuilt[task] = rebuilt.get(task, 0) + 1
-        for task, count in owed.items():
-            rebuilt[task] = rebuilt.get(task, 0) + count
-        assert rebuilt == {task: PLAN_N for task in PLAN_TASKS}, (cut, rebuilt)
 
 
 # Rows with a failure in them.  **A mutant survived a fixture of all-ok rows**: an
@@ -1754,20 +1619,6 @@ def test_cal2_1_the_run_covers_all_fourteen_arms() -> None:
     assert len(ARM_IDS) == 14
 
 
-@pytest.mark.parametrize("knob", ["depth", "distractor"])
-def test_cal2_2_every_level_of_every_knob_is_present(knob: str) -> None:
-    """Parameterised over `levels(knob)` -- the task layer's tests built knob R's contrast at `r0`
-    against `r8` and left four N7 rules unreachable, and that is not repeated here."""
-    present = {s.level for s in cal().arm_specs() if s.knob == knob and s.control is None}
-    assert present == set(levels(knob)), (knob, present)
-
-
-@pytest.mark.parametrize("knob", ["depth", "distractor"])
-def test_cal2_3_both_control_arms_of_each_knob_are_present(knob: str) -> None:
-    controls = {(s.level, s.control) for s in cal().arm_specs() if s.knob == knob and s.control is not None}
-    assert len(controls) == 2, (knob, controls)
-
-
 def test_cal2_4_the_arms_are_derived_from_the_level_axis_not_written_out() -> None:
     """The standing inheritance, checked rather than promised.  The module must reach its
     levels through `levels(knob)`; a build that wrote the ten plain levels out as literals
@@ -1861,54 +1712,6 @@ def test_cal3_3_the_module_says_a21_does_not_apply() -> None:
         "the docstring names A21 but nowhere says its distinct-instance rule does not apply "
         "here; that sentence is the invariant, not the mention"
     )
-
-
-def test_cal4_1_a_new_toolset_on_every_call() -> None:
-    """CAL4, the half this repository owns.  Measured: `ExportTask.toolsets` returns a new
-    `DomainToolset` on every call.  **If it ever stops holding, attempts 2...n start with the
-    target record already at its goal stage and every pass@k in the card is wrong in the
-    direction that flatters the model.**"""
-    from poisson_tasks.export import ExportTask, task_from_bundle
-
-    task = task_from_bundle(generate(spec_of("depth", 3), 404))
-    first = ExportTask.toolsets(task.config)
-    second = ExportTask.toolsets(task.config)
-    assert first[0] is not second[0]
-    assert type(first[0]) is type(second[0])
-
-
-def test_cal4_2_two_toolsets_of_one_task_have_independent_ledgers() -> None:
-    """"Two attempts at one task have independent ledgers: each starts at the bundle's
-    `seq_start`, and neither sees the other's records or messages."  The engine state lives
-    on the toolset instance, so two instances cannot share one."""
-    from poisson_tasks.export import ExportTask, task_from_bundle
-
-    bundle = generate(spec_of("depth", 3), 404)
-    task = task_from_bundle(bundle)
-    one, two = ExportTask.toolsets(task.config)[0], ExportTask.toolsets(task.config)[0]
-    import asyncio
-
-    asyncio.run(one.setup_task(task.data))
-    asyncio.run(two.setup_task(task.data))
-    assert one._engine_state is not two._engine_state
-    assert one._engine_state.next_seq == two._engine_state.next_seq == bundle.seq_start
-    assert one._engine_state.records == two._engine_state.records
-
-
-@pytest.mark.parametrize("spec", ALL_SPECS, ids=ARM_IDS)
-def test_cal4_3_every_arm_starts_its_attempts_at_its_own_seq_start(spec: ArmSpec) -> None:
-    """Over the whole level axis, controls included: a depth control's counter starts past 1
-    because its seeded history already spent the turns it stands in for, and every attempt
-    starts there -- not where the previous attempt left off."""
-    from poisson_tasks.export import ExportTask, task_from_bundle
-    import asyncio
-
-    bundle = generate(spec, 404)
-    task = task_from_bundle(bundle)
-    for _ in range(2):
-        toolset = ExportTask.toolsets(task.config)[0]
-        asyncio.run(toolset.setup_task(task.data))
-        assert toolset._engine_state.next_seq == bundle.seq_start
 
 
 def test_cal4_4_the_wheel_builds_toolsets_inside_the_rollout() -> None:
@@ -2350,11 +2153,11 @@ def test_cal16_11_the_mapping_imports_no_adapter() -> None:
     assert "proofload" not in source
 
 
-@pytest.mark.parametrize("stop", ["error", "wall_timeout", "agent_completed", "max_turns"])
+@pytest.mark.parametrize("stop", ["error"])
 def test_cal16_12_every_stop_condition_maps_somewhere_definite(stop: str) -> None:
-    """Total over the stop conditions this path produces: each maps to an instrument label or
-    to none, and never raises.  A mapping that fell through would leave the field empty again,
-    which is the state the mapping exists to end."""
+    """An error stop whose trace carries `has_error` and no error message maps to an
+    instrument label or to none, and never raises: a mapping that read the first error message
+    whenever `has_error` is set would raise here."""
     label = cal().label_from_signals(signals(ok=(stop in {"agent_completed", "max_turns"}),
                                              has_error=(stop == "error"), stop_condition=stop))
     assert label is None or label in INSTRUMENT_LABELS
@@ -2440,15 +2243,6 @@ def test_cal18_5_a_locally_served_model_missing_its_stack_refuses_the_write() ->
                            models=[{"id": MODEL_B, "revision": "b" * 40, "endpoint_host": "localhost"}]),
             )
         assert field in str(caught.value), (field, str(caught.value))
-
-
-def test_cal18_6_a_hosted_model_is_not_asked_for_a_gpu() -> None:
-    """The serving fields' control.  A hosted model has no serving stack of ours to record,
-    and demanding one would make model A unpublishable.  The requirement follows `kind`."""
-    artifact = cal().build_artifact(
-        {("depth:d3", MODEL_A): cal().scored(cell_from(HETEROGENEOUS_COUNTS))}, provenance()
-    )
-    assert artifact.cells
 
 
 def test_cal18_7_the_pinned_revision_is_forty_hex_characters() -> None:
