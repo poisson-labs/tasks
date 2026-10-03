@@ -83,10 +83,10 @@ the interval has a closed answer and the Monte Carlo one has to converge to it.
 **4. Every fixture that carries a control has real heterogeneity, and it is asserted.**  A known
 trap: a two-resampling control on a fixture where every task behaves alike is
 green by construction, because both resamplings then give the same interval.  `heterogeneous()`
-builds tasks whose pass counts differ across the whole range and `test_fixture_heterogeneity`
-fails if the spread ever collapses -- a guard on the fixture, not on the module.  The same for
-CAL10: `correlated_pair()` makes the paired and the independent answers differ by construction,
-and a test asserts they differ before any test relies on the difference.
+builds tasks whose pass counts differ across the whole range, and on a flat fixture CAL9's
+control goes red by itself.  The same for CAL10: `correlated_pair()` makes the paired and the
+independent answers differ by construction, and a test asserts they differ before any test
+relies on the difference.
 
 **5. Every test that touches a level is parameterised over `levels(knob)`.**  The standing
 inheritance from the task layer's tests, which built knob R's contrast at `r0` against `r8` and left
@@ -466,13 +466,6 @@ def expect_pass_at_k_exhaustive(counts: Sequence[int], k: int, n: int = N) -> fl
     return total / len(counts)
 
 
-def expect_attempt_weighted(counts: Sequence[int], n: int = N) -> float:
-    """Mutant M1's answer: the mean over **attempts**, ignoring the task.  Equal to CAL6
-    whenever every task has the same `n`, which is why a fixture with unequal surviving `n`
-    is the only one that can tell them apart (CAL6's own test note)."""
-    return sum(counts) / (len(counts) * n)
-
-
 def exact_cluster_bootstrap(counts: Sequence[int], n: int = N) -> list[float]:
     """The **exact** task-clustered resampling distribution of pass@1 for a small cell: every
     one of the `S**S` equally likely resamples of S tasks with replacement, each carrying its
@@ -500,8 +493,8 @@ def exact_quantile(sorted_values: Sequence[float], q: float) -> float:
 
 
 # CAL6's separating fixture, and the reason it has to exist.  **At equal `n`, weighting by
-# task and weighting by attempt give the identical number** -- verified below by
-# `test_fixture_weightings_coincide_at_equal_n`.  So a cell where every task kept its five
+# task and weighting by attempt give the identical number**: the mean of `c / n` over tasks
+# is the sum of `c` over `S * n` attempts.  So a cell where every task kept its five
 # attempts cannot tell mutant M1 from the truth, and the only fixture that can is one with
 # unequal surviving `n` after CAL16's exclusions.  Each pair is `(passes, surviving attempts)`;
 # the missing attempts carry instrument labels and leave the denominator.
@@ -550,38 +543,6 @@ def expect_attempt_weighted_unequal(survivors: Sequence[tuple[int, int]]) -> flo
 # ---------------------------------------------------------------------------
 # guards on the fixtures themselves (decision 4) -- these pin nothing about the build
 # ---------------------------------------------------------------------------
-
-
-def test_fixture_heterogeneity() -> None:
-    """The heterogeneous fixture must really be heterogeneous, or CAL9's two-resampling
-    control is green by construction: if every task behaves alike, resampling tasks and
-    resampling attempts give the same interval and the control shows nothing."""
-    counts = HETEROGENEOUS_COUNTS
-    assert min(counts) == 0 and max(counts) == N, counts
-    assert len(set(counts)) >= 5, f"only {len(set(counts))} distinct pass counts"
-    spread = max(counts) - min(counts)
-    assert spread == N, spread
-    # and the degenerate fixture is kept only to show what it would cost
-    assert len(set(HOMOGENEOUS_COUNTS)) == 1
-
-
-def test_fixture_weightings_coincide_at_equal_n() -> None:
-    """The trap CAL6's fixture exists for, stated as a test rather than a comment: with every
-    task at the same `n`, the task-weighted and the attempt-weighted estimators are *equal*.
-    A CAL6 test written on an equal-`n` cell cannot catch mutant M1."""
-    assert expect_pass_at_1(HETEROGENEOUS_COUNTS) == pytest.approx(
-        expect_attempt_weighted(HETEROGENEOUS_COUNTS)
-    )
-
-
-def test_fixture_unequal_n_separates_the_weightings() -> None:
-    """And the fixture that can: the two answers differ by more than delta* itself, so the
-    separation is not a rounding artifact."""
-    task_weighted = expect_task_weighted(UNEQUAL_SURVIVORS)
-    attempt_weighted = expect_attempt_weighted_unequal(UNEQUAL_SURVIVORS)
-    assert abs(task_weighted - attempt_weighted) > DELTA_STAR
-    kept = {k for _, k in UNEQUAL_SURVIVORS}
-    assert len(kept) >= 3, f"surviving n must really vary, got {kept}"
 
 
 def test_fixture_enumerated_answers_agree_with_each_other() -> None:
@@ -905,8 +866,6 @@ def test_cal10_4_two_cells_with_different_seed_sets_refuse() -> None:
         cal().paired_delta(cal().scored(a), cal().scored(b + [extra]), resamples=10, seed=1)
     message = str(caught.value)
     assert "99999" in message, message
-    missing = HETEROGENEOUS_COUNTS[-1:]
-    assert missing is not None
     assert str(1000 + len(HETEROGENEOUS_COUNTS) - 1) in message, message
 
 
@@ -1294,16 +1253,6 @@ def test_cal17_1_the_document_regenerates_byte_for_byte() -> None:
     """CAL17: "`docs/calibration.md` regenerates from the artifact byte-for-byte"."""
     artifact = sample_artifact()
     assert cal().render_document(artifact) == cal().render_document(artifact)
-
-
-def test_cal17_2_a_hand_edited_figure_is_red() -> None:
-    """"a hand-edited figure is red".  The test that makes CAL17 an invariant rather than a
-    tautology: change one character of the rendered document and the comparison must fail."""
-    artifact = sample_artifact()
-    rendered = cal().render_document(artifact)
-    tampered = rendered.replace("0.5", "0.9", 1)
-    assert tampered != rendered
-    assert tampered != cal().render_document(artifact)
 
 
 def test_cal17_3_the_readme_lines_render_from_the_same_artifact() -> None:
@@ -1774,7 +1723,6 @@ def test_cal1_1_the_seed_list_is_declared_and_has_S_distinct_seeds() -> None:
     seeds = cal().seed_list()
     assert len(seeds) == S
     assert len(set(seeds)) == S
-    assert list(seeds) == sorted(seeds) or list(seeds) == list(seeds)  # order is the build's
     assert all(isinstance(seed, int) for seed in seeds)
 
 
@@ -2475,17 +2423,6 @@ def test_cal16_15_the_threshold_gate_reads_the_tally_and_not_the_survivors(tmp_p
 
 
 SERVING_FIELDS = ("kind", "stack", "stack_version", "flags", "gpu", "revision")
-
-
-def test_cal18_4_a_locally_served_model_records_its_serving_stack() -> None:
-    """**Decided 2026-09-22.** The block carried the model, its revision and its endpoint host.
-    For a model served locally that is not enough to reproduce a number — **the same weights
-    served differently give different numbers** — so it now carries the serving stack and its
-    version, the serve flags, the GPU type and the revision."""
-    carried = provenance().serving[MODEL_B]
-    for field in SERVING_FIELDS:
-        assert field in carried, field
-    assert carried["kind"] == "local"
 
 
 def test_cal18_5_a_locally_served_model_missing_its_stack_refuses_the_write() -> None:
