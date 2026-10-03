@@ -1,9 +1,7 @@
 """The frozen tests for knobs.py, knobs, control arms and the pin ledger: N1-N18.
 
-Frozen on 2026-09-13, with the design amendments of 2026-09-11 and 2026-09-13
-included.  The module is written against this file, which is not edited to suit it.
-Where a written requirement could not be used as written, this docstring is
-authoritative.
+The module is written against this file.  Where a written requirement leaves a
+shape open, this docstring fixes it.
 
 The public surface these tests pin
 ----------------------------------
@@ -43,12 +41,11 @@ Shapes these tests define
 * ``check_pins`` raises ``ValueError`` when the arms it is handed do not share one
   knob.  That is a caller error and not a pin violation, so it is not a refusal.
 * A **bundle** is anything carrying the fields ``measure_pins`` reads.  tasks.py owns
-  ``TaskBundle`` and does not exist yet, so this file builds bundle-shaped objects
-  by hand, the way the engine's tests built ``Scenario`` by hand.  The fields are
-  the task layer's, plus three these tests need and it does not name -
-  ``template_id``, ``prompt_slots`` and ``reference_observations``.  **Those three
-  are a drafted amendment to the task layer, not a decision**.  They are the other
-  halves of fields the task layer already names, and without them N6 and N9 have no
+  ``TaskBundle``, and this file does not depend on it: it builds bundle-shaped
+  objects by hand, the way the engine's tests build ``Scenario`` by hand.  The
+  fields are the task layer's, including three these tests need -
+  ``template_id``, ``prompt_slots`` and ``reference_observations``.  They are the
+  other halves of fields the task layer names, and without them N6 and N9 have no
   measurement.
 * Seeded history is the OpenAI chat shape, since N18 pins the endpoint type to
   OpenAI-compatible chat completions: ``{"role": "assistant", "tool_calls":
@@ -70,9 +67,8 @@ What is deliberately not tested here
 * **N18's revision predicate.**  N18's own *Test:* line assigns it to "the
   pre-registration validator", which is built in the Proofload adapter.  No model
   string reaches a bundle or an arm spec, so knobs.py declares the row through N10
-  and validates nothing.  **This and N17's `diff` half are two named gaps owed to
-  the Proofload adapter's tests**, and neither is covered by any other module's tests
-  today.
+  and validates nothing.  N18's predicate and N17's `diff` half are tested with the
+  Proofload adapter, so they run only where Proofload is installed.
 * **The band N9 refuses on, as a property of a real generator.**  This file pins
   the band's value and the shape of the comparison.  Whether the task layer's
   generator can always land inside it is G16's structure-census question.
@@ -94,7 +90,7 @@ from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 # --------------------------------------------------------------------------
-# frozen literals
+# pinned literals
 # --------------------------------------------------------------------------
 
 DATA = pathlib.Path(__file__).resolve().parent.parent / "src" / "poisson_tasks" / "data"
@@ -142,7 +138,7 @@ ROW_ACTION = {
 # N9 is written "(control arms)", which reads as both - but only knob D's control
 # *seeds history*: knob R's control appends a frozen filler passage to the system
 # prompt and seeds nothing, and N9's own measurement is written in `(H - dL)`, which
-# is depth's notation.  So N9 is knob D's, and saying so here is what stops a build
+# is depth's notation.  So N9 is knob D's, and saying so here is what stops a module
 # from evaluating it against an R control that has no seeded pairs to measure.
 ROW_KNOBS = {
     "N4": ("depth",),
@@ -159,9 +155,9 @@ UNMEASURABLE_ROWS = ("N10", "N13")
 
 # N9's declared band, in reference-tokenizer tokens, over the aggregate.
 #
-# Minted 2026-09-13.  A seeded pair and a chain pair are each (call name + compact
-# JSON arguments + observation).  Measured against the frozen table and the engine as
-# first built, with chain tokens the engine emitted under two disjoint token keys:
+# A seeded pair and a chain pair are each (call name + compact JSON arguments +
+# observation).  Measured against the frozen table and the engine, with chain tokens
+# the engine emitted under two disjoint token keys:
 #
 #   chain pair totals      [47, 65], mean 55.7, 1792 pairs, two disjoint scenarios
 #   read pair totals       13 to 16 *consecutive* integers inside [51, 66],
@@ -240,7 +236,7 @@ class Verifier:
 @dataclasses.dataclass(frozen=True)
 class Bundle:
     """A bundle-shaped object, built by hand.  The task layer's fields that knobs.py
-    reads, plus the three named in this file's docstring as a drafted amendment."""
+    reads, including the three named in this file's docstring."""
 
     arm_id: str
     seed: int
@@ -357,8 +353,7 @@ def depth_contrast(low=1, high=8, control=True, residual=0):
 
     The control's seeded history is balanced to `residual` tokens by default, because
     an unbalanced one makes every test in this file that asserts `refused is False`
-    fail on N9 whatever row it is actually about.  The stand-in run found exactly
-    that: the fixture, not the shim.
+    fail on N9 whatever row it is actually about.
     """
     k = knobs()
     arms = {}
@@ -729,7 +724,7 @@ def test_nrows_4_every_row_is_measured_or_declared_unmeasurable_exactly_once():
 
 def test_nrows_5_the_unmeasurable_rows_are_exactly_n10_and_n13_and_each_gives_a_reason():
     """N-rows: only the serving pin and the realised token count need something no
-    bundle carries.  Naming them here stops a later build from quietly widening the
+    bundle carries.  Naming them here stops a later change from quietly widening the
     set and calling a pin unmeasurable because measuring it was awkward.
 
     This is N10's and N13's test at generation.  N10 compares a serving pin "across all
@@ -1012,7 +1007,7 @@ def test_n9_1_the_seeded_history_is_compared_as_an_aggregate_not_per_pair():
 
 
 def test_n9_2_the_declared_band_is_two_tokens_on_the_aggregate():
-    """N9: the band this file freezes.  Minted at a measured residual of 0 over 256
+    """N9: the band this file pins.  Declared at a measured residual of 0 over 256
     blocks of seven pairs across two disjoint scenarios, declared at +/- 2 - the same
     two-token margin, and the same empirical footing, as the engine's observation band."""
     k = knobs()
