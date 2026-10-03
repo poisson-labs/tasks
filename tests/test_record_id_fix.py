@@ -46,7 +46,7 @@ import pytest
 
 from poisson_tasks.engine import EngineSpec
 from poisson_tasks.knobs import ArmSpec, levels
-from poisson_tasks.tasks import encode_record_id, generate_contrast
+from poisson_tasks.tasks import generate_contrast
 
 # --------------------------------------------------------------------------
 # the literals these tests pin
@@ -58,12 +58,6 @@ TABLE = json.loads(TABLE_PATH.read_text())
 
 SPLITS = ("eval", "train")
 GEN_VERSION = "tg-m3-v1"
-
-# The measured table: the four record-id words that refused a knob R contrast holding
-# `r14`.  Named here so that the fix is stated against the measurement it closes and not
-# against itself.
-REFUSING = {"eval": ("city",), "train": ("disc", "grad", "port")}
-
 
 def tool_names() -> tuple[str, ...]:
     return tuple(tool.name for tool in EngineSpec.load().tools)
@@ -82,10 +76,6 @@ def arms_r0_r14(split: str) -> tuple[ArmSpec, ...]:
         )
         for level in (0, 14)
     )
-
-
-def first_word(seed: int, split: str) -> str:
-    return encode_record_id(seed, split).split(TABLE["record_id_separator"])[0]
 
 
 def word_seed(word: str, split: str, k: int = 0) -> int:
