@@ -81,6 +81,15 @@ Shapes decided here, where the tests leave them open
 * **`docs/calibration.md` is one document with these sections in this order:** the level
   tables per knob, the instrument arms, cost, adjacent levels, ordering, provenance.
   The control arms appear only under the instrument heading.
+* **A figure that was not recorded is missing, never zero.**  A record carries the episode's
+  time and its first request's size only when the trace measured them
+  (`_time_from_trace`); a cell's time figures are over the scored episodes that recorded
+  them and are `None` when none did, and the card prints *not recorded*.  Both published
+  cards were run before time was kept, so every time figure on them is missing.
+* **Time is printed and never compared.**  Seconds belong to the serving and its load as
+  much as to the level, so the card prints the run's concurrency wherever it prints
+  seconds.  No pair, ordering or verdict reads a time figure, and `concurrency` is not
+  among the fields two cards must share (`_COMPARABLE`).
 """
 
 from __future__ import annotations
@@ -281,8 +290,11 @@ class EpisodeRecord:
     are the tests' and stay; the artifact publishes them as `tool_calls` and `model_calls`.
 
     The five fields after `cost` are the episode's time and its first request's size, read
-    from the trace (`records_from_run`); each is `None` when it was not recorded.  Declared
-    here and not yet built: `tests/test_k0_record.py` says what each one holds.
+    from the trace (`records_from_run`); each is `None` when it was not recorded, and a
+    figure that was not recorded is left out of the written line.  `episode_seconds` is the
+    agent phase from start to end, `model_seconds` and `harness_seconds` are its two parts,
+    `setup_seconds` is the tool server's start, and `first_request_prompt_tokens` is what the
+    model was sent before its first move, cache reads included.
     """
 
     task_id: str
@@ -327,16 +339,31 @@ class EpisodeRecord:
                 raise ValueError(f"{name} is negative")
         if self.reasoning_tokens > self.completion_tokens:
             raise ValueError("reasoning tokens are a subset of completion tokens")
+        for name in _OPTIONAL_FIELDS:
+            value = getattr(self, name)
+            if value is not None and value < 0:
+                raise ValueError(f"{name} is negative")
 
     @staticmethod
     def to_json(row: EpisodeRecord) -> str:
-        """The wire format: one JSON object per line, keys sorted."""
-        return _json.dumps(_dc.asdict(row), sort_keys=True)
+        """The wire format: one JSON object per line, keys sorted.  A time or first-request
+        figure that was not recorded is left out, so a record written before those fields
+        existed writes back as the line it was; `cost` is always written."""
+        line = _dc.asdict(row)
+        for name in _OPTIONAL_FIELDS:
+            if line[name] is None:
+                del line[name]
+        return _json.dumps(line, sort_keys=True)
 
     @staticmethod
     def from_json(line: str) -> EpisodeRecord:
         return EpisodeRecord(**_json.loads(line))
 
+
+_SECONDS_FIELDS = ("episode_seconds", "model_seconds", "harness_seconds", "setup_seconds")
+_OPTIONAL_FIELDS = (*_SECONDS_FIELDS, "first_request_prompt_tokens")
+"""The record's fields that a trace may not have measured: `None` in the record and absent
+from its written line."""
 
 Cell = _Sequence[EpisodeRecord]
 
@@ -682,8 +709,8 @@ class Provenance:
     """The run's turn limit, when it had one.  Model A's run had none; a run through the
     taskset's own config has `poisson_tasks.taskset.MAX_MODEL_CALLS`."""
     concurrency: int | None = None
-    """How many episodes ran at once.  Declared here and not yet built:
-    `tests/test_k0_card.py` says what the card does with it."""
+    """How many episodes the run had in flight at once, when it recorded that.  Time depends
+    on it, so the card prints it wherever it prints seconds; it decides nothing."""
 
     def __post_init__(self) -> None:
         for name in ("package_version", "engine_hash", "generator_hash", "vocabulary_hash",
@@ -716,6 +743,14 @@ class Provenance:
             raise ValueError("instrument_threshold is a rate in [0, 1]")
         if not 0.0 <= self.no_call_threshold <= 1.0:
             raise ValueError("no_call_threshold is a rate in [0, 1]")
+        if self.concurrency is not None and (
+            isinstance(self.concurrency, bool) or not isinstance(self.concurrency, int)
+            or self.concurrency < 1
+        ):
+            raise ValueError(
+                f"concurrency is {self.concurrency!r}; it is a whole number of episodes, at "
+                "least 1, or absent when the run did not record it"
+            )
         try:
             _datetime.date.fromisoformat(self.rate_read_date)
         except ValueError as error:
@@ -756,7 +791,7 @@ class Provenance:
             # A run with no turn limit serialises exactly as it did before the field existed.
             out.pop("max_model_calls", None)
         if out.get("concurrency") is None:
-            # Nor does a run that recorded no concurrency.
+            # Nor does a run that recorded no concurrency: a published block keeps its bytes.
             out.pop("concurrency", None)
         return out
 
@@ -787,7 +822,8 @@ class Provenance:
         concurrency: int | None = None,
     ) -> Provenance:
         """The block for a real run, with every hash and version read from the package and
-        the wheel rather than typed.  `concurrency` is declared and not yet carried."""
+        the wheel rather than typed.  `concurrency` is how many episodes the run has in
+        flight at once; a run that does not say records none."""
         seeds = seed_list()
         spec = _EngineSpec.load()
         bundle = _generate(arm_specs()[0], seeds[0])
@@ -816,6 +852,7 @@ class Provenance:
             budget=dict(DEFAULT_BUDGET if budget is None else budget),
             no_call_threshold=no_call_threshold,
             max_model_calls=max_model_calls,
+            concurrency=concurrency,
         )
 
 
@@ -961,6 +998,48 @@ def _check_cell(
         )
 
 
+def _recorded(kept: Cell, name: str) -> list[float]:
+    """The scored episodes' values of an optional field, over those that recorded it."""
+    return sorted(value for row in kept if (value := getattr(row, name)) is not None)
+
+
+def _median_or_none(values: _Sequence[float]) -> float | None:
+    return _statistics.median(values) if values else None
+
+
+def _p90_or_none(sorted_values: _Sequence[float]) -> float | None:
+    return _quantile(sorted_values, 0.9) if sorted_values else None
+
+
+def _cost_and_time(kept: Cell, strict_1: float) -> dict[str, _Any]:
+    """What the cell's scored episodes cost in calls and tokens, and what they took in
+    seconds.  Calls and tokens are over every scored episode.  A time or first-request figure
+    is over the scored episodes that recorded it and is `None` when none did, never zero.  The
+    90th percentile is the module's quantile rule.  Tokens per strict pass is the mean tokens
+    over strict pass@1, and `None` when nothing passed."""
+    tokens = sorted(
+        row.prompt_tokens + row.cached_input_tokens + row.completion_tokens for row in kept
+    )
+    tokens_mean = sum(tokens) / len(tokens)
+    out: dict[str, _Any] = {
+        "model_calls_mean": sum(row.turns for row in kept) / len(kept),
+        "tool_calls_mean": sum(row.sampled_calls for row in kept) / len(kept),
+        "tool_calls_median": _statistics.median(row.sampled_calls for row in kept),
+        "tokens_mean": tokens_mean,
+        "tokens_p90": _quantile(tokens, 0.9),
+        "tokens_per_strict_pass": tokens_mean / strict_1 if strict_1 > 0 else None,
+        "first_request_prompt_tokens_median": _median_or_none(
+            _recorded(kept, "first_request_prompt_tokens")
+        ),
+    }
+    for name in ("episode_seconds", "model_seconds", "harness_seconds"):
+        values = _recorded(kept, name)
+        out[f"{name}_median"] = _median_or_none(values)
+        out[f"{name}_p90"] = _p90_or_none(values)
+    out["setup_seconds_median"] = _median_or_none(_recorded(kept, "setup_seconds"))
+    return out
+
+
 def _cell_figures(
     key: CellKey,
     cell: Cell,
@@ -1053,6 +1132,7 @@ def _cell_figures(
         ),
     }
     figures["dollars"] = dollars(figures, provenance.rates_for(model))
+    figures.update(_cost_and_time(kept, strict_1))
     return figures
 
 
@@ -1262,10 +1342,25 @@ def _interval(value: _Sequence[float] | None) -> str:
     return f"[{value[0]:.3f}, {value[1]:.3f}]"
 
 
+NOT_RECORDED = "not recorded"
+"""What the card prints for a figure the run did not record.  Never a zero."""
+
+
+def _seconds(value: float | None) -> str:
+    return NOT_RECORDED if value is None else f"{value:.1f}"
+
+
+def _concurrency(prov: Provenance) -> str:
+    if prov.concurrency is None:
+        return NOT_RECORDED
+    return f"{prov.concurrency} episode{'' if prov.concurrency == 1 else 's'} at once"
+
+
 def _level_header(k_values: _Sequence[int]) -> tuple[str, str]:
     columns = ["arm", "model", "strict pass@1", "95% interval", "leaky pass@1",
                "leaky 95% interval", "overshoot"]
     columns += [f"strict pass@{k}" for k in k_values if k != 1]
+    columns += ["median model calls", "median tokens", "median episode seconds"]
     columns += ["min calls", "no tool call", "stopped short", "saturated", "instrument",
                 "incomplete"]
     return "| " + " | ".join(columns) + " |", "|" + "---|" * len(columns)
@@ -1279,9 +1374,10 @@ def _level_row(cell: _Mapping[str, _Any], k_values: _Sequence[int]) -> str:
     ]
     values += [_fmt(cell["pass_at_k"].get(str(k))) for k in k_values if k != 1]
     values += [
-        _fmt(cell["minimum_calls"]), _fmt(cell["no_call_share"]),
-        _fmt(cell["stopped_short_share"]), _fmt(cell["saturated"]),
-        str(cell["instrument_count"]), _fmt(cell["incomplete"]),
+        _fmt(cell["model_calls_median"]), _fmt(cell["tokens_median"]),
+        _seconds(cell["episode_seconds_median"]), _fmt(cell["minimum_calls"]),
+        _fmt(cell["no_call_share"]), _fmt(cell["stopped_short_share"]),
+        _fmt(cell["saturated"]), str(cell["instrument_count"]), _fmt(cell["incomplete"]),
     ]
     return "| " + " | ".join(values) + " |"
 
@@ -1358,6 +1454,15 @@ def render_document(artifact: Artifact) -> str:
         "level offers the whole stage ladder, so below the top level the strict rate also asks "
         "the model to stop at the goal; the overshoot column shows how often it did not. The "
         "strict rate is published beside it and is first in each table.",
+        "",
+        "Beside the rates is what the level cost: *median model calls*, *median tokens* "
+        "(prompt, cached input and completion) and *median episode seconds* over the scored "
+        "episodes. Episode seconds run from the start of the model's work on the task to its "
+        f"end, and a row whose episodes kept no time prints *{NOT_RECORDED}*. Seconds belong "
+        "to the serving and its load as much as to the level; they are printed and decide "
+        "nothing here.",
+        "",
+        f"Concurrency of this run: {_concurrency(prov)}.",
     ]
     level_cells = [cell for cell in artifact.cells if not cell["control"]]
     control_cells = [cell for cell in artifact.cells if cell["control"]]
@@ -1375,6 +1480,8 @@ def render_document(artifact: Artifact) -> str:
         "These are instrument arms. A control such as `depth:d1+h8` exists to separate "
         "depth from history, not to be a difficulty level, and it must not be read as one.",
         "",
+        f"Concurrency of this run: {_concurrency(prov)}.",
+        "",
         header,
         rule,
     ]
@@ -1389,14 +1496,67 @@ def render_document(artifact: Artifact) -> str:
         f"{prov.rate_read_date}; a model with no rate declared has no dollar figure, and a "
         "provider-reported cost is printed beside the computed one and never reconciled.",
         "",
-        "| arm | model | median model calls | median tokens | prompt tokens | cached input tokens "
-        "| completion tokens | reasoning share | computed $ | reported $ |",
+        "### Calls and tokens per episode",
+        "",
+        "Over each arm's scored episodes. Tokens are prompt, cached input and completion "
+        "together. The 90th percentile is the smallest value that at least nine episodes in "
+        "ten stay at or under. *tokens per strict pass* is the mean tokens divided by strict "
+        "pass@1, what one strict pass costs at this level, and is n/a where nothing passed.",
+        "",
+        "| arm | model | mean model calls | median model calls | mean tool calls | median tool "
+        "calls | mean tokens | median tokens | 90th percentile tokens | tokens per strict pass |",
         "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for cell in artifact.cells:
         lines.append(
-            f"| `{cell['arm_id']}` | {cell['model']} | {_fmt(cell['model_calls_median'])} | "
-            f"{_fmt(cell['tokens_median'])} | {cell['prompt_tokens']} | "
+            f"| `{cell['arm_id']}` | {cell['model']} | {_fmt(cell['model_calls_mean'])} | "
+            f"{_fmt(cell['model_calls_median'])} | {_fmt(cell['tool_calls_mean'])} | "
+            f"{_fmt(cell['tool_calls_median'])} | {_fmt(cell['tokens_mean'])} | "
+            f"{_fmt(cell['tokens_median'])} | {_fmt(cell['tokens_p90'])} | "
+            f"{_fmt(cell['tokens_per_strict_pass'])} |"
+        )
+    lines += [
+        "",
+        "### Time per episode",
+        "",
+        "Over each arm's scored episodes that kept time. *episode seconds* run from the start "
+        "of the model's work on the task to its end; *model seconds* are the part spent "
+        "waiting on the model and *harness seconds* the rest, the tool calls and the harness "
+        "between them. *setup seconds* are the tool server's start before the episode: what "
+        f"the instrument costs, not the task. An arm whose episodes kept no time prints "
+        f"*{NOT_RECORDED}*; no figure here is a guess or a zero standing in for one.",
+        "",
+        "Time belongs to the serving and its load as much as to the task. It is this run's "
+        "own, and is not to be compared with another card's unless both were served the same "
+        "way at the same concurrency.",
+        "",
+        f"Concurrency of this run: {_concurrency(prov)}.",
+        "",
+        "| arm | model | median episode seconds | 90th percentile episode seconds | median "
+        "model seconds | 90th percentile model seconds | median harness seconds | 90th "
+        "percentile harness seconds | median setup seconds |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for cell in artifact.cells:
+        lines.append(
+            f"| `{cell['arm_id']}` | {cell['model']} | "
+            + " | ".join(_seconds(cell[key]) for key in (
+                "episode_seconds_median", "episode_seconds_p90", "model_seconds_median",
+                "model_seconds_p90", "harness_seconds_median", "harness_seconds_p90",
+                "setup_seconds_median"))
+            + " |"
+        )
+    lines += [
+        "",
+        "### Token totals and dollars",
+        "",
+        "| arm | model | prompt tokens | cached input tokens | completion tokens | reasoning "
+        "share | computed $ | reported $ |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for cell in artifact.cells:
+        lines.append(
+            f"| `{cell['arm_id']}` | {cell['model']} | {cell['prompt_tokens']} | "
             f"{cell['cached_input_tokens']} | {cell['completion_tokens']} | "
             f"{_fmt(cell['reasoning_share'])} | {_fmt(cell['dollars'])} | "
             f"{_fmt(cell['reported_cost'])} |"
@@ -1486,6 +1646,7 @@ def render_document(artifact: Artifact) -> str:
         f"- budget: {prov.budget['tokens']} tokens, {prov.budget['wall_clock_seconds']} s wall "
         "clock, or the provider out of credit, whichever first",
         f"- rates read on {prov.rate_read_date}",
+        f"- concurrency: {_concurrency(prov)}",
     ]
     if prov.max_model_calls is not None:
         lines.append(
@@ -2098,13 +2259,59 @@ def run_arm(
     return _asyncio.run(_run_arm(config, DEFAULT_BUDGET if budget is None else budget))
 
 
+def _span_seconds(span: _Any) -> float | None:
+    """A phase's `end - start`, or `None` when the phase never ended.  verifiers 0.3.1 leaves
+    `end` at its `0.0` default until the phase ends; a phase that reads as ending before it
+    started was not measured either."""
+    if not span.end:
+        return None
+    seconds = float(span.end) - float(span.start)
+    return seconds if seconds >= 0.0 else None
+
+
+def _time_from_trace(trace: _Any) -> dict[str, _Any]:
+    """The record's five optional fields, from one trace's `timing` and its first model call.
+
+    verifiers 0.3.1 defaults every timing field to `0.0` rather than leaving it out, so a
+    default has to be told from a measurement:
+
+    * a phase whose `end` is `0.0` never ended, and none of its figures was recorded.  Model
+      and harness seconds are the agent phase's two parts and are split only once it has
+      ended, so they go with it;
+    * a zero in an episode that made no model call is a default; a zero in an episode that
+      made one was measured and stays zero.
+
+    The first request is the first entry of `calls` alone: its prompt tokens with its cache
+    reads added back, what the model was sent before its first move.  When that call carries
+    no usage the figure was not recorded, and a later call's does not stand in for it.
+    """
+    timing = trace.timing
+    calls = list(trace.calls)
+    agent = _span_seconds(timing.agent)
+    seconds: dict[str, float | None] = {
+        "episode_seconds": agent,
+        "model_seconds": None if agent is None else float(timing.agent.model.duration),
+        "harness_seconds": None if agent is None else float(timing.agent.harness.duration),
+        "setup_seconds": _span_seconds(timing.setup),
+    }
+    if not calls:
+        seconds = {name: value or None for name, value in seconds.items()}
+    usage = calls[0].usage if calls else None
+    first = None if usage is None else (
+        int(usage.prompt_tokens) + int(usage.cached_input_tokens or 0)
+    )
+    return {**seconds, "first_request_prompt_tokens": first}
+
+
 def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecord]:
     """The per-episode records of a finished run, from its `traces.jsonl`.
 
     `strict` and `leaky` are what the wheel scored (X4's reward and the `leaky_pass`
     metric); the outcome label is `tasks.verify`'s own verdict on the trace, re-read through the
     export so that one ordering of the sampled calls exists; an instrument label from the
-    episode's signals overrides it.  Attempts are numbered by position in the file.
+    episode's signals overrides it.  Attempts are numbered by position in the file.  Each
+    record's time and first request are its trace's (`_time_from_trace`); an episode with no
+    trace recorded none.
     """
     import verifiers.v1 as _vf
     from verifiers.v1.cli.output import read_episodes
@@ -2148,6 +2355,7 @@ def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecor
             completion_tokens=int(usage.completion_tokens) if usage else 0,
             reasoning_tokens=int(usage.reasoning_tokens or 0) if usage else 0,
             cost=float(usage.cost) if usage and usage.cost is not None else None,
+            **(_time_from_trace(trace) if trace is not None else {}),
         ))
     return out
 
@@ -2163,7 +2371,8 @@ _COMPARABLE = (
 )
 """What two cards must share to be read side by side: the same tasks, the same attempts and
 decoding, and the same rule for calling a difference.  Serving, budget, rates and the turn cap
-are each model's own and are printed on each card."""
+are each model's own and are printed on each card.  So are time and the run's concurrency:
+neither is here, and nothing on the page compares them."""
 
 AGREE = "agree"
 DISAGREE = "disagree"
@@ -2259,6 +2468,10 @@ def render_combined_document(artifacts: _Sequence[Artifact]) -> str:
         "",
         "Every number is one model's. This page does not rank models or pool their numbers: "
         "it says where their difficulty orderings agree.",
+        "",
+        "Time is each card's own. Seconds depend on the serving and on the run's concurrency "
+        "as much as on the task, so this page does not compare one card's time with "
+        "another's.",
         "",
         "## Where the models agree",
         "",
