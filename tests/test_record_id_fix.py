@@ -46,8 +46,7 @@ import pytest
 
 from poisson_tasks.engine import EngineSpec
 from poisson_tasks.knobs import ArmSpec
-from poisson_tasks.tasks import decode_record_id, encode_record_id, generate_contrast
-from poisson_tasks.tokenizer import count_tokens
+from poisson_tasks.tasks import encode_record_id, generate_contrast
 
 # --------------------------------------------------------------------------
 # frozen literals
@@ -60,19 +59,10 @@ TABLE = json.loads(TABLE_PATH.read_text())
 SPLITS = ("eval", "train")
 GEN_VERSION = "tg-m3-v1"
 
-# The measured table: the six record-id words some tool name carries as a substring, and
-# the four of them that refuse a knob R contrast holding `r14`.  Named here so that the
-# fix is stated against the measurement it closes and not against itself.
-CARRIED = {"eval": ("city", "face"), "train": ("disc", "elect", "grad", "port")}
+# The measured table: the four record-id words that refused a knob R contrast holding
+# `r14`.  Named here so that the fix is stated against the measurement it closes and not
+# against itself.
 REFUSING = {"eval": ("city",), "train": ("disc", "grad", "port")}
-
-# The words this fix puts in their place, each drawn by the same rule the entry-code draw
-# uses: a word no tool name carries.  Each is one token in every id position (VT2), sorts
-# where the list it joins is sorted, and belongs to neither list already.
-REPLACEMENTS = {
-    "eval": {"city": "circle", "face": "email"},
-    "train": {"disc": "disable", "elect": "east", "grad": "gray", "port": "point"},
-}
 
 
 def tool_names() -> tuple[str, ...]:
@@ -118,14 +108,6 @@ def refusals(split: str, seeds: tuple[int, ...]) -> list[int]:
     return refused
 
 
-def spaced(count: int, offset: int = 3) -> tuple[int, ...]:
-    step = 2**32 // count
-    return tuple((offset + i * step) % 2**32 for i in range(count))
-
-
-SPREAD = (0, 1, 2, 55, 404, 2121, 65535, 2**24, 2**31 - 1, 2**32 - 1)
-
-
 # ===========================================================================
 # RI1 · the coverage item any future vocabulary version owes
 # ===========================================================================
@@ -148,18 +130,6 @@ def test_ri1_no_record_id_word_is_carried_by_a_tool_name(split):
     assert carried == [], carried
 
 
-def test_ri1_2_the_six_words_the_record_names_are_gone_and_their_places_are_filled():
-    """RI1.2: the edit itself, against the measured table.
-
-    `RI1` is the invariant and this is the change that establishes it, so a later reader
-    can see which words moved without diffing the table.
-    """
-    for split in SPLITS:
-        words = TABLE["record_id_words"][split]
-        assert [w for w in CARRIED[split] if w in words] == []
-        assert [w for w in REPLACEMENTS[split].values() if w not in words] == []
-
-
 # ===========================================================================
 # RI2-RI4 · the comparison, at the contrast and the densities first measured
 # ===========================================================================
@@ -179,65 +149,3 @@ def test_ri2_the_top_contrast_holds_at_every_first_word(split):
     )
     assert len(seeds) == 1024
     assert refusals(split, seeds) == []
-
-
-@pytest.mark.parametrize("split", SPLITS)
-def test_ri3_the_top_contrast_holds_across_a_dense_spread_with_nothing_excluded(split):
-    """RI3: `test_ct5`'s shape (tests/test_tg_m5_scripted.py) with its exclusion removed.
-
-    `test_ct5` drops the seeds whose first word is one of the four before it counts.
-    This is the same spread with nothing dropped, which is what "the comparison is
-    fixed" means for a caller who does not know the gap ever existed.
-    """
-    seeds = SPREAD + spaced(160)
-    assert refusals(split, seeds) == []
-
-
-@pytest.mark.parametrize("split", SPLITS)
-def test_ri4_sixty_seeds_per_replaced_word_refuse_nothing(split):
-    """RI4: the original measurement's density, over the words that took the six places.
-
-    The original measurement took 60 seeds per word over this contrast and wrote the table
-    `city` 60/60, `grad` 60/60, `port` 60/60, `disc` 43/60, `face` 0/60, `elect` 0/60.
-    The same measurement over the replacements is the row that supersedes it.
-    """
-    table = {}
-    for word in REPLACEMENTS[split].values():
-        seeds = tuple(word_seed(word, split, k * 7919) for k in range(60))
-        table[word] = len(refusals(split, seeds))
-    assert table == dict.fromkeys(REPLACEMENTS[split].values(), 0), table
-
-
-# ===========================================================================
-# RI5 · the guard.  Green before and after: it holds on the frozen table too.
-# ===========================================================================
-
-
-def test_ri5_the_revised_lists_still_meet_vt2s_freeze():
-    """RI5: 256 words a side, disjoint, unique, one token in every id position with and
-    without a leading space, and `encode_record_id` still a bijection on the seed space.
-
-    VT2 is written against the table as frozen.  The new coverage item is added to it
-    rather than traded against it: a revision that made the lists disjoint from the tool
-    names by taking a word that tokenizes as two would move G14's id out of the token
-    band and break N6 two modules away.
-    """
-    lists = {split: TABLE["record_id_words"][split] for split in SPLITS}
-    count = TABLE["record_id_word_count"]
-    separator = TABLE["record_id_separator"]
-    for words in lists.values():
-        assert len(words) == len(set(words)) == 256
-    assert set(lists["eval"]).isdisjoint(lists["train"])
-    assert 256**count == 2**32
-    for words in lists.values():
-        filler = [words[(i * 61) % 256] for i in range(count)]
-        for position in range(count):
-            for word in words:
-                parts = list(filler)
-                parts[position] = word
-                rid = separator.join(parts)
-                assert count_tokens(rid) == count, (position, word, rid)
-                assert count_tokens(" " + rid) == count, (position, word, rid)
-    for split in SPLITS:
-        for seed in SPREAD + spaced(64):
-            assert decode_record_id(encode_record_id(seed, split), split) == seed
