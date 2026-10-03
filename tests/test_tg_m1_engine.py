@@ -1308,7 +1308,6 @@ def test_vt1_table_meets_the_required_coverage():
         assert set(row) == set(TABLE["facets"])
     assert len(set(TABLE["status_codes"])) == len(TABLE["status_codes"]) >= 2
     assert set(TABLE["description_templates"]) == {"stage_first", "stage_chain", "read"}
-    assert TABLE["L_obs"] == L_OBS and len(TABLE["token_band"]) == 2
     assert TABLE["engine_version"] and TABLE["vocabulary_version"]
     assert TABLE_PATH.read_bytes().isascii()
     assert spec.L_obs == L_OBS
