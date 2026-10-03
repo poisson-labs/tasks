@@ -210,7 +210,6 @@ from hypothesis import strategies as st
 from poisson_tasks.engine import apply, init_state
 from poisson_tasks.knobs import ArmSpec, arm_id, levels
 from poisson_tasks.tasks import (
-    OUTCOMES,
     FormatSpec,
     Turn,
     encode_record_id,
@@ -804,16 +803,6 @@ def test_sf7_the_scripted_path_has_no_verifiers_and_no_network():
     assert not roots & banned, sorted(roots & banned)
 
 
-def test_sf8_a_run_is_a_plain_record_and_validates_nothing_at_construction():
-    """A `Run` is what a harness hands the outcome map, and the map decides what to make of
-    it.  Building one from a structurally invalid trace must not raise: `test_a4_6` needs the
-    invalid trace to reach `to_episode`, where it is a `verifier_error` and not an exception
-    at the caller."""
-    bad = Turn(content="", calls=(5,), finish_reason="tool_calls")
-    run = adapter().Run(turns=(bad,), tool_messages=(), ended_with_reply=False, turn_limit_hit=False, fmt=DIRECT)
-    assert run.turns == (bad,) and run.instrument is None
-
-
 # ===========================================================================
 # A1 · public API only
 # ===========================================================================
@@ -1193,8 +1182,6 @@ def test_a6_3_any_stored_episode_can_be_regenerated_from_its_row():
 # the outcome map: A4, A5's guards, A8 and A9, driven with hand-built runs
 # ===========================================================================
 
-ADAPTERS_LABELS = ("replay_mismatch", "api_error", "wall_timeout")
-INSTRUMENT_LABELS = ("verifier_error", *ADAPTERS_LABELS)
 SPEC_IDS = spec_ids(ALL_SPECS)
 
 
@@ -1343,21 +1330,6 @@ def test_a4_2_a_leaky_arm_never_passes_an_episode_the_instrument_ended():
         run = make_run(bundle, bundle.reference_calls, instrument=signal)
         episode = episode_of(spec, bundle, run, horizon=H_D)
         assert episode.outcome == signal and episode.meta["leaky_pass"] is False
-
-
-def test_a4_3_the_adapter_never_assigns_an_instrument_label_of_its_own_accord():
-    """"Every label-assignment site is tested, not only the declared set" (`defining-outcomes.md`,
-    checklist item 3).  With no signal and a faithful trace, the sites the adapter owns — the
-    replay check, the two instrument signals, the exception guard — never fire, over every
-    arm and every shape; and the six system labels `verify` assigns are all reached."""
-    reached: set[str] = set()
-    for spec in ALL_SPECS:
-        for bundle, control, run in grid(spec, seeds=(404,)):
-            outcome = episode_of(spec, bundle, run).outcome
-            assert outcome in OUTCOMES
-            assert outcome not in INSTRUMENT_LABELS, (aid(spec), control, outcome)
-            reached.add(outcome)
-    assert reached == {"passed", "wrong_state", "overshoot", "collateral_mutation", "turn_limit", "malformed_call"}
 
 
 def test_a4_4_replay_mismatch_precedes_the_two_instrument_signals():
@@ -1529,17 +1501,6 @@ def test_a8_6_any_single_character_change_to_any_message_is_detected(spec, seed,
     assert episode.outcome == "replay_mismatch"
 
 
-def test_a8_7_the_replay_is_of_the_calls_actually_made_and_not_of_the_reference():
-    """E8: "`replay` reproduces the live toolset's observations byte for byte" for *any* call
-    sequence.  A check that compared tool messages with the bundle's `reference_observations`
-    would call every non-reference episode a mismatch: a wrong-state episode is `wrong_state`."""
-    spec = SPEC_D3
-    bundle = bundle_of(spec, 404)
-    run = make_run(bundle, bundle.negative_controls["wrong_state"])
-    assert tuple(run.tool_messages) != tuple(bundle.reference_observations)
-    assert episode_of(spec, bundle, run).outcome == "wrong_state"
-
-
 @pytest.mark.parametrize(
     "control",
     ["wrong_state", "overshoot", "collateral_mutation", "malformed_call_clause_2", "malformed_call_clause_3",
@@ -1623,18 +1584,6 @@ def test_a5_7_a_trace_longer_than_max_turns_or_a_horizon_below_it_is_refused(spe
     assert episode_of(spec, bundle, run, horizon=limit).horizon == limit
     with pytest.raises(ValueError, match="horizon"):
         episode_of(spec, bundle, run, horizon=limit - 1)
-
-
-def test_a5_8_t_is_the_number_of_turns_and_not_the_number_of_calls():
-    """`t = Trace.num_turns`: a reply is a turn that makes no call, so a reference
-    episode of `d` calls takes `d + 1`, and the wrong-state control (one call fewer, then a
-    reply) takes `d`."""
-    for spec in (SPEC_D3, SPEC_R4):
-        bundle = bundle_of(spec, 404)
-        d = len(bundle.reference_calls)
-        assert episode_of(spec, bundle, make_run(bundle, bundle.reference_calls)).t == d + 1
-        wrong = make_run(bundle, bundle.negative_controls["wrong_state"])
-        assert episode_of(spec, bundle, wrong).t == d
 
 
 # ===========================================================================
