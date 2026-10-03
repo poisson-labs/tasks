@@ -64,7 +64,7 @@ using the tools it is given and nothing else.
 | difficulty calibration | **built** -- pass@k per level with task-clustered intervals, paired level-to-level comparisons, cost, and the refusals that keep a card honest; **run for two models**, `gpt-5-nano` and `Qwen3-8B` |
 | a locally served model's card | **built and run** -- a Colab notebook that serves `Qwen3-8B` with vLLM on an L4 and runs the same card, resumable after a dropped runtime |
 
-"Built" means covered by the test suite: **1485 tests**, and `python -m pytest -q` is the check.
+"Built" means covered by the test suite: **1315 tests**, and `python -m pytest -q` is the check.
 
 ---
 
@@ -115,7 +115,7 @@ Sanity check:
 Run it from the repository root. A bare `pytest` collects the same tests: `pyproject.toml`
 puts the root on the import path, which the tests that import one another need.
 
-**1485 tests, 1103 passed and 382 skipped.** The skipped ones need Proofload -- the
+**1315 tests, 954 passed and 361 skipped.** The skipped ones need Proofload -- the
 adapter's tests and the bridge between the two scorers -- and they say so.
 
 ### 2. Generate One Task, and Judge Every Answer It Ships With
@@ -251,7 +251,7 @@ outcomes, and runs a `proofload diff` of the two depth arms. Every episode comes
 seconds and writes about 80 KB under `examples/proofload_sweep/example-store`, which is
 git-ignored.
 
-With Proofload installed, `python -m pytest -q` is **1485 passed, 0 skipped**.
+With Proofload installed, `python -m pytest -q` is **1315 passed, 0 skipped**.
 
 Without it, `import poisson_tasks` and every module under it work as they do with it.
 Only `poisson_tasks.adapter` needs Proofload, and importing it without Proofload raises
