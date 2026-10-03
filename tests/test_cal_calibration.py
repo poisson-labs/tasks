@@ -857,12 +857,31 @@ def test_cal11_1_the_rule_reads_delta_star_from_the_provenance() -> None:
 
 
 def test_cal11_2_moving_delta_star_moves_no_estimate() -> None:
-    """The other half of the same sentence: the verdict moves, the numbers do not."""
+    """The other half of the same sentence: the verdict moves, the numbers do not.
+
+    Checked where the numbers are published: two artifacts over the same records, under a
+    delta* that calls the pair and one that cannot, carry the same cell figures and the same
+    difference and paired interval on every pair row, and only the verdict differs."""
     a, b = correlated_pair()
     delta = cal().paired_delta(cal().scored(a), cal().scored(b), resamples=RESAMPLES, seed=1)
     before = (delta.point, delta.low, delta.high)
     cal().call_pair(delta, provenance(delta_star=0.90))
     assert (delta.point, delta.low, delta.high) == before
+
+    lenient = two_level_artifact(delta_star=0.10)
+    strict = two_level_artifact(delta_star=0.99)
+    assert [row["verdict"] for row in lenient.pairs] == [cal().DISTINGUISHABLE]
+    assert [row["verdict"] for row in strict.pairs] == [cal().TOO_SMALL]
+
+    def numbers(artifact: Any) -> list[tuple[Any, ...]]:
+        return [
+            (row["arm_a"], row["arm_b"], row["delta"], row["low"], row["high"])
+            for row in artifact.pairs + artifact.reach_pairs
+        ]
+
+    assert numbers(lenient) == numbers(strict)
+    assert all(value is not None for row in numbers(strict) for value in row), numbers(strict)
+    assert lenient.cells == strict.cells
 
 
 # A pair that fails clause 1 while passing clause 2: the point difference is 0.25, well above
@@ -902,13 +921,26 @@ def test_cal11_4_clause_1_alone_is_not_enough() -> None:
 
 def test_cal11_5_a_pair_that_cannot_be_called_still_prints_its_numbers() -> None:
     """"it is **not** printed as "no difference"" -- the row still carries Delta and the
-    interval, so a reader can see how close it was."""
-    a, b = correlated_pair()
-    delta = cal().paired_delta(cal().scored(a), cal().scored(b), resamples=RESAMPLES, seed=1)
-    verdict = cal().call_pair(delta, provenance(delta_star=0.99))
-    assert verdict == cal().TOO_SMALL
+    interval, so a reader can see how close it was.  Checked on the rendered card: a pair
+    called too small prints its difference and its paired interval beside the verdict, in
+    the strict table and in the leaky one."""
     assert "no difference" not in cal().TOO_SMALL.lower()
     assert "too small" in cal().TOO_SMALL.lower()
+    artifact = two_level_artifact(delta_star=0.99)
+    (row,) = artifact.pairs
+    assert row["verdict"] == cal().TOO_SMALL
+    a_counts = HETEROGENEOUS_COUNTS
+    b_counts = tuple(max(0, c - PAIR_SHIFT) for c in a_counts)
+    assert row["delta"] == pytest.approx(expect_pass_at_1(a_counts) - expect_pass_at_1(b_counts))
+    assert row["low"] is not None and row["high"] is not None and row["low"] < row["high"]
+
+    document = cal().render_document(artifact)
+    printed = [line for line in document.splitlines() if line.startswith(f"| {MODEL_A} | depth | 3 vs 5 |")]
+    assert len(printed) == 1 + len(artifact.reach_pairs), printed
+    for line in printed:
+        assert cal().TOO_SMALL in line, line
+        assert f"| {row['delta']:.3f} |" in line, line
+        assert f"[{row['low']:.3f}, {row['high']:.3f}]" in line, line
 
 
 @pytest.mark.parametrize("pass_rate,flagged", [
@@ -974,11 +1006,23 @@ def test_cal13_3_no_rank_statistic_is_emitted() -> None:
 
 
 def test_cal13_4_family_agreement_is_a_count() -> None:
-    """"the count of agreeing pairs is published" -- a count, not a test statistic."""
+    """"the count of agreeing pairs is published" -- a count, not a test statistic -- and it
+    counts the adjacent pairs on which two families put the harder level on the same side.
+
+    The second family disagrees for real: across depth's five levels it falls by twice as
+    much where the first falls, rises once and stays level once, so the two agree on two of
+    the four pairs.  Counting every pair, or comparing the differences rather than their
+    signs, gives a different count."""
     axis = levels("depth")
+    assert len(axis) == 5, axis
     falling = {lvl: cal().scored(cell_from((N - i,) * 8)) for i, lvl in enumerate(axis)}
-    agreement = cal().ordering(falling, axis).agreement(cal().ordering(falling, axis))
-    assert agreement == len(axis) - 1
+    mixed_counts = (5, 3, 4, 2, 2)  # differences +0.4, -0.2, +0.4, 0.0
+    mixed = {lvl: cal().scored(cell_from((mixed_counts[i],) * 8)) for i, lvl in enumerate(axis)}
+    first, second = cal().ordering(falling, axis), cal().ordering(mixed, axis)
+    agreement = first.agreement(second)
+    assert agreement == 2, agreement
+    assert second.agreement(first) == 2
+    assert first.agreement(first) == second.agreement(second) == len(axis) - 1
     assert isinstance(agreement, int)
 
 
@@ -1883,21 +1927,18 @@ def test_the_module_exports_exactly_the_names_this_oracle_names() -> None:
 
 
 # ---------------------------------------------------------------------------
-# CAL23, end to end: real episodes against a stub endpoint, interrupted and resumed
+# CAL23, end to end: the runner itself, against a stub endpoint, interrupted and resumed
 #
 # The tests above drive `resume.load` over a `traces.jsonl` written by hand, which is exact
-# and exhaustive and fast.  This one is the other half the brief asks for: episodes that
-# really ran, through the wheel's own lifecycle, against a stub OpenAI-compatible endpoint on
-# loopback -- interrupted mid-task between attempts and resumed.  It needs `uv` on PATH,
-# because the `null` harness launches its program through it, so it is marked and skipped
-# where `uv` is missing rather than failing for a reason that is not this invariant's.
+# and exhaustive and fast.  This one is the other half: `run_arm`, the calibration runner,
+# through the wheel's own lifecycle against a stub OpenAI-compatible endpoint on loopback --
+# interrupted mid-task between attempts, and resumed by a second `run_arm` on the same run
+# directory.  It needs `uv` on PATH, because the `null` harness launches its program through
+# it, so it is marked and skipped where `uv` is missing rather than failing for a reason that
+# is not this invariant's.
 # ---------------------------------------------------------------------------
 
 Script = list[tuple[str, tuple[str, Any] | None]]
-
-
-def reference_script(bundle: Any) -> Script:
-    return [("tool_calls", call) for call in bundle.reference_calls] + [("stop", None)]
 
 
 def stub_endpoint(script: Script) -> Any:
@@ -1964,76 +2005,71 @@ def have_uv() -> bool:
     return shutil.which("uv") is not None
 
 
-# No `slow` marker: this repository registers none, and a frozen test file must not depend on
-# pytest configuration that is not there.  The skip is on `uv`, which is a real precondition.
+# No `slow` marker: this repository registers none, and this file does not depend on pytest
+# configuration that is not there.  The skip is on `uv`, which is a real precondition.
 @pytest.mark.skipif(not have_uv(), reason="the `null` harness launches its program through uv")
 def test_cal23_9_an_interrupted_run_against_a_stub_endpoint_resumes_to_the_same_multiset(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """**CAL23 end to end.**  Two tasks at `n = 2` against a stub endpoint, through the
-    documented path: run the whole thing, then run it again with the trace file truncated
-    **mid-task, between the two attempts of task 1**, and resume.
+    """**CAL23 end to end, on the runner.**  Two tasks at `n = 2` through `run_arm` against a
+    stub endpoint, one episode at a time.  The first run is interrupted after its first
+    episode -- **mid-task, between the two attempts of task 1** -- by its own token limit
+    (CAL20's stop, checked before each episode), and a torn half-row is appended the way a
+    runtime that died mid-write leaves one.  A second `run_arm` on the same directory resumes.
 
-    The resumed run must finish with the same multiset -- each task with exactly its `n` --
-    and must re-run only what the interrupt left owed, which is where "no episode is run
-    twice and none is skipped" is actually checked against episodes that ran."""
-    import os
+    The resumed run must keep the episode that ran, run exactly the three the interrupt left
+    owed, and finish with the same multiset -- each task with exactly its `n` -- which is
+    where "no episode is run twice and none is skipped" is checked against episodes that
+    ran, in the run directory the runner itself wrote."""
+    from collections import Counter
 
     import verifiers.v1 as vf
 
+    module = cal()
+    seeds = (404, 55)
+    monkeypatch.setattr(module, "_SEEDS", seeds)
+    monkeypatch.setattr(module, "N", 2)
+    real_config = module.run_config_for
+
+    def one_at_a_time(*args: Any, **kwargs: Any) -> tuple[Any, Any]:
+        documented, calibration = real_config(*args, **kwargs)
+        return documented, calibration.model_copy(update={"max_concurrent": 1})
+
+    monkeypatch.setattr(module, "run_config_for", one_at_a_time)
+    monkeypatch.setenv(KEY_VAR, "stub-secret")
     spec = spec_of("depth", 1)
-    seeds = [404, 55]
-    bundle = generate(spec, seeds[0])
-    saved = os.environ.get(KEY_VAR)
-    os.environ[KEY_VAR] = "stub-secret"
-    run_dir = tmp_path / "run"
-    run_dir.mkdir()
-    try:
-        with stub_endpoint(reference_script(bundle)) as (base_url, log):
-            import dataclasses
+    with stub_endpoint([("stop", None)]) as (base_url, log):
+        client = vf.EvalClientConfig(base_url=base_url, api_key_var=KEY_VAR)
+        first = module.run_arm(
+            spec, output_dir=tmp_path, model="stub/model", client=client,
+            budget={"tokens": 1, "wall_clock_seconds": 3600},
+        )
+        assert first.stop is not None and first.stop.reason == "tokens", first
+        assert (first.episodes_run, first.episodes_owed) == (1, 3), first
+        traces = first.run_dir / "traces.jsonl"
+        (survivor,) = [json.loads(line) for line in traces.read_text(encoding="utf-8").splitlines()]
+        with traces.open("a", encoding="utf-8") as handle:
+            handle.write('{"task": {"hash": "')
+        requests_before = len(log)
 
-            config = vf.resolve_env_config({
-                "taskset": {"id": "poisson-tasks", "arm": dataclasses.asdict(spec), "seeds": seeds}
-            })
-            env = vf.load_environment(config)
-            tasks = list(env.taskset.load())
-            assert len(tasks) == len(seeds)
-            ctx = vf.ModelContext(
-                model="stub/model",
-                client=vf.EvalClientConfig(base_url=base_url, api_key_var=KEY_VAR),
-            )
+        second = module.run_arm(
+            spec, output_dir=tmp_path, model="stub/model", client=client,
+            budget={"tokens": 10**9, "wall_clock_seconds": 3600},
+        )
 
-            import asyncio
-
-            async def run_all() -> list[Any]:
-                out = []
-                async with env.serving():
-                    for task in tasks:
-                        for _ in range(2):
-                            out.append(await env.run_episode(task, ctx))
-                return out
-
-            episodes = asyncio.run(run_all())
-    finally:
-        if saved is None:
-            os.environ.pop(KEY_VAR, None)
-        else:
-            os.environ[KEY_VAR] = saved
-
-    assert len(episodes) == 4
-    assert all(episode.ok for episode in episodes), [e.errors for e in episodes]
-    hashes = [task.hash for task in tasks]
-
-    # what the uninterrupted run wrote, in the order it wrote it
-    rows = [(hashes[0], True), (hashes[0], True), (hashes[1], True), (hashes[1], True)]
-    # the interrupt: mid-task, between the two attempts of task 1
-    traces_file(run_dir, rows[:1])
-    kept, owed = wheel_resume().load(run_dir, hashes, 2)
-    assert len(kept) == 1
-    assert owed == {hashes[0]: 1, hashes[1]: 2}
-    rebuilt = {hashes[0]: 1 + owed[hashes[0]], hashes[1]: owed[hashes[1]]}
-    assert rebuilt == {hashes[0]: 2, hashes[1]: 2}
-    assert sum(owed.values()) == 3, "an episode was run twice or skipped"
+    assert second.run_dir == first.run_dir
+    assert second.stop is None, second
+    assert (second.episodes_kept, second.episodes_run, second.episodes_owed) == (1, 3, 0), second
+    assert len(log) - requests_before == 3, "an episode was run twice or skipped"
+    rows = [json.loads(line) for line in traces.read_text(encoding="utf-8").splitlines()]
+    assert rows[0]["id"] == survivor["id"], "the episode that ran before the interrupt was not kept"
+    assert all(row["ok"] for row in rows), [row.get("errors") for row in rows]
+    per_task = Counter(row["task"]["hash"] for row in rows)
+    assert len(per_task) == len(seeds) and set(per_task.values()) == {2}, per_task
+    records = module.records_from_run(second.run_dir, model="stub/model")
+    assert sorted((record.seed, record.attempt) for record in records) == [
+        (seed, attempt) for seed in sorted(seeds) for attempt in range(2)
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -2210,14 +2246,14 @@ def test_cal18_5_a_locally_served_model_missing_its_stack_refuses_the_write() ->
 
 def test_cal18_7_the_pinned_revision_is_forty_hex_characters() -> None:
     """N18 already says what a pinned open-weights revision looks like: a full
-    40-character commit hash, never a branch or a tag, and the same string through
-    `--revision` and `--served-model-name`.  This brings that into this module's provenance."""
-    carried = provenance().serving[MODEL_B]
-    assert len(carried["revision"]) == 40
-    assert all(c in "0123456789abcdef" for c in carried["revision"])
-    joined = " ".join(carried["flags"])
-    assert f"--revision {carried['revision']}" in joined
-    assert f"--served-model-name {carried['revision']}" in joined
+    40-character commit hash, never a branch or a tag.  A locally served model whose revision
+    is anything else refuses the provenance block; the control differs only in the revision
+    and is accepted."""
+    good = dict(provenance().serving[MODEL_B])
+    assert provenance(serving={MODEL_B: good}).serving[MODEL_B]["revision"] == "b" * 40
+    for bad in ("main", "v1.0", "b" * 39, "b" * 41, "g" * 40):
+        with pytest.raises(ValueError):
+            provenance(serving={MODEL_B: dict(good, revision=bad)})
 
 
 def test_cal17_6_the_card_states_the_resume_guarantee_in_words() -> None:
