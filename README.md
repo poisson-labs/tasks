@@ -101,7 +101,10 @@ python3.11 -m venv .venv
 
 The last step fetches the o200k_base encoding file, about 3.6 MB, once. It is not shipped
 in this repository or in the distribution; [`NOTICE`](NOTICE) records why and what was
-checked. Nothing else here touches the network, and the tokenizer itself never does.
+checked. Generating tasks touches nothing else on the network, and the tokenizer never
+does. The test suite does: every test that runs an episode through the `null` harness
+needs PyPI and astral.sh, because the `verifiers` wheel installs `uv` and the harness's
+dependencies before each episode ([`tests/conftest.py`](tests/conftest.py) says how).
 
 Sanity check:
 

@@ -14,15 +14,32 @@ every test runs exactly as it would without it.
 The file collects cleanly either way -- it imports `poisson_tasks.adapter` lazily, through
 `importlib`, inside its own helper -- so the skip is applied to collected items rather than
 by refusing to collect, and `pytest -q` reports the count and the reason.
+
+**The network.** Generation needs none, but every test that runs an episode through the
+`null` harness does. Before each episode's harness starts, the `verifiers` wheel makes sure
+of the latest `uv`: it runs `pip install --user uv`, and where that cannot install (inside a
+virtualenv it never can) it downloads uv's installer from astral.sh with curl. Then
+`uv sync --script` installs the harness program's own dependencies from PyPI. That is the
+wheel's behaviour, not this package's, and it happens even when `uv` is already installed.
+Without the network those tests fail at the harness's setup, with the wheel's error.
+
+**Hypothesis profiles.** Property tests draw new examples on every run by default, so what
+one run catches can differ from the next. `HYPOTHESIS_PROFILE=ci` (which the CI workflow
+sets) derandomizes them: every run draws the same examples, so a red test is reproducible.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import os
 from pathlib import Path
 from typing import Any
 
 import pytest
+from hypothesis import settings
+
+settings.register_profile("ci", derandomize=True)
+settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "default"))
 
 # The test files that need the extra: the scripted path's, which drives Proofload's CLI, and
 # the model path's bridge (MP10), which calls `to_episode`. Matched on the name, so a run from
