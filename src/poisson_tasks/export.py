@@ -51,6 +51,7 @@ from __future__ import annotations
 import asyncio as _asyncio
 import dataclasses as _dc
 import json as _json
+import warnings as _warnings
 from collections.abc import Iterator as _Iterator
 from typing import Any as _Any
 
@@ -60,11 +61,15 @@ from mcp.server.fastmcp.tools import Tool as _Tool
 from pydantic import Field as _Field
 from pydantic import model_validator as _model_validator
 
+from poisson_tasks.arms import _CONTROL_PAIRS, _on_a_published_card
+from poisson_tasks.arms import DEFAULT_GENERATOR_VERSION as _DEFAULT_GENERATOR_VERSION
+from poisson_tasks.arms import arm_from_id as _arm_from_id
 from poisson_tasks.engine import apply as _apply
 from poisson_tasks.engine import init_state as _init_state
 from poisson_tasks.knobs import ArmSpec as _ArmSpec
 from poisson_tasks.knobs import PinRecord as _PinRecord
 from poisson_tasks.knobs import arm_id as _arm_id
+from poisson_tasks.knobs import levels as _levels
 from poisson_tasks.tasks import FormatSpec as _FormatSpec
 from poisson_tasks.tasks import TaskBundle as _TaskBundle
 from poisson_tasks.tasks import Turn as _Turn
@@ -113,6 +118,138 @@ class ExportTaskConfig(_vf.TaskConfig):
     arm_id: str = ""
 
 
+_ARM_FIELDS = tuple(field.name for field in _dc.fields(_ArmSpec))
+_STRICTNESSES = ("strict", "leaky")
+_SPLITS = ("eval", "train")
+
+
+def _whole_number(value: _Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _shown(value: _Any) -> str:
+    """A value as the command line or a TOML file gave it, for a message: `"leakey"`, `true`."""
+    try:
+        return _json.dumps(value)
+    except (TypeError, ValueError):
+        return type(value).__name__
+
+
+def _arm_mapping(arm: _Any) -> dict[str, _Any]:
+    """The declared arm as the six-field mapping, checked, before the config is validated.
+
+    An id such as `depth:d3` becomes the mapping, strict, on the eval split, at generator
+    version "0": an id carries the knob, the level and the control and nothing else.
+
+    Every arm the generator cannot make is refused here, in one line naming the field, rather
+    than when the tasks are generated: a field missing, misspelled or extra; a strictness other
+    than the two (a misspelled one was scored as strict); a split other than the two; a level or
+    a control that is not a whole number, or outside what the knob can make.  Depth runs from 1
+    to 8 and distractor from 0 to 14, which are the ends of each knob's candidate levels: the
+    stage ladder has eight stages and the tool table offers fourteen distractors.
+
+    An arm the generator can make and no published card measured is taken, with one note.
+    """
+    if isinstance(arm, str):
+        arm = _dc.asdict(_arm_from_id(arm))
+    if not isinstance(arm, dict):
+        raise ValueError(
+            "arm is neither an arm id such as depth:d3 nor the six fields of an arm as one "
+            f"mapping; got {type(arm).__name__}"
+        )
+    unknown = [str(name) for name in arm if name not in _ARM_FIELDS]
+    missing = [name for name in _ARM_FIELDS if name not in arm]
+    if unknown or missing:
+        problems = []
+        if unknown:
+            problems.append("no field of an arm is named " + ", ".join(unknown))
+        if missing:
+            problems.append("the arm is missing " + ", ".join(missing))
+        raise ValueError(
+            "; ".join(problems) + ": an arm has the six fields " + ", ".join(_ARM_FIELDS)
+        )
+
+    knob, level, control = arm["knob"], arm["level"], arm["control"]
+    if not isinstance(knob, str) or knob not in _CONTROL_PAIRS:
+        raise ValueError(
+            f"knob {_shown(knob)} is not a knob: the knobs are {' and '.join(_CONTROL_PAIRS)}"
+        )
+    lowest, highest = min(_levels(knob)), max(_levels(knob))
+    if not _whole_number(level):
+        raise ValueError(f"level {_shown(level)} is not a whole number")
+    if not lowest <= level <= highest:
+        raise ValueError(
+            f"level {level} is not a {knob} level the generator can make: {knob} runs from "
+            f"{lowest} to {highest}"
+        )
+    if control is not None:
+        if not _whole_number(control):
+            raise ValueError(f"control {_shown(control)} is neither null nor a whole number")
+        if not level < control <= highest:
+            raise ValueError(
+                f"control {control} cannot stand in for {knob} level {level}: a control is a "
+                f"higher level, above {level} and at most {highest}"
+            )
+    if arm["strictness"] not in _STRICTNESSES:
+        raise ValueError(
+            f"strictness {_shown(arm['strictness'])} is not a strictness: it is "
+            + " or ".join(_STRICTNESSES)
+        )
+    if arm["split"] not in _SPLITS:
+        raise ValueError(
+            f"split {_shown(arm['split'])} is not a split: it is " + " or ".join(_SPLITS)
+        )
+    if not isinstance(arm["generator_version"], str):
+        raise ValueError(
+            f"generator_version {_shown(arm['generator_version'])} is not text; the published "
+            f'cards\' is "{_DEFAULT_GENERATOR_VERSION}"'
+        )
+
+    spec = _ArmSpec(**arm)
+    if not _on_a_published_card(spec):
+        _warnings.warn(_off_the_cards(spec), UserWarning, stacklevel=2)
+    return dict(arm)
+
+
+def _off_the_cards(spec: _ArmSpec) -> str:
+    """The note on an arm no published card measured: one line, naming the arm and why."""
+    plain = _ArmSpec(
+        knob=spec.knob,
+        level=spec.level,
+        control=spec.control,
+        strictness="strict",
+        split="eval",
+        generator_version=_DEFAULT_GENERATOR_VERSION,
+    )
+    reasons = []
+    if not _on_a_published_card(plain):
+        if spec.control is None:
+            measured = [str(level) for level in _levels(spec.knob)]
+            reasons.append(
+                f"they measure {spec.knob} at " + ", ".join(measured[:-1]) + f" and {measured[-1]}"
+            )
+        else:
+            controls = [
+                _arm_id(_dc.replace(plain, level=level, control=control))
+                for level, control in _CONTROL_PAIRS[spec.knob]
+            ]
+            reasons.append(f"their {spec.knob} control arms are " + " and ".join(controls))
+    if spec.strictness != plain.strictness:
+        reasons.append(f"their tasks are strict and these are {spec.strictness}")
+    if spec.split != plain.split:
+        reasons.append(f"their tasks are on the eval split and these are on {spec.split}")
+    if spec.generator_version != plain.generator_version:
+        reasons.append(
+            f'their tasks are at generator version "{plain.generator_version}" and these are '
+            f'at "{spec.generator_version}"'
+        )
+    return (
+        f"no published card covers the arm {_arm_id(spec)} as given here ("
+        + "; ".join(reasons)
+        + "), so its results cannot be read beside the published cards"
+    )
+
+
 class ExportTasksetConfig(_vf.TasksetConfig):
     """The taskset's config: the arm spec plus the declared seed list, which is finite.
 
@@ -140,7 +277,8 @@ class ExportTasksetConfig(_vf.TasksetConfig):
     arm: dict[str, _Any] = _Field(
         default_factory=dict,
         description=(
-            "The arm: the six ArmSpec fields as one JSON object, for example "
+            "The arm: its id, for example depth:d3 (strict, on the eval split), or the six "
+            "ArmSpec fields as one JSON object, for example "
             '{"knob": "depth", "level": 3, "control": null, "strictness": "strict", '
             '"split": "eval", "generator_version": "0"}. '
             "knob 'depth' (levels 1, 2, 3, 5, 8) sets how many chained calls the goal is "
@@ -170,6 +308,8 @@ class ExportTasksetConfig(_vf.TasksetConfig):
                 "than once, and one seed is one task"
             )
         arm = data.get("arm")
+        if arm:
+            arm = data["arm"] = _arm_mapping(arm)
         if isinstance(arm, dict) and arm and data.get("task") is None:
             spec = _ArmSpec(**arm)
             data["task"] = ExportTaskConfig(
@@ -592,7 +732,8 @@ def task_from_bundle(bundle: _TaskBundle) -> ExportTask:
 # taskset gets iterated with nothing declared.  A caller of `load` in Python still meets
 # `arm_spec`'s own refusal of a missing arm, which speaks to that caller.
 _NO_ARM = (
-    "no arm given: pass --env.taskset.arm with the arm's six fields as one JSON object, for "
+    "no arm given: pass --env.taskset.arm with the arm's id, for example "
+    "--env.taskset.arm depth:d3, or with its six fields as one JSON object, for "
     "example --env.taskset.arm '{\"knob\": \"depth\", \"level\": 3, \"control\": null, "
     "\"strictness\": \"strict\", \"split\": \"eval\", \"generator_version\": \"0\"}'"
 )
