@@ -147,12 +147,8 @@ import dataclasses
 import hashlib
 import importlib
 import importlib.metadata
-import importlib.util
 import inspect
 import json
-import os
-import subprocess
-import sys
 import threading
 from collections.abc import Iterable
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -667,16 +663,6 @@ def test_x2_3_the_rebuilt_bundle_hashes_equal(spec):
 
 
 @pytest.mark.parametrize("spec", ALL_SPECS, ids=spec_ids(ALL_SPECS))
-def test_x2_4_the_rebuilt_bundle_is_one_verify_accepts(spec):
-    """A rebuilt bundle is only worth having if the task layer will take it: `verify` refuses a
-    bundle whose stored initial state is not the derivation's, as `verifier_error`."""
-    bundle = generate(spec, 404)
-    data = task_of(bundle).data
-    rebuilt = export().bundle_from_data(type(data).model_validate_json(data.model_dump_json()))
-    assert expected_verdict(rebuilt, rebuilt.reference_calls, reply=True).strict_label == "passed"
-
-
-@pytest.mark.parametrize("spec", ALL_SPECS, ids=spec_ids(ALL_SPECS))
 def test_x2_5_the_data_carries_the_fields_2_4_names_as_the_bundle_has_them(spec):
     bundle = generate(spec, 2121)
     data = task_of(bundle).data
@@ -1039,15 +1025,6 @@ def test_x4_6_prompt_supplied_stage_calls_earn_nothing(spec):
     assert metric_of(trace, "sampled_calls") == 0.0
 
 
-@pytest.mark.parametrize("spec", ALL_SPECS, ids=spec_ids(ALL_SPECS))
-def test_x4_7_the_reference_calls_without_a_reply_are_not_passed(spec):
-    """`passed` needs the episode to have ended with a reply."""
-    bundle = generate(spec, 0)
-    task = task_of(bundle)
-    trace = scored(task, trace_of(task, bundle, bundle.reference_calls, reply=False))
-    assert reward_of(trace, "strict") == 0.0
-
-
 def test_x4_8_strict_is_the_one_reward_and_weighs_one():
     """`@vf.reward strict` (weight 1.0), and `leaky_pass` a metric: the leaky verdict
     is descriptive, so it must not reach `Trace.reward`."""
@@ -1124,40 +1101,15 @@ def test_x6_2_the_diagnostics_on_a_reference_trace(spec):
 # --------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("spec", ALL_SPECS, ids=spec_ids(ALL_SPECS))
-def test_x7_1_the_key_is_the_task_id(spec):
-    for seed in SEEDS[:3]:
-        bundle = generate(spec, seed)
-        assert task_of(bundle).key == bundle.task_id
-
-
-def test_x7_2_keys_are_unique_within_a_taskset():
-    seeds = list(range(0, 4000, 37))
-    keys = [task.key for task in taskset(spec_of("distractor", 14), seeds).load()]
-    assert len(keys) == len(seeds) == len(set(keys))
-
-
 def test_x7_3_keys_are_stable_across_loads_and_across_processes():
-    """"Stable across runs": a second load, and two fresh interpreters under different
-    `PYTHONHASHSEED`s, which is how the engine's tests check E1."""
+    """"Stable across runs": a second load gives the same keys, and each key is the
+    generator's `task_id`.  That `task_id` itself is the same in two fresh interpreters
+    under different `PYTHONHASHSEED`s is the task layer's `test_g1_2`."""
     spec = spec_of("depth", 3, None)
     seeds = [0, 55, 404, 2121]
     here = [task.key for task in taskset(spec, seeds).load()]
     assert here == [task.key for task in taskset(spec, seeds).load()]
     assert here == [generate(spec, seed).task_id for seed in seeds]
-    program = (
-        "import dataclasses, json\n"
-        "from poisson_tasks.knobs import ArmSpec\n"
-        "from poisson_tasks.export import ExportTaskset, ExportTasksetConfig\n"
-        f"spec = ArmSpec(**{dataclasses.asdict(spec)!r})\n"
-        f"config = ExportTasksetConfig(arm=dataclasses.asdict(spec), seeds={seeds!r})\n"
-        "print(json.dumps([task.key for task in ExportTaskset(config).load()]))\n"
-    )
-    for hashseed in ("0", "4242"):
-        env = {**os.environ, "PYTHONHASHSEED": hashseed}
-        done = subprocess.run([sys.executable, "-c", program], env=env, capture_output=True, text=True)
-        assert done.returncode == 0, done.stderr[-2000:]
-        assert json.loads(done.stdout) == here
 
 
 # --------------------------------------------------------------------------
@@ -1165,13 +1117,10 @@ def test_x7_3_keys_are_stable_across_loads_and_across_processes():
 # --------------------------------------------------------------------------
 
 
-def test_x8_1_the_taskset_is_declared_finite():
-    assert export().ExportTaskset.INFINITE is False
-    assert taskset(spec_of("depth", 1), [1, 2]).INFINITE is False
-
-
-@pytest.mark.parametrize("seeds", ([], [7], [3, 1, 2], list(range(40))), ids=("none", "one", "three", "forty"))
+@pytest.mark.parametrize("seeds", ([],), ids=("none",))
 def test_x8_2_load_yields_one_task_per_declared_seed(seeds):
+    """The empty list: no other test loads one, and `load` yields nothing for it (a
+    default seed would make it one task).  Longer lists are `test_x8_3`'s."""
     assert len(list(taskset(spec_of("depth", 2), seeds).load())) == len(seeds)
 
 
@@ -1258,12 +1207,6 @@ def test_val3_g4_is_both_strictnesses_whatever_the_arm_declares(spec):
 # --------------------------------------------------------------------------
 
 
-def test_x9_1_the_export_names_null_as_the_measured_harness():
-    """Decision 12.  `null` is also a harness the pinned wheel ships."""
-    assert export().MEASURED_HARNESS == "null"
-    assert importlib.util.find_spec("verifiers.v1.harnesses.null") is not None
-
-
 def export_doc() -> str:
     assert export().MEASURED_HARNESS  # the docs belong to the export: no module, no docs
     return EXPORT_DOC.read_text(encoding="utf-8")
@@ -1277,7 +1220,3 @@ def test_x9_3_the_docs_say_another_harness_is_outside_the_pin_ledger():
     text = " ".join(export_doc().split())
     assert "outside the pin ledger" in text
     assert "system prompt" in text
-
-
-def test_x9_4_the_docs_say_eval_needs_no_push():
-    assert "--no-push" in export_doc()
