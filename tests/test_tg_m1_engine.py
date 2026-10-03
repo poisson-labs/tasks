@@ -258,7 +258,9 @@ def rejected_calls(scenario, at_stage_1, at_stage_0):
     passes so that the token is what is rejected, which takes a record standing at
     stage 1; `bad_entry` needs a stage-1 tool whose precondition passes, which
     takes a record still at stage 0; and `not_ready` needs one whose precondition
-    fails.
+    fails.  `not_ready` is made on both records: a record at stage 0 has no token
+    and no audit yet, which is a different thing for a refused call to leave
+    untouched than a record further along.
 
     Precedence, which the design leaves open and these tests therefore fix: the
     stage precondition is decided before the argument.  A stage-3 tool aimed at a
@@ -284,6 +286,8 @@ def rejected_calls(scenario, at_stage_1, at_stage_0):
                        {"record_id": rid1, "chain_token": "f" * 32})),
         ("not_ready", (stage_tool(TABLE["stage_names"][2], cls1),
                        {"record_id": rid1, "chain_token": "f" * 32})),
+        ("not_ready", (stage_tool(TABLE["stage_names"][1], cls0),
+                       {"record_id": rid0, "chain_token": "f" * 32})),
         ("no_such_item", (reader, {"item_code": "no-such-item-code",
                                    "page_key": TABLE["page_keys"][0]})),
         ("no_such_page", (reader, {"item_code": good_item, "page_key": "e" * 32})),
@@ -300,10 +304,16 @@ def call_sequences(draw, scenario=None, length=None):
     for _ in range(n):
         kind = draw(st.sampled_from(["stage", "read", "junk"]))
         if kind == "stage":
-            cls = draw(st.sampled_from(quals))
             s = draw(st.integers(min_value=0, max_value=7))
-            rid = draw(st.sampled_from(sorted({r for _, r in (scenario or {}).records})))\
-                if scenario else "able-account-active-address"
+            if scenario:
+                # Either a record the scenario has, so the call reaches the stage
+                # precondition and the argument checks, or any class with one of the
+                # scenario's ids, so `no_such_rec` stays reachable.
+                ids = sorted({r for _, r in scenario.records})
+                cls, rid = draw(st.sampled_from(sorted(scenario.records))
+                                | st.tuples(st.sampled_from(quals), st.sampled_from(ids)))
+            else:
+                cls, rid = draw(st.sampled_from(quals)), "able-account-active-address"
             key = "entry_code" if s == 0 else "chain_token"
             val = draw(st.sampled_from(TABLE["entry_codes"])) if s == 0 else draw(
                 st.text(alphabet="0123456789abcdef", min_size=32, max_size=32))
