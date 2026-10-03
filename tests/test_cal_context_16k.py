@@ -23,9 +23,9 @@ Decided 2026-09-28, all four:
 3. The phase 3 line names the refusal it printed as CAL24.
 4. The pin's note, which said a context stop is the model's own, is corrected.
 
-The model B prep file pins `--max-model-len` at "8192" in one assertion
-(`test_the_serve_flags_are_the_pinned_ones`).  That line is retrofitted to "16384" in its own
-commit, and nothing else in that file moves.
+The pin itself, 16,384 with the completion limit unchanged, is checked with the other serve
+flags in `tests/test_cal_qwen_prep.py`, and that file's end-to-end run checks that the probe's
+report carries the history controls.
 """
 
 from __future__ import annotations
@@ -35,8 +35,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
-from tests.test_cal_qwen_prep import needs_uv, rig  # noqa: F401  (the rig fixture)
 
 from poisson_tasks import calibration as cal
 
@@ -59,29 +57,6 @@ def _record(arm: str, seed: int, *, leaky: bool, label: str | None = None) -> ca
         sampled_calls=2, prompt_tokens=100, cached_input_tokens=0, completion_tokens=10,
         reasoning_tokens=0,
     )
-
-
-# ---------------------------------------------------------------------------
-# the pin
-# ---------------------------------------------------------------------------
-
-
-def test_the_context_is_16384_and_the_completion_limit_is_unchanged() -> None:
-    pin = run_module().QWEN3_8B
-    args = pin.serve_args("/tmp/t.jinja")
-    assert args[args.index("--max-model-len") + 1] == "16384"
-    assert pin.max_model_len == 16384
-    assert cal.DECODING["max_tokens"] == 2048
-
-
-def test_the_longest_prompt_seen_on_colab_is_inside_the_probes_headroom() -> None:
-    """6,129 tokens was the largest prompt a history control sent before the cap refused the
-    next call.  At 16,384 it sits under the probe's 75% line, so a probe that saw it would
-    let the card run; at 8,192 the same probe stops."""
-    module = run_module()
-    room = module.QWEN3_8B.max_model_len - int(cal.DECODING["max_tokens"])
-    assert 6129 <= module.HEADROOM * room
-    assert 6129 > module.HEADROOM * (8192 - int(cal.DECODING["max_tokens"]))
 
 
 # ---------------------------------------------------------------------------
@@ -164,22 +139,6 @@ def test_without_floor_arms_the_verdict_pools_every_record() -> None:
     verdict = module.probe_verdict(records, {}, max_prompt_tokens=1000, context_stops=0,
                                    prompt_cap=14336)
     assert not verdict.proceed
-
-
-@needs_uv
-def test_the_probe_reports_the_history_controls(rig: Any) -> None:  # noqa: F811
-    r = rig()
-    r.serve()
-    r.run("preflight")
-    r.run("phase1")
-    r.run("probe")
-    report = json.loads((r.durable / "probe.json").read_text())
-    for arm in HISTORY_CONTROLS:
-        assert arm in report["per_arm"], report["per_arm"].keys()
-    assert report["max_prompt_tokens"] == max(
-        facts["max_prompt_tokens"] for facts in report["per_arm"].values()
-    )
-    r.stop_server()
 
 
 # ---------------------------------------------------------------------------

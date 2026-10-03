@@ -140,6 +140,9 @@ def test_the_serve_flags_are_the_pinned_ones() -> None:
     assert "--enable-auto-tool-choice" in args
     assert value("--tool-call-parser") == "hermes"
     assert value("--max-model-len") == str(pin.max_model_len) == "16384"
+    # The context grew from 8,192; the completion limit did not, so the card stays comparable
+    # with model A's.
+    assert cal.DECODING["max_tokens"] == 2048
     assert value("--generation-config") == "vllm"
     assert value("--chat-template") == "/tmp/t.jinja"
     assert value("--quantization") == "fp8"
@@ -656,15 +659,23 @@ needs_uv = pytest.mark.skipif(not have_uv(), reason="the `null` harness launches
 @needs_uv
 def test_the_whole_run_uninterrupted(rig: Any) -> None:
     """serve, preflight, phase 1 through the plumbing gate, the probe, phase 3, the bundle
-    and its verification: each task with exactly n attempts, the card rendered with the
-    serving stack in its provenance, and every number recomputing from the records."""
+    and its verification: the probe's report with the two history controls among its arms
+    and the largest prompt any arm sent, each task with exactly n attempts, the card rendered
+    with the serving stack in its provenance, and every number recomputing from the
+    records."""
     r = rig()
     r.serve()
     r.run("preflight")
     r.run("phase1")
     assert json.loads((r.durable / "phase1.json").read_text())["passed"] is True
     r.run("probe")
-    assert json.loads((r.durable / "probe.json").read_text())["proceed"] is True
+    probe = json.loads((r.durable / "probe.json").read_text())
+    assert probe["proceed"] is True
+    for arm in ("depth:d1+h8", "depth:d2+h5"):
+        assert arm in probe["per_arm"], probe["per_arm"].keys()
+    assert probe["max_prompt_tokens"] == max(
+        facts["max_prompt_tokens"] for facts in probe["per_arm"].values()
+    )
     r.run("phase3", "--wall-clock-hours", "1")
     report = json.loads((r.durable / "phase3.json").read_text())
     assert report["status"] == "complete", report
