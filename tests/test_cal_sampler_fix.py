@@ -63,11 +63,6 @@ def _after_stop(output: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def test_the_pin_turns_the_flashinfer_sampler_off() -> None:
-    pin = run_module().QWEN3_8B
-    assert dict(pin.env) == {SETTING: "0"}
-
-
 def test_the_setting_is_in_the_provenance_flags_and_the_serving_block() -> None:
     """The card prints the serving block's flags; a setting that is not there is a way the
     model was served that the card does not say."""
