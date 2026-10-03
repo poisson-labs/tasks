@@ -212,7 +212,6 @@ from poisson_tasks.knobs import ArmSpec, arm_id, levels
 from poisson_tasks.tasks import (
     FormatSpec,
     Turn,
-    encode_record_id,
     generate,
     generate_contrast,
     scenario_for,
@@ -341,11 +340,7 @@ def bundle_of(spec: ArmSpec, seed: int) -> Any:
 
 
 # ---------------------------------------------------------------------------
-# seeds: a spread over the 32-bit space, and the seeds whose first record-id word is one
-# some tool name carries (measured against the task layer's build), which `test_ct3` and `test_ct4`
-# used until vocabulary v2's test retrofit retired them.  Vocabulary v2 draws no such word, so
-# `RISKY_WORDS` and the helpers that read it find no seed and are unused; `GAP_WORDS` still
-# filters `test_ct2`'s and `test_ct5`'s seeds.
+# seeds: a spread over the 32-bit space
 # ---------------------------------------------------------------------------
 
 
@@ -356,29 +351,6 @@ def spaced(count: int, offset: int = 7) -> tuple[int, ...]:
 
 SPREAD = (0, 1, 2, 55, 404, 2121, 65535, 2**24, 2**31 - 1, 2**32 - 1)
 SPACED = spaced(24)
-RISKY_WORDS = {"eval": ("city", "face"), "train": ("disc", "elect", "grad", "port")}
-# The open record-id gap: these words refuse a knob R contrast that holds `r14`.  The gap's
-# record names three (`city`, `grad`, `port`); measured here at 60 seeds per word, a fourth
-# does too -- `disc` refuses 43 of 60 -- while `face` and `elect` refuse none, and nothing
-# below `r14` refuses for any of the six.  They are excluded from any contrast that holds
-# an `r14` arm and are not asserted anywhere.
-GAP_WORDS = {"eval": ("city",), "train": ("disc", "grad", "port")}
-
-
-@cache
-def word_seed(word: str, split: str, k: int = 0) -> int:
-    for index in range(256):
-        if encode_record_id(index << 24, split).split("-")[0] == word:
-            return (index << 24) + k
-    raise LookupError(word)
-
-
-def risky_seeds(split: str = "eval", per_word: int = 6) -> tuple[int, ...]:
-    return tuple(
-        word_seed(word, split, k * 7919)
-        for word in RISKY_WORDS[split]
-        for k in range(per_word)
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -2253,18 +2225,11 @@ def test_f9_a_sealed_file_that_cannot_be_read_as_plants_is_refused_at_load(tmp_p
 # ===========================================================================
 # CT · inherited coverage: the task layer's knob R level axis, at the contrast the adapter pairs.
 #
-# The task layer's tests build one knob R contrast, `r0` against `r8`, at three seeds, and four rows
-# of the mutation pass against its build survive its whole 235-test suite for that reason.  These
-# tests are task-layer behaviour reached through the registered arm sets — the arms this adapter
-# runs against one salt and compares — over every level, both splits, and the seeds whose
-# first record-id word a tool name carries.  Every one is **green before and after**:
-# none of them imports the adapter.  The open record-id gap (`city`, `disc`, `grad` and
-# `port` refuse a contrast that holds `r14`) is excluded and not asserted.
+# The task layer's tests build one knob R contrast, `r0` against `r8`, at three seeds.  These
+# tests are task-layer behaviour reached through the registered arm sets -- the arms this adapter
+# runs against one salt and compares -- over every level and a spread of seeds.  None of them
+# imports the adapter.
 # ===========================================================================
-
-
-def first_word(seed: int, split: str) -> str:
-    return encode_record_id(seed, split).split("-")[0]
 
 
 def contrast_ok(specs: Iterable[ArmSpec], seeds: Iterable[int], split: str = "eval") -> int:
@@ -2276,25 +2241,11 @@ def contrast_ok(specs: Iterable[ArmSpec], seeds: Iterable[int], split: str = "ev
     return made
 
 
-R_NO_14 = tuple(s for s in R_SPECS if s.level != 14 and s.control != 14)
-R_TOP = (spec_of("distractor", 0), spec_of("distractor", 14))
-NON_GAP = tuple(s for s in SPREAD + SPACED if first_word(s, "eval") not in GAP_WORDS["eval"])
-
-
 def test_ct1_every_registered_depth_arm_holds_the_ledger_across_the_seed_space():
     assert contrast_ok(D_SPECS, SPREAD + SPACED) == len(SPREAD + SPACED)
 
 
 def test_ct2_every_registered_distractor_arm_holds_the_ledger_across_the_seed_space():
     """Every level `r0` to `r14` and both controls at once: nothing here is one pair."""
-    assert contrast_ok(R_SPECS, NON_GAP) == len(NON_GAP)
+    assert contrast_ok(R_SPECS, SPREAD + SPACED) == len(SPREAD + SPACED)
 
-
-def test_ct5_the_top_level_holds_the_ledger_across_a_dense_spread_of_seeds():
-    """`r14` keeps no read tool at all, so the prose and the entry-code draw are all that
-    hold N7's set still there.  The mutation pass against the task layer's build measured
-    248 of 1,216 refusals against 0 with the prose rule off, and 10 with the entry-code rule
-    off, all at `r14`: a sample this size sees both."""
-    seeds = [s for s in spaced(160, offset=3) if first_word(s, "eval") not in GAP_WORDS["eval"]]
-    assert len(seeds) >= 150
-    assert contrast_ok(R_TOP, seeds) == len(seeds)
