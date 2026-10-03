@@ -722,21 +722,6 @@ def test_e4_error_calls_do_not_touch_the_records(data):
             assert records_bytes(state) == records_bytes(before), (call, obs)
             assert mutations(before, state) == [], (call, obs)
 
-
-@given(data=st.data())
-@SLOW
-def test_e4_error_calls_advance_next_seq_by_one(data):
-    """E4 with E5: the counter is the one thing an error does change."""
-    from poisson_tasks.engine import apply, init_state
-
-    scenario = make_scenario(n_records=4)
-    state = init_state(scenario, data.draw(st.integers(min_value=1, max_value=5000)))
-    for call in data.draw(call_sequences(scenario)):
-        before = state
-        state, obs = apply(state, call)
-        if obs_status(obs) != "ok":
-            assert state.next_seq == before.next_seq + 1, (call, obs)
-
 # --------------------------------------------------------------------------
 # E5 Sequence numbers  (the counter advances on every call, errors included)
 # --------------------------------------------------------------------------
