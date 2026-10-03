@@ -60,8 +60,9 @@ What is deliberately not tested here
 * **N17's scripted `diff`.**  The written test for N17 is a Proofload ``diff`` of the
   lowest arm against the highest, reporting zero truncated rows.  knobs.py may import
   only ``Episode`` and ``Rollout`` from Proofload, so the ``diff`` half runs in the
-  Proofload adapter's tests against A5.  What is tested here is the arithmetic N17
-  rests on: ``H = max(max_turns)`` over the arm set, one ``H`` for every arm of a knob.
+  Proofload adapter's tests against A5.  knobs.py computes no horizon: N17's
+  ``H = max(max_turns)`` over the arm set follows from N16's slack identity, which
+  test_n16_1 and test_n16_1b pin.
 * **N10 and N13's measurements.**  Both are run-time: N10 compares a serving pin
   across a model's runs and N13 reads server-reported usage from the trace.  A
   bundle carries neither, so these tests pin that ``measure_pins`` *declares* them
@@ -1212,37 +1213,6 @@ def test_n16_2_the_depth_control_gets_its_own_level_plus_slack_not_the_high_leve
     assert control.reference_turns == 1 + 1
     assert control.max_turns(4) == 1 + 1 + 4
     assert control.max_turns(4) != spec(level=8).max_turns(4)
-
-
-def test_n16_3_one_slack_takes_one_value_across_the_batch():
-    """N16: "`S` takes one value across the batch".  Stated over a batch because a
-    per-arm slack would restore the spare-budget confound N16 removes."""
-    k = knobs()
-    slack = 4
-    arms = [spec(level=lvl) for lvl in k.levels("depth")] + [spec(level=1, control=8)]
-    assert len({a.max_turns(slack) - a.reference_turns for a in arms}) == 1
-
-
-def test_n17_1_the_horizon_is_the_maximum_max_turns_over_the_arm_set():
-    """N17: "`H = max(max_turns)` over the pre-registered arms", one `H` for every arm
-    of the knob, never the arm's own `max_turns` (the horizon Proofload cuts at).
-    The scripted `diff` half of N17's test is the Proofload adapter's, against A5."""
-    slack = 4
-    arms = [spec(level=lvl) for lvl in (1, 3, 8)] + [spec(level=1, control=8)]
-    horizon = max(a.max_turns(slack) for a in arms)
-    assert horizon == 8 + 1 + slack
-    for a in arms:
-        assert a.max_turns(slack) <= horizon
-
-
-def test_n17_2_the_control_does_not_lower_the_horizon():
-    """N17: the failure this row exists to stop.  `diff` truncates at the smaller
-    horizon, so a control arm declaring its own `max_turns` as the horizon would delete
-    every `d8` pass that lands after turn 6 (PG-9)."""
-    slack = 4
-    control = spec(level=1, control=8)
-    high = spec(level=8)
-    assert control.max_turns(slack) < high.max_turns(slack)
 
 
 def test_n18_1_the_serving_pin_row_carries_n18s_requirements():
