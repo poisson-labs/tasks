@@ -5,6 +5,34 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### Cost and time on every card
+
+- **Every card shows what each level cost, beside its pass rates.** Every level table and
+  the control-arm table gain three columns: median model calls, median tokens and median
+  episode seconds.
+- **The cost section is three tables**: calls and tokens per episode (means, medians, the
+  90th-percentile tokens, and tokens per strict pass); time per episode (the median and 90th
+  percentile of episode, model and harness seconds, and the median setup seconds); and the
+  token totals and dollars that were already there, unchanged.
+- **A record carries its episode's time and the size of its first request**, read from the
+  trace by `records_from_run`: `episode_seconds`, `model_seconds`, `harness_seconds`,
+  `setup_seconds` and `first_request_prompt_tokens`. Each is optional and left out of the
+  written line when it was not recorded, so an `episodes.jsonl` written before these fields
+  existed reads and writes back unchanged.
+- **A figure that was not recorded is shown as *not recorded*, never as zero.** A phase that
+  never ended, or a zero in an episode that made no model call, is missing, and a cell's
+  time figures are over the episodes that kept time.
+- **Time is printed and never compared.** It belongs to the serving and its load as much as
+  to the task. `Provenance` gains an optional `concurrency`, how many episodes ran at once
+  (`Provenance.for_run(..., concurrency=...)`); the card prints it wherever it prints seconds,
+  and the combined page says it does not compare one card's time with another's. No
+  comparison, ordering or verdict reads a time figure, and two cards need not share a
+  concurrency to share a page.
+- **Both committed cards were rebuilt from their records**, with no new model calls and every
+  earlier figure unchanged. Each cell of `artifact.json` gains fourteen keys. Neither run
+  kept time or its concurrency, so both cards read *not recorded* for them; the first cards
+  with time will come from the next runs.
+
 ### Depth read on reaching the goal, one page for every card, and plain words
 
 - **Depth is read on reaching the goal, with stopping at the goal shown beside it.** Every

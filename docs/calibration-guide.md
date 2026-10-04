@@ -53,6 +53,9 @@ One table per knob, one row per level:
 | **leaky 95% interval** | The same task-resampling bootstrap, on the leaky rate. |
 | **overshoot** | Stopping at the goal: the share of scored attempts that reached the goal and carried the record past it. Strict fails these and leaky counts them. |
 | **strict pass@2, pass@5** | The chance that at least one of *k* attempts passes, by the unbiased estimator `1 - C(n-c, k) / C(n, k)` per task. Every *k* up to *n* is in the artifact; the card shows 1, 2 and 5. |
+| **median model calls** | What the level cost, beside its rates: the median number of model calls over the scored episodes. |
+| **median tokens** | The median tokens per scored episode: prompt, cached input and completion together. |
+| **median episode seconds** | The median time from the start of the model's work on the task to its end. It reads *not recorded* when the run's episodes kept no time, as on both published cards, which were run before time was kept. Seconds depend on how the model was served and how many episodes ran at once, so they are printed and decide nothing: no comparison, ordering or verdict reads them. |
 | **min calls** | The fewest tool calls the task can be solved in, known from the task alone: *d* at depth *d*, 2 for every distractor level. |
 | **no tool call** | The share of scored episodes that ended without a single tool call. |
 | **stopped short** | The share that made at least one call but fewer than the minimum. Disjoint from *no tool call*. Giving up partway through a long chain is a difficulty result, so this is printed and never gated. |
@@ -93,11 +96,31 @@ choosing a tool genuinely hard is future work.
   `distractor:r2+len(r14)@k16`) have their own table. They exist to separate a knob from
   what travels with it (depth from history length, distractors from prompt length); they are
   not difficulty levels and are never read as one. See [knobs and arms](knobs-and-arms.md).
-- **Cost per episode** is measured from each episode's own token usage, never estimated.
-  Cached and uncached input are kept apart because they are billed at different rates;
-  reasoning tokens are already inside the completion tokens and are not added again. Dollars
-  are tokens times the rates the run declared, with the date they were read. A model with no
-  declared rate, such as one served on your own GPU, has no dollar figure.
+- **Cost per episode** is measured from each episode's own usage and timing, never
+  estimated, and has three tables, one row per arm in each:
+  - **Calls and tokens per episode**: the mean and median model calls and tool calls; the
+    mean, median and 90th-percentile tokens (prompt, cached input and completion together);
+    and *tokens per strict pass*, the mean tokens divided by strict pass@1, which is what one
+    strict pass costs at that level and reads *n/a* where nothing passed.
+  - **Time per episode**: the median and 90th percentile of *episode seconds*, of the *model
+    seconds* inside them (waiting on the model) and of the *harness seconds* (the tool calls
+    and the harness between them), and the median *setup seconds*, the tool server's start
+    before the episode, which is what the instrument costs and not the task. These are over
+    the scored episodes that kept time. An arm whose episodes kept none reads *not recorded*:
+    a figure that was not measured is never printed as zero. Both published cards read *not
+    recorded* throughout, because neither run kept time.
+  - **Token totals and dollars**: prompt, cached input and completion tokens, the reasoning
+    share, and computed and provider-reported dollars. Cached and uncached input are kept
+    apart because they are billed at different rates; reasoning tokens are already inside
+    the completion tokens and are not added again. Dollars are tokens times the rates the
+    run declared, with the date they were read. A model with no declared rate, such as one
+    served on your own GPU, has no dollar figure.
+
+  **Time is each run's own.** It belongs to the serving and its load as much as to the task,
+  so wherever a card prints seconds it also prints the run's *concurrency*, how many
+  episodes were in flight at once, or *not recorded* when the run did not write it down.
+  One card's time is not to be compared with another's unless both were served the same
+  way at the same concurrency, and the combined page compares none.
 - **Adjacent levels** compares each level with the next one up, paired over the shared seeds
   inside each bootstrap resample. A pair is **distinguishable** only when its paired 95%
   interval excludes zero **and** the difference is at least **0.15** pass-rate points, a
@@ -110,7 +133,7 @@ choosing a tool genuinely hard is future work.
   generator and vocabulary hashes, the seed list's hash, the harness and verifiers version,
   the model and where it was served (for a locally served model, the serving stack, its
   version and flags, the GPU and the weights' exact revision), the decoding, the budget, the
-  turn limit and every threshold above.
+  turn limit, the run's concurrency when it recorded one, and every threshold above.
 
 ## Model A: `gpt-5-nano-2025-08-07`
 
@@ -233,7 +256,9 @@ through the verifiers `eval` body, checking the budget before each episode and r
 from its own output directory if interrupted; `calibration.arm_specs()` lists the fourteen
 arms. `calibration.records_from_run` turns a finished run directory into per-episode
 records, `calibration.build_artifact` computes every figure from them under a `Provenance`
-block, and `calibration.render_document` renders the card. `build_artifact` is where the
+block, and `calibration.render_document` renders the card. Each record carries its
+episode's time and the size of its first request when the trace measured them, and
+`Provenance.for_run(..., concurrency=...)` records how many episodes ran at once. `build_artifact` is where the
 refusals above are enforced. `calibration.render_combined_document` renders one page for
 several cards measured the same way, and refuses cards that were not.
 [`examples/calibration_card.py`](../examples/calibration_card.py) rebuilds any committed card
