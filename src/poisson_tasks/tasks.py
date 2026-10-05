@@ -1,16 +1,19 @@
-"""TG-M3, task and verifier generation: `(arm, seed)` to a task bundle, with the
-verifier, a reference solution and negative controls generated alongside the task.
+"""Task and verifier generation: `(arm, seed)` to a task bundle, with the verifier, a
+reference solution and negative controls generated alongside the task.
 
 The invariants this file is built against are G1-G16, the outcome vocabulary and the
-format check in the spec's 2.3, as amended on 2026-09-11 by TG-ADR-35 and TG-ADR-36, on
-2026-09-13 by TG-ADR-37 and TG-ADR-38, and on 2026-09-14 by TG-ADR-40 and TG-ADR-41.
-The frozen test file is `tests/test_tg_m3_tasks.py`; where the spec's text could not be
+format check, as amended on 2026-09-11, 2026-09-13 and 2026-09-14.
+The frozen test file is `tests/test_tg_m3_tasks.py`; where the design's text could not be
 used as written, that file's module docstring is authoritative and this file follows it.
+`tests/test_k1_verify.py`, `tests/test_k1_surface.py` and `tests/test_k1_hash.py` pin what
+the knobs added since need of it: targets read from a task's records, an argument check that
+takes optional parameters, names translated through `surface.display_map`, and a generator
+hash over the three modules that shape a task.
 
 Everything here is a pure function of its arguments and the frozen vocabulary table:
-no clock, no RNG, no model, no network (G1, G2).  TG-M1's and TG-M2's literals are
-reached by import and never re-minted, `d_R` included -- it is read back off TG-M2's own
-`ArmSpec.reference_turns` rather than copied as a number (SF9, standing rule 8).
+no clock, no RNG, no model, no network (G1, G2).  The engine's and the knobs module's
+literals are reached by import and never re-minted, `d_R` included -- it is read back off
+the knobs module's own `ArmSpec.reference_turns` rather than copied as a number (SF9).
 
 Shapes the spec names but does not define, decided by this build
 ---------------------------------------------------------------
@@ -26,7 +29,7 @@ one place it does not, and that residual is named under `_drawable_entry_codes`.
 
 *Amended 2026-09-21.*  The residual is closed, and not by this module: vocabulary v2
 draws both record-id word lists disjoint from every tool name, which is the escape hatch
-TG-ADR-42 recorded and the coverage item the spec's 2.1 owed any future table.  The
+recorded when the residual was found and the coverage item any future table owed.  The
 three rules below still earn their place -- they hold the overlap set still for the
 prose, the slots and the entry code, none of which the table's disjointness reaches --
 and the sentences above stand as they were written, because the freedom this build had
@@ -34,16 +37,16 @@ and did not have is what they describe.  `tests/test_record_id_fix.py` pins the 
 property; the six words v1 carried are named there and in `_drawable_entry_codes`.
 
 * **The block's read tools are the table's first `n` reads, in table order, and the
-  block is then permuted by the scenario's one slot draw.**  2.2 says knob D's block is
-  "8 orthogonal read tools" and never which eight.  Drawing the subset *and* the
+  block is then permuted by the scenario's one slot draw.**  The design says knob D's block
+  is "8 orthogonal read tools" and never which eight.  Drawing the subset *and* the
   permutation would parameterise the same arrangement twice, so `structure_space` could
   no longer be the size of the image it claims to count (G16, `test_g16_1` brute-forces
   it).  One draw, one image.  *Escape hatch:* draw the subset instead of the order, and
   `structure_space` changes with it.
 
 * **The slots knob R designates are chosen so that a level change never moves N7's
-  overlap set, in both directions.**  2.2 says "the seed designates the slots"; it does
-  not say which.  A read tool whose name carries an instruction token must not drop out
+  overlap set, in both directions.**  The design says "the seed designates the slots"; it
+  does not say which.  A read tool whose name carries an instruction token must not drop out
   of the block, and a distractor whose name carries one the required tools do not must
   not drop in -- either moves the overlap set between `r0` and `r8` and refuses the
   contrast.  So the reads the instruction does not touch are replaced first and the
@@ -72,12 +75,12 @@ property; the six words v1 carried are named there and in `_drawable_entry_codes
   *Escape hatch:* the check names the word and the tools that carry it.
 
 * **`overshoot` is generated when the block holds a tool that can carry the target past
-  the goal, and not otherwise.**  The tests' decision 7 states the top-stage case; the
-  same sentence decides knob R, whose block holds stages 1 and 2 alone, so no call the
+  the goal, and not otherwise.**  The frozen tests' docstring states the top-stage case;
+  the same sentence decides knob R, whose block holds stages 1 and 2 alone, so no call the
   model can make overshoots and no control could produce the label.  G7 is carried by
   `collateral_mutation` there, exactly as at stage 8.  *Escape hatch:* `test_g7_2` is
   written about stage 8 and would not move; a build that gives knob R the whole ladder
-  would have to restate 2.2's block instead.
+  would have to restate knob R's block instead.
 
 * **`structure_space` counts the structures the *arm transform* exposes, which is a
   lower bound for a control arm.**  A D control's seeded block is a derivation of the
@@ -112,6 +115,7 @@ from dataclasses import replace as _replace
 from typing import Any as _Any
 from typing import cast as _cast
 
+from poisson_tasks import surface as _surface
 from poisson_tasks.engine import EngineSpec as _EngineSpec
 from poisson_tasks.engine import Scenario as _Scenario
 from poisson_tasks.engine import apply as _apply
@@ -124,6 +128,7 @@ from poisson_tasks.knobs import PinRecord as _PinRecord
 from poisson_tasks.knobs import arm_id as _arm_id
 from poisson_tasks.knobs import check_pins as _check_pins
 from poisson_tasks.knobs import measure_pins as _measure_pins
+from poisson_tasks.surface import _prf
 from poisson_tasks.tokenizer import count_tokens as _count_tokens
 from poisson_tasks.tokenizer import reference_encoding as _reference_encoding
 
@@ -150,13 +155,13 @@ __all__ = [
 
 _SPEC = _EngineSpec.load()
 
-# 2.2's knob names.  TG-M2's `ArmSpec.__post_init__` is what refuses anything else; these
-# are the same two strings its arm ids render.
+# The two knobs this module generates.  `ArmSpec.__post_init__` in the knobs module is what
+# refuses a name that is no knob; these are the same two strings its arm ids render.
 _DEPTH = "depth"
 _DISTRACTOR = "distractor"
 
-# TG-M2's `d_R`, cited and not re-minted: `reference_turns` is `d_R + 1` for every R arm
-# (N16), so the number comes back off TG-M2's own constructor.
+# The knobs module's `d_R`, cited and not re-minted: `reference_turns` is `d_R + 1` for
+# every R arm (N16), so the number comes back off that module's own constructor.
 _D_R = (
     _ArmSpec(
         knob=_DISTRACTOR,
@@ -170,21 +175,20 @@ _D_R = (
 )
 
 # Domain separators.  Each changes only if its construction changes, which would be a new
-# generator version anyway -- the same shape as TG-M1's `engine_hash` separator.
+# generator version anyway -- the same shape as the engine's `engine_hash` separator.
 # The spelling is deliberately not the package's: these bytes are hash input, so the
 # 2026-09-22 rename to `poisson_tasks` left them alone.  Respelling one moves every id
 # it keys.
 _TASK_ID_DOMAIN = b"task-generator/task_id/1\n"
 _SCENARIO_DOMAIN = b"task-generator/scenario_hash/1\n"
 _FINGERPRINT_DOMAIN = b"task-generator/structural_fingerprint/1\n"
-_GENERATOR_DOMAIN = b"task-generator/generator_hash/1\n"
-_DRAW_KEY = b"task-generator/structure-draw/1"
+_GENERATOR_DOMAIN = b"task-generator/generator_hash/2\n"
 _TOKEN_KEY_DOMAIN = b"task-generator/token-key/1"
 _DECOY_DOMAIN = b"task-generator/decoy-record/1"
 _STRUCTURE_DOMAIN = b"task-generator/structure/1"
 _ENTRY_DOMAIN = b"task-generator/entry-code/1"
 
-# 2.3's outcome vocabulary.  Closed, in the table's order: the first label that matches
+# The outcome vocabulary.  Closed, in the table's order: the first label that matches
 # wins, so this order is load-bearing and not decoration.
 OUTCOMES = (
     "verifier_error",
@@ -200,7 +204,7 @@ OUTCOMES = (
 )
 
 # The three the adapter assigns and this module must never return: `replay_mismatch` is
-# E8's and 2.5 runs the replay check before the verdict, and `api_error` and
+# E8's and the adapter runs the replay check before the verdict, and `api_error` and
 # `wall_timeout` name conditions `verify`'s five arguments cannot express (A4).
 _ADAPTER_ONLY = ("replay_mismatch", "api_error", "wall_timeout")
 
@@ -216,7 +220,7 @@ _PASSED = "passed"
 
 _OK_STATUS = "ok"
 
-# The prompt template.  One template for both knobs (2.2 gives knob D "one fixed
+# The prompt template.  One template for both knobs (the design gives knob D "one fixed
 # template"), so N6's template-id clause is an equality a contrast can actually fail.
 _TEMPLATE_ID = "ledger-chain/v1"
 
@@ -263,7 +267,7 @@ _USER_TEMPLATE = (
 
 _LADDER_SEPARATOR = " then "
 
-# 2.2's R control filler: a frozen neutral passage appended to the system prompt, whose
+# The R control's filler: a frozen neutral passage appended to the system prompt, whose
 # token count equals the tool-block token difference between `rH` and `r0`.  No
 # vocabulary-table token, no qualifier, nothing tool-shaped -- asserted at import below.
 _FILLER_PREFIX = "\n\n"
@@ -293,7 +297,7 @@ _Option = tuple[int, str, dict[str, str], str]
 
 
 # ---------------------------------------------------------------------------
-# 2.3's five types
+# the five types
 # ---------------------------------------------------------------------------
 
 
@@ -325,18 +329,17 @@ class FormatSpec:
 
 @_dataclass(frozen=True)
 class VerifierSpec:
-    """2.3's verifier spec.  One field: the target and the goal live on the bundle."""
+    """The verifier spec.  One field: the target and the goal live on the bundle."""
 
     strictness: str
 
 
 @_dataclass(frozen=True)
 class Verdict:
-    """2.3's verdict.  `format_clause` is the clause that fired, or `None`.
+    """The verdict.  `format_clause` is the clause that fired, or `None`.
 
-    `mutations` is TG-M1's diff, unchanged and unfiltered: it still reports
-    `(class, id, "audit")` triples, because it is diagnostic output and not the predicate
-    (TG-ADR-40).
+    `mutations` is the engine's diff, unchanged and unfiltered: it still reports
+    `(class, id, "audit")` triples, because it is diagnostic output and not the predicate.
     """
 
     strict_label: str
@@ -348,12 +351,12 @@ class Verdict:
 
 @_dataclass(frozen=True)
 class TaskBundle:
-    """2.3's bundle, carrying 2.3's fields in 2.3's order and nothing else.
+    """The bundle, carrying the design's fields in the design's order and nothing else.
 
     `initial_state` and `expected_final_state` are **records** values -- a sorted tuple of
-    `(class, record_id, stage, token)` rows, with no audit field (PG-16, TG-ADR-40) -- so
+    `(class, record_id, stage, token)` rows, with no audit field (PG-16) -- so
     neither moves with the arm's `seq_start` and neither repeats the scenario that
-    `scenario_hash` already pins (TG-ADR-37).
+    `scenario_hash` already pins.
     """
 
     task_id: str
@@ -414,11 +417,12 @@ def _read_names(spec: _EngineSpec) -> tuple[str, ...]:
 
 
 def _block_size(spec: _EngineSpec) -> int:
-    """`K_D` and `K_R` as the rule 2.2 states rather than as the literal it happens to
+    """`K_D` and `K_R` as the rule the design states rather than as the literal it happens to
     come to: the target class's stage tools plus an equal number of orthogonal reads.
 
     Built as a count, the generator could not run on the reduced vocabulary G16's tests
-    need; built as the rule, TG-M2's `K_D` is a consequence and not a second freeze.
+    need; built as the rule, the knobs module's `K_D` is a consequence and not a second
+    freeze.
     """
     return len(spec.stage_names) * 2
 
@@ -439,8 +443,8 @@ def _drawable_entry_codes(spec: _EngineSpec) -> tuple[str, ...]:
     """The entry codes no tool name carries as a substring.
 
     The third and last of this build's N7 rules, and the same freedom the other two use:
-    2.2 pins the *record id* to the task seed and says nothing about which entry code a
-    scenario draws, so the generator draws one that cannot enter N7's overlap set.  It
+    the design pins the *record id* to the task seed and says nothing about which entry code
+    a scenario draws, so the generator draws one that cannot enter N7's overlap set.  It
     costs one code of the table's thirty-two (`look`, which `lookup_region` carries), and
     the code is masked out of G15's fingerprint anyway, so the draw loses nothing
     structural.
@@ -453,7 +457,7 @@ def _drawable_entry_codes(spec: _EngineSpec) -> tuple[str, ...]:
     the wider sweep, dropping the filter refuses 10 contrasts of 1,216 against 0, all at
     `r14`.  The remainder was reachable only through those six words, and four of them
     did refuse at `r14` -- `city` (`eval`), `grad` and `port` (`train`) at 60 of 60 seeds
-    and `disc` (`train`) at 43 of 60, measured, not assumed (TG-ADR-44; the record was
+    and `disc` (`train`) at 43 of 60, measured, not assumed (the record of it was
     filed with three and `disc` is the one it did not name).
 
     **Closed 2026-09-21 by the escape hatch, in vocabulary v2**: the record-id word lists
@@ -475,7 +479,7 @@ def _param(spec: _EngineSpec, role: str) -> str:
 
 
 def _distractor_pool(spec: _EngineSpec, qualifier: str) -> tuple[str, ...]:
-    """2.2's functional distractors: the required stage tools of every *other* class.
+    """The functional distractors: the required stage tools of every *other* class.
 
     Same verb, same parameter names, types and order, a description from the same
     template; only the class qualifier differs.
@@ -547,11 +551,8 @@ def decode_record_id(record_id: str, split: str) -> int:
 # ---------------------------------------------------------------------------
 
 
-def _prf(domain: bytes, seed: int, split: str) -> bytes:
-    """A keyed pseudo-random function of the task seed and the split, and of nothing
-    else -- the arm is not an argument, which is what makes N1 true by construction."""
-    message = f"{seed}\x1f{split}".encode("ascii")
-    return _hashlib.blake2b(domain + b"\x1f" + message, key=_DRAW_KEY, digest_size=32).digest()
+# The keyed draw itself, `_prf`, lives in `surface.py` and is imported above: what a block
+# shows is drawn there from the same seed and split, and that module cannot import this one.
 
 
 def _mixed_radix(material: bytes, radices: tuple[int, ...]) -> tuple[int, ...]:
@@ -662,9 +663,9 @@ def _absent_record_id(scenario: _Scenario, split: str) -> str:
 
 
 def scenario_for(seed: int, split: str, spec: _EngineSpec | None = None) -> _Scenario:
-    """Everything drawn from the task seed alone (2.2's Terms), and nothing from the arm.
+    """Everything drawn from the task seed alone, and nothing from the arm.
 
-    The scenario is a derivation and not a bundle field (TG-ADR-37, TG-ADR-38): `verify`
+    The scenario is a derivation and not a bundle field: `verify`
     re-derives it from `bundle.seed` and `bundle.split`, and so does A8's replay check.
     Because the arm is not an argument, N1 -- scenario equality across a knob's arms --
     holds by construction rather than by check.
@@ -733,24 +734,31 @@ def _task_id(bundle: TaskBundle) -> str:
     """A content hash over a domain separator and every field but the id itself.
 
     It covers all twenty, rather than a listed subset, so a field added later is covered
-    without anyone remembering to add it -- which is the answer TG-ADR-38 asks TG-M3 to
-    state.  The same construction TG-M1 pinned for `engine_hash`.
+    without anyone remembering to add it.  The same construction the engine pinned for
+    `engine_hash`.
     """
     body = {name: value for name, value in _canon(bundle).items() if name != "task_id"}
     return _hashlib.sha256(_TASK_ID_DOMAIN + _canonical_bytes(body)).hexdigest()
 
 
+# The modules whose bytes shape a task, in the order the generator hash reads them: this one,
+# what a block shows and what answers in front of the engine, and the knobs' levels and
+# literals.
+_GENERATOR_MODULES = ("tasks.py", "surface.py", "knobs.py")
+
+
 def _generator_hash(generator_version: str) -> str:
-    """N12's generator hash: this module's own source beside the arm's generator version,
-    so it moves when either does."""
-    source = _pathlib.Path(__file__).resolve().read_bytes()
-    return _hashlib.sha256(
-        _GENERATOR_DOMAIN + generator_version.encode("utf-8") + b"\x1f" + source
-    ).hexdigest()
+    """N12's generator hash: the arm's generator version beside the source of every module
+    that shapes a task, so it moves when any of them does and for nothing else -- not the
+    folder the package sits in, the process or the hash seed."""
+    package = _pathlib.Path(__file__).resolve().parent
+    parts = [generator_version.encode("utf-8")]
+    parts += [(package / name).read_bytes() for name in _GENERATOR_MODULES]
+    return _hashlib.sha256(_GENERATOR_DOMAIN + b"\x1f".join(parts)).hexdigest()
 
 
 # ---------------------------------------------------------------------------
-# records values - the shape PG-16 decided (TG-ADR-40)
+# records values - the shape PG-16 decided
 # ---------------------------------------------------------------------------
 
 
@@ -776,16 +784,19 @@ def _row(value: _RecordsValue, cls: str, record: str) -> tuple[int, str | None]:
 # ---------------------------------------------------------------------------
 
 
-def _render_tool(tool: _Any) -> dict[str, _Any]:
-    """One tool's schema, as the block carries it.
+def _render_tool(
+    tool: _Any, name: str | None = None, description: str | None = None
+) -> dict[str, _Any]:
+    """One tool's schema, as the block carries it: under the name and the description the
+    block shows it with, which are the engine's own unless given.
 
     Keys are written in one order and every hash over the block is taken with
     `sort_keys`, so neither the rendering nor its digest moves with insertion order.
     """
     names = sorted(tool.parameters)
     return {
-        "name": tool.name,
-        "description": tool.description,
+        "name": tool.name if name is None else name,
+        "description": tool.description if description is None else description,
         "parameters": {
             "type": "object",
             "properties": {name: {"type": tool.parameters[name]} for name in names},
@@ -795,10 +806,27 @@ def _render_tool(tool: _Any) -> dict[str, _Any]:
     }
 
 
+def _render_block(
+    spec: _EngineSpec,
+    seed: int,
+    split: str,
+    rendered_arm: str,
+    goal: tuple[str, str, int],
+    block: tuple[str, ...],
+) -> tuple[dict[str, _Any], ...]:
+    """The block's schemas in slot order, each as `surface.display_map` shows it: the shown
+    name, the engine tool it stands for, and the description the block gives it."""
+    defs = _tool_defs(spec)
+    shown = _surface.display_map(seed, split, rendered_arm, goal, block)
+    return tuple(
+        _render_tool(defs[entry.engine], name, entry.description) for name, entry in shown.items()
+    )
+
+
 def _instruction_pieces(text: str) -> tuple[str, ...]:
     """The instruction's reference-tokenizer tokens, as the strings they stand for.
 
-    The same decomposition TG-M2's N7 measures; this module reads it to designate the
+    The same decomposition the ledger's N7 measures; this module reads it to designate the
     distractor slots, so the generator and the ledger agree on what "lexical overlap"
     means without either re-implementing the other.
     """
@@ -922,13 +950,13 @@ def _render_instruction(slots: tuple[tuple[str, str], ...]) -> str:
     That is forced, not chosen: knob D's block carries every stage tool of the target
     class at every level (N4), so a prompt naming only the goal would put a different
     stage word in N7's overlap set at every level and generation would refuse its own
-    contrast.  The target class is named exactly once (2.2's lexical rule).
+    contrast.  The target class is named exactly once (the design's lexical rule).
     """
     return _USER_TEMPLATE.format(**dict(slots))
 
 
 def _filler(base: str, tokens: int) -> str:
-    """2.2's R control filler, at exactly `tokens` reference-tokenizer tokens.
+    """The R control's filler, at exactly `tokens` reference-tokenizer tokens.
 
     Measured as what the suffix adds to the system prompt, so the passage is grown a word
     at a time until the whole prompt lands on its target rather than counted on its own
@@ -997,7 +1025,7 @@ def _chain_calls(
 
 
 def _pair_tokens(name: str, args: _Args, observation: str) -> int:
-    """N9's unit, rendered the way TG-M2 measures it: the name bare, the arguments as one
+    """N9's unit, rendered the way the ledger measures it: the name bare, the arguments as one
     compact JSON object, the observation as it stands."""
     rendered = args if isinstance(args, str) else _json.dumps(args, separators=(",", ":"))
     return _count_tokens(name) + _count_tokens(rendered) + _count_tokens(observation)
@@ -1044,7 +1072,7 @@ def _seeded_block(
     """`pairs` seeded read pairs whose token total is `target`, or as near as the table
     allows.
 
-    N9 is an aggregate and never a per-pair equality: 2.2's own measurement is that
+    N9 is an aggregate and never a per-pair equality: the design's own measurement is that
     roughly half the emitted chain calls are cheaper on arguments than any read call, so
     the seeded floor sits above the per-call total and only the sum can be matched.  The
     read pair's reachable totals are consecutive, so a one-token walk closes the residual;
@@ -1120,7 +1148,7 @@ def _negative_controls(
 
     `passed` is `reference_calls` itself and `verifier_error` is fault-injected, so
     neither is generated.  Format-check clause 1 depends on a family's raw format and is
-    exercised through each model's stack at stage 0b (A16), so this generates clauses 2,
+    exercised through each model's own serving stack, so this generates clauses 2,
     3 and 4 at the call level and not clause 1.
     """
     record_param = _param(spec, "record")
@@ -1160,7 +1188,7 @@ def _outside_call(
 
     A read is preferred, because a control that disturbed the chain could not be prefixed
     to a passing episode -- which is how the tests separate "fell short of `passed`"
-    from the label order (decision 4).  On a table too small to leave a read outside the
+    from the label order.  On a table too small to leave a read outside the
     block, a stage tool of another class aimed at a record the scenario does not hold is
     `no_such_rec` and mutates nothing either.
     """
@@ -1187,16 +1215,22 @@ def _outside_call(
 
 
 # ---------------------------------------------------------------------------
-# 2.3's format check
+# the format check
 # ---------------------------------------------------------------------------
 
 
 def _schema_ok(tool: dict[str, _Any], args: dict[str, _Any]) -> bool:
-    """The tool's own JSON schema: exactly its parameters, each one a string."""
+    """The tool's own JSON schema: every required parameter present, none the tool does not
+    list, and every value a string.
+
+    A schema that names no required parameters requires them all.  Every schema generated
+    so far requires all of its parameters, so for those this is "exactly its parameters".
+    """
     properties = tool["parameters"]["properties"]
-    if set(args) != set(properties):
+    required = tool["parameters"].get("required", tuple(properties))
+    if not set(required) <= set(args) <= set(properties):
         return False
-    return all(isinstance(args[name], str) for name in sorted(properties))
+    return all(isinstance(value, str) for value in args.values())
 
 
 def _format_clauses(
@@ -1206,7 +1240,7 @@ def _format_clauses(
 
     Every clause is collected rather than the first: an episode can break two of them in
     two turns, and one call can break two at once, and the *lowest-numbered* one is what
-    `verify` reports (decision 8) -- so a reader comparing two runs of one episode under
+    `verify` reports -- so a reader comparing two runs of one episode under
     two builds is comparing the same thing.
     """
     fired: set[int] = set()
@@ -1226,7 +1260,7 @@ def _format_clauses(
 
 
 # ---------------------------------------------------------------------------
-# 2.3's verifier
+# the verifier
 # ---------------------------------------------------------------------------
 
 
@@ -1242,8 +1276,9 @@ def verify(
     flags (G9).
 
     Every raise inside becomes `verifier_error`, and there is no default-to-pass path
-    (G10): a bundle whose stored initial state disagrees with its own derivation is a
-    defective bundle and not a failed episode, and an episode that neither replied nor hit
+    (G10): a bundle whose stored initial state disagrees with its own derivation, or whose
+    goal is not one of the records its expected state moves, is a defective bundle and not a
+    failed episode, and an episode that neither replied nor hit
     the turn limit ended for a reason these five arguments cannot see -- both of which are
     instrument conditions, and an instrument condition may never wear a system label.
     """
@@ -1280,15 +1315,30 @@ def _verdict(
     fired = _format_clauses(turns, fmt, block)
     clause = min(fired) if fired else None
 
-    calls = [call for turn in turns for call in turn.calls]
+    # The block's names are what the model was shown; the engine is called by its own.  The
+    # map is read through the module, so the verifier, the generator and the tool server
+    # cannot disagree about it, and a name the block does not show reaches the engine as no
+    # tool: the harness refuses such a call, so the replay must not let it move a record.
+    shown = _surface.display_map(
+        bundle.seed, bundle.split, bundle.arm_id, bundle.goal, tuple(block)
+    )
+    calls = [
+        (_surface.engine_name(shown, name), args) for turn in turns for name, args in turn.calls
+    ]
     state, _observations = _replay(scenario, calls, bundle.seq_start)
     final = _records_value(state)
     changed = tuple(_mutations(start, state))
 
-    cls, record, goal = bundle.goal
-    target = state.records[(cls, record)]
     expected = tuple(bundle.expected_final_state)
-    leaky_pass = target.stage >= goal
+    targets = _targets(bundle)
+    cls, record, goal = bundle.goal
+    if targets.get((cls, record)) != goal:
+        raise ValueError(
+            "the bundle's goal is not one of the records its expected final state moves, at "
+            "the stage it moves it to"
+        )
+    stages = {key: state.records[key].stage for key in targets}
+    leaky_pass = all(stages[key] >= wanted for key, wanted in targets.items())
 
     if not ended_with_reply and not turn_limit_hit:
         # No system label covers it, and giving it one is A4's failure inverted: the
@@ -1302,10 +1352,9 @@ def _verdict(
         )
 
     strict_label = _strict_label(
-        final, expected, cls, record, goal, target.stage, changed,
-        ended_with_reply, turn_limit_hit, clause,
+        final, expected, targets, stages, changed, ended_with_reply, turn_limit_hit, clause
     )
-    if strict_label in _ADAPTER_ONLY:  # pragma: no cover - the split is decision 3's
+    if strict_label in _ADAPTER_ONLY:  # pragma: no cover - the adapter's three
         raise ValueError(f"{strict_label} is the adapter's to assign, never the verifier's")
 
     if strict_label == _VERIFIER_ERROR:
@@ -1323,19 +1372,33 @@ def _verdict(
     )
 
 
+def _targets(bundle: TaskBundle) -> dict[tuple[str, str], int]:
+    """A task's targets: the records whose stage differs between its initial and its
+    expected records, each with the stage it is to reach.
+
+    Read from the records and not from `goal`, which names the first target and keeps its
+    shape, so a task that moves more than one record needs no new bundle field.  For a task
+    with one target this is the `goal` record at the `goal` stage.
+    """
+    before = {(cls, record): stage for cls, record, stage, _token in bundle.initial_state}
+    return {
+        (cls, record): stage
+        for cls, record, stage, _token in bundle.expected_final_state
+        if before.get((cls, record)) != stage
+    }
+
+
 def _strict_label(
     final: _RecordsValue,
     expected: _RecordsValue,
-    cls: str,
-    record: str,
-    goal: int,
-    stage: int,
+    targets: dict[tuple[str, str], int],
+    stages: dict[tuple[str, str], int],
     changed: tuple[tuple[str, str, str], ...],
     ended_with_reply: bool,
     turn_limit_hit: bool,
     clause: int | None,
 ) -> str:
-    """The table's labels, with the pass predicate decided first (decision 4).
+    """The table's labels, with the pass predicate decided first.
 
     `malformed_call`'s own definition opens "the episode fell short of `passed`" while the
     table lists it above `passed`; both hold only if the strict predicate is computed
@@ -1349,13 +1412,16 @@ def _strict_label(
         return _MALFORMED
     if turn_limit_hit and not ended_with_reply:
         return _TURN_LIMIT
-    if stage > goal:
+    if any(stages[key] > wanted for key, wanted in targets.items()):
         return _OVERSHOOT
-    if stage < goal or _row(final, cls, record) != _row(expected, cls, record):
+    if any(
+        stages[key] < wanted or _row(final, *key) != _row(expected, *key)
+        for key, wanted in targets.items()
+    ):
         return _WRONG_STATE
-    if any((row_cls, row_record) != (cls, record) for row_cls, row_record, _field in changed):
+    if any((row_cls, row_record) not in targets for row_cls, row_record, _field in changed):
         return _COLLATERAL
-    # Unreachable: the target matching expected with nothing else mutated *is* the
+    # Unreachable: every target matching expected with nothing else mutated *is* the
     # expected records value, and a reply was made, so the pass predicate fired above.
     return _WRONG_STATE
 
@@ -1429,6 +1495,7 @@ def structure_space(arm: _ArmSpec, spec: _EngineSpec | None = None) -> int:
     different blocks.  That is the conservative direction for G16's floor, because a
     smaller `k` overstates the chance a run repeats a structure.
     """
+    _refuse_a_knob_not_generated(arm)
     engine_spec = _resolve(spec)
     space = len(engine_spec.qualifiers) * _math.factorial(_block_size(engine_spec))
     if arm.knob == _DISTRACTOR and arm.level > 0:
@@ -1439,8 +1506,20 @@ def structure_space(arm: _ArmSpec, spec: _EngineSpec | None = None) -> int:
 
 
 # ---------------------------------------------------------------------------
-# 2.3's generator
+# the generator
 # ---------------------------------------------------------------------------
+
+
+def _refuse_a_knob_not_generated(arm: _ArmSpec) -> None:
+    """The knobs module names every knob, with its levels, its arm ids and its ledger rows;
+    this module makes tasks for the two below.  Without the refusal an arm of any other knob
+    would be built as a distractor arm under another knob's id."""
+    if arm.knob not in (_DEPTH, _DISTRACTOR):
+        raise ValueError(
+            f"no {arm.knob} task can be generated yet: the {arm.knob} knob has its levels, its "
+            f"arm ids and its pin-ledger rows, and the generator makes {_DEPTH} and "
+            f"{_DISTRACTOR} tasks"
+        )
 
 
 def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskBundle:
@@ -1452,6 +1531,7 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
     choice among what the generator offers, and G12's own first clause is a statement
     about both splits that is untestable if one of them refuses.
     """
+    _refuse_a_knob_not_generated(arm)
     engine_spec = _resolve(spec)
     scenario = scenario_for(seed, arm.split, engine_spec)
     qualifier, permutation, pool_order = _drawn_parts(seed, arm.split, engine_spec)
@@ -1462,9 +1542,10 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
     slots = _prompt_slots(engine_spec, arm, record, code, qualifier)
     instruction = _render_instruction(slots)
     block = _block_names(engine_spec, arm, qualifier, permutation, pool_order, instruction)
-    tools = tuple(_render_tool(_tool_defs(engine_spec)[name]) for name in block)
-
     goal = _goal_stage_index(engine_spec, arm)
+    target = (qualifier, record, goal)
+    tools = _render_block(engine_spec, seed, arm.split, _arm_id(arm), target, block)
+
     seq_start = 1
     system_prompt = _SYSTEM_PROMPT
     prompt: str | tuple[dict[str, _Any], ...] = instruction
@@ -1476,22 +1557,24 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
         _high_calls, _high_observations = _chain_calls(
             engine_spec, scenario, qualifier, record, arm.control, 1
         )
-        target = sum(
+        wanted = sum(
             _pair_tokens(name, args, observation)
             for (name, args), observation in zip(
                 _high_calls[arm.level :], _high_observations[arm.level :], strict=True
             )
         )
-        prompt = _seeded_messages(instruction, _seeded_block(engine_spec, reads, pairs, target))
+        prompt = _seeded_messages(instruction, _seeded_block(engine_spec, reads, pairs, wanted))
     elif arm.control is not None:
-        # 2.2's R control: the `r0` block, plus a frozen neutral filler whose token count
+        # The R control: the `r0` block, plus a frozen neutral filler whose token count
         # is the tool-block difference between `rH` and `r0`.  A length-only control, and
         # the content change it introduces is reported rather than denied.
         high = _replace(arm, level=arm.control, control=None)
         high_block = _block_names(
             engine_spec, high, qualifier, permutation, pool_order, instruction
         )
-        high_tools = tuple(_render_tool(_tool_defs(engine_spec)[name]) for name in high_block)
+        high_tools = _render_block(
+            engine_spec, seed, arm.split, _arm_id(high), target, high_block
+        )
         system_prompt = system_prompt + _filler(
             system_prompt, _rendered_tokens(high_tools) - _rendered_tokens(tools)
         )
@@ -1524,7 +1607,7 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
         prompt_slots=slots,
         initial_state=_records_value(start),
         expected_final_state=_records_value(final),
-        goal=(qualifier, record, goal),
+        goal=target,
         reference_calls=reference_calls,
         reference_observations=reference_observations,
         negative_controls=controls,
@@ -1550,11 +1633,11 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
     if verdict.strict_label != _PASSED or not verdict.leaky_pass:
         raise ValueError(
             f"generation refuses {rendered} at seed {seed}: its reference solution "
-            f"verifies as {verdict.strict_label!r}, not {_PASSED!r} (G4)"
+            f"verifies as {verdict.strict_label!r}, not {_PASSED!r}"
         )
 
-    # TG-M2 states the bundle it reads as a `Protocol` of mutable attributes, because
-    # TG-M3 did not exist when it was written; a frozen dataclass satisfies it
+    # The knobs module states the bundle it reads as a `Protocol` of mutable attributes,
+    # because this module did not exist when it was written; a frozen dataclass satisfies it
     # structurally and not nominally, so the two calls into the ledger are cast.
     bundle = _replace(bundle, pins=_measure_pins(_cast(_Any, bundle)))
     return _replace(bundle, task_id=_task_id(bundle))
@@ -1571,7 +1654,7 @@ def generate_contrast(
     """One seed under every arm of one knob, refused as a batch (G11).
 
     Every ledger row is an equality *across* the arms of one knob, so one arm satisfies
-    all of them vacuously and nothing in 2.3's Interface list can refuse on a row at all:
+    all of them vacuously and no single-arm entry point can refuse on a row at all:
     the contrast is the unit the ledger is defined over, so it is the unit generation
     refuses on.  A batch that violates any row emits nothing -- there is no partial
     output.
@@ -1612,12 +1695,12 @@ def _check_template_words() -> None:
         if carried:
             raise ValueError(
                 f"the prompt template's word {piece!r} is a substring of {carried}, so "
-                "N7's overlap set would move with knob R's level"
+                "the prompt's overlap with the tool names would move with knob R's level"
             )
 
 
 def _check_filler_words() -> None:
-    """2.2 asks the R control's filler for no vocabulary-table token, no qualifier and
+    """The design asks the R control's filler for no vocabulary-table token, no qualifier and
     nothing tool-shaped.  Asserted here, because a table version that added one of these
     words would otherwise turn a length-only control into a content change nobody
     declared."""

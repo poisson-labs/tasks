@@ -61,6 +61,7 @@ from mcp.server.fastmcp.tools import Tool as _Tool
 from pydantic import Field as _Field
 from pydantic import model_validator as _model_validator
 
+from poisson_tasks import surface as _surface
 from poisson_tasks.arms import _CONTROL_PAIRS, _on_a_published_card
 from poisson_tasks.arms import DEFAULT_GENERATOR_VERSION as _DEFAULT_GENERATOR_VERSION
 from poisson_tasks.arms import arm_from_id as _arm_from_id
@@ -138,8 +139,8 @@ def _shown(value: _Any) -> str:
 def _arm_mapping(arm: _Any) -> dict[str, _Any]:
     """The declared arm as the six-field mapping, checked, before the config is validated.
 
-    An id such as `depth:d3` becomes the mapping, strict, on the eval split, at generator
-    version "0": an id carries the knob, the level and the control and nothing else.
+    An id such as `depth:d3` becomes the mapping, strict, on the eval split, at the default
+    generator version: an id carries the knob, the level and the control and nothing else.
 
     Every arm the generator cannot make is refused here, in one line naming the field, rather
     than when the tasks are generated: a field missing, misspelled or extra; a strictness other
@@ -280,11 +281,12 @@ class ExportTasksetConfig(_vf.TasksetConfig):
             "The arm: its id, for example depth:d3 (strict, on the eval split), or the six "
             "ArmSpec fields as one JSON object, for example "
             '{"knob": "depth", "level": 3, "control": null, "strictness": "strict", '
-            '"split": "eval", "generator_version": "0"}. '
+            f'"split": "eval", "generator_version": "{_DEFAULT_GENERATOR_VERSION}"}}. '
             "knob 'depth' (levels 1, 2, 3, 5, 8) sets how many chained calls the goal is "
             "away. "
-            "knob 'distractor' (levels 0, 2, 4, 8, 14) is EXPERIMENTAL: on both calibrated "
-            "models it does not make tasks harder, so it is not a difficulty setting. "
+            "knob 'distractor' (levels 0, 2, 4, 8, 14) is RETIRED and EXPERIMENTAL: on both "
+            "calibrated models it does not make tasks harder, so it is not a difficulty "
+            "setting. "
             "See docs/calibration.md."
         ),
     )
@@ -735,7 +737,8 @@ _NO_ARM = (
     "no arm given: pass --env.taskset.arm with the arm's id, for example "
     "--env.taskset.arm depth:d3, or with its six fields as one JSON object, for "
     "example --env.taskset.arm '{\"knob\": \"depth\", \"level\": 3, \"control\": null, "
-    "\"strictness\": \"strict\", \"split\": \"eval\", \"generator_version\": \"0\"}'"
+    "\"strictness\": \"strict\", \"split\": \"eval\", "
+    f"\"generator_version\": \"{_DEFAULT_GENERATOR_VERSION}\"}}'"
 )
 _NO_SEEDS = (
     "no seeds given: pass --env.taskset.seeds with at least one seed, for example "
@@ -827,6 +830,7 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
     def __init__(self, config: DomainToolsetConfig) -> None:
         super().__init__(config)
         self._block: tuple[dict[str, _Any], ...] = ()
+        self._shown: dict[str, _surface.Shown] = {}
         self._engine_state: _Any = None
         self._lock = _asyncio.Lock()
 
@@ -835,8 +839,19 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
 
         `seq_start` included: a depth control's counter starts past 1, because its
         seeded history already spent the turns it stands in for.
+
+        The block's names are what the model is shown; which engine tool each stands for
+        is `surface.display_map`'s to say, read through the module as the verifier reads
+        it, so the server answers a call exactly as the verifier will replay it.
         """
         self._block = tuple(dict(tool) for tool in task.tools)
+        self._shown = _surface.display_map(
+            task.seed,
+            task.split,
+            task.arm_id,
+            tuple(task.goal),
+            tuple(str(tool["name"]) for tool in self._block),
+        )
         self._engine_state = _init_state(
             _scenario_for(task.seed, task.split), task.seq_start
         )
@@ -852,9 +867,11 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
             mcp._tool_manager._tools[str(spec["name"])] = self._tool(spec)
 
     def _tool(self, spec: dict[str, _Any]) -> _EngineTool:
-        """One advertised tool, with the bundle's name, description and schema."""
+        """One advertised tool, with the bundle's name, description and schema, applied
+        to the engine under the engine's name for it."""
         name = str(spec["name"])
         description = str(spec["description"])
+        engine = _surface.engine_name(self._shown, name)
 
         async def body(arguments: _Any) -> str:
             # An in-process lock: `apply` is pure, and the
@@ -862,7 +879,7 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
             # calls that interleave between the two would take the same `seq` (E5).
             async with self._lock:
                 state = self._engine_state
-                after, observation = _apply(state, (name, arguments))
+                after, observation = _apply(state, (engine, arguments))
                 self._engine_state = after
                 return observation
 

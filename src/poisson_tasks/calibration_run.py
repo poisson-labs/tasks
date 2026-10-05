@@ -309,9 +309,9 @@ QWEN3_8B = ServePin(
   distribution.
 """
 
-EXPECTED_GENERATOR_HASH = "3a379aa5bc4e2bc9e1d2c97357b2dfbcd4bc42e12d64e158fc2af1416c326fd4"
-"""The generator model A's published card (v2) was run at.  Model B's card is only comparable
-on the same generator, so preflight refuses a package whose generator differs."""
+EXPECTED_GENERATOR_HASH = "42a49ea362956ca0cfc76b3de8c745bf48ae05764b2054d92219f2cb0049ec75"
+"""The generator this driver expects the installed package to be: the package's own.  Results
+are only comparable on one generator, so preflight refuses a package whose generator differs."""
 
 
 def no_think_template(stock: str, pin: ServePin = QWEN3_8B) -> str:
@@ -770,10 +770,12 @@ HEADROOM = 0.75
 
 
 def spec_for(arm: str) -> _ArmSpec:
-    for spec in _cal.arm_specs():
-        if _arm_id(spec) == arm:
-            return spec
-    raise ValueError(f"no arm {arm!r} in arm_specs()")
+    """The arm an id names, as a card generates it.  Read from the id, so an arm outside
+    the card design has a spec; text that is no arm's id is refused."""
+    spec = _cal._spec_for(arm)
+    if spec is None:
+        raise ValueError(f"{arm!r} is not an arm id, for example depth:d3 or depth:d1+h8")
+    return spec
 
 
 def _card_arms() -> tuple[str, ...]:
@@ -1742,8 +1744,8 @@ def cmd_stop_server(ctx: Context) -> int:
 
 def cmd_preflight(ctx: Context) -> int:
     """The GPU is the pinned type, the server the pinned stack with thinking off, the
-    package the generator model A ran; the facts are recorded and a resume on anything else
-    is refused."""
+    package the generator this driver expects; the facts are recorded and a resume on
+    anything else is refused."""
     gpu = gpu_facts()
     if gpu is None or ctx.pin.gpu not in gpu["name"].split():
         _say(f"STOP: the card is pinned to an {ctx.pin.gpu}; this runtime has "
@@ -1751,9 +1753,9 @@ def cmd_preflight(ctx: Context) -> int:
         return 1
     bundle = _generate(_cal.arm_specs()[0], _cal.seed_list()[0])
     if bundle.generator_hash != EXPECTED_GENERATOR_HASH:
-        _say(f"STOP: this package's generator is {bundle.generator_hash}; model A's card was "
-             f"run at {EXPECTED_GENERATOR_HASH}, and a card on another generator is not "
-             "comparable with it")
+        _say(f"STOP: this package's generator is {bundle.generator_hash}; this driver "
+             f"expects {EXPECTED_GENERATOR_HASH}, and results from two generators cannot be "
+             "read side by side")
         return 1
     server = check_server(ctx.pin, ctx.base_url)
     thinking = check_thinking_off(ctx.pin, ctx.base_url)

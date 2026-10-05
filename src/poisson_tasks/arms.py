@@ -21,7 +21,7 @@ from poisson_tasks.knobs import pin_ledger as _pin_ledger
 
 __all__ = ["arm_from_id", "DEFAULT_GENERATOR_VERSION", "describe_pins"]
 
-DEFAULT_GENERATOR_VERSION = "0"
+DEFAULT_GENERATOR_VERSION = "1"
 
 # The published cards' control arms, as (level, the level it stands in for): equal to
 # `calibration.D_CONTROLS` and `calibration.R_CONTROLS`.

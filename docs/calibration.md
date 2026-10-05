@@ -49,7 +49,7 @@ distractor, strict pass@1: the models agree on 0, disagree on 0, and cannot tell
 
 Rendered from the calibration artifact for poisson-tasks 0.0.1 (domain `03ade70a2fb8c7dbd9369fef45f1e3dac9b409b8965cdf79ad372a80a5ab640c`, generator `3a379aa5bc4e2bc9e1d2c97357b2dfbcd4bc42e12d64e158fc2af1416c326fd4`, vocabulary `9f3a8c4f4711574e947ec8b3396ff552c9b7aa730fbb5d565db4f10776653037`), run through the `null` harness at verifiers 0.3.1 over S = 60 seeds from the eval split (seed list `2061672b2321df0981ca56b1d0a2446fe17c59865bd3e47702b214741daca725`) at n = 5 independent attempts per task.
 
-**This card is pinned to the generator hash above and is stale the moment `tasks.py` changes.** It is not regenerated automatically; a card whose generator hash differs from the package's is stale and says so here.
+**This card is pinned to the generator hash above and is stale the moment the generator changes.** It is not regenerated automatically; a card whose generator hash differs from the package's is stale and says so here.
 
 **A resumed run is the same run in this sense and no other.** A run that was interrupted and resumed serves the same tasks, each with its full number of attempts, none run twice and none skipped. It does not reproduce the interrupted attempts byte for byte: the decoding is deliberately not deterministic, so a resumed attempt is a fresh attempt and not an identical copy of the one it replaces.
 
@@ -222,7 +222,7 @@ How depth is read. The same pairing and rule, on the leaky rate, with saturation
 
 Rendered from the calibration artifact for poisson-tasks 0.0.1 (domain `03ade70a2fb8c7dbd9369fef45f1e3dac9b409b8965cdf79ad372a80a5ab640c`, generator `3a379aa5bc4e2bc9e1d2c97357b2dfbcd4bc42e12d64e158fc2af1416c326fd4`, vocabulary `9f3a8c4f4711574e947ec8b3396ff552c9b7aa730fbb5d565db4f10776653037`), run through the `null` harness at verifiers 0.3.1 over S = 60 seeds from the eval split (seed list `2061672b2321df0981ca56b1d0a2446fe17c59865bd3e47702b214741daca725`) at n = 5 independent attempts per task.
 
-**This card is pinned to the generator hash above and is stale the moment `tasks.py` changes.** It is not regenerated automatically; a card whose generator hash differs from the package's is stale and says so here.
+**This card is pinned to the generator hash above and is stale the moment the generator changes.** It is not regenerated automatically; a card whose generator hash differs from the package's is stale and says so here.
 
 **A resumed run is the same run in this sense and no other.** A run that was interrupted and resumed serves the same tasks, each with its full number of attempts, none run twice and none skipped. It does not reproduce the interrupted attempts byte for byte: the decoding is deliberately not deterministic, so a resumed attempt is a fresh attempt and not an identical copy of the one it replaces.
 
