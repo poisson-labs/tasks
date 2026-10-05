@@ -61,6 +61,7 @@ from typing import Any
 import pytest
 import verifiers.v1 as vf
 
+from poisson_tasks.arms import DEFAULT_GENERATOR_VERSION
 from poisson_tasks.knobs import ArmSpec, arm_id
 
 TASKSET_ID = "poisson-tasks"
@@ -95,7 +96,8 @@ def notes(arm: Any) -> tuple[Any, list[str]]:
 def mapping(knob: str, level: int, control: int | None = None, *,
             strictness: str = "strict") -> dict[str, Any]:
     return dataclasses.asdict(ArmSpec(knob=knob, level=level, control=control,
-                                      strictness=strictness, split="eval", generator_version="0"))
+                                      strictness=strictness, split="eval",
+                                      generator_version=DEFAULT_GENERATOR_VERSION))
 
 
 # --------------------------------------------------------------------------

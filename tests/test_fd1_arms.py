@@ -70,7 +70,7 @@ def test_fd1_8_the_other_three_fields_are_the_callers() -> None:
 
 
 def test_fd1_8_and_fd1_13_an_id_alone_is_strict_on_eval_at_the_one_generator_version() -> None:
-    assert arms().DEFAULT_GENERATOR_VERSION == cal().GENERATOR_VERSION == "0"
+    assert arms().DEFAULT_GENERATOR_VERSION == cal().GENERATOR_VERSION
     assert arms().arm_from_id("distractor:r0+len(r8)@k16") == ArmSpec(
         knob="distractor", level=0, control=8, strictness="strict", split="eval",
         generator_version=arms().DEFAULT_GENERATOR_VERSION)

@@ -8,13 +8,15 @@ They cited references a reader of this repository cannot look up:
 
 The check reads every string literal in the two modules that is not a docstring, with the
 calibration module's pattern widened by three kinds of reference these modules carried.  Three things are allowed, each for a reason:
-- a ledger row id on its own (`"N3"`): the rows N1 to N13 are the ledger's public names, and
+- a ledger row id on its own (`"N3"`): the rows N1 to N13 and N19 to N35 are the ledger's
+  public names, and
   `docs/knobs-and-arms.md` lists every one;
 - "N18" in N10's held text: the test `test_n18_1` requires it there, as the ledger's
   pointer to the serving pin, and the text says in words what that pin covers;
 - N10's and N13's `unmeasured` reasons: they are written into every task bundle, which the
-  task id hashes, so rewording them moves every task id and stales both calibration cards.
-  They change with the next deliberate generator change, not before.
+  task id hashes, so rewording them moved every task id.  They were reworded with the
+  generator change that added the new knobs; the control below keeps their old wording, as
+  literals, to show the pattern caught it.
 """
 
 from __future__ import annotations
@@ -32,7 +34,7 @@ from poisson_tasks.tasks import generate
 from tests.helpers import INTERNAL
 
 REPO = Path(__file__).resolve().parent.parent
-ROW_ID = re.compile(r"N(?:[1-9]|1[0-3])")
+ROW_ID = re.compile(r"N(?:[1-9]|1[0-3]|19|2\d|3[0-5])")
 # The calibration modules' pattern, and three more kinds of reference these two modules
 # carried: a landscape check's id (KC3), an upstream note's id (VN-7) and a bare
 # specification section, "(2.3".
@@ -48,6 +50,19 @@ def _strings(path: Path) -> list[tuple[int, str]]:
     return [(node.lineno, node.value) for node in ast.walk(tree)
             if isinstance(node, ast.Constant) and isinstance(node.value, str)
             and id(node) not in bare]
+
+
+# N10's and N13's `unmeasured` reasons before the generator change reworded them.
+OLD_N10_REASON = (
+    "the serving pin is cfg, the arm spec and the serving-pin hash in every "
+    "episode's `meta` (A14); a bundle carries none of the three, so the row is "
+    "enforced when the adapter starts and not at generation"
+)
+OLD_N13_REASON = (
+    "server-reported usage exists only once an episode has run; a bundle carries "
+    "no trace, so the row is enforced at analysis against the pre-registered band "
+    "(KC3)"
+)
 
 
 def _bundle_reasons() -> set[str]:
@@ -91,5 +106,5 @@ def test_the_pattern_catches_what_the_two_modules_used_to_print() -> None:
                 "(2.3, TG-ADR-38)", "against this table (TG-ADR-37)", "The serving pin (A14)",
                 "E2, over the bundle's", "inside `engine_hash` by E10"):
         assert PATTERN.search(old), old
-    reasons = _bundle_reasons()
-    assert len(reasons) == 2 and all(PATTERN.search(reason) for reason in reasons), reasons
+    for old in (OLD_N10_REASON, OLD_N13_REASON):
+        assert PATTERN.search(old), old
