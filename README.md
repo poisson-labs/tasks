@@ -195,7 +195,7 @@ from poisson_tasks.knobs import ArmSpec
 from poisson_tasks.export import ExportTaskset, ExportTasksetConfig
 
 arm = ArmSpec(knob="depth", level=3, control=None, strictness="strict",
-              split="eval", generator_version="0")
+              split="eval", generator_version="1")
 taskset = ExportTaskset(ExportTasksetConfig(arm=dataclasses.asdict(arm), seeds=[404, 55, 2121]))
 for task in taskset.load():
     print(task.key, len(task.data.tools))
@@ -212,7 +212,7 @@ One command, against any OpenAI-compatible endpoint serving a model that calls t
 `MODEL`, `MODEL_BASE_URL` and `MODEL_API_KEY`, then:
 
 ```bash
-uv run eval poisson-tasks --model "$MODEL" --client.base-url "$MODEL_BASE_URL" --client.api-key-var MODEL_API_KEY --env.taskset.arm '{"knob": "depth", "level": 3, "control": null, "strictness": "strict", "split": "eval", "generator_version": "0"}' --env.taskset.seeds 404 55 2121 --no-push
+uv run eval poisson-tasks --model "$MODEL" --client.base-url "$MODEL_BASE_URL" --client.api-key-var MODEL_API_KEY --env.taskset.arm '{"knob": "depth", "level": 3, "control": null, "strictness": "strict", "split": "eval", "generator_version": "1"}' --env.taskset.seeds 404 55 2121 --no-push
 ```
 
 It runs three `depth:d3` tasks through the `null` harness -- the model sees the task's
