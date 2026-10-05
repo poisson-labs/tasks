@@ -171,6 +171,7 @@ __all__ = [
     "run_config_for",
     "config_difference",
     "run_arm",
+    "run_cell",
     "RunOutcome",
     "records_from_run",
 ]
@@ -2257,6 +2258,23 @@ def run_arm(
         run_dir=_arm_id(spec).replace("/", "-").replace(":", "-").replace("@", "-"),
     )
     return _asyncio.run(_run_arm(config, DEFAULT_BUDGET if budget is None else budget))
+
+
+def run_cell(
+    spec: _ArmSpec,
+    *,
+    seeds: _Sequence[int],
+    attempts: int,
+    decoding: _Mapping[str, _Any],
+    output_dir: _pathlib.Path,
+    model: str = MODEL_A,
+    client: _Any = None,
+    budget: _Mapping[str, _Any] | None = None,
+) -> RunOutcome:
+    """One arm's cell for any design: `run_arm` with the seeds, attempts and decoding given
+    instead of the published design's (FD3).  `run_arm(spec, ...)` is `run_cell` with
+    `seed_list(spec)`, `N` and `DECODING`.  Names only."""
+    raise NotImplementedError("calibration.run_cell")
 
 
 def _span_seconds(span: _Any) -> float | None:
