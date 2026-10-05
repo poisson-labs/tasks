@@ -505,8 +505,10 @@ def old_ledger() -> list[dict[str, Any]]:
     return rows
 
 
-# Texts the build may reword to say what the rule now is: none, as the spec is written.
-REWORDABLE: set[tuple[str, str]] = set()
+# Texts the build may reword to say what the rule now is: N3's says the R control's filler is the
+# only difference it lets through, and the block control's is too; N7's says equal, and a shape
+# contrast's difference is reported.
+REWORDABLE: set[tuple[str, str]] = {("N3", "measured"), ("N7", "tolerance")}
 
 
 @pytest.mark.parametrize("knob", KNOBS)
