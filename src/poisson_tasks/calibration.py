@@ -54,6 +54,11 @@ Shapes decided here, where the tests leave them open
   moment of failure.  Its config is `run_config_for`'s, which differs from the
   documented command in exactly the seed list, `-r` and the declared sampling (CAL21), and
   its checkpoint is the wheel's own `traces.jsonl` plus `resume.load` (CAL23).
+* **`run_cell` is `run_arm` for any design** (FD3): the seeds, the attempts and the decoding
+  are the caller's instead of the published design's, and everything else is the same
+  runner, the same run folder name and the same config, so `run_arm` is `run_cell` with
+  `seed_list(spec)`, `N` and `DECODING`.  A decoding field declared `"not sent"` is left out
+  of the config, so the request carries the provider's own default for it.
 * **A dollar figure needs a rate.**  A model whose provenance carries no rate publishes
   `null` dollars, not zero: a locally served model costs compute units, not dollars.
 * **A cell that measures whether the model starts refuses to publish (CAL24).**  Model A's
@@ -250,6 +255,9 @@ _OVERSHOOT = "overshoot"
 # The wheel's four SamplingConfig fields.  Each defaults to `None` in the wheel and `wire_args`
 # drops it, so an unset field is absent from the request and the provider's default applies.
 SAMPLING_FIELDS = ("temperature", "top_p", "reasoning_effort", "max_tokens")
+# The settings file's word for a decoding field the run leaves out (`config.py`): the field is
+# then not in the config and not in any request, and the provider's own default applies.
+_NOT_SENT = "not sent"
 
 # What a locally served model's provenance has to carry beyond `kind`: the same weights
 # served differently give different numbers.
@@ -2000,6 +2008,28 @@ def _env_config(spec: _ArmSpec, seeds: _Sequence[int]) -> _Any:
     )
 
 
+def _sampling_fields(decoding: _Mapping[str, _Any]) -> dict[str, _Any]:
+    """The `SamplingConfig` fields a declared decoding sends: every field declared, the ones
+    declared `"not sent"` left out, and the token limit as `max_completion_tokens` in
+    `extra_body` (the reason is at `run_config_for`).  CAL5's check applies: every field is
+    declared, and the temperature is a number above zero."""
+    check_decoding(decoding)
+    fields: dict[str, _Any] = {
+        name: decoding[name]
+        for name in SAMPLING_FIELDS
+        if name != "max_tokens" and decoding[name] != _NOT_SENT
+    }
+    limit = decoding["max_tokens"]
+    if limit != _NOT_SENT:
+        fields["extra_body"] = {"max_completion_tokens": int(limit)}
+    return fields
+
+
+def _run_dir_name(spec: _ArmSpec) -> str:
+    """An arm's run folder under `output_dir`: its id made folder-safe (`depth-d1`)."""
+    return _arm_id(spec).replace("/", "-").replace(":", "-").replace("@", "-")
+
+
 def run_config_for(
     spec: _ArmSpec,
     *,
@@ -2266,10 +2296,40 @@ def run_arm(
     checked before each episode is dispatched (CAL20).  Nothing is pushed.
     """
     _, config = run_config_for(
-        spec, model=model, client=client, output_dir=output_dir,
-        run_dir=_arm_id(spec).replace("/", "-").replace(":", "-").replace("@", "-"),
+        spec, model=model, client=client, output_dir=output_dir, run_dir=_run_dir_name(spec),
     )
     return _asyncio.run(_run_arm(config, DEFAULT_BUDGET if budget is None else budget))
+
+
+def _cell_config(
+    spec: _ArmSpec,
+    *,
+    seeds: _Sequence[int],
+    attempts: int,
+    decoding: _Mapping[str, _Any],
+    output_dir: _pathlib.Path,
+    model: str,
+    client: _Any,
+) -> _Any:
+    """The eval config of one arm's cell for the design given: `run_config_for`'s calibration
+    config with the design's seeds, attempts and decoding in place of the published ones, and
+    the same run folder name."""
+    import verifiers.v1 as _vf
+    from verifiers.v1.configs.cli.eval import EvalConfig
+
+    run_dir = _run_dir_name(spec)
+    shared: dict[str, _Any] = {
+        "model": model, "push": False, "output_dir": _pathlib.Path(output_dir),
+        "run": {"name": run_dir, "dir": run_dir},
+    }
+    if client is not None:
+        shared["client"] = client
+    return EvalConfig(
+        env=_env_config(spec, seeds),
+        num_rollouts=int(attempts),
+        sampling=_vf.SamplingConfig(**_sampling_fields(decoding)),
+        **shared,
+    )
 
 
 def run_cell(
@@ -2285,8 +2345,13 @@ def run_cell(
 ) -> RunOutcome:
     """One arm's cell for any design: `run_arm` with the seeds, attempts and decoding given
     instead of the published design's (FD3).  `run_arm(spec, ...)` is `run_cell` with
-    `seed_list(spec)`, `N` and `DECODING`.  Names only."""
-    raise NotImplementedError("calibration.run_cell")
+    `seed_list(spec)`, `N` and `DECODING`: the same runner, the same run folder name under
+    `output_dir`, the same config apart from the design, resumable and capped the same way."""
+    config = _cell_config(
+        spec, seeds=seeds, attempts=attempts, decoding=decoding, output_dir=output_dir,
+        model=model, client=client,
+    )
+    return _asyncio.run(_run_arm(config, DEFAULT_BUDGET if budget is None else budget))
 
 
 def _span_seconds(span: _Any) -> float | None:
