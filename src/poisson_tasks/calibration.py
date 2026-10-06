@@ -2296,7 +2296,11 @@ def run_arm(
     checked before each episode is dispatched (CAL20).  Nothing is pushed.
     """
     _, config = run_config_for(
-        spec, model=model, client=client, output_dir=output_dir, run_dir=_run_dir_name(spec),
+        spec,
+        model=model,
+        client=client,
+        output_dir=output_dir,
+        run_dir=_run_dir_name(spec),
     )
     return _asyncio.run(_run_arm(config, DEFAULT_BUDGET if budget is None else budget))
 
@@ -2319,7 +2323,9 @@ def _cell_config(
 
     run_dir = _run_dir_name(spec)
     shared: dict[str, _Any] = {
-        "model": model, "push": False, "output_dir": _pathlib.Path(output_dir),
+        "model": model,
+        "push": False,
+        "output_dir": _pathlib.Path(output_dir),
         "run": {"name": run_dir, "dir": run_dir},
     }
     if client is not None:
@@ -2348,8 +2354,13 @@ def run_cell(
     `seed_list(spec)`, `N` and `DECODING`: the same runner, the same run folder name under
     `output_dir`, the same config apart from the design, resumable and capped the same way."""
     config = _cell_config(
-        spec, seeds=seeds, attempts=attempts, decoding=decoding, output_dir=output_dir,
-        model=model, client=client,
+        spec,
+        seeds=seeds,
+        attempts=attempts,
+        decoding=decoding,
+        output_dir=output_dir,
+        model=model,
+        client=client,
     )
     return _asyncio.run(_run_arm(config, DEFAULT_BUDGET if budget is None else budget))
 
