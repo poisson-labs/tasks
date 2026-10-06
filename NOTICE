@@ -103,6 +103,18 @@ License:   Apache License 2.0, per the repository's LICENSE file at the same rev
            (read 2026-09-25), whose appendix reads "Copyright 2024 Alibaba Cloud".
            The full text is at https://www.apache.org/licenses/LICENSE-2.0.
 
+The Swagger Petstore OpenAPI document -- a test fixture
+-------------------------------------------------------
+File:      tests/fixtures/o1/petstore-openapi-3.0.json (17,106 bytes)
+What:      The OpenAPI 3.0.4 document of the Swagger Petstore sample API, version 1.0.27,
+           copied unmodified as served on 2026-10-06 (sha256 00441c05add60f28da55eb4563d3fb6
+           bbda364ba8eb7b381e2e2c98613005c82). tests/test_o1_formats.py reads it into the
+           own-tools normal form as a real OpenAPI document; the package ships no part of it.
+Source:    https://petstore3.swagger.io/api/v3/openapi.json
+License:   Apache License 2.0, per the document's own `info.license` and the LICENSE file of
+           https://github.com/swagger-api/swagger-petstore (read 2026-10-06). The full text
+           is at https://www.apache.org/licenses/LICENSE-2.0.
+
 Model weights and datasets
 --------------------------
 None are contained in this repository. Two things fetch them at run time, on the

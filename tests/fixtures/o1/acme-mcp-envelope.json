@@ -1,0 +1,194 @@
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "result": {
+    "tools": [
+      {
+        "name": "get_order",
+        "description": "Look up one order by its id.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "order_id": {
+              "type": "string",
+              "description": "The order's id, six characters such as A-3317.",
+              "minLength": 6,
+              "maxLength": 6
+            }
+          },
+          "required": [
+            "order_id"
+          ]
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "order_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "shipped",
+                "refunded"
+              ]
+            },
+            "total": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "order_id",
+            "status",
+            "total"
+          ]
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "name": "search_orders",
+        "description": "Find orders whose notes match some words.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Words to look for in the order notes."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "orders": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "order_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "order_id"
+                ]
+              }
+            }
+          },
+          "required": [
+            "orders"
+          ]
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "name": "refund_order",
+        "description": "Refund part or all of an order.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "order_id": {
+              "type": "string",
+              "description": "The order's id, six characters such as A-3317.",
+              "minLength": 6,
+              "maxLength": 6
+            },
+            "amount": {
+              "type": "number",
+              "description": "The amount to refund, in dollars.",
+              "minimum": 0
+            },
+            "reason": {
+              "type": "string",
+              "description": "Why the order is refunded.",
+              "enum": [
+                "damaged",
+                "late",
+                "other"
+              ]
+            }
+          },
+          "required": [
+            "order_id",
+            "amount"
+          ]
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "refund_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "refund_id"
+          ]
+        },
+        "annotations": {
+          "readOnlyHint": false
+        }
+      },
+      {
+        "name": "notify_customer",
+        "description": "Send the customer a note about an order.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "order_id": {
+              "type": "string",
+              "description": "The order's id, six characters such as A-3317.",
+              "minLength": 6,
+              "maxLength": 6
+            },
+            "channel": {
+              "type": "string",
+              "description": "How to reach the customer.",
+              "enum": [
+                "email",
+                "sms"
+              ]
+            }
+          },
+          "required": [
+            "order_id",
+            "channel"
+          ]
+        },
+        "annotations": {
+          "readOnlyHint": false
+        }
+      },
+      {
+        "name": "list_channels",
+        "description": "List the channels a note can go out on.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "channels": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "channels"
+          ]
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      }
+    ]
+  }
+}
