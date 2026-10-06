@@ -115,6 +115,22 @@ License:   Apache License 2.0, per the document's own `info.license` and the LIC
            https://github.com/swagger-api/swagger-petstore (read 2026-10-06). The full text
            is at https://www.apache.org/licenses/LICENSE-2.0.
 
+The MCP Everything reference server's tools/list -- a test fixture
+------------------------------------------------------------------
+File:      tests/fixtures/o1/mcp-everything-tools-list.json (9,907 bytes)
+What:      The `tools/list` result of @modelcontextprotocol/server-everything (npm package
+           version 2026.8.31; the server names itself "mcp-servers/everything" 2.0.0),
+           recorded once on 2026-10-06 from the server started over stdio and asked only to
+           list its tools (sha256 97068e1c2ec7d0a85d1302d66e17617f26c076a984d5e09568a310a59
+           279eed4). tests/test_o1_pending_everything_fixture.py reads it into the own-tools
+           normal form as a real MCP tool list; the package ships no part of it.
+Source:    https://github.com/modelcontextprotocol/servers (src/everything), through the npm
+           package named above.
+License:   MIT License or Apache License 2.0, per that repository's LICENSE file (read
+           2026-10-06), which says the project is moving from MIT to Apache-2.0 and that
+           contributions whose authors have not consented remain MIT. Both grant
+           redistribution with attribution; the file is attributed here under both.
+
 Model weights and datasets
 --------------------------
 None are contained in this repository. Two things fetch them at run time, on the
