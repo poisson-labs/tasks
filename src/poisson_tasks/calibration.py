@@ -112,6 +112,8 @@ from collections.abc import Sequence as _Sequence
 from typing import Any as _Any
 from typing import cast as _cast
 
+from poisson_tasks.arms import DEFAULT_GENERATOR_VERSION as _DEFAULT_GENERATOR_VERSION
+from poisson_tasks.arms import arm_from_id as _arm_from_id
 from poisson_tasks.engine import EngineSpec as _EngineSpec
 from poisson_tasks.engine import engine_hash as _engine_hash
 from poisson_tasks.export import MEASURED_HARNESS as _MEASURED_HARNESS
@@ -220,7 +222,8 @@ under `SamplingConfig`'s field name and sent as `max_completion_tokens` (`run_co
 DEFAULT_BUDGET: dict[str, _Any] = {"tokens": 100_000_000, "wall_clock_seconds": 12 * 3600}
 """The stop's declared limits (CAL20): tokens and wall clock; the third limit is the
 provider saying out of credit, which is read from the episode and needs no number."""
-GENERATOR_VERSION = "0"
+GENERATOR_VERSION = _DEFAULT_GENERATOR_VERSION
+"""The generator version a card's arms are generated at: the one a user gets."""
 TASKSET_ID = "poisson-tasks"
 DOCUMENTED_SEEDS = (404, 55, 2121)
 """The seed list on the documented one-liner in `docs/verifiers-export.md` (CAL21)."""
@@ -913,10 +916,18 @@ CellKey = tuple[str, str]
 
 
 def _spec_for(arm: str) -> _ArmSpec | None:
-    for spec in arm_specs():
-        if _arm_id(spec) == arm:
-            return spec
-    return None
+    """The arm an id names, as a card generates it, or `None` for text that is no arm's id.
+
+    Read from the id itself and not looked up in `arm_specs()`, so an arm outside the card
+    design has its knob, its control and its minimum calls, and a card keeps its arms' when
+    the design changes.
+    """
+    try:
+        return _arm_from_id(
+            arm, strictness="strict", split=SPLIT, generator_version=GENERATOR_VERSION
+        )
+    except ValueError:
+        return None
 
 
 def _is_control(arm: str) -> bool:
@@ -925,11 +936,12 @@ def _is_control(arm: str) -> bool:
 
 
 def _minimum_calls(arm: str) -> int | None:
-    """G5's structural number: `d` for a depth arm and `d_R` for a distractor arm."""
+    """G5's structural number, the fewest tool calls that solve the arm's task: its
+    reference turns less the reply.  `d` for a depth arm and `d_R` for a distractor arm."""
     spec = _spec_for(arm)
     if spec is None:
         return None
-    return spec.level if spec.knob == _DEPTH else D_R
+    return spec.reference_turns - 1
 
 
 def _made_no_call(row: EpisodeRecord) -> bool:
@@ -1421,7 +1433,7 @@ def render_document(artifact: Artifact) -> str:
         f"(seed list `{prov.seed_list_hash}`) at n = {prov.n} independent attempts per task.",
         "",
         "**This card is pinned to the generator hash above and is stale the moment "
-        "`tasks.py` changes.** It is not regenerated automatically; a card whose "
+        "the generator changes.** It is not regenerated automatically; a card whose "
         "generator hash differs from the package's is stale and says so here.",
         "",
         "**A resumed run is the same run in this sense and no other.** A run that was "
