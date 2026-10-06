@@ -5,6 +5,48 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### Tool similarity
+
+- **A third knob makes tasks: `similarity`**, at levels 0, 1, 2 and 3. Every ledger has a
+  four-digit number, carried in its tools' names and descriptions, and the request names the
+  target ledger by its number. The block is the base task's with twelve of its reads swapped
+  for lookalikes: the first two stage tools of six other ledgers, each named by its own number.
+  The level is how many of the four digits each lookalike ledger's number shares, in place,
+  with the target's; at level 3 the right tool sits among six one digit apart. The block's
+  length is held exactly equal across the levels, so the knob has no control arm.
+- **The verdict is strict, with leaky beside it.** A lookalike is another ledger's real tool,
+  and the target record exists in every ledger, so a call to a lookalike succeeds on the wrong
+  ledger: `collateral_mutation`, which strict fails and leaky can pass. A call to a tool name
+  the block does not show, a hidden engine name included, changes nothing.
+- **The tool server shows the numbered names and serves them.** The names, descriptions and
+  schemas a model sees are the task's byte for byte, and a call by a shown name reaches the
+  engine under the tool it stands for. When a run's records are read, a similarity episode's
+  tool messages are replayed against the engine; a disagreement is `replay_mismatch` and
+  scores nothing.
+- **`eval` takes a similarity arm, with one note**: no published card covers it. Its help
+  describes the knob. The six knobs whose tasks are not built yet are still refused in one
+  line, by the generator and by `eval`.
+- **`init` and `tasks.toml` do not offer similarity** until its probe has shown it bites.
+- **Every task id and the generator hash moved**; no task of the two card knobs changed.
+
+### The knobs' shared base
+
+- **Every task id moved, and no task did.** The generator version a user gets is now `"1"`,
+  and the generator hash covers the three modules that shape a task (`tasks.py`, `surface.py`
+  and `knobs.py`). Every task the two published cards measured regenerates with the same
+  prompt, tools, goal and reference solution under a new id.
+- **Both published cards say they are stale.** They were measured at generator 0. They still
+  recompute from their records and render every table.
+- **Seven more knobs are named**: `similarity`, `faults`, `history`, `block`, `arguments`,
+  `shape` and `spread`, each with its levels, its arm ids and its turn budget. The generator
+  makes no tasks for them yet and says so in one line.
+- **The pin ledger has thirty rows.** Seventeen are the new knobs'. Every row but the two that
+  need a run is measured on every task.
+- **A call to a tool the block does not show changes nothing when an episode is verified**, as
+  it changes nothing when the episode runs.
+- **`eval --help` calls the distractor dial retired**, and its example arm is at generator
+  version `"1"`.
+
 ### Cost and time on every card
 
 - **Every card shows what each level cost, beside its pass rates.** Every level table and

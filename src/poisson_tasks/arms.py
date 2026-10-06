@@ -66,12 +66,18 @@ def arm_from_id(
 
 
 def _on_a_published_card(spec: _ArmSpec) -> bool:
-    """Whether `spec` is one of the published cards' fourteen arms, as the cards measured it."""
+    """Whether `spec` is one of the published cards' fourteen arms, as the cards measured it.
+
+    The cards' knobs are the table's; an arm of any other knob, similarity's first, is on no
+    card at any level.
+    """
     if (spec.strictness, spec.split, spec.generator_version) != (
         _CARD_STRICTNESS,
         _CARD_SPLIT,
         DEFAULT_GENERATOR_VERSION,
     ):
+        return False
+    if spec.knob not in _CONTROL_PAIRS:
         return False
     if spec.control is None:
         return spec.level in _levels(spec.knob)

@@ -42,11 +42,15 @@ using the tools it is given and nothing else.
 - **The knobs.** `depth` at levels `1, 2, 3, 5, 8` and `distractor` at `0, 2, 4, 8, 14`,
   each with a control arm that answers the obvious objection to it: `depth:d1+h8` is as
   long as `d8` and as deep as `d1`, and `distractor:r0+len(r8)@k16` holds the block's
-  token count where `r8` puts it while keeping `r0`'s tools [*source:*
-  [`docs/knobs-and-arms.md`](docs/knobs-and-arms.md)].
-- **The pin ledger.** Thirteen rows, each an equality across the arms of one contrast,
+  token count where `r8` puts it while keeping `r0`'s tools; and `similarity` at
+  `0, 1, 2, 3`, how many digits of a four-digit ledger number each lookalike tool shares
+  with the right tool's, whose block length is held equal so it needs no control arm.
+  Six more knobs are named with their levels and arm ids, and get their tasks module by
+  module [*source:* [`docs/knobs-and-arms.md`](docs/knobs-and-arms.md)].
+- **The pin ledger.** Thirty rows, each an equality across the arms of one contrast,
   measured on the generated bundles. A violated row refuses the contrast before any model
-  runs -- except N5, the block's token count, which reports.
+  runs -- except the rows that report rather than refuse, N5, the block's token count,
+  among them.
 
 ---
 
@@ -56,7 +60,7 @@ using the tools it is given and nothing else.
 |---|---|
 | the domain engine | **built** -- a pure state machine over a twelve-class ledger |
 | the reference tokenizer | **built** -- o200k_base, offline |
-| knobs, arms and the pin ledger | **built** -- two knobs, their control arms, thirteen rows; the `distractor` knob is **experimental** (below) |
+| knobs, arms and the pin ledger | **built** -- nine knobs named, three with tasks (`depth`, `distractor`, `similarity`), the control arms, thirty rows; the `distractor` knob is **experimental** (below) |
 | task and verifier generation | **built** -- `generate`, `verify`, the outcome vocabulary, the negative controls |
 | the Proofload adapter, scripted path | **built** -- runs end to end against Proofload with no model, on an installed Proofload checkout |
 | the `verifiers` taskset export | **built** -- the task data, the task with its reward, the tool server, and a finite taskset over a declared list of seeds |
@@ -64,7 +68,7 @@ using the tools it is given and nothing else.
 | difficulty calibration | **built** -- pass@k per level with task-clustered intervals, paired level-to-level comparisons, cost, and the refusals that keep a card honest; **run for two models**, `gpt-5-nano` and `Qwen3-8B` |
 | a locally served model's card | **built and run** -- a Colab notebook that serves `Qwen3-8B` with vLLM on an L4 and runs the same card, resumable after a dropped runtime |
 
-"Built" means covered by the test suite: **1965 tests**, and `python -m pytest -q` is the check.
+"Built" means covered by the test suite: **2011 tests**, and `python -m pytest -q` is the check.
 
 ---
 
@@ -115,7 +119,7 @@ Sanity check:
 Run it from the repository root. A bare `pytest` collects the same tests: `pyproject.toml`
 puts the root on the import path, which the tests that import one another need.
 
-**1965 tests, 1604 passed and 361 skipped.** The skipped ones need Proofload -- the
+**2011 tests, 1650 passed and 361 skipped.** The skipped ones need Proofload -- the
 adapter's tests and the bridge between the two scorers -- and they say so.
 
 ### 2. Generate One Task, and Judge Every Answer It Ships With
@@ -251,7 +255,7 @@ outcomes, and runs a `proofload diff` of the two depth arms. Every episode comes
 seconds and writes about 80 KB under `examples/proofload_sweep/example-store`, which is
 git-ignored.
 
-With Proofload installed, `python -m pytest -q` is **1965 passed, 0 skipped**.
+With Proofload installed, `python -m pytest -q` is **2011 passed, 0 skipped**.
 
 Without it, `import poisson_tasks` and every module under it work as they do with it.
 Only `poisson_tasks.adapter` needs Proofload, and importing it without Proofload raises
@@ -381,7 +385,7 @@ level's number is one model's.
 
 - **The instrument:** [`docs/the-task.md`](docs/the-task.md) -- the domain, what a bundle
   carries, and the outcome vocabulary; [`docs/knobs-and-arms.md`](docs/knobs-and-arms.md)
-  -- the two knobs, their control arms, the turn budget and the pin ledger.
+  -- the nine knobs, their control arms, the turn budget and the pin ledger.
 - **Running it:** [`docs/verifiers-export.md`](docs/verifiers-export.md) -- the verifiers
   taskset, its signals, and the one-line run against a model.
 - **Calibration:** [`docs/calibration.md`](docs/calibration.md) -- every card in full, and
