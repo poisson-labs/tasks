@@ -272,6 +272,13 @@ _DEPTH = "depth"
 _DISTRACTOR = "distractor"
 _KNOBS = (_DEPTH, _DISTRACTOR)
 
+# The knobs whose records get the replay check (`_replay_agrees`): the ones whose tools are
+# served under names the engine does not know, so that the tool server and the verifier
+# translating them differently is a failure the records would otherwise never show.  Faults
+# joins when its tasks exist.
+_REPLAY_CHECKED = ("similarity",)
+_REPLAY_MISMATCH = "replay_mismatch"
+
 
 # ---------------------------------------------------------------------------
 # records
@@ -2315,15 +2322,54 @@ def _time_from_trace(trace: _Any) -> dict[str, _Any]:
     return {**seconds, "first_request_prompt_tokens": first}
 
 
+def _replay_agrees(data: _Any, trace: _Any) -> bool:
+    """Whether the observations the tool server sent are the ones the verdict replays.
+
+    Every sampled call whose tool message carries the engine's `seq` reached the server; a
+    call the harness refused is answered with the harness's own line, which carries no
+    number, and is not replayed.  The calls that reached it, in the order the server numbered
+    them and each under the engine name its shown name stands for, are replayed through the
+    engine, and every observation must equal its tool message byte for byte: the adapter's
+    own replay check, applied to a run's traces.
+    """
+    from poisson_tasks import surface as _surface
+    from poisson_tasks.engine import replay as _replay
+    from poisson_tasks.export import _sampled_exchanges, _seq_of, bundle_from_data
+    from poisson_tasks.tasks import scenario_for as _scenario_for
+
+    bundle = bundle_from_data(data)
+    reached = sorted(
+        (
+            (seq, content, call)
+            for content, call in _sampled_exchanges(trace)
+            if (seq := _seq_of(content)) is not None
+        ),
+        key=lambda row: row[0],
+    )
+    shown = _surface.display_map(
+        bundle.seed, bundle.split, bundle.arm_id, bundle.goal,
+        tuple(str(tool["name"]) for tool in bundle.tools),
+    )
+    calls = [
+        (_surface.engine_name(shown, name), arguments)
+        for _seq, _content, (name, arguments) in reached
+    ]
+    _state, observations = _replay(
+        _scenario_for(bundle.seed, bundle.split), calls, bundle.seq_start
+    )
+    return list(observations) == [content for _seq, content, _call in reached]
+
+
 def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecord]:
     """The per-episode records of a finished run, from its `traces.jsonl`.
 
     `strict` and `leaky` are what the wheel scored (X4's reward and the `leaky_pass`
     metric); the outcome label is `tasks.verify`'s own verdict on the trace, re-read through the
     export so that one ordering of the sampled calls exists; an instrument label from the
-    episode's signals overrides it.  Attempts are numbered by position in the file.  Each
-    record's time and first request are its trace's (`_time_from_trace`); an episode with no
-    trace recorded none.
+    episode's signals overrides it, and so does a replay that disagrees with the tool messages
+    on an arm the replay check covers (`_REPLAY_CHECKED`), which scores nothing.  Attempts
+    are numbered by position in the file.  Each record's time and first request are its
+    trace's (`_time_from_trace`); an episode with no trace recorded none.
     """
     import verifiers.v1 as _vf
     from verifiers.v1.cli.output import read_episodes
@@ -2352,7 +2398,14 @@ def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecor
                 strict = float(reward.value) == 1.0
                 leaky = float(leaky_metric) == 1.0
                 label = verdict.strict_label
-                if strict != (label == _PASSED) or leaky != verdict.leaky_pass:
+                spec = _spec_for(str(data.arm_id))
+                if (
+                    spec is not None
+                    and spec.knob in _REPLAY_CHECKED
+                    and not _replay_agrees(data, trace)
+                ):
+                    strict, leaky, label = False, False, _REPLAY_MISMATCH
+                elif strict != (label == _PASSED) or leaky != verdict.leaky_pass:
                     raise ValueError(
                         f"episode {episode.id}: the recorded reward and the re-read verdict "
                         f"disagree (strict={strict}, leaky={leaky}, label={label!r})"
