@@ -84,6 +84,7 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
+from poisson_tasks.arms import DEFAULT_GENERATOR_VERSION
 from poisson_tasks.knobs import ArmSpec, arm_id
 
 REPO = Path(__file__).resolve().parents[1]
@@ -736,11 +737,12 @@ def test_fd1_6_the_card_preset_is_the_published_design() -> None:
 def test_fd1_6_a_card_preset_tasks_table_that_says_anything_else_is_refused(tasks: str) -> None:
     with pytest.raises(config().ConfigError):
         plan_of(custom('preset = "card"', tasks=tasks))
-    plan_of(custom('preset = "card"', tasks='per_level = 60\nattempts = 5\ngenerator_version = "0"'))
+    plan_of(custom('preset = "card"', tasks='per_level = 60\nattempts = 5\n'
+                   f'generator_version = "{DEFAULT_GENERATOR_VERSION}"'))
 
 
 def plain(level: int, *, knob: str = "depth", strictness: str = "strict",
-          generator_version: str = "0") -> ArmSpec:
+          generator_version: str = DEFAULT_GENERATOR_VERSION) -> ArmSpec:
     return ArmSpec(knob=knob, level=level, control=None, strictness=strictness, split="eval",
                    generator_version=generator_version)
 

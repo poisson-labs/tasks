@@ -16,7 +16,7 @@ One command. Set `MODEL`, `MODEL_BASE_URL` and `MODEL_API_KEY` for an OpenAI-com
 endpoint serving a model that calls tools, then:
 
 ```
-uv run eval poisson-tasks --model "$MODEL" --client.base-url "$MODEL_BASE_URL" --client.api-key-var MODEL_API_KEY --env.taskset.arm '{"knob": "depth", "level": 3, "control": null, "strictness": "strict", "split": "eval", "generator_version": "0"}' --env.taskset.seeds 404 55 2121 --no-push
+uv run eval poisson-tasks --model "$MODEL" --client.base-url "$MODEL_BASE_URL" --client.api-key-var MODEL_API_KEY --env.taskset.arm '{"knob": "depth", "level": 3, "control": null, "strictness": "strict", "split": "eval", "generator_version": "1"}' --env.taskset.seeds 404 55 2121 --no-push
 ```
 
 The arm is one JSON value and the seeds are a list; `--env.taskset.arm.<field>` also parses
@@ -79,7 +79,7 @@ from poisson_tasks.knobs import ArmSpec
 from poisson_tasks.export import ExportTaskset, ExportTasksetConfig, task_from_bundle
 
 arm = ArmSpec(knob="depth", level=3, control=None, strictness="strict",
-              split="eval", generator_version="0")
+              split="eval", generator_version="1")
 taskset = ExportTaskset(ExportTasksetConfig(arm=dataclasses.asdict(arm), seeds=[404, 55, 2121]))
 for task in taskset.load():
     print(task.key, task.data.seq_start, len(task.data.tools))

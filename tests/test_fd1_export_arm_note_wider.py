@@ -24,11 +24,12 @@ from typing import Any
 
 import pytest
 
+from poisson_tasks.arms import DEFAULT_GENERATOR_VERSION
 from poisson_tasks.knobs import ArmSpec, arm_id
 
 TASKSET_ID = "poisson-tasks"
 CARD_ARM = ArmSpec(knob="depth", level=3, control=None, strictness="strict", split="eval",
-                   generator_version="0")
+                   generator_version=DEFAULT_GENERATOR_VERSION)
 
 
 def notes(spec: ArmSpec) -> list[str]:
@@ -52,4 +53,4 @@ def test_an_arm_off_the_cards_by_any_field_carries_one_note(change: dict[str, An
     assert len(said) == 1, said
     assert arm_id(spec) in said[0] and "\n" not in said[0], said[0]
     assert notes(dataclasses.replace(spec, strictness="strict", split="eval",
-                                     generator_version="0")) == []
+                                     generator_version=DEFAULT_GENERATOR_VERSION)) == []

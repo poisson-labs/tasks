@@ -64,7 +64,7 @@ using the tools it is given and nothing else.
 | difficulty calibration | **built** -- pass@k per level with task-clustered intervals, paired level-to-level comparisons, cost, and the refusals that keep a card honest; **run for two models**, `gpt-5-nano` and `Qwen3-8B` |
 | a locally served model's card | **built and run** -- a Colab notebook that serves `Qwen3-8B` with vLLM on an L4 and runs the same card, resumable after a dropped runtime |
 
-"Built" means covered by the test suite: **1697 tests**, and `python -m pytest -q` is the check.
+"Built" means covered by the test suite: **1917 tests**, and `python -m pytest -q` is the check.
 
 ---
 
@@ -115,7 +115,7 @@ Sanity check:
 Run it from the repository root. A bare `pytest` collects the same tests: `pyproject.toml`
 puts the root on the import path, which the tests that import one another need.
 
-**1697 tests, 1336 passed and 361 skipped.** The skipped ones need Proofload -- the
+**1917 tests, 1556 passed and 361 skipped.** The skipped ones need Proofload -- the
 adapter's tests and the bridge between the two scorers -- and they say so.
 
 ### 2. Generate One Task, and Judge Every Answer It Ships With
@@ -195,7 +195,7 @@ from poisson_tasks.knobs import ArmSpec
 from poisson_tasks.export import ExportTaskset, ExportTasksetConfig
 
 arm = ArmSpec(knob="depth", level=3, control=None, strictness="strict",
-              split="eval", generator_version="0")
+              split="eval", generator_version="1")
 taskset = ExportTaskset(ExportTasksetConfig(arm=dataclasses.asdict(arm), seeds=[404, 55, 2121]))
 for task in taskset.load():
     print(task.key, len(task.data.tools))
@@ -212,7 +212,7 @@ One command, against any OpenAI-compatible endpoint serving a model that calls t
 `MODEL`, `MODEL_BASE_URL` and `MODEL_API_KEY`, then:
 
 ```bash
-uv run eval poisson-tasks --model "$MODEL" --client.base-url "$MODEL_BASE_URL" --client.api-key-var MODEL_API_KEY --env.taskset.arm '{"knob": "depth", "level": 3, "control": null, "strictness": "strict", "split": "eval", "generator_version": "0"}' --env.taskset.seeds 404 55 2121 --no-push
+uv run eval poisson-tasks --model "$MODEL" --client.base-url "$MODEL_BASE_URL" --client.api-key-var MODEL_API_KEY --env.taskset.arm '{"knob": "depth", "level": 3, "control": null, "strictness": "strict", "split": "eval", "generator_version": "1"}' --env.taskset.seeds 404 55 2121 --no-push
 ```
 
 It runs three `depth:d3` tasks through the `null` harness -- the model sees the task's
@@ -251,7 +251,7 @@ outcomes, and runs a `proofload diff` of the two depth arms. Every episode comes
 seconds and writes about 80 KB under `examples/proofload_sweep/example-store`, which is
 git-ignored.
 
-With Proofload installed, `python -m pytest -q` is **1697 passed, 0 skipped**.
+With Proofload installed, `python -m pytest -q` is **1917 passed, 0 skipped**.
 
 Without it, `import poisson_tasks` and every module under it work as they do with it.
 Only `poisson_tasks.adapter` needs Proofload, and importing it without Proofload raises
@@ -402,7 +402,7 @@ level's number is one model's.
 The test files under [`tests/`](tests/) are frozen: each module was built against tests
 written before it, and the suite is not edited to suit a build. Comments and docstrings
 in them may be corrected; assertions may not. [`tests/conftest.py`](tests/conftest.py) is
-outside that freeze and holds the skip for the 382 tests that need Proofload.
+outside that freeze and holds the skip for the 361 tests that need Proofload.
 
 ---
 
