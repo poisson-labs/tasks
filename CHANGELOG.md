@@ -5,6 +5,62 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### The run engine: the estimate, the cap, resume and Ctrl-C
+
+- **What a plan will cost, before anything is spent.** `poisson_tasks.runs.estimate` reads the
+  published card of the plan's model (model A's card for a model no card measured, or the card
+  named) and gives the plan's episodes, its least and most model calls, the calls, tokens and
+  dollars expected at the plan's prices, and which card it read. Every mean is computed from the
+  card's records; nothing is a typed number.
+- **One folder per plan.** A run goes in `runs/<preset>-<model>/`, then `-2`, `-3` for a second
+  run of the same plan or a changed one, with no hash in its name. The folder that holds a plan
+  is found by the hash inside its `plan.json`, so a renamed folder is still found; `find_run`
+  says whether a folder is new, resumed or complete, names the folder a changed plan came after
+  and the fields that changed, and only reads.
+- **The cap is a bound on what is spent, not an estimate.** The spend and token caps are checked
+  before every model call, through the harness's relay in the run's own process, so the final
+  spend is at most the cap plus the calls in flight when it was reached. Before an episode starts,
+  the measured spend plus a reservation for every episode in flight must leave room; the
+  reservation is the largest episode the run has seen, and before any, the card's 95th
+  percentile for the arm. The cap holds the folder's total across runs: running again at the same
+  cap sends nothing. An episode the cap cuts short is not an instrument failure and is owed
+  again; what its calls cost is in the ledger.
+- **The ledger**, `spend.jsonl`, has one line per episode that ended: the arm, the seed, the
+  attempt, the tokens and the dollars (`null` without a price). It is append only; a torn last
+  line, left by a process that died while writing, is dropped when the ledger is opened.
+- **Resume loses nothing and runs nothing twice.** A stopped run keeps every finished episode,
+  byte for byte, and a resume runs exactly the episodes owed, through the wheel's own resume. A
+  run in which some episodes failed is resumed too: the failed ones run again, and the instrument
+  tally keeps the failure.
+- **Ctrl-C.** The first stops dispatching and gives the episodes in flight ten seconds to finish
+  and be recorded; the run then returns with the interrupted verdict and the ledger written. A
+  second stops at once. Nothing the run started is left running.
+- **Stops.** The provider saying it is out of credit stops the run after the episode that heard
+  it. Five episodes in a row failing before any was scored stop it, with the first error's status
+  and the provider's own words; a run in which every episode failed is never done. A run that
+  makes no model call and finishes no episode within the watchdog's limit (600 seconds) is
+  stopped, with whatever it started, quoting the last lines of `run.log`.
+- **`run.log`** holds the run's own progress, the harness's records of warning level and above,
+  and any traceback. The key never shows: every run of four or more characters of it is masked
+  in the log, in the trace lines and in the first error a run reports.
+- **The machine.** The harness runs with `PIP_REQUIRE_VIRTUALENV=1`, so its bootstrap takes uv's
+  installer every time, and `UV_NO_MODIFY_PATH=1`, so that installer edits no shell start-up
+  file. Besides the run folder, a run writes only what the harness, uv and uv's installer write
+  for themselves: `~/.cache/verifiers`, `~/.local/bin/uv` and `uvx`, `~/.cache/uv`, uv's receipt
+  in `~/.config/uv`, one `/tmp/vf-port-*` file per episode and one empty uv lock file in the
+  temporary folder.
+- **`run` and `export` are one path.** `runs.verifiers_config` is the eval config the run uses for
+  an arm, as a mapping `eval @` reads: the same taskset, arm, seeds, attempts, model, endpoint,
+  key variable's name, decoding and turn cap, with `push` off. A decoding field declared
+  `"not sent"` is in no request.
+- **`calibration.run_cell`** runs one arm's cell for any design (the seeds, attempts and decoding
+  given) through the same runner as `run_arm`, which is unchanged: `run_arm` is `run_cell` with
+  the published design.
+- **Until the cards ship inside the package**, the estimate reads their records from the
+  checkout's `calibration/` folder; a wheel installed on its own refuses the estimate in one line
+  that says so, and a run from it reserves nothing before its first episode and says so in
+  `run.log`.
+
 ### Cost and time on every card
 
 - **Every card shows what each level cost, beside its pass rates.** Every level table and
