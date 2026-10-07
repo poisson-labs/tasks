@@ -171,7 +171,8 @@ _SPEC = _EngineSpec.load()
 _DEPTH = "depth"
 _DISTRACTOR = "distractor"
 _SIMILARITY = "similarity"
-_GENERATED_KNOBS = (_DEPTH, _DISTRACTOR, _SIMILARITY)
+_FAULTS = "faults"
+_GENERATED_KNOBS = (_DEPTH, _DISTRACTOR, _SIMILARITY, _FAULTS)
 
 # The knobs module's `d_R`, cited and not re-minted: `reference_turns` is `d_R + 1` for
 # every R arm (N16), so the number comes back off that module's own constructor.
@@ -232,6 +233,15 @@ _COLLATERAL = "collateral_mutation"
 _PASSED = "passed"
 
 _OK_STATUS = "ok"
+_UNAVAILABLE_STATUS = "unavailable"
+
+# The faults knob's one sentence, added to the system prompt at every faults level, the
+# base level included: without it the knob would also test whether a model guesses that an
+# `unavailable` answer is transient, a second factor, and the prompt would differ across the
+# knob's arms where N3 holds it equal.
+_FAULTS_SENTENCE = (
+    "A call can come back `unavailable`: nothing changed, and the same call can be made again."
+)
 
 # The prompt templates.  One template for depth and distractor (the design gives knob D
 # "one fixed template"), so N6's template-id clause is an equality a contrast can actually
@@ -882,7 +892,9 @@ def _block_names(
 
     Knob D: the target class's stage tools plus an equal number of orthogonal reads,
     identical at every level (N4).  Knob R: the `d_R` required tools, `r` functional
-    distractors and the rest reads, with the required tools' slots untouched (N2).
+    distractors and the rest reads, with the required tools' slots untouched (N2).  Faults:
+    knob R's base block at every level (N4), because its level is a plan over the calls and
+    not a change to the block.
     """
     size = _block_size(spec)
     stage_tools = _stage_tools_of(spec, qualifier)
@@ -897,7 +909,7 @@ def _block_names(
             f"{len(base)} tools available"
         )
     names = [base[index] for index in permutation]
-    if arm.knob == _DEPTH or arm.level == 0:
+    if arm.knob in (_DEPTH, _FAULTS) or arm.level == 0:
         return tuple(names)
 
     pool = _distractor_pool(spec, qualifier)
@@ -1094,6 +1106,66 @@ def _chain_calls(
         calls.append(call)
         observations.append(observation)
     return tuple(calls), tuple(observations)
+
+
+def _planned_chain(
+    scenario: _Scenario, chain: tuple[_Call, ...], seq_start: int, plan: dict[str, int]
+) -> tuple[tuple[_Call, ...], tuple[str, ...]]:
+    """The chain with the plan applied, numbered from `seq_start`: each planned failure's call
+    answered `unavailable`, and the same call, arguments and all, made again until it is
+    answered.  Through the one function the tool server and `verify` apply the plan with, so
+    the reference meets exactly the answers a model would."""
+    state = _init_state(scenario, seq_start)
+    counts: dict[str, int] = {}
+    calls: list[_Call] = []
+    observations: list[str] = []
+    for call in chain:
+        while True:
+            state, counts, observation = _surface.apply_planned(state, counts, call, plan)
+            calls.append(call)
+            observations.append(observation)
+            if _status_of(observation) != _UNAVAILABLE_STATUS:
+                break
+    return tuple(calls), tuple(observations)
+
+
+def _fault_pair_tokens(
+    spec: _EngineSpec,
+    scenario: _Scenario,
+    arm: _ArmSpec,
+    qualifier: str,
+    record: str,
+    depth: int,
+) -> int:
+    """N26's target for a faults control: the reference tokens of the fault pairs it stands in
+    for, the high level's less its own level's.  A fault pair is a planned call and its
+    `unavailable` answer, measured as N9's unit and numbered as the plain arm numbers them."""
+    chain, _observations = _chain_calls(spec, scenario, qualifier, record, depth, 1)
+    path = tuple(name for name, _args in chain)
+
+    def tokens(level: int) -> int:
+        plan = _surface.fault_plan(_arm_id(_replace(arm, level=level, control=None)), path)
+        calls, observations = _planned_chain(scenario, chain, 1, plan)
+        return sum(
+            _pair_tokens(name, args, observation)
+            for (name, args), observation in zip(calls, observations, strict=True)
+            if _status_of(observation) == _UNAVAILABLE_STATUS
+        )
+
+    return tokens(arm.control or 0) - tokens(arm.level)
+
+
+def _fewest_pairs_reaching(spec: _EngineSpec, reads: tuple[str, ...], target: int) -> int:
+    """The fewest seeded read pairs whose reachable totals bracket `target`: the first count
+    whose largest total reaches it, which is also the first whose smallest total can still be
+    at or below it.  Where no count brackets the target this is the nearest count above it,
+    the search then gets as near as the table allows, and the ledger's N26 refuses the
+    contrast rather than this refusing the arm."""
+    pairs, highest = 0, 0
+    while highest < target:
+        pairs += 1
+        highest += _read_options(spec, reads, pairs)[-1][0]
+    return pairs
 
 
 def _pair_tokens(name: str, args: _Args, observation: str) -> int:
@@ -1352,6 +1424,14 @@ def _format_clauses(
 # ---------------------------------------------------------------------------
 
 
+def _reaches_the_server(name: _Any, args: _Any, block: dict[str, dict[str, _Any]]) -> bool:
+    """Whether the harness forwards a call to the tool server, applied per call as the
+    verifier sees it: the arguments a JSON object and the name one the block shows.  Any other
+    call the harness answers itself, with a line that carries no sequence number, and the
+    server never receives it, so it takes no planned failure."""
+    return isinstance(args, dict) and isinstance(name, str) and name in block
+
+
 def verify(
     bundle: TaskBundle,
     turns: tuple[Turn, ...],
@@ -1410,10 +1490,20 @@ def _verdict(
     shown = _surface.display_map(
         bundle.seed, bundle.split, bundle.arm_id, bundle.goal, tuple(block)
     )
-    calls = [
-        (_surface.engine_name(shown, name), args) for turn in turns for name, args in turn.calls
-    ]
-    state, _observations = _replay(scenario, calls, bundle.seq_start)
+    # The arm's planned failures, derived as the tool server derives them and applied through
+    # the same function, counted over the calls the server received: a call the harness
+    # answered itself takes none, and reaches the engine here as it always has, as no tool or
+    # as arguments the engine refuses, changing nothing.
+    plan = _surface.reference_plan(bundle.arm_id, shown, bundle.reference_calls)
+    state = start
+    counts: dict[str, int] = {}
+    for turn in turns:
+        for name, args in turn.calls:
+            call: _Call = (_surface.engine_name(shown, name), args)
+            if _reaches_the_server(name, args, block):
+                state, counts, _observation = _surface.apply_planned(state, counts, call, plan)
+            else:
+                state, _observation = _apply(state, call)
     final = _records_value(state)
     changed = tuple(_mutations(start, state))
 
@@ -1618,7 +1708,9 @@ def structure_space(arm: _ArmSpec, spec: _EngineSpec | None = None) -> int:
     For a control arm the count is a **lower bound**: the seeded block is a derivation of
     the scenario, so two scenarios sharing a class and a slot order can still seed
     different blocks.  That is the conservative direction for G16's floor, because a
-    smaller `k` overstates the chance a run repeats a structure.
+    smaller `k` overstates the chance a run repeats a structure.  A faults arm's first
+    request is knob R's base block, prompt and system prompt at every level, so its count is
+    that base arm's.
     """
     _refuse_a_knob_not_generated(arm)
     engine_spec = _resolve(spec)
@@ -1695,6 +1787,8 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
 
     seq_start = 1
     system_prompt = _SYSTEM_PROMPT
+    if arm.knob == _FAULTS:
+        system_prompt = system_prompt + "\n" + _FAULTS_SENTENCE
     prompt: str | tuple[dict[str, _Any], ...] = instruction
 
     if arm.control is not None and arm.knob == _DEPTH:
@@ -1710,6 +1804,16 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
                 _high_calls[arm.level :], _high_observations[arm.level :], strict=True
             )
         )
+        prompt = _seeded_messages(instruction, _seeded_block(engine_spec, reads, pairs, wanted))
+    elif arm.control is not None and arm.knob == _FAULTS:
+        # The faults control: the base level's task with read pairs seeded before the first
+        # move, as long as the fault pairs the high level adds, so a drop can be read against
+        # the same length added as earlier tool work.  The fewest pairs whose reachable totals
+        # bracket that length (N26), seeded as a depth control's are (N24).
+        reads = tuple(name for name in block if name in engine_spec.read_tools)
+        wanted = _fault_pair_tokens(engine_spec, scenario, arm, qualifier, record, goal)
+        pairs = _fewest_pairs_reaching(engine_spec, reads, wanted)
+        seq_start = pairs + 1
         prompt = _seeded_messages(instruction, _seeded_block(engine_spec, reads, pairs, wanted))
     elif arm.control is not None:
         # The R control: the `r0` block, plus a frozen neutral filler whose token count
@@ -1732,6 +1836,15 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
     )
     start = _init_state(scenario, seq_start)
     final, _replayed = _replay(scenario, list(reference_calls), seq_start)
+    if arm.knob == _FAULTS:
+        # The reference carries the retries: each planned failure's call, answered
+        # `unavailable`, and the same call again (N25).  The plan is read off the arm id and
+        # the reference's own tools, as `verify` and the tool server read it, so the controls
+        # built from this reference meet the same answers.
+        plan = _surface.fault_plan(rendered, tuple(name for name, _args in reference_calls))
+        reference_calls, reference_observations = _planned_chain(
+            scenario, reference_calls, seq_start, plan
+        )
     final_token = _payload_of(reference_observations[-1]) if reference_observations else None
 
     controls = _negative_controls(

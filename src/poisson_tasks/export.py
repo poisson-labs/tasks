@@ -147,10 +147,11 @@ def _arm_mapping(arm: _Any) -> dict[str, _Any]:
     than when the tasks are generated: a field missing, misspelled or extra; a strictness other
     than the two (a misspelled one was scored as strict); a split other than the two; a level or
     a control that is not a whole number, or outside what the knob can make.  Depth runs from 1
-    to 8, distractor from 0 to 14 and similarity from 0 to 3, which are the ends of each knob's
-    candidate levels: the stage ladder has eight stages, the tool table offers fourteen
-    distractors, and a lookalike shares at most three of a ledger number's four digits.  A
-    knob the generator makes no tasks for yet is refused by name.
+    to 8, distractor from 0 to 14, similarity from 0 to 3 and faults from 0 to 4, which are the
+    ends of each knob's candidate levels: the stage ladder has eight stages, the tool table
+    offers fourteen distractors, a lookalike shares at most three of a ledger number's four
+    digits, and four failed calls is the first level that makes a model retry one tool twice.
+    A knob the generator makes no tasks for yet is refused by name.
 
     An arm the generator can make and no published card measured is taken, with one note.
     """
@@ -297,6 +298,9 @@ class ExportTasksetConfig(_vf.TasksetConfig):
             "knob 'similarity' (levels 0, 1, 2, 3) sets how many digits of a four-digit ledger "
             "number each lookalike tool shares, in place, with the right tool's; no published "
             "card measures it yet. "
+            "knob 'faults' (levels 0, 1, 2, 4) sets how many calls on the way answer "
+            "unavailable and must be made again; its control arm faults:f0+len(f4) seeds the "
+            "same length as earlier tool work; no published card measures it yet. "
             "See docs/calibration.md."
         ),
     )
@@ -849,6 +853,8 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
         self._block: tuple[dict[str, _Any], ...] = ()
         self._shown: dict[str, _surface.Shown] = {}
         self._engine_state: _Any = None
+        self._plan: dict[str, int] = {}
+        self._counts: dict[str, int] = {}
         self._lock = _asyncio.Lock()
 
     async def setup_task(self, task: _Any) -> None:
@@ -859,7 +865,10 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
 
         The block's names are what the model is shown; which engine tool each stands for
         is `surface.display_map`'s to say, read through the module as the verifier reads
-        it, so the server answers a call exactly as the verifier will replay it.
+        it, so the server answers a call exactly as the verifier will replay it.  A faults
+        arm's planned failures are `surface.reference_plan`'s, derived the same way, keyed
+        on how many times this server has been asked for each tool; every other arm plans
+        none, and the counts start at nothing.
         """
         self._block = tuple(dict(tool) for tool in task.tools)
         self._shown = _surface.display_map(
@@ -872,6 +881,10 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
         self._engine_state = _init_state(
             _scenario_for(task.seed, task.split), task.seq_start
         )
+        self._plan = _surface.reference_plan(
+            task.arm_id, self._shown, [(str(call[0]), call[1]) for call in task.reference_calls]
+        )
+        self._counts = {}
 
     def register(self, mcp: _FastMCP) -> None:
         """The task's block, in slot order; the block is known because `setup_task` runs first.
@@ -893,11 +906,18 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
         async def body(arguments: _Any) -> str:
             # An in-process lock: `apply` is pure, and the
             # counter lives in the state this coroutine reads and then writes, so two
-            # calls that interleave between the two would take the same `seq` (E5).
+            # calls that interleave between the two would take the same `seq` (E5).  The
+            # planned failures are applied in front of the engine by the one function the
+            # verifier replays through, and the engine step is handed in under this
+            # module's name for it, so every step the server takes goes through `_apply`
+            # under the lock, planned arm or not.
             async with self._lock:
                 state = self._engine_state
-                after, observation = _apply(state, (engine, arguments))
+                after, counts, observation = _surface.apply_planned(
+                    state, self._counts, (engine, arguments), self._plan, step=_apply
+                )
                 self._engine_state = after
+                self._counts = counts
                 return observation
 
         derived = _Tool.from_function(body, name=name, description=description)
