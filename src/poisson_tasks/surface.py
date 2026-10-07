@@ -3,10 +3,12 @@
 Private.  The generator, `tasks.verify` and the export's tool server all read this module, so
 the three agree by construction: a block is shown under the names and descriptions
 `display_map` gives, a call is replayed and served under the engine name it gives, and a
-faults arm's planned failures are `fault_plan`'s.  It imports the engine and the knobs and
-never the generator, and its bytes are part of the generator hash, because a change here
-changes tasks.  `tests/test_k1_surface.py` says what each name does; the similarity knob's
-draws and its numbered names are pinned by `tests/test_k2_block.py`.
+faults arm's planned failures are `fault_plan`'s, applied in front of the engine by
+`apply_planned`.  It imports the engine and the knobs and never the generator, and its
+bytes are part of the generator hash, because a change here changes tasks.
+`tests/test_k1_surface.py` says what each name does; the similarity knob's draws and its
+numbered names are pinned by `tests/test_k2_block.py`; the faults knob's plan and answer by
+`tests/test_k3_plan.py` and `tests/test_k3_counting.py`.
 
 `display_map` and `fault_plan` take the tools as an argument and never read the built-in
 block themselves, so a block of a caller's own tools goes through them unchanged.
@@ -15,12 +17,16 @@ block themselves, so a block of a caller's own tools goes through them unchanged
 from __future__ import annotations
 
 import hashlib as _hashlib
+from collections.abc import Callable as _Callable
 from collections.abc import Sequence as _Sequence
 from dataclasses import dataclass as _dataclass
+from dataclasses import replace as _replace
 from typing import Any as _Any
 from typing import TypeVar as _TypeVar
 
+from poisson_tasks.engine import DomainState as _DomainState
 from poisson_tasks.engine import EngineSpec as _EngineSpec
+from poisson_tasks.engine import apply as _apply
 from poisson_tasks.knobs import (
     _D_B,
     _FAULTS,
@@ -29,6 +35,7 @@ from poisson_tasks.knobs import (
     _NUMBER_WIDTH,
     _SIMILARITY,
     _SPREAD,
+    _UNAVAILABLE,
     _parse_arm_id,
     _split_evenly,
 )
@@ -279,3 +286,58 @@ def fault_plan(arm_id: str, path: _Sequence[str]) -> dict[str, int]:
         for tool, count in zip(tools, _split_evenly(arm.level, len(tools)), strict=True)
         if count
     }
+
+
+def reference_plan(
+    arm_id: str, shown: dict[str, Shown], reference_calls: _Sequence[tuple[str, _Any]]
+) -> dict[str, int]:
+    """The arm's fault plan over its reference path: `fault_plan` of the reference's tools,
+    each under the engine name its shown name stands for.  The generator, `tasks.verify`, the
+    tool server and the record reader all derive the plan this way, from the arm id and the
+    reference calls a bundle already carries, so no bundle field holds it."""
+    return fault_plan(arm_id, tuple(engine_name(shown, name) for name, _args in reference_calls))
+
+
+def _fault_line(seq: int) -> str:
+    """A planned failure's answer: the engine's own line at `seq`, saying `unavailable` in the
+    status field, with the table's error payload.  Rendered from the table's layout, so the
+    line is `L_obs` bytes like every other observation and the engine's private renderer
+    stays private."""
+    layout = _SPEC.layout
+    rendered_seq = str(seq).rjust(layout["seq_width"], layout["seq_fill"])
+    if len(rendered_seq) != layout["seq_width"]:
+        raise ValueError(f"seq {seq} does not fit the {layout['seq_width']}-byte field")
+    status = _UNAVAILABLE.ljust(layout["status_width"], layout["status_fill"])
+    separator: str = layout["separator"]
+    return separator.join((rendered_seq, status, str(layout["error_payload"])))
+
+
+_Step = _Callable[[_DomainState, tuple[str, _Any]], tuple[_DomainState, str]]
+
+
+def apply_planned(
+    state: _DomainState,
+    counts: dict[str, int],
+    call: tuple[str, _Any],
+    plan: dict[str, int],
+    *,
+    step: _Step = _apply,
+) -> tuple[_DomainState, dict[str, int], str]:
+    """One call that reached the tool server, with the planned failures applied in front of
+    the engine.
+
+    `counts` is how many times each tool has been called so far, whatever the arguments, and
+    the first `plan[tool]` calls to a tool answer `unavailable`: the counter advances, as it
+    does on every call (E5), and the records do not.  Every other call reaches the engine
+    through `step`, the engine's own `apply` unless the caller hands in its own name for it;
+    the tool server does, so that every engine step it takes goes through one name under its
+    lock.  The counts after the call are returned, and the ones given are not written.
+    """
+    name, _arguments = call
+    made = counts.get(name, 0)
+    after_counts = {**counts, name: made + 1}
+    if made < plan.get(name, 0):
+        seq = state.next_seq
+        return _replace(state, next_seq=seq + 1), after_counts, _fault_line(seq)
+    after, observation = step(state, call)
+    return after, after_counts, observation

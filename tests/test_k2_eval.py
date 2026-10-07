@@ -18,7 +18,8 @@ no similarity level is on a card, which the note shows.  The note's words are no
 must not say the cards measure similarity.
 
 **2. The six other new knobs stay refused**, by the generator (`generate`, `structure_space`)
-and by `eval`, each as a `ValueError` (never a `KeyError`), beside similarity taken.
+and by `eval`, each as a `ValueError` (never a `KeyError`), beside similarity taken, until each
+knob's own module opens it: faults opened at K3, and the five others stay refused.
 
 **3. `tasks.toml` and `init` still do not offer similarity.**  Spec K-P3: no difficulty knob
 reaches `init`, `tasks.toml` or a published card until its probe has shown it bites.  `eval` is
@@ -42,8 +43,10 @@ from poisson_tasks.tasks import generate, structure_space
 
 TASKSET_ID = "poisson-tasks"
 SEEDS = [404, 55]
-STILL_SHUT = ("faults:f2", "faults:f0+len(f4)", "history:t600", "block:k32", "block:k8+len(k64)",
-              "arguments:a6", "arguments:a2+len(a8)", "shape:w2", "shape:w1+len(w4)", "spread:p2")
+# Faults left this list when K3 gave it tasks (retrofit ruled with K3 Session A's filing); the five
+# knobs still here stay refused until their own modules.
+STILL_SHUT = ("history:t600", "block:k32", "block:k8+len(k64)", "arguments:a6",
+              "arguments:a2+len(a8)", "shape:w2", "shape:w1+len(w4)", "spread:p2")
 
 
 def loaders() -> Any:
