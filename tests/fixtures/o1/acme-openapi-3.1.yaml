@@ -1,0 +1,154 @@
+# The acme-support tool set as an OpenAPI 3.1 document in YAML: the same five tools as the
+# other acme-* fixtures, so every format reads to the same normal form.
+openapi: 3.1.0
+info:
+  title: Acme support
+  version: 1.0.0
+paths:
+  /orders/{order_id}:
+    get:
+      operationId: get_order
+      summary: Look up one order by its id.
+      description: >-
+        A longer description that the reader must not prefer: the summary comes first.
+      parameters:
+        - $ref: "#/components/parameters/OrderId"
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+  /orders/search:
+    get:
+      operationId: search_orders
+      summary: Find orders whose notes match some words.
+      parameters:
+        - name: query
+          in: query
+          required: false
+          description: Words to look for in the order notes.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderList"
+  /orders/{order_id}/refund:
+    parameters:
+      - $ref: "#/components/parameters/OrderId"
+    post:
+      operationId: refund_order
+      summary: Refund part or all of an order.
+      requestBody:
+        $ref: "#/components/requestBodies/Refund"
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refund"
+  /orders/{order_id}/notify:
+    parameters:
+      - $ref: "#/components/parameters/OrderId"
+    post:
+      operationId: notify_customer
+      summary: Send the customer a note about an order.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                channel:
+                  type: string
+                  description: How to reach the customer.
+                  enum: [email, sms]
+              required: [channel]
+      responses:
+        "204":
+          description: Sent.
+  /channels:
+    get:
+      operationId: list_channels
+      summary: List the channels a note can go out on.
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Channels"
+components:
+  parameters:
+    OrderId:
+      name: order_id
+      in: path
+      required: true
+      description: The order's id, six characters such as A-3317.
+      schema:
+        type: string
+        minLength: 6
+        maxLength: 6
+  requestBodies:
+    Refund:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              amount:
+                type: number
+                description: The amount to refund, in dollars.
+                minimum: 0
+              reason:
+                type: string
+                description: Why the order is refunded.
+                enum: [damaged, late, other]
+            required: [amount]
+  schemas:
+    Order:
+      type: object
+      properties:
+        order_id:
+          type: string
+        status:
+          type: string
+          enum: [open, shipped, refunded]
+        total:
+          type: number
+      required: [order_id, status, total]
+    OrderList:
+      type: object
+      properties:
+        orders:
+          type: array
+          items:
+            type: object
+            properties:
+              order_id:
+                type: string
+            required: [order_id]
+      required: [orders]
+    Refund:
+      type: object
+      properties:
+        refund_id:
+          type: string
+          format: uuid
+      required: [refund_id]
+    Channels:
+      type: object
+      properties:
+        channels:
+          type: array
+          items:
+            type: string
+      required: [channels]

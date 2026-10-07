@@ -22,7 +22,7 @@ classifiers = [
 ]
 # Everything a plain install needs. Proofload is not here: it is one of two output
 # routes and it is not public, so it is an optional extra below.
-dependencies = ["verifiers==0.3.1", "tiktoken==0.14.0"]
+dependencies = ["verifiers==0.3.1", "tiktoken==0.14.0", "pyyaml>=6.0"]
 
 [project.optional-dependencies]
 # The Proofload route has NO EXTRA while Proofload is unpublished, and the block below is

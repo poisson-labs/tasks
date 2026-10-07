@@ -103,6 +103,34 @@ License:   Apache License 2.0, per the repository's LICENSE file at the same rev
            (read 2026-09-25), whose appendix reads "Copyright 2024 Alibaba Cloud".
            The full text is at https://www.apache.org/licenses/LICENSE-2.0.
 
+The Swagger Petstore OpenAPI document -- a test fixture
+-------------------------------------------------------
+File:      tests/fixtures/o1/petstore-openapi-3.0.json (17,106 bytes)
+What:      The OpenAPI 3.0.4 document of the Swagger Petstore sample API, version 1.0.27,
+           copied unmodified as served on 2026-10-06 (sha256 00441c05add60f28da55eb4563d3fb6
+           bbda364ba8eb7b381e2e2c98613005c82). tests/test_o1_formats.py reads it into the
+           own-tools normal form as a real OpenAPI document; the package ships no part of it.
+Source:    https://petstore3.swagger.io/api/v3/openapi.json
+License:   Apache License 2.0, per the document's own `info.license` and the LICENSE file of
+           https://github.com/swagger-api/swagger-petstore (read 2026-10-06). The full text
+           is at https://www.apache.org/licenses/LICENSE-2.0.
+
+The MCP Everything reference server's tools/list -- a test fixture
+------------------------------------------------------------------
+File:      tests/fixtures/o1/mcp-everything-tools-list.json (9,907 bytes)
+What:      The `tools/list` result of @modelcontextprotocol/server-everything (npm package
+           version 2026.8.31; the server names itself "mcp-servers/everything" 2.0.0),
+           recorded once on 2026-10-06 from the server started over stdio and asked only to
+           list its tools (sha256 97068e1c2ec7d0a85d1302d66e17617f26c076a984d5e09568a310a59
+           279eed4). tests/test_o1_pending_everything_fixture.py reads it into the own-tools
+           normal form as a real MCP tool list; the package ships no part of it.
+Source:    https://github.com/modelcontextprotocol/servers (src/everything), through the npm
+           package named above.
+License:   MIT License or Apache License 2.0, per that repository's LICENSE file (read
+           2026-10-06), which says the project is moving from MIT to Apache-2.0 and that
+           contributions whose authors have not consented remain MIT. Both grant
+           redistribution with attribution; the file is attributed here under both.
+
 Model weights and datasets
 --------------------------
 None are contained in this repository. Two things fetch them at run time, on the
@@ -175,6 +203,30 @@ License:     MIT
 
     The above copyright notice and this permission notice shall be included in all
     copies or substantial portions of the Software.
+
+PyYAML 6.0.3
+------------
+Upstream:    https://github.com/yaml/pyyaml
+Source read: the LICENSE file inside the installed 6.0.3 wheel
+             (PyYAML-6.0.3.dist-info/licenses/LICENSE), read on 2026-10-06
+License:     MIT License
+
+    Copyright (c) 2017-2021 Ingy döt Net
+    Copyright (c) 2006-2016 Kirill Simonov
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy of
+    this software and associated documentation files (the "Software"), to deal in
+    the Software without restriction, including without limitation the rights to
+    use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+    of the Software, and to permit persons to whom the Software is furnished to do
+    so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+PyYAML reads an OpenAPI document written as YAML (poisson_tasks.own). It is declared as a
+floor, `pyyaml>=6.0`; the license above was read from the 6.0.3 wheel. Nothing from it is
+copied into this repository.
 
 ================================================================================
 3. Development dependencies
