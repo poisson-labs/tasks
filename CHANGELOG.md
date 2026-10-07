@@ -5,6 +5,29 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### Faulty tools
+
+- **A fourth knob makes tasks: `faults`**, at levels 0, 1, 2 and 4. At level F the first
+  ceil(F/2) calls to the task's first stage tool and the first floor(F/2) calls to its second
+  answer `unavailable`: nothing changed, and the same call works when it is made again. The task
+  is otherwise the base task, and its system prompt says so in one sentence at every level,
+  level 0 included, so the knob does not also test whether a model guesses that.
+- **A failure is counted per tool, over the calls that reach the tool server.** A call the
+  harness answers itself (arguments that are not a JSON object, or a tool the block does not
+  show) uses up no planned failure. The tool server and the verifier apply the plan through one
+  function, so a verdict replays exactly what the model was told.
+- **A control arm, `faults:f0+len(f4)`,** puts earlier tool work before the first move, three
+  read pairs as long as level 4's four failed calls, so a drop can be read against length alone.
+- **A record says whether the episode gave up after a fault**: `gave_up_after_fault`, true when a
+  tool answered `unavailable` and was never called again, and left out on an arm that plans no
+  failure. A faults cell counts them; nothing is gated on it.
+- **A faults run's tool messages are replayed against the engine** when its records are read; a
+  disagreement is `replay_mismatch` and scores nothing.
+- **`eval` takes a faults arm, with one note**: no published card covers it. The five knobs whose
+  tasks are not built yet are still refused in one line, by the generator and by `eval`.
+- **`init` and `tasks.toml` do not offer faults** until its probe has shown it bites.
+- **Every task id and the generator hash moved**; no task of the other three knobs changed.
+
 ### Tool similarity
 
 - **A third knob makes tasks: `similarity`**, at levels 0, 1, 2 and 3. Every ledger has a
