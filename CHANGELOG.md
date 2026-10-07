@@ -61,6 +61,123 @@ unreleased and sits at version `0.0.1`.
   that says so, and a run from it reserves nothing before its first episode and says so in
   `run.log`.
 
+### History in tokens
+
+- **A fifth knob makes tasks: `history`**, at levels 0, 300, 600, 1200 and 2400 reference tokens.
+  At level T the conversation holds earlier tool work before the model's first move: read calls
+  on tools in the block, each answered by the tool, whose tokens (tool name, arguments and answer,
+  as the reference tokenizer counts them) total exactly T. The task is otherwise the base task:
+  the same system prompt, the same sixteen tools, the same request and the same two calls to make.
+  Level 0 is the base task under history's name.
+- **The history is real tool work.** Every seeded call is a read the tool server would have
+  answered the same way, and none changes a record, so the model starts from the state the task
+  describes; the tool server numbers its own answers from where the history leaves off.
+- **A history run's tool messages are replayed against the engine** when its records are read,
+  from the first call the model made; a disagreement is `replay_mismatch` and scores nothing.
+- **`eval` takes a history arm, with one note**: no published card covers it. Levels between the
+  card's, up to 2400, run too. The four knobs whose tasks are not built yet are still refused in
+  one line, by the generator and by `eval`.
+- **`init` and `tasks.toml` do not offer history** until its probe has shown it bites.
+- **Every task id and the generator hash moved**; no task of the other four knobs changed.
+
+### Your own tools: the readers
+
+- **Tasks reads a tool file you already have into one normal form**: an OpenAI tools list
+  (Chat Completions or Responses functions, bare or under a `tools` key), an MCP `tools/list`
+  result (bare, in its JSON-RPC envelope, or a list of pages), or an OpenAPI 3.0 or 3.1
+  document in JSON or YAML. The format is told from the file's shape, or named. Every tool
+  becomes a name, a description, an argument schema with every `$ref` inlined, an output
+  schema where the format has one, and whether it reads or writes. An OpenAPI operation's
+  path, query and header parameters and its JSON body merge into one argument object.
+- **What it cannot handle, it refuses in one line each, and reads the rest.** A tool is
+  refused when its name is empty or repeats another's once renamed (characters outside
+  letters, digits, `_` and `-` become `_`; a name over 64 characters is cut and given eight
+  hex digits of its digest; the original is kept as the tool's title), when its argument
+  schema is not an object or uses what a simulator cannot check exactly (`anyOf`, `oneOf`,
+  `allOf`, `not`, `patternProperties`, a schema-valued `additionalProperties`, a `$ref`
+  cycle, nesting deeper than three levels), when it takes a file, a binary string or a
+  stream, or when an OpenAPI parameter and a body field would merge under one name. A whole
+  file is refused when it matches none of the three shapes, when fewer than 2 or more than
+  256 usable tools remain, or when no tool takes an argument a task could check exactly.
+- **Read or write comes from the file where it says so**: MCP's `readOnlyHint` and OpenAPI's
+  HTTP methods. OpenAI tools do not say, and count as writes until the settings say
+  otherwise.
+- **A summary and a digest.** Reading gives one line with how many tools read, write and are
+  not known, then each refusal, the SHA-256 of the file's bytes, and every renamed tool
+  beside its original name.
+- **A user's MCP server can be listed once, with their consent**: Tasks starts it, asks for
+  its tool list page by page, calls no tool, stops it, and keeps the listing as canonical
+  JSON. A program that is not an MCP server, or one that never answers, is refused in one
+  line.
+- **Nothing calls your endpoints or your tools.** No task, verdict, card or `init` question
+  is built on these readers yet; that is the second half.
+- **PyYAML is a declared dependency**, for OpenAPI documents written as YAML.
+
+### Faulty tools
+
+- **A fourth knob makes tasks: `faults`**, at levels 0, 1, 2 and 4. At level F the first
+  ceil(F/2) calls to the task's first stage tool and the first floor(F/2) calls to its second
+  answer `unavailable`: nothing changed, and the same call works when it is made again. The task
+  is otherwise the base task, and its system prompt says so in one sentence at every level,
+  level 0 included, so the knob does not also test whether a model guesses that.
+- **A failure is counted per tool, over the calls that reach the tool server.** A call the
+  harness answers itself (arguments that are not a JSON object, or a tool the block does not
+  show) uses up no planned failure. The tool server and the verifier apply the plan through one
+  function, so a verdict replays exactly what the model was told.
+- **A control arm, `faults:f0+len(f4)`,** puts earlier tool work before the first move, three
+  read pairs as long as level 4's four failed calls, so a drop can be read against length alone.
+- **A record says whether the episode gave up after a fault**: `gave_up_after_fault`, true when a
+  tool answered `unavailable` and was never called again, and left out on an arm that plans no
+  failure. A faults cell counts them; nothing is gated on it.
+- **A faults run's tool messages are replayed against the engine** when its records are read; a
+  disagreement is `replay_mismatch` and scores nothing.
+- **`eval` takes a faults arm, with one note**: no published card covers it. The five knobs whose
+  tasks are not built yet are still refused in one line, by the generator and by `eval`.
+- **`init` and `tasks.toml` do not offer faults** until its probe has shown it bites.
+- **Every task id and the generator hash moved**; no task of the other three knobs changed.
+
+### Tool similarity
+
+- **A third knob makes tasks: `similarity`**, at levels 0, 1, 2 and 3. Every ledger has a
+  four-digit number, carried in its tools' names and descriptions, and the request names the
+  target ledger by its number. The block is the base task's with twelve of its reads swapped
+  for lookalikes: the first two stage tools of six other ledgers, each named by its own number.
+  The level is how many of the four digits each lookalike ledger's number shares, in place,
+  with the target's; at level 3 the right tool sits among six one digit apart. The block's
+  length is held exactly equal across the levels, so the knob has no control arm.
+- **The verdict is strict, with leaky beside it.** A lookalike is another ledger's real tool,
+  and the target record exists in every ledger, so a call to a lookalike succeeds on the wrong
+  ledger: `collateral_mutation`, which strict fails and leaky can pass. A call to a tool name
+  the block does not show, a hidden engine name included, changes nothing.
+- **The tool server shows the numbered names and serves them.** The names, descriptions and
+  schemas a model sees are the task's byte for byte, and a call by a shown name reaches the
+  engine under the tool it stands for. When a run's records are read, a similarity episode's
+  tool messages are replayed against the engine; a disagreement is `replay_mismatch` and
+  scores nothing.
+- **`eval` takes a similarity arm, with one note**: no published card covers it. Its help
+  describes the knob. The six knobs whose tasks are not built yet are still refused in one
+  line, by the generator and by `eval`.
+- **`init` and `tasks.toml` do not offer similarity** until its probe has shown it bites.
+- **Every task id and the generator hash moved**; no task of the two card knobs changed.
+
+### The knobs' shared base
+
+- **Every task id moved, and no task did.** The generator version a user gets is now `"1"`,
+  and the generator hash covers the three modules that shape a task (`tasks.py`, `surface.py`
+  and `knobs.py`). Every task the two published cards measured regenerates with the same
+  prompt, tools, goal and reference solution under a new id.
+- **Both published cards say they are stale.** They were measured at generator 0. They still
+  recompute from their records and render every table.
+- **Seven more knobs are named**: `similarity`, `faults`, `history`, `block`, `arguments`,
+  `shape` and `spread`, each with its levels, its arm ids and its turn budget. The generator
+  makes no tasks for them yet and says so in one line.
+- **The pin ledger has thirty rows.** Seventeen are the new knobs'. Every row but the two that
+  need a run is measured on every task.
+- **A call to a tool the block does not show changes nothing when an episode is verified**, as
+  it changes nothing when the episode runs.
+- **`eval --help` calls the distractor dial retired**, and its example arm is at generator
+  version `"1"`.
+
 ### Cost and time on every card
 
 - **Every card shows what each level cost, beside its pass rates.** Every level table and

@@ -281,6 +281,17 @@ _DEPTH = "depth"
 _DISTRACTOR = "distractor"
 _KNOBS = (_DEPTH, _DISTRACTOR)
 
+# The knobs whose records get the replay check (`_replay_agrees`): the ones whose tool
+# messages are not the engine's answers to the calls as made, because the tools are served
+# under names the engine does not know (similarity) or planned failures are answered in front
+# of it (faults), or whose answers are numbered from after earlier tool work the prompt holds
+# (history), so that the tool server and the verifier applying either differently, or starting
+# their numbers apart, is a failure the records would otherwise never show.
+_REPLAY_CHECKED = ("similarity", "faults", "history")
+_REPLAY_MISMATCH = "replay_mismatch"
+# The status a planned failure answers with, as the faults knob's system prompt names it.
+_UNAVAILABLE = "unavailable"
+
 
 # ---------------------------------------------------------------------------
 # records
@@ -307,6 +318,10 @@ class EpisodeRecord:
     agent phase from start to end, `model_seconds` and `harness_seconds` are its two parts,
     `setup_seconds` is the tool server's start, and `first_request_prompt_tokens` is what the
     model was sent before its first move, cache reads included.
+
+    `gave_up_after_fault` is the faults knob's: whether the episode received an `unavailable`
+    from a tool and never called that tool again, `None` on an arm that plans no failure, and
+    then left out of the written line too.
     """
 
     task_id: str
@@ -329,6 +344,7 @@ class EpisodeRecord:
     harness_seconds: float | None = None
     setup_seconds: float | None = None
     first_request_prompt_tokens: int | None = None
+    gave_up_after_fault: bool | None = None
 
     def __post_init__(self) -> None:
         if self.label not in OUTCOME_LABELS:
@@ -359,10 +375,11 @@ class EpisodeRecord:
     @staticmethod
     def to_json(row: EpisodeRecord) -> str:
         """The wire format: one JSON object per line, keys sorted.  A time or first-request
-        figure that was not recorded is left out, so a record written before those fields
-        existed writes back as the line it was; `cost` is always written."""
+        figure that was not recorded is left out, and so is `gave_up_after_fault` on an arm
+        that plans no failure, so a record written before those fields existed writes back as
+        the line it was; `cost` is always written."""
         line = _dc.asdict(row)
-        for name in _OPTIONAL_FIELDS:
+        for name in _LEFT_OUT_WHEN_NONE:
             if line[name] is None:
                 del line[name]
         return _json.dumps(line, sort_keys=True)
@@ -376,6 +393,9 @@ _SECONDS_FIELDS = ("episode_seconds", "model_seconds", "harness_seconds", "setup
 _OPTIONAL_FIELDS = (*_SECONDS_FIELDS, "first_request_prompt_tokens")
 """The record's fields that a trace may not have measured: `None` in the record and absent
 from its written line."""
+_LEFT_OUT_WHEN_NONE = (*_OPTIONAL_FIELDS, "gave_up_after_fault")
+"""Every field a written line leaves out when it is `None`: the unmeasured ones, and the
+faults knob's verdict on an arm that plans no failure."""
 
 Cell = _Sequence[EpisodeRecord]
 
@@ -1154,6 +1174,15 @@ def _cell_figures(
     }
     figures["dollars"] = dollars(figures, provenance.rates_for(model))
     figures.update(_cost_and_time(kept, strict_1))
+    # The faults knob's figure, on a cell whose scored episodes carry a verdict: how many
+    # received an `unavailable` and never called that tool again, and their share of the
+    # episodes judged.  Printed by a card with a faults section and never gated; a cell whose
+    # records carry no verdict has neither key, so no published artifact moves.
+    judged = [row for row in kept if row.gave_up_after_fault is not None]
+    if judged:
+        gave_up = sum(1 for row in judged if row.gave_up_after_fault)
+        figures["gave_up_after_fault_count"] = gave_up
+        figures["gave_up_after_fault_share"] = gave_up / len(judged)
     return figures
 
 
@@ -2409,15 +2438,89 @@ def _time_from_trace(trace: _Any) -> dict[str, _Any]:
     return {**seconds, "first_request_prompt_tokens": first}
 
 
+def _replay_agrees(data: _Any, trace: _Any) -> bool:
+    """Whether the observations the tool server sent are the ones the verdict replays.
+
+    Every sampled call whose tool message carries the engine's `seq` reached the server; a
+    call the harness refused is answered with the harness's own line, which carries no
+    number, and is not replayed.  The calls that reached it, in the order the server numbered
+    them and each under the engine name its shown name stands for, are replayed through the
+    engine with the arm's planned failures applied in front of it, by the one function the
+    server and the verifier apply them with, and every observation must equal its tool
+    message byte for byte: the adapter's own replay check, applied to a run's traces.
+    """
+    from poisson_tasks import surface as _surface
+    from poisson_tasks.engine import init_state as _init_state
+    from poisson_tasks.export import _sampled_exchanges, _seq_of, bundle_from_data
+    from poisson_tasks.tasks import scenario_for as _scenario_for
+
+    bundle = bundle_from_data(data)
+    reached = sorted(
+        (
+            (seq, content, call)
+            for content, call in _sampled_exchanges(trace)
+            if (seq := _seq_of(content)) is not None
+        ),
+        key=lambda row: row[0],
+    )
+    shown = _surface.display_map(
+        bundle.seed, bundle.split, bundle.arm_id, bundle.goal,
+        tuple(str(tool["name"]) for tool in bundle.tools),
+    )
+    calls = [
+        (_surface.engine_name(shown, name), arguments)
+        for _seq, _content, (name, arguments) in reached
+    ]
+    plan = _surface.reference_plan(bundle.arm_id, shown, bundle.reference_calls)
+    state = _init_state(_scenario_for(bundle.seed, bundle.split), bundle.seq_start)
+    counts: dict[str, int] = {}
+    observations: list[str] = []
+    for call in calls:
+        state, counts, observation = _surface.apply_planned(state, counts, call, plan)
+        observations.append(observation)
+    return observations == [content for _seq, content, _call in reached]
+
+
+def _gave_up_after_fault(data: _Any, trace: _Any) -> bool | None:
+    """Whether the episode received an `unavailable` from a tool and never called that tool
+    again, by the name it called it; `None` on an arm that plans no failure.
+
+    A fault received is a tool message whose line carries `unavailable` as its status (the
+    harness's own `error:` lines carry none).  Calling the tool again is any later sampled
+    call by that name, whether or not the harness forwarded it: a model that met the failure
+    and wrote its retry badly did not give up, and the bad call already shows as
+    `malformed_call`.  Judged per failure received, so a tool given up on after a retry that
+    failed again counts.
+    """
+    from poisson_tasks import surface as _surface
+    from poisson_tasks.export import _sampled_exchanges, bundle_from_data
+
+    bundle = bundle_from_data(data)
+    shown = _surface.display_map(
+        bundle.seed, bundle.split, bundle.arm_id, bundle.goal,
+        tuple(str(tool["name"]) for tool in bundle.tools),
+    )
+    if not _surface.reference_plan(bundle.arm_id, shown, bundle.reference_calls):
+        return None
+    exchanges = _sampled_exchanges(trace)
+    for index, (content, (name, _arguments)) in enumerate(exchanges):
+        fields = content.split() if isinstance(content, str) else []
+        if len(fields) > 1 and fields[0].isdigit() and fields[1] == _UNAVAILABLE:
+            if not any(later == name for _c, (later, _a) in exchanges[index + 1 :]):
+                return True
+    return False
+
+
 def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecord]:
     """The per-episode records of a finished run, from its `traces.jsonl`.
 
     `strict` and `leaky` are what the wheel scored (X4's reward and the `leaky_pass`
     metric); the outcome label is `tasks.verify`'s own verdict on the trace, re-read through the
     export so that one ordering of the sampled calls exists; an instrument label from the
-    episode's signals overrides it.  Attempts are numbered by position in the file.  Each
-    record's time and first request are its trace's (`_time_from_trace`); an episode with no
-    trace recorded none.
+    episode's signals overrides it, and so does a replay that disagrees with the tool messages
+    on an arm the replay check covers (`_REPLAY_CHECKED`), which scores nothing.  Attempts
+    are numbered by position in the file.  Each record's time and first request are its
+    trace's (`_time_from_trace`); an episode with no trace recorded none.
     """
     import verifiers.v1 as _vf
     from verifiers.v1.cli.output import read_episodes
@@ -2446,7 +2549,14 @@ def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecor
                 strict = float(reward.value) == 1.0
                 leaky = float(leaky_metric) == 1.0
                 label = verdict.strict_label
-                if strict != (label == _PASSED) or leaky != verdict.leaky_pass:
+                spec = _spec_for(str(data.arm_id))
+                if (
+                    spec is not None
+                    and spec.knob in _REPLAY_CHECKED
+                    and not _replay_agrees(data, trace)
+                ):
+                    strict, leaky, label = False, False, _REPLAY_MISMATCH
+                elif strict != (label == _PASSED) or leaky != verdict.leaky_pass:
                     raise ValueError(
                         f"episode {episode.id}: the recorded reward and the re-read verdict "
                         f"disagree (strict={strict}, leaky={leaky}, label={label!r})"
@@ -2462,6 +2572,7 @@ def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecor
             reasoning_tokens=int(usage.reasoning_tokens or 0) if usage else 0,
             cost=float(usage.cost) if usage and usage.cost is not None else None,
             **(_time_from_trace(trace) if trace is not None else {}),
+            gave_up_after_fault=_gave_up_after_fault(data, trace) if trace is not None else None,
         ))
     return out
 

@@ -1,0 +1,109 @@
+{
+  "tools": [
+    {
+      "type": "function",
+      "name": "get_order",
+      "description": "Look up one order by its id.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "description": "The order's id, six characters such as A-3317.",
+            "minLength": 6,
+            "maxLength": 6
+          }
+        },
+        "required": [
+          "order_id"
+        ]
+      },
+      "strict": false
+    },
+    {
+      "type": "function",
+      "name": "search_orders",
+      "description": "Find orders whose notes match some words.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Words to look for in the order notes."
+          }
+        }
+      },
+      "strict": false
+    },
+    {
+      "type": "function",
+      "name": "refund_order",
+      "description": "Refund part or all of an order.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "description": "The order's id, six characters such as A-3317.",
+            "minLength": 6,
+            "maxLength": 6
+          },
+          "amount": {
+            "type": "number",
+            "description": "The amount to refund, in dollars.",
+            "minimum": 0
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why the order is refunded.",
+            "enum": [
+              "damaged",
+              "late",
+              "other"
+            ]
+          }
+        },
+        "required": [
+          "order_id",
+          "amount"
+        ]
+      },
+      "strict": false
+    },
+    {
+      "type": "function",
+      "name": "notify_customer",
+      "description": "Send the customer a note about an order.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "description": "The order's id, six characters such as A-3317.",
+            "minLength": 6,
+            "maxLength": 6
+          },
+          "channel": {
+            "type": "string",
+            "description": "How to reach the customer.",
+            "enum": [
+              "email",
+              "sms"
+            ]
+          }
+        },
+        "required": [
+          "order_id",
+          "channel"
+        ]
+      },
+      "strict": false
+    },
+    {
+      "type": "function",
+      "name": "list_channels",
+      "description": "List the channels a note can go out on.",
+      "strict": false
+    }
+  ]
+}

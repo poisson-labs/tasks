@@ -71,6 +71,7 @@ from poisson_tasks.knobs import ArmSpec as _ArmSpec
 from poisson_tasks.knobs import PinRecord as _PinRecord
 from poisson_tasks.knobs import arm_id as _arm_id
 from poisson_tasks.knobs import levels as _levels
+from poisson_tasks.tasks import _GENERATED_KNOBS
 from poisson_tasks.tasks import FormatSpec as _FormatSpec
 from poisson_tasks.tasks import TaskBundle as _TaskBundle
 from poisson_tasks.tasks import Turn as _Turn
@@ -146,8 +147,13 @@ def _arm_mapping(arm: _Any) -> dict[str, _Any]:
     than when the tasks are generated: a field missing, misspelled or extra; a strictness other
     than the two (a misspelled one was scored as strict); a split other than the two; a level or
     a control that is not a whole number, or outside what the knob can make.  Depth runs from 1
-    to 8 and distractor from 0 to 14, which are the ends of each knob's candidate levels: the
-    stage ladder has eight stages and the tool table offers fourteen distractors.
+    to 8, distractor from 0 to 14, similarity from 0 to 3, faults from 0 to 4 and history from 0
+    to 2400, which are the ends of each knob's candidate levels: the stage ladder has eight
+    stages, the tool table offers fourteen distractors, a lookalike shares at most three of a
+    ledger number's four digits, four failed calls is the first level that makes a model retry
+    one tool twice, and 2400 tokens of earlier tool work is the most that keeps an episode of
+    model B's at the turn cap under its context's headroom.  A knob the generator makes no
+    tasks for yet is refused by name.
 
     An arm the generator can make and no published card measured is taken, with one note.
     """
@@ -171,9 +177,11 @@ def _arm_mapping(arm: _Any) -> dict[str, _Any]:
         )
 
     knob, level, control = arm["knob"], arm["level"], arm["control"]
-    if not isinstance(knob, str) or knob not in _CONTROL_PAIRS:
+    if not isinstance(knob, str) or knob not in _GENERATED_KNOBS:
         raise ValueError(
-            f"knob {_shown(knob)} is not a knob: the knobs are {' and '.join(_CONTROL_PAIRS)}"
+            f"knob {_shown(knob)} has no tasks to run: the generator makes tasks for "
+            + ", ".join(_GENERATED_KNOBS[:-1])
+            + f" and {_GENERATED_KNOBS[-1]}"
         )
     lowest, highest = min(_levels(knob)), max(_levels(knob))
     if not _whole_number(level):
@@ -224,7 +232,9 @@ def _off_the_cards(spec: _ArmSpec) -> str:
     )
     reasons = []
     if not _on_a_published_card(plain):
-        if spec.control is None:
+        if spec.knob not in _CONTROL_PAIRS:
+            reasons.append(f"they measure {' and '.join(_CONTROL_PAIRS)}, not {spec.knob}")
+        elif spec.control is None:
             measured = [str(level) for level in _levels(spec.knob)]
             reasons.append(
                 f"they measure {spec.knob} at " + ", ".join(measured[:-1]) + f" and {measured[-1]}"
@@ -287,6 +297,16 @@ class ExportTasksetConfig(_vf.TasksetConfig):
             "knob 'distractor' (levels 0, 2, 4, 8, 14) is RETIRED and EXPERIMENTAL: on both "
             "calibrated models it does not make tasks harder, so it is not a difficulty "
             "setting. "
+            "knob 'similarity' (levels 0, 1, 2, 3) sets how many digits of a four-digit ledger "
+            "number each lookalike tool shares, in place, with the right tool's; no published "
+            "card measures it yet. "
+            "knob 'faults' (levels 0, 1, 2, 4) sets how many calls on the way answer "
+            "unavailable and must be made again; its control arm faults:f0+len(f4) seeds the "
+            "same length as earlier tool work; no published card measures it yet. "
+            "knob 'history' (levels 0, 300, 600, 1200, 2400) sets how many tokens of earlier "
+            "tool work, read calls and their answers as the reference tokenizer counts them, "
+            "the conversation holds before the model's first move; no published card "
+            "measures it yet. "
             "See docs/calibration.md."
         ),
     )
@@ -544,8 +564,9 @@ def _seq_of(content: _Any) -> int | None:
     return int(head) if head.isdigit() else None
 
 
-def _sampled_calls(trace: _Any) -> list[tuple[int | None, tuple[str, _Any]]]:
-    """Every sampled tool call with the `seq` of the tool message that follows it.
+def _sampled_exchanges(trace: _Any) -> list[tuple[_Any, tuple[str, _Any]]]:
+    """Every sampled tool call with the content of the tool message that answers it, or
+    `None` when none does.
 
     `Trace.assistant_messages` is sampled-only, so a control arm's pre-seeded messages
     are excluded by construction (X4) -- but the *tool* messages are not, and the seeded
@@ -555,7 +576,7 @@ def _sampled_calls(trace: _Any) -> list[tuple[int | None, tuple[str, _Any]]]:
     """
     open_calls: list[tuple[str, _Any]] = []
     open_ids: list[str] = []
-    found: dict[int, int | None] = {}
+    found: dict[int, _Any] = {}
     for node in trace.nodes:
         message = node.message
         if node.sampled and isinstance(message, _vf.AssistantMessage):
@@ -570,9 +591,15 @@ def _sampled_calls(trace: _Any) -> list[tuple[int | None, tuple[str, _Any]]]:
         elif isinstance(message, _vf.ToolMessage):
             for index, call_id in enumerate(open_ids):
                 if call_id == message.tool_call_id and index not in found:
-                    found[index] = _seq_of(message.content)
+                    found[index] = message.content
                     break
     return [(found.get(index), call) for index, call in enumerate(open_calls)]
+
+
+def _sampled_calls(trace: _Any) -> list[tuple[int | None, tuple[str, _Any]]]:
+    """Every sampled tool call with the `seq` of the tool message that follows it, which a
+    call the harness answered itself does not have (`_seq_of`)."""
+    return [(_seq_of(content), call) for content, call in _sampled_exchanges(trace)]
 
 
 def _ordered_turns(trace: _Any) -> tuple[tuple[_Turn, ...], bool]:
@@ -832,6 +859,8 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
         self._block: tuple[dict[str, _Any], ...] = ()
         self._shown: dict[str, _surface.Shown] = {}
         self._engine_state: _Any = None
+        self._plan: dict[str, int] = {}
+        self._counts: dict[str, int] = {}
         self._lock = _asyncio.Lock()
 
     async def setup_task(self, task: _Any) -> None:
@@ -842,7 +871,10 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
 
         The block's names are what the model is shown; which engine tool each stands for
         is `surface.display_map`'s to say, read through the module as the verifier reads
-        it, so the server answers a call exactly as the verifier will replay it.
+        it, so the server answers a call exactly as the verifier will replay it.  A faults
+        arm's planned failures are `surface.reference_plan`'s, derived the same way, keyed
+        on how many times this server has been asked for each tool; every other arm plans
+        none, and the counts start at nothing.
         """
         self._block = tuple(dict(tool) for tool in task.tools)
         self._shown = _surface.display_map(
@@ -855,6 +887,10 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
         self._engine_state = _init_state(
             _scenario_for(task.seed, task.split), task.seq_start
         )
+        self._plan = _surface.reference_plan(
+            task.arm_id, self._shown, [(str(call[0]), call[1]) for call in task.reference_calls]
+        )
+        self._counts = {}
 
     def register(self, mcp: _FastMCP) -> None:
         """The task's block, in slot order; the block is known because `setup_task` runs first.
@@ -876,11 +912,18 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
         async def body(arguments: _Any) -> str:
             # An in-process lock: `apply` is pure, and the
             # counter lives in the state this coroutine reads and then writes, so two
-            # calls that interleave between the two would take the same `seq` (E5).
+            # calls that interleave between the two would take the same `seq` (E5).  The
+            # planned failures are applied in front of the engine by the one function the
+            # verifier replays through, and the engine step is handed in under this
+            # module's name for it, so every step the server takes goes through `_apply`
+            # under the lock, planned arm or not.
             async with self._lock:
                 state = self._engine_state
-                after, observation = _apply(state, (engine, arguments))
+                after, counts, observation = _surface.apply_planned(
+                    state, self._counts, (engine, arguments), self._plan, step=_apply
+                )
                 self._engine_state = after
+                self._counts = counts
                 return observation
 
         derived = _Tool.from_function(body, name=name, description=description)

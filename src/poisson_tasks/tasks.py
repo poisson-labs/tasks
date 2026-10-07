@@ -8,7 +8,9 @@ used as written, that file's module docstring is authoritative and this file fol
 `tests/test_k1_verify.py`, `tests/test_k1_surface.py` and `tests/test_k1_hash.py` pin what
 the knobs added since need of it: targets read from a task's records, an argument check that
 takes optional parameters, names translated through `surface.display_map`, and a generator
-hash over the three modules that shape a task.
+hash over the three modules that shape a task.  `tests/test_k2_*.py` pin the similarity knob:
+B's block with twelve reads swapped for lookalikes shown under numbered names, the prompt
+naming the ledger by number, the masked fingerprint and its census.
 
 Everything here is a pure function of its arguments and the frozen vocabulary table:
 no clock, no RNG, no model, no network (G1, G2).  The engine's and the knobs module's
@@ -123,6 +125,14 @@ from poisson_tasks.engine import engine_hash as _engine_hash
 from poisson_tasks.engine import init_state as _init_state
 from poisson_tasks.engine import mutations as _mutations
 from poisson_tasks.engine import replay as _replay
+from poisson_tasks.knobs import (
+    _D_B,
+    _LEDGER_NUMBER,
+    _LOOKALIKE_LEDGERS,
+    _LOOKALIKES,
+    _NUMBER_WIDTH,
+    _parse_arm_id,
+)
 from poisson_tasks.knobs import ArmSpec as _ArmSpec
 from poisson_tasks.knobs import PinRecord as _PinRecord
 from poisson_tasks.knobs import arm_id as _arm_id
@@ -155,10 +165,15 @@ __all__ = [
 
 _SPEC = _EngineSpec.load()
 
-# The two knobs this module generates.  `ArmSpec.__post_init__` in the knobs module is what
-# refuses a name that is no knob; these are the same two strings its arm ids render.
+# The knobs this module generates.  `ArmSpec.__post_init__` in the knobs module is what
+# refuses a name that is no knob; these are the same strings its arm ids render, and the
+# knobs it names that are not here are refused by `_refuse_a_knob_not_generated`.
 _DEPTH = "depth"
 _DISTRACTOR = "distractor"
+_SIMILARITY = "similarity"
+_FAULTS = "faults"
+_HISTORY = "history"
+_GENERATED_KNOBS = (_DEPTH, _DISTRACTOR, _SIMILARITY, _FAULTS, _HISTORY)
 
 # The knobs module's `d_R`, cited and not re-minted: `reference_turns` is `d_R + 1` for
 # every R arm (N16), so the number comes back off that module's own constructor.
@@ -219,20 +234,33 @@ _COLLATERAL = "collateral_mutation"
 _PASSED = "passed"
 
 _OK_STATUS = "ok"
+_UNAVAILABLE_STATUS = "unavailable"
 
-# The prompt template.  One template for both knobs (the design gives knob D "one fixed
-# template"), so N6's template-id clause is an equality a contrast can actually fail.
+# The faults knob's one sentence, added to the system prompt at every faults level, the
+# base level included: without it the knob would also test whether a model guesses that an
+# `unavailable` answer is transient, a second factor, and the prompt would differ across the
+# knob's arms where N3 holds it equal.
+_FAULTS_SENTENCE = (
+    "A call can come back `unavailable`: nothing changed, and the same call can be made again."
+)
+
+# The prompt templates.  One template for depth and distractor (the design gives knob D
+# "one fixed template"), so N6's template-id clause is an equality a contrast can actually
+# fail; similarity's names the ledger by number instead of by class, and is otherwise the
+# same template sentence for sentence.
 _TEMPLATE_ID = "ledger-chain/v1"
+_NUMBER_TEMPLATE_ID = "ledger-number/v1"
 
 _SLOT_RECORD = "record_id"
 _SLOT_ENTRY = "entry_code"
 _SLOT_CLASS = "ledger_class"
+_SLOT_NUMBER = "ledger_number"
 _SLOT_LADDER = "stage_ladder"
 _SLOT_GOAL = "goal_stage"
 
-# The slots G15 masks: an id and an entry code are opaque strings the model copies, and
-# neither is structure.  Masking by slot name is what keeps the mask off the prose.
-_OPAQUE_SLOTS = (_SLOT_RECORD, _SLOT_ENTRY)
+# The slots G15 masks: an id, an entry code and a ledger number are opaque strings the model
+# copies, and none is structure.  Masking by slot name is what keeps the mask off the prose.
+_OPAQUE_SLOTS = (_SLOT_RECORD, _SLOT_ENTRY, _SLOT_NUMBER)
 _MASK = "<opaque>"
 
 _SYSTEM_PROMPT = (
@@ -263,6 +291,13 @@ _USER_TEMPLATE = (
     "Raise that record through {" + _SLOT_GOAL + "}, and no further.\n"
     "Open with entry code \"{" + _SLOT_ENTRY + "}\"; each later stage needs what the stage "
     "before returned."
+)
+
+# Similarity's template: the one above with the ledger named by its number, which is what
+# the right tools carry in their names.  Every piece of the number the prompt carries is in
+# the right tools' names at every level, so N7's overlap set cannot move with the lookalikes.
+_NUMBER_TEMPLATE = _USER_TEMPLATE.replace(
+    "of the {" + _SLOT_CLASS + "} ledger", "of ledger {" + _SLOT_NUMBER + "}"
 )
 
 _LADDER_SEPARATOR = " then "
@@ -815,7 +850,9 @@ def _render_block(
     block: tuple[str, ...],
 ) -> tuple[dict[str, _Any], ...]:
     """The block's schemas in slot order, each as `surface.display_map` shows it: the shown
-    name, the engine tool it stands for, and the description the block gives it."""
+    name, the engine tool it stands for, and the description the block gives it.  `block` is
+    the names the block shows (`surface.shown_names`), the engine's own for every knob but
+    similarity."""
     defs = _tool_defs(spec)
     shown = _surface.display_map(seed, split, rendered_arm, goal, block)
     return tuple(
@@ -856,7 +893,10 @@ def _block_names(
 
     Knob D: the target class's stage tools plus an equal number of orthogonal reads,
     identical at every level (N4).  Knob R: the `d_R` required tools, `r` functional
-    distractors and the rest reads, with the required tools' slots untouched (N2).
+    distractors and the rest reads, with the required tools' slots untouched (N2).  Faults:
+    knob R's base block at every level (N4), because its level is a plan over the calls and
+    not a change to the block.  History: the same base block at every level (N4), because its
+    level is earlier tool work before the first move and not a change to the block.
     """
     size = _block_size(spec)
     stage_tools = _stage_tools_of(spec, qualifier)
@@ -871,7 +911,7 @@ def _block_names(
             f"{len(base)} tools available"
         )
     names = [base[index] for index in permutation]
-    if arm.knob == _DEPTH or arm.level == 0:
+    if arm.knob in (_DEPTH, _FAULTS, _HISTORY) or arm.level == 0:
         return tuple(names)
 
     pool = _distractor_pool(spec, qualifier)
@@ -900,6 +940,38 @@ def _block_names(
     return tuple(names)
 
 
+def _similarity_block(
+    spec: _EngineSpec, seed: int, split: str, qualifier: str, permutation: tuple[int, ...]
+) -> tuple[str, ...]:
+    """B's block with twelve of its reads swapped for lookalikes, in engine names.
+
+    B is `distractor:r0@k16`'s block, as `_block_names` builds it: the right tools and
+    fourteen reads in the scenario's slot order.  The right tools keep their slots; the reads
+    in B's first two read slots stay; every later read slot takes the next lookalike, each
+    lookalike ledger's first stage then its second, the ledgers in their drawn order.  No draw
+    of its own: which reads stay follows B's slot order, and the census counts what the masked
+    block can still tell apart (`structure_space`).
+    """
+    size = _block_size(spec)
+    base = list(_stage_tools_of(spec, qualifier)[:_D_R]) + list(_read_names(spec)[: size - _D_R])
+    names = [base[index] for index in permutation]
+    lookalikes = [
+        tool
+        for other in _surface.lookalike_ledgers(seed, split, qualifier)
+        for tool in _stage_tools_of(spec, other)[:_D_B]
+    ]
+    read_slots = [slot for slot, name in enumerate(names) if name in spec.read_tools]
+    if len(lookalikes) > len(read_slots):
+        raise ValueError(
+            f"the block holds {len(read_slots)} reads and {len(lookalikes)} lookalikes would "
+            "replace them"
+        )
+    kept = len(read_slots) - len(lookalikes)
+    for slot, tool in zip(read_slots[kept:], lookalikes, strict=True):
+        names[slot] = tool
+    return tuple(names)
+
+
 def _quiet_against(name: str, core: tuple[str, ...], pieces: tuple[str, ...]) -> bool:
     """True when `name` adds no instruction token the always-present tools already carry.
 
@@ -924,23 +996,36 @@ def _goal_stage_index(spec: _EngineSpec, arm: _ArmSpec) -> int:
 
 
 def _prompt_slots(
-    spec: _EngineSpec, arm: _ArmSpec, record: str, code: str, qualifier: str
+    spec: _EngineSpec,
+    arm: _ArmSpec,
+    record: str,
+    code: str,
+    qualifier: str,
+    number: str | None,
 ) -> tuple[tuple[str, str], ...]:
     """The template's filled slots, in template order.
 
     N6 pins the slots' token count and never their values.  Every slot but the goal stage
     is equal across a knob's arms by construction, and the goal stage name is one token
     for every stage the table names -- which is what makes N6 an equality a level change
-    can pass.
+    can pass.  A similarity task names its ledger by `number` in the class slot's place.
     """
     stage = _goal_stage_index(spec, arm)
     return (
         (_SLOT_RECORD, record),
-        (_SLOT_CLASS, qualifier),
+        (_SLOT_CLASS, qualifier) if number is None else (_SLOT_NUMBER, number),
         (_SLOT_LADDER, _LADDER_SEPARATOR.join(spec.stage_names)),
         (_SLOT_GOAL, spec.stage_names[stage - 1]),
         (_SLOT_ENTRY, code),
     )
+
+
+def _template_of(slots: tuple[tuple[str, str], ...]) -> tuple[str, str]:
+    """The template id and the template the slots fill: the one that names the ledger by
+    number when the slots carry a number, else the one that names it by class."""
+    if any(name == _SLOT_NUMBER for name, _value in slots):
+        return _NUMBER_TEMPLATE_ID, _NUMBER_TEMPLATE
+    return _TEMPLATE_ID, _USER_TEMPLATE
 
 
 def _render_instruction(slots: tuple[tuple[str, str], ...]) -> str:
@@ -952,7 +1037,8 @@ def _render_instruction(slots: tuple[tuple[str, str], ...]) -> str:
     stage word in N7's overlap set at every level and generation would refuse its own
     contrast.  The target class is named exactly once (the design's lexical rule).
     """
-    return _USER_TEMPLATE.format(**dict(slots))
+    _template_id, template = _template_of(slots)
+    return template.format(**dict(slots))
 
 
 def _filler(base: str, tokens: int) -> str:
@@ -1022,6 +1108,80 @@ def _chain_calls(
         calls.append(call)
         observations.append(observation)
     return tuple(calls), tuple(observations)
+
+
+def _planned_chain(
+    scenario: _Scenario, chain: tuple[_Call, ...], seq_start: int, plan: dict[str, int]
+) -> tuple[tuple[_Call, ...], tuple[str, ...]]:
+    """The chain with the plan applied, numbered from `seq_start`: each planned failure's call
+    answered `unavailable`, and the same call, arguments and all, made again until it is
+    answered.  Through the one function the tool server and `verify` apply the plan with, so
+    the reference meets exactly the answers a model would."""
+    state = _init_state(scenario, seq_start)
+    counts: dict[str, int] = {}
+    calls: list[_Call] = []
+    observations: list[str] = []
+    for call in chain:
+        while True:
+            state, counts, observation = _surface.apply_planned(state, counts, call, plan)
+            calls.append(call)
+            observations.append(observation)
+            if _status_of(observation) != _UNAVAILABLE_STATUS:
+                break
+    return tuple(calls), tuple(observations)
+
+
+def _fault_pair_tokens(
+    spec: _EngineSpec,
+    scenario: _Scenario,
+    arm: _ArmSpec,
+    qualifier: str,
+    record: str,
+    depth: int,
+) -> int:
+    """N26's target for a faults control: the reference tokens of the fault pairs it stands in
+    for, the high level's less its own level's.  A fault pair is a planned call and its
+    `unavailable` answer, measured as N9's unit and numbered as the plain arm numbers them."""
+    chain, _observations = _chain_calls(spec, scenario, qualifier, record, depth, 1)
+    path = tuple(name for name, _args in chain)
+
+    def tokens(level: int) -> int:
+        plan = _surface.fault_plan(_arm_id(_replace(arm, level=level, control=None)), path)
+        calls, observations = _planned_chain(scenario, chain, 1, plan)
+        return sum(
+            _pair_tokens(name, args, observation)
+            for (name, args), observation in zip(calls, observations, strict=True)
+            if _status_of(observation) == _UNAVAILABLE_STATUS
+        )
+
+    return tokens(arm.control or 0) - tokens(arm.level)
+
+
+def _history_pairs(spec: _EngineSpec, reads: tuple[str, ...], target: int) -> int:
+    """N23's starting count for a history arm: `round(target / m)`, with `m` the median
+    reachable read-pair total in the block at the first seeded position.  An observation
+    carries its `seq`, so each position has its own totals; the first is the one every count
+    has.  The search then moves single pairs until the total is the target."""
+    totals = [option[0] for option in _read_options(spec, reads, 1)]
+    if not totals:
+        raise ValueError("this vocabulary table offers no orthogonal read pair to seed with")
+    # `_read_options` is sorted by total first, so the middle of its totals is their median.
+    half = len(totals) // 2
+    median = totals[half] if len(totals) % 2 else (totals[half - 1] + totals[half]) / 2
+    return round(target / median)
+
+
+def _fewest_pairs_reaching(spec: _EngineSpec, reads: tuple[str, ...], target: int) -> int:
+    """The fewest seeded read pairs whose reachable totals bracket `target`: the first count
+    whose largest total reaches it, which is also the first whose smallest total can still be
+    at or below it.  Where no count brackets the target this is the nearest count above it,
+    the search then gets as near as the table allows, and the ledger's N26 refuses the
+    contrast rather than this refusing the arm."""
+    pairs, highest = 0, 0
+    while highest < target:
+        pairs += 1
+        highest += _read_options(spec, reads, pairs)[-1][0]
+    return pairs
 
 
 def _pair_tokens(name: str, args: _Args, observation: str) -> int:
@@ -1174,6 +1334,22 @@ def _negative_controls(
             (stage_tools[goal], {record_param: record, token_param: str(final_token)}),
         )
 
+    if arm.knob == _SIMILARITY:
+        # A lookalike is another ledger's real first stage tool, and the scenario holds the
+        # target record in every ledger under the one entry code, so the reference's first
+        # call aimed at the first-stage lookalike in the lowest slot succeeds on the wrong
+        # ledger: a side effect strict fails and leaky passes.
+        lookalike = next(
+            name
+            for name in block
+            if name in spec.stage_tools
+            and spec.stage_tools[name][0] == 0
+            and name != stage_tools[0]
+        )
+        controls[f"{_COLLATERAL}_lookalike"] = reference + (
+            (lookalike, {record_param: record, entry_param: code}),
+        )
+
     in_block = reference[0][0] if reference else block[0]
     controls[f"{_MALFORMED}_clause_2"] = ((in_block, ("not", "an", "object")),)
     controls[f"{_MALFORMED}_clause_3"] = (_outside_call(spec, scenario, split, block),)
@@ -1264,6 +1440,14 @@ def _format_clauses(
 # ---------------------------------------------------------------------------
 
 
+def _reaches_the_server(name: _Any, args: _Any, block: dict[str, dict[str, _Any]]) -> bool:
+    """Whether the harness forwards a call to the tool server, applied per call as the
+    verifier sees it: the arguments a JSON object and the name one the block shows.  Any other
+    call the harness answers itself, with a line that carries no sequence number, and the
+    server never receives it, so it takes no planned failure."""
+    return isinstance(args, dict) and isinstance(name, str) and name in block
+
+
 def verify(
     bundle: TaskBundle,
     turns: tuple[Turn, ...],
@@ -1322,10 +1506,20 @@ def _verdict(
     shown = _surface.display_map(
         bundle.seed, bundle.split, bundle.arm_id, bundle.goal, tuple(block)
     )
-    calls = [
-        (_surface.engine_name(shown, name), args) for turn in turns for name, args in turn.calls
-    ]
-    state, _observations = _replay(scenario, calls, bundle.seq_start)
+    # The arm's planned failures, derived as the tool server derives them and applied through
+    # the same function, counted over the calls the server received: a call the harness
+    # answered itself takes none, and reaches the engine here as it always has, as no tool or
+    # as arguments the engine refuses, changing nothing.
+    plan = _surface.reference_plan(bundle.arm_id, shown, bundle.reference_calls)
+    state = start
+    counts: dict[str, int] = {}
+    for turn in turns:
+        for name, args in turn.calls:
+            call: _Call = (_surface.engine_name(shown, name), args)
+            if _reaches_the_server(name, args, block):
+                state, counts, _observation = _surface.apply_planned(state, counts, call, plan)
+            else:
+                state, _observation = _apply(state, call)
     final = _records_value(state)
     changed = tuple(_mutations(start, state))
 
@@ -1456,12 +1650,49 @@ def structural_fingerprint(bundle: TaskBundle) -> str:
         "slots": [
             [name, _MASK if name in _OPAQUE_SLOTS else value] for name, value in bundle.prompt_slots
         ],
-        "tools": _canon(bundle.tools),
+        "tools": _masked_tools(bundle),
         "target_class": bundle.goal[0],
         "goal_stage": bundle.goal[2],
         "seeded": seeded,
     }
     return _hashlib.sha256(_FINGERPRINT_DOMAIN + _canonical_bytes(body)).hexdigest()
+
+
+def _masked_tools(bundle: TaskBundle) -> _Any:
+    """The tools as the fingerprint reads them: canonical, in slot order, and for a similarity
+    arm with every ledger number masked.
+
+    A number's digits are opaque, as the record id's letters are, but which places a
+    lookalike's number shares with the target's is structure (the census counts the kept
+    places), so each number in a name or a description is replaced by its pattern against the
+    target's: `<==##>` for one sharing the first two places, `<====>` for the target's own.
+    Every other knob's tools are read as they are; a bundle whose arm id names no arm has no
+    knob to mask for.
+    """
+    tools = _canon(bundle.tools)
+    try:
+        knob = _parse_arm_id(bundle.arm_id).knob
+    except ValueError:
+        return tools
+    if knob != _SIMILARITY:
+        return tools
+    slots = dict(bundle.prompt_slots)
+    if _SLOT_NUMBER not in slots:
+        raise ValueError("a similarity bundle names its target ledger in the ledger_number slot")
+    target = slots[_SLOT_NUMBER]
+
+    def pattern(match: _Any) -> str:
+        number = match.group(0)
+        places = zip(number, target, strict=True)
+        return "<" + "".join("=" if a == b else "#" for a, b in places) + ">"
+
+    return [
+        {
+            key: _LEDGER_NUMBER.sub(pattern, value) if key in ("name", "description") else value
+            for key, value in tool.items()
+        }
+        for tool in tools
+    ]
 
 
 def _mask_arguments(arguments: dict[str, _Any]) -> dict[str, _Any]:
@@ -1493,10 +1724,27 @@ def structure_space(arm: _ArmSpec, spec: _EngineSpec | None = None) -> int:
     For a control arm the count is a **lower bound**: the seeded block is a derivation of
     the scenario, so two scenarios sharing a class and a slot order can still seed
     different blocks.  That is the conservative direction for G16's floor, because a
-    smaller `k` overstates the chance a run repeats a structure.
+    smaller `k` overstates the chance a run repeats a structure.  A faults arm's first
+    request is knob R's base block, prompt and system prompt at every level, so its count is
+    that base arm's.  So is a history arm's: its block, system prompt and instruction are the
+    base arm's at every level, and its seeded pairs are a derivation of the scenario, as a
+    depth control's are, so the count is a lower bound for the levels that seed any.
     """
     _refuse_a_knob_not_generated(arm)
     engine_spec = _resolve(spec)
+    if arm.knob == _SIMILARITY:
+        # What the masked block can tell apart: the target class; the right tools' two slots
+        # and, among the rest, which two reads stay (they take the first two remaining slots
+        # in B's order, so only their identities vary); and the places each lookalike ledger's
+        # number shares with the target's.  The lookalike ledgers' identities and the order of
+        # the twelve reads they replaced are masked away with the numbers, so they are not
+        # counted: counting them would overstate the space, the direction G16's floor must
+        # never err in.
+        size = _block_size(engine_spec)
+        reads = size - _D_R
+        placed = _math.perm(size, _D_R) * _math.perm(reads, reads - _LOOKALIKES)
+        shared: int = _math.comb(_NUMBER_WIDTH, arm.level) ** _LOOKALIKE_LEDGERS
+        return len(engine_spec.qualifiers) * placed * shared
     space = len(engine_spec.qualifiers) * _math.factorial(_block_size(engine_spec))
     if arm.knob == _DISTRACTOR and arm.level > 0:
         pool = len(_distractor_pool(engine_spec, engine_spec.qualifiers[0]))
@@ -1512,13 +1760,14 @@ def structure_space(arm: _ArmSpec, spec: _EngineSpec | None = None) -> int:
 
 def _refuse_a_knob_not_generated(arm: _ArmSpec) -> None:
     """The knobs module names every knob, with its levels, its arm ids and its ledger rows;
-    this module makes tasks for the two below.  Without the refusal an arm of any other knob
-    would be built as a distractor arm under another knob's id."""
-    if arm.knob not in (_DEPTH, _DISTRACTOR):
+    this module makes tasks for `_GENERATED_KNOBS`.  Without the refusal an arm of any other
+    knob would be built as a distractor arm under another knob's id."""
+    if arm.knob not in _GENERATED_KNOBS:
         raise ValueError(
             f"no {arm.knob} task can be generated yet: the {arm.knob} knob has its levels, its "
-            f"arm ids and its pin-ledger rows, and the generator makes {_DEPTH} and "
-            f"{_DISTRACTOR} tasks"
+            f"arm ids and its pin-ledger rows, and the generator makes "
+            + ", ".join(_GENERATED_KNOBS[:-1])
+            + f" and {_GENERATED_KNOBS[-1]} tasks"
         )
 
 
@@ -1539,18 +1788,40 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
     record = encode_record_id(seed, arm.split)
     decoy = encode_record_id(_decoy_seed(seed, arm.split), arm.split)
     code = scenario.records[(qualifier, record)]
-    slots = _prompt_slots(engine_spec, arm, record, code, qualifier)
+    rendered = _arm_id(arm)
+    number = _surface.target_number(seed, arm.split) if arm.knob == _SIMILARITY else None
+    slots = _prompt_slots(engine_spec, arm, record, code, qualifier, number)
     instruction = _render_instruction(slots)
-    block = _block_names(engine_spec, arm, qualifier, permutation, pool_order, instruction)
+    if arm.knob == _SIMILARITY:
+        block = _similarity_block(engine_spec, seed, arm.split, qualifier, permutation)
+    else:
+        block = _block_names(engine_spec, arm, qualifier, permutation, pool_order, instruction)
     goal = _goal_stage_index(engine_spec, arm)
     target = (qualifier, record, goal)
-    tools = _render_block(engine_spec, seed, arm.split, _arm_id(arm), target, block)
+    # The block is built in engine names and shown under the names the surface gives them;
+    # the two are one list for every knob but similarity.
+    shown_block = _surface.shown_names(seed, arm.split, rendered, target, block)
+    tools = _render_block(engine_spec, seed, arm.split, rendered, target, shown_block)
 
     seq_start = 1
     system_prompt = _SYSTEM_PROMPT
+    if arm.knob == _FAULTS:
+        system_prompt = system_prompt + "\n" + _FAULTS_SENTENCE
     prompt: str | tuple[dict[str, _Any], ...] = instruction
 
-    if arm.control is not None and arm.knob == _DEPTH:
+    if arm.knob == _HISTORY:
+        # History: the base task with read pairs seeded before the first move, as a depth
+        # control's are (N24), `round(T / m)` of them, searched until their tokens total the
+        # level (N23).  A level whose count rounds to none, level 0 among them, seeds nothing
+        # and leaves the prompt a string, as the base task's is.
+        reads = tuple(name for name in block if name in engine_spec.read_tools)
+        pairs = _history_pairs(engine_spec, reads, arm.level)
+        if pairs:
+            seq_start = pairs + 1
+            prompt = _seeded_messages(
+                instruction, _seeded_block(engine_spec, reads, pairs, arm.level)
+            )
+    elif arm.control is not None and arm.knob == _DEPTH:
         pairs = arm.control - arm.level
         seq_start = pairs + 1
         reads = tuple(name for name in block if name in engine_spec.read_tools)
@@ -1563,6 +1834,16 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
                 _high_calls[arm.level :], _high_observations[arm.level :], strict=True
             )
         )
+        prompt = _seeded_messages(instruction, _seeded_block(engine_spec, reads, pairs, wanted))
+    elif arm.control is not None and arm.knob == _FAULTS:
+        # The faults control: the base level's task with read pairs seeded before the first
+        # move, as long as the fault pairs the high level adds, so a drop can be read against
+        # the same length added as earlier tool work.  The fewest pairs whose reachable totals
+        # bracket that length (N26), seeded as a depth control's are (N24).
+        reads = tuple(name for name in block if name in engine_spec.read_tools)
+        wanted = _fault_pair_tokens(engine_spec, scenario, arm, qualifier, record, goal)
+        pairs = _fewest_pairs_reaching(engine_spec, reads, wanted)
+        seq_start = pairs + 1
         prompt = _seeded_messages(instruction, _seeded_block(engine_spec, reads, pairs, wanted))
     elif arm.control is not None:
         # The R control: the `r0` block, plus a frozen neutral filler whose token count
@@ -1585,14 +1866,32 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
     )
     start = _init_state(scenario, seq_start)
     final, _replayed = _replay(scenario, list(reference_calls), seq_start)
+    if arm.knob == _FAULTS:
+        # The reference carries the retries: each planned failure's call, answered
+        # `unavailable`, and the same call again (N25).  The plan is read off the arm id and
+        # the reference's own tools, as `verify` and the tool server read it, so the controls
+        # built from this reference meet the same answers.
+        plan = _surface.fault_plan(rendered, tuple(name for name, _args in reference_calls))
+        reference_calls, reference_observations = _planned_chain(
+            scenario, reference_calls, seq_start, plan
+        )
     final_token = _payload_of(reference_observations[-1]) if reference_observations else None
 
     controls = _negative_controls(
         engine_spec, scenario, arm, qualifier, record, decoy, arm.split, block,
         reference_calls, final_token,
     )
+    # The reference and the controls call the tools as the block shows them, which `verify`
+    # and the tool server map back to the engine; a control's call to a tool outside the
+    # block keeps the engine's name, which the block shows nothing under.
+    to_shown = dict(zip(block, shown_block, strict=True))
+    reference_calls = tuple((to_shown[name], args) for name, args in reference_calls)
+    controls = {
+        key: tuple((to_shown.get(name, name), args) for name, args in calls)
+        for key, calls in controls.items()
+    }
 
-    rendered = _arm_id(arm)
+    template_id, _template = _template_of(slots)
     bundle = TaskBundle(
         task_id="",
         arm_id=rendered,
@@ -1603,7 +1902,7 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
         prompt=prompt,
         tools=tools,
         seq_start=seq_start,
-        template_id=_TEMPLATE_ID,
+        template_id=template_id,
         prompt_slots=slots,
         initial_state=_records_value(start),
         expected_final_state=_records_value(final),
@@ -1676,7 +1975,7 @@ def generate_contrast(
 
 
 def _check_template_words() -> None:
-    """The template's prose carries no token that is a substring of a read tool's name or
+    """The templates' prose carries no token that is a substring of a read tool's name or
     of a qualifier.
 
     N7 holds the prompt-to-tool-name overlap *set* equal across a knob's arms, and knob
@@ -1686,8 +1985,8 @@ def _check_template_words() -> None:
     are the second line; this is the first, and it is asserted at import because the
     failure it prevents surfaces three modules away as a refused ledger row.
     """
-    prose = _USER_TEMPLATE
-    for slot in (_SLOT_RECORD, _SLOT_CLASS, _SLOT_LADDER, _SLOT_GOAL, _SLOT_ENTRY):
+    prose = _USER_TEMPLATE + "\n" + _NUMBER_TEMPLATE
+    for slot in (_SLOT_RECORD, _SLOT_CLASS, _SLOT_NUMBER, _SLOT_LADDER, _SLOT_GOAL, _SLOT_ENTRY):
         prose = prose.replace("{" + slot + "}", "\n")
     names = tuple(_SPEC.read_tools) + tuple(_SPEC.qualifiers)
     for piece in _instruction_pieces(prose):
