@@ -67,6 +67,7 @@ using the tools it is given and nothing else.
 | the model path, standalone | **built** -- the taskset id `poisson-tasks` resolves, and `eval` runs the measured harness against an OpenAI-compatible endpoint with no flag |
 | difficulty calibration | **built** -- pass@k per level with task-clustered intervals, paired level-to-level comparisons, cost, and the refusals that keep a card honest; **run for two models**, `gpt-5-nano` and `Qwen3-8B` |
 | a locally served model's card | **built and run** -- a Colab notebook that serves `Qwen3-8B` with vLLM on an L4 and runs the same card, resumable after a dropped runtime |
+| your own tools, the readers | **built** -- an OpenAI tools file, an MCP tool list or an OpenAPI document is read into one form, with a plain one-line refusal for each tool it cannot handle; generating tasks on those tools arrives with the next part |
 
 "Built" means covered by the test suite: **2101 tests**, and `python -m pytest -q` is the check.
 
