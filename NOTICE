@@ -204,6 +204,30 @@ License:     MIT
     The above copyright notice and this permission notice shall be included in all
     copies or substantial portions of the Software.
 
+PyYAML 6.0.3
+------------
+Upstream:    https://github.com/yaml/pyyaml
+Source read: the LICENSE file inside the installed 6.0.3 wheel
+             (PyYAML-6.0.3.dist-info/licenses/LICENSE), read on 2026-10-06
+License:     MIT License
+
+    Copyright (c) 2017-2021 Ingy döt Net
+    Copyright (c) 2006-2016 Kirill Simonov
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy of
+    this software and associated documentation files (the "Software"), to deal in
+    the Software without restriction, including without limitation the rights to
+    use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+    of the Software, and to permit persons to whom the Software is furnished to do
+    so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+PyYAML reads an OpenAPI document written as YAML (poisson_tasks.own). It is declared as a
+floor, `pyyaml>=6.0`; the license above was read from the 6.0.3 wheel. Nothing from it is
+copied into this repository.
+
 ================================================================================
 3. Development dependencies
 ================================================================================
