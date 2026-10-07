@@ -5,6 +5,25 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### History in tokens
+
+- **A fifth knob makes tasks: `history`**, at levels 0, 300, 600, 1200 and 2400 reference tokens.
+  At level T the conversation holds earlier tool work before the model's first move: read calls
+  on tools in the block, each answered by the tool, whose tokens (tool name, arguments and answer,
+  as the reference tokenizer counts them) total exactly T. The task is otherwise the base task:
+  the same system prompt, the same sixteen tools, the same request and the same two calls to make.
+  Level 0 is the base task under history's name.
+- **The history is real tool work.** Every seeded call is a read the tool server would have
+  answered the same way, and none changes a record, so the model starts from the state the task
+  describes; the tool server numbers its own answers from where the history leaves off.
+- **A history run's tool messages are replayed against the engine** when its records are read,
+  from the first call the model made; a disagreement is `replay_mismatch` and scores nothing.
+- **`eval` takes a history arm, with one note**: no published card covers it. Levels between the
+  card's, up to 2400, run too. The four knobs whose tasks are not built yet are still refused in
+  one line, by the generator and by `eval`.
+- **`init` and `tasks.toml` do not offer history** until its probe has shown it bites.
+- **Every task id and the generator hash moved**; no task of the other four knobs changed.
+
 ### Your own tools: the readers
 
 - **Tasks reads a tool file you already have into one normal form**: an OpenAI tools list
