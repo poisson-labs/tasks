@@ -147,11 +147,13 @@ def _arm_mapping(arm: _Any) -> dict[str, _Any]:
     than when the tasks are generated: a field missing, misspelled or extra; a strictness other
     than the two (a misspelled one was scored as strict); a split other than the two; a level or
     a control that is not a whole number, or outside what the knob can make.  Depth runs from 1
-    to 8, distractor from 0 to 14, similarity from 0 to 3 and faults from 0 to 4, which are the
-    ends of each knob's candidate levels: the stage ladder has eight stages, the tool table
-    offers fourteen distractors, a lookalike shares at most three of a ledger number's four
-    digits, and four failed calls is the first level that makes a model retry one tool twice.
-    A knob the generator makes no tasks for yet is refused by name.
+    to 8, distractor from 0 to 14, similarity from 0 to 3, faults from 0 to 4 and history from 0
+    to 2400, which are the ends of each knob's candidate levels: the stage ladder has eight
+    stages, the tool table offers fourteen distractors, a lookalike shares at most three of a
+    ledger number's four digits, four failed calls is the first level that makes a model retry
+    one tool twice, and 2400 tokens of earlier tool work is the most that keeps an episode of
+    model B's at the turn cap under its context's headroom.  A knob the generator makes no
+    tasks for yet is refused by name.
 
     An arm the generator can make and no published card measured is taken, with one note.
     """
@@ -301,6 +303,10 @@ class ExportTasksetConfig(_vf.TasksetConfig):
             "knob 'faults' (levels 0, 1, 2, 4) sets how many calls on the way answer "
             "unavailable and must be made again; its control arm faults:f0+len(f4) seeds the "
             "same length as earlier tool work; no published card measures it yet. "
+            "knob 'history' (levels 0, 300, 600, 1200, 2400) sets how many tokens of earlier "
+            "tool work, read calls and their answers as the reference tokenizer counts them, "
+            "the conversation holds before the model's first move; no published card "
+            "measures it yet. "
             "See docs/calibration.md."
         ),
     )

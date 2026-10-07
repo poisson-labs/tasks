@@ -275,9 +275,10 @@ _KNOBS = (_DEPTH, _DISTRACTOR)
 # The knobs whose records get the replay check (`_replay_agrees`): the ones whose tool
 # messages are not the engine's answers to the calls as made, because the tools are served
 # under names the engine does not know (similarity) or planned failures are answered in front
-# of it (faults), so that the tool server and the verifier applying either differently is a
-# failure the records would otherwise never show.
-_REPLAY_CHECKED = ("similarity", "faults")
+# of it (faults), or whose answers are numbered from after earlier tool work the prompt holds
+# (history), so that the tool server and the verifier applying either differently, or starting
+# their numbers apart, is a failure the records would otherwise never show.
+_REPLAY_CHECKED = ("similarity", "faults", "history")
 _REPLAY_MISMATCH = "replay_mismatch"
 # The status a planned failure answers with, as the faults knob's system prompt names it.
 _UNAVAILABLE = "unavailable"

@@ -172,7 +172,8 @@ _DEPTH = "depth"
 _DISTRACTOR = "distractor"
 _SIMILARITY = "similarity"
 _FAULTS = "faults"
-_GENERATED_KNOBS = (_DEPTH, _DISTRACTOR, _SIMILARITY, _FAULTS)
+_HISTORY = "history"
+_GENERATED_KNOBS = (_DEPTH, _DISTRACTOR, _SIMILARITY, _FAULTS, _HISTORY)
 
 # The knobs module's `d_R`, cited and not re-minted: `reference_turns` is `d_R + 1` for
 # every R arm (N16), so the number comes back off that module's own constructor.
@@ -894,7 +895,8 @@ def _block_names(
     identical at every level (N4).  Knob R: the `d_R` required tools, `r` functional
     distractors and the rest reads, with the required tools' slots untouched (N2).  Faults:
     knob R's base block at every level (N4), because its level is a plan over the calls and
-    not a change to the block.
+    not a change to the block.  History: the same base block at every level (N4), because its
+    level is earlier tool work before the first move and not a change to the block.
     """
     size = _block_size(spec)
     stage_tools = _stage_tools_of(spec, qualifier)
@@ -909,7 +911,7 @@ def _block_names(
             f"{len(base)} tools available"
         )
     names = [base[index] for index in permutation]
-    if arm.knob in (_DEPTH, _FAULTS) or arm.level == 0:
+    if arm.knob in (_DEPTH, _FAULTS, _HISTORY) or arm.level == 0:
         return tuple(names)
 
     pool = _distractor_pool(spec, qualifier)
@@ -1153,6 +1155,20 @@ def _fault_pair_tokens(
         )
 
     return tokens(arm.control or 0) - tokens(arm.level)
+
+
+def _history_pairs(spec: _EngineSpec, reads: tuple[str, ...], target: int) -> int:
+    """N23's starting count for a history arm: `round(target / m)`, with `m` the median
+    reachable read-pair total in the block at the first seeded position.  An observation
+    carries its `seq`, so each position has its own totals; the first is the one every count
+    has.  The search then moves single pairs until the total is the target."""
+    totals = [option[0] for option in _read_options(spec, reads, 1)]
+    if not totals:
+        raise ValueError("this vocabulary table offers no orthogonal read pair to seed with")
+    # `_read_options` is sorted by total first, so the middle of its totals is their median.
+    half = len(totals) // 2
+    median = totals[half] if len(totals) % 2 else (totals[half - 1] + totals[half]) / 2
+    return round(target / median)
 
 
 def _fewest_pairs_reaching(spec: _EngineSpec, reads: tuple[str, ...], target: int) -> int:
@@ -1710,7 +1726,9 @@ def structure_space(arm: _ArmSpec, spec: _EngineSpec | None = None) -> int:
     different blocks.  That is the conservative direction for G16's floor, because a
     smaller `k` overstates the chance a run repeats a structure.  A faults arm's first
     request is knob R's base block, prompt and system prompt at every level, so its count is
-    that base arm's.
+    that base arm's.  So is a history arm's: its block, system prompt and instruction are the
+    base arm's at every level, and its seeded pairs are a derivation of the scenario, as a
+    depth control's are, so the count is a lower bound for the levels that seed any.
     """
     _refuse_a_knob_not_generated(arm)
     engine_spec = _resolve(spec)
@@ -1791,7 +1809,19 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
         system_prompt = system_prompt + "\n" + _FAULTS_SENTENCE
     prompt: str | tuple[dict[str, _Any], ...] = instruction
 
-    if arm.control is not None and arm.knob == _DEPTH:
+    if arm.knob == _HISTORY:
+        # History: the base task with read pairs seeded before the first move, as a depth
+        # control's are (N24), `round(T / m)` of them, searched until their tokens total the
+        # level (N23).  A level whose count rounds to none, level 0 among them, seeds nothing
+        # and leaves the prompt a string, as the base task's is.
+        reads = tuple(name for name in block if name in engine_spec.read_tools)
+        pairs = _history_pairs(engine_spec, reads, arm.level)
+        if pairs:
+            seq_start = pairs + 1
+            prompt = _seeded_messages(
+                instruction, _seeded_block(engine_spec, reads, pairs, arm.level)
+            )
+    elif arm.control is not None and arm.knob == _DEPTH:
         pairs = arm.control - arm.level
         seq_start = pairs + 1
         reads = tuple(name for name in block if name in engine_spec.read_tools)
