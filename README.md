@@ -44,11 +44,13 @@ using the tools it is given and nothing else.
   long as `d8` and as deep as `d1`, and `distractor:r0+len(r8)@k16` holds the block's
   token count where `r8` puts it while keeping `r0`'s tools; `similarity` at
   `0, 1, 2, 3`, how many digits of a four-digit ledger number each lookalike tool shares
-  with the right tool's, whose block length is held equal so it needs no control arm; and
+  with the right tool's, whose block length is held equal so it needs no control arm;
   `faults` at `0, 1, 2, 4`, how many calls on the way answer `unavailable` and must be made
   again, with a control arm, `faults:f0+len(f4)`, that adds the same length as earlier tool
-  work. Five more knobs are named with their levels and arm ids, and get their tasks module
-  by module [*source:* [`docs/knobs-and-arms.md`](docs/knobs-and-arms.md)].
+  work; and `history` at `0, 300, 600, 1200, 2400`, how many tokens of earlier tool work
+  the conversation holds before the first move, which is length itself, so it has no
+  control arm. Four more knobs are named with their levels and arm ids, and get their
+  tasks module by module [*source:* [`docs/knobs-and-arms.md`](docs/knobs-and-arms.md)].
 - **The pin ledger.** Thirty rows, each an equality across the arms of one contrast,
   measured on the generated bundles. A violated row refuses the contrast before any model
   runs -- except the rows that report rather than refuse, N5, the block's token count,
@@ -62,7 +64,7 @@ using the tools it is given and nothing else.
 |---|---|
 | the domain engine | **built** -- a pure state machine over a twelve-class ledger |
 | the reference tokenizer | **built** -- o200k_base, offline |
-| knobs, arms and the pin ledger | **built** -- nine knobs named, four with tasks (`depth`, `distractor`, `similarity`, `faults`), the control arms, thirty rows; the `distractor` knob is **experimental** (below) |
+| knobs, arms and the pin ledger | **built** -- nine knobs named, five with tasks (`depth`, `distractor`, `similarity`, `faults`, `history`), the control arms, thirty rows; the `distractor` knob is **experimental** (below) |
 | task and verifier generation | **built** -- `generate`, `verify`, the outcome vocabulary, the negative controls |
 | the Proofload adapter, scripted path | **built** -- runs end to end against Proofload with no model, on an installed Proofload checkout |
 | the `verifiers` taskset export | **built** -- the task data, the task with its reward, the tool server, and a finite taskset over a declared list of seeds |
