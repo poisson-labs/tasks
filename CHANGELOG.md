@@ -5,6 +5,39 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### Your own tools: the readers
+
+- **Tasks reads a tool file you already have into one normal form**: an OpenAI tools list
+  (Chat Completions or Responses functions, bare or under a `tools` key), an MCP `tools/list`
+  result (bare, in its JSON-RPC envelope, or a list of pages), or an OpenAPI 3.0 or 3.1
+  document in JSON or YAML. The format is told from the file's shape, or named. Every tool
+  becomes a name, a description, an argument schema with every `$ref` inlined, an output
+  schema where the format has one, and whether it reads or writes. An OpenAPI operation's
+  path, query and header parameters and its JSON body merge into one argument object.
+- **What it cannot handle, it refuses in one line each, and reads the rest.** A tool is
+  refused when its name is empty or repeats another's once renamed (characters outside
+  letters, digits, `_` and `-` become `_`; a name over 64 characters is cut and given eight
+  hex digits of its digest; the original is kept as the tool's title), when its argument
+  schema is not an object or uses what a simulator cannot check exactly (`anyOf`, `oneOf`,
+  `allOf`, `not`, `patternProperties`, a schema-valued `additionalProperties`, a `$ref`
+  cycle, nesting deeper than three levels), when it takes a file, a binary string or a
+  stream, or when an OpenAPI parameter and a body field would merge under one name. A whole
+  file is refused when it matches none of the three shapes, when fewer than 2 or more than
+  256 usable tools remain, or when no tool takes an argument a task could check exactly.
+- **Read or write comes from the file where it says so**: MCP's `readOnlyHint` and OpenAPI's
+  HTTP methods. OpenAI tools do not say, and count as writes until the settings say
+  otherwise.
+- **A summary and a digest.** Reading gives one line with how many tools read, write and are
+  not known, then each refusal, the SHA-256 of the file's bytes, and every renamed tool
+  beside its original name.
+- **A user's MCP server can be listed once, with their consent**: Tasks starts it, asks for
+  its tool list page by page, calls no tool, stops it, and keeps the listing as canonical
+  JSON. A program that is not an MCP server, or one that never answers, is refused in one
+  line.
+- **Nothing calls your endpoints or your tools.** No task, verdict, card or `init` question
+  is built on these readers yet; that is the second half.
+- **PyYAML is a declared dependency**, for OpenAPI documents written as YAML.
+
 ### Tool similarity
 
 - **A third knob makes tasks: `similarity`**, at levels 0, 1, 2 and 3. Every ledger has a
