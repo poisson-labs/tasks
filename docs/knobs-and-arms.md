@@ -8,7 +8,7 @@ the pin ledger is what makes that a measurement rather than a hope.
 
 ## The knobs
 
-Nine are named. The generator makes tasks for the first five today; the other four have
+Nine are named. The generator makes tasks for the first six today; the other three have
 their levels, their arm ids, their turn budgets and their pin-ledger rows, and
 `generate` refuses their arms in one line until their tasks are built.
 
@@ -42,8 +42,9 @@ in a sixteen-tool block.
 
 A level outside a knob's candidates can still be an arm (`history:t12800`); a level the
 knob's design has no task for cannot, and `ArmSpec` refuses it: a similarity level outside
-0 to 3, a negative faults or history level, a block under 8, an arguments level outside 2
-to 8, a shape width other than 1, 2 or 4, a spread level outside 1 to 4.
+0 to 3, a negative faults or history level, a block under 8 or over 258 (the two tools the
+task needs and every read name the table can make), an arguments level outside 2 to 8, a
+shape width other than 1, 2 or 4, a spread level outside 1 to 4.
 
 `levels(knob)` returns the candidate levels. Which of them a study actually sweeps is a
 pre-registration decision, not a property of the generator.

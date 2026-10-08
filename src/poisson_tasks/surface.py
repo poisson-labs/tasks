@@ -11,7 +11,10 @@ numbered names are pinned by `tests/test_k2_block.py`; the faults knob's plan an
 `tests/test_k3_plan.py` and `tests/test_k3_counting.py`.
 
 `display_map` and `fault_plan` take the tools as an argument and never read the built-in
-block themselves, so a block of a caller's own tools goes through them unchanged.
+block themselves, so a block of a caller's own tools goes through them unchanged, with one
+exception the block-size knob needs: on a block arm, a name made of one of the table's read
+verbs and one of its facets that the engine does not read under is a read copy, shown as
+the engine read of that facet (`_block_shown`; `tests/test_k5_aliases.py`).
 """
 
 from __future__ import annotations
@@ -28,6 +31,7 @@ from poisson_tasks.engine import DomainState as _DomainState
 from poisson_tasks.engine import EngineSpec as _EngineSpec
 from poisson_tasks.engine import apply as _apply
 from poisson_tasks.knobs import (
+    _BLOCK,
     _D_B,
     _FAULTS,
     _LOOKALIKE_LEDGERS,
@@ -66,6 +70,44 @@ _NO_TOOL = ""
 # arm, where the request does not state the code and four reads hold its parts.
 _CODE_STATED = "stated in the request"
 _CODE_ASSEMBLED = "assembled from the reads named in the request"
+
+# How a block arm's read copy describes itself: each of the table's read verbs in the form
+# the engine's own reads use ("returns the region field of the named catalogue item"), so a
+# copy reads as the engine's reads do and as none of them.  `_check_said` refuses a table
+# whose verbs this does not cover, below.
+_SAID = {
+    "lookup": "looks up",
+    "fetch": "fetches",
+    "query": "queries",
+    "match": "matches",
+    "scan": "scans",
+    "probe": "probes",
+    "trace": "traces",
+    "count": "counts",
+    "list": "lists",
+    "read": "reads",
+    "find": "finds",
+    "report": "reports",
+    "filter": "filters",
+    "search": "searches",
+    "select": "selects",
+    "collect": "collects",
+}
+
+
+def _check_said() -> None:
+    """Every read verb of the table has its form, or a block arm's copies could not be described;
+    asserted at import, as the generator asserts its filler words, so a table version that
+    added a verb is refused here and not met as a `KeyError` on one task."""
+    verbs = set(_SPEC.table["read_verbs"])
+    if set(_SAID) != verbs:
+        raise ValueError(
+            "the read copies have words for " + ", ".join(sorted(_SAID)) + " and the table's read "
+            "verbs are " + ", ".join(sorted(verbs))
+        )
+
+
+_check_said()
 
 
 def _prf(domain: bytes, seed: int, split: str) -> bytes:
@@ -202,7 +244,8 @@ def shown_names(
 
     The generator's half of the map: it builds a block in engine names and asks here what to
     show, and then reads `display_map` with the answer, as the verifier and the tool server
-    do.  Every knob but similarity shows the engine's names.
+    do.  Every knob but similarity shows the names the block is built in: the engine's own,
+    and on a block arm the read copies' as well.
     """
     arm = _parse_arm_id(arm_id)
     if arm.knob != _SIMILARITY:
@@ -223,7 +266,9 @@ def display_map(
     nothing under it.  The spread knob changes one description: the target ledger's first
     stage tool says its entry code is stated in the request, which is false where the
     request names four reads instead, so there it says the code is assembled from them, the
-    same at every level.
+    same at every level.  Block size shows a read copy, a name the engine does not read
+    under made of one of the table's read verbs and one of its facets, as the engine read of
+    that facet in words of its own, and every other name as itself (`_block_shown`).
     """
     arm = _parse_arm_id(arm_id)
     knob = arm.knob
@@ -242,6 +287,8 @@ def display_map(
             else:
                 mapped[name] = Shown(engine=name, description=None)
         return mapped
+    if knob == _BLOCK:
+        return {name: _block_shown(name) for name in tools}
     first_stage = None
     if knob == _SPREAD:
         first_stage = next(
@@ -260,6 +307,26 @@ def display_map(
             description = own.replace(_CODE_STATED, _CODE_ASSEMBLED)
         shown[name] = Shown(engine=name, description=description)
     return shown
+
+
+def _block_shown(name: str) -> Shown:
+    """One of a block arm's tools: a read copy as the engine read of its facet, under words
+    of its own, and any other name as itself, as every other knob shows it, so a block of a
+    caller's own tools is shown unchanged (`tests/test_k1_surface.py`).  A copy is a name
+    the engine does not read under, made of one of the table's read verbs and one of its
+    facets; the engine's own reads are themselves."""
+    verb, _sep, facet = name.partition("_")
+    if (
+        name not in _SPEC.read_tools
+        and verb in _SPEC.table["read_verbs"]
+        and facet in _SPEC.table["facets"]
+    ):
+        engine = next(read for read, own in _SPEC.read_tools.items() if own == facet)
+        return Shown(
+            engine=engine,
+            description=f"{_SAID[verb]} the {facet} field of the named catalogue item",
+        )
+    return Shown(engine=name, description=None)
 
 
 def engine_name(shown: dict[str, Shown], name: _Any) -> str:
