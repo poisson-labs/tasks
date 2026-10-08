@@ -159,11 +159,12 @@ SPEC_KEYS = (
     "output.runs", "output.tasks",
 )
 
-# Spec §6.2's flags that set a key of the file (`--fetch` and `--check-key` set none).
+# Spec §6.2's flags that set a key of the file (`--fetch` and `--check-key` set none), with
+# `--recipe`, which the knobs spec (§17.4) adds as question 6's flag; `--measure` is its alias.
 SPEC_FLAGS = frozenset({
     "--provider", "--model", "--base-url", "--api-key-env", "--allow-plain-http-key",
     "--price", "--price-read-on", "--no-price",
-    "--measure", "--knob", "--levels", "--controls", "--no-controls", "--strictness",
+    "--recipe", "--measure", "--knob", "--levels", "--controls", "--no-controls", "--strictness",
     "--tasks-per-level", "--seeds", "--attempts", "--generator-version",
     "--temperature", "--top-p", "--reasoning-effort", "--max-tokens",
     "--spend-cap", "--token-cap", "--max-model-calls", "--concurrency",

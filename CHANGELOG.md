@@ -5,6 +5,20 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### Recipes in the settings file
+
+- **Recipes.** `poisson_tasks.arms.RECIPES` holds eight ready-made measurements, each a named set
+  of arms with a task count and an attempt count: `first-look`, `tool-choice`, `error-recovery`,
+  `long-sessions`, `planning`, `reading-and-filling`, `profile` and `card`. Each is built from the
+  knobs' own levels. A recipe is offered once a knob it measures has shipped; today that is
+  `first-look` and `card`, and the other six wait for their knobs' probe.
+- **`[measure] preset` takes a recipe.** The key keeps its name. It takes each recipe offered, and
+  `custom`; a recipe not offered yet is refused in one line naming it and the knobs it waits on, and
+  the file's comment lists only what is offered. A recipe sets the tasks per level and the
+  attempts; `--tasks-per-level`, `--seeds` and `--attempts` still override them.
+- **`--recipe`** is the setting's flag among init's settings. `--measure` still works as its alias,
+  for one release.
+
 ### Cards for any plan
 
 - **Cards for any plan.** `calibration.card_from_run(folder)` builds the card of a run folder from
