@@ -1,8 +1,9 @@
-"""Arms by their readable id, the one generator-version constant, and the pin ledger in words.
+"""Arms by their readable id, the one generator-version constant, the pin ledger in words, and
+the recipes.
 
-The three names cannot go in `knobs.py`, whose public surface frozen tests pin exactly;
-`tests/test_fd1_arms.py` says what each one does.  Importing this module imports no
-`verifiers` and none of `tasks`, `calibration` and `export`.
+The names cannot go in `knobs.py`, whose public surface frozen tests pin exactly;
+`tests/test_fd1_arms.py` and `tests/test_r0_recipes.py` say what each one does.  Importing this
+module imports no `verifiers` and none of `tasks`, `calibration` and `export`.
 
 The module also holds, privately, which arms the published cards measured.  `calibration` is
 where that design is declared (`arm_specs()`), and it cannot be imported here or by the two
@@ -13,13 +14,26 @@ environment, and `export` is imported by `calibration`.  The tests hold this cop
 
 from __future__ import annotations
 
+import dataclasses as _dataclasses
+import types as _types
+from collections.abc import Iterable as _Iterable
+from collections.abc import Mapping as _Mapping
+
 from poisson_tasks.knobs import ArmSpec as _ArmSpec
 from poisson_tasks.knobs import PinReport as _PinReport
 from poisson_tasks.knobs import _parse_arm_id, _render_arm_id
 from poisson_tasks.knobs import levels as _levels
 from poisson_tasks.knobs import pin_ledger as _pin_ledger
 
-__all__ = ["arm_from_id", "DEFAULT_GENERATOR_VERSION", "describe_pins"]
+__all__ = [
+    "arm_from_id",
+    "DEFAULT_GENERATOR_VERSION",
+    "describe_pins",
+    "Recipe",
+    "RECIPES",
+    "SHIPPED_KNOBS",
+    "recipe_table",
+]
 
 DEFAULT_GENERATOR_VERSION = "1"
 
@@ -117,3 +131,155 @@ def describe_pins(report: _PinReport) -> str:
             f", apart from what is measured and reported rather than held: {'; '.join(reported)}"
         )
     return sentence + "."
+
+
+# ---------------------------------------------------------------------------
+# recipes
+# ---------------------------------------------------------------------------
+
+# The knobs a probe has shipped (Tasks spec K-P3): none yet.  Depth and the distractor dial are on
+# the published cards and need no probe; each of the other seven reaches a recipe only once the
+# probe's rulings name it here.
+SHIPPED_KNOBS: tuple[str, ...] = ()
+
+_PROBE_KNOBS = ("similarity", "faults", "history", "block", "arguments", "shape", "spread")
+
+# Which of a knob's levels a recipe takes.
+_EVERY = "every"
+_ENDS = "first and last"
+_THREE = "first, middle and last"
+
+
+def _chosen(knob: str, which: str) -> tuple[int, ...]:
+    found = _levels(knob)
+    if which == _EVERY:
+        return found
+    if which == _ENDS:
+        return found[0], found[-1]
+    return found[0], found[len(found) // 2], found[-1]
+
+
+@_dataclasses.dataclass(frozen=True)
+class Recipe:
+    """A ready-made measurement: a named set of arms, a task count and an attempt count.
+
+    `knobs` is every knob the recipe's design draws on; `arms` is what it runs now, the arms of
+    knobs that have not shipped left out, and nothing when it is not offered; `waiting` is its
+    knobs that have not shipped.
+    """
+
+    name: str
+    asks: str
+    knobs: tuple[str, ...]
+    arms: tuple[str, ...]
+    tasks_per_level: int
+    attempts: int
+    offered: bool
+    waiting: tuple[str, ...]
+
+    @property
+    def episodes(self) -> int:
+        return len(self.arms) * self.tasks_per_level * self.attempts
+
+
+# Spec section 17.2: the name, what it asks, each knob with the levels it takes, the tasks per
+# level and the attempts.  `card` is the published cards' design and is built apart.
+_ROWS: tuple[tuple[str, str, tuple[tuple[str, str], ...], int, int], ...] = (
+    ("first-look", "where does depth start to hurt?", (("depth", _THREE),), 10, 1),
+    (
+        "tool-choice",
+        "can it pick the right tool among lookalikes and in a long list?",
+        (("similarity", _ENDS), ("block", _ENDS)),
+        10,
+        1,
+    ),
+    ("error-recovery", "does it retry when a call fails?", (("faults", _EVERY),), 10, 1),
+    (
+        "long-sessions",
+        "does earlier work in the conversation throw it off?",
+        (("history", _THREE),),
+        10,
+        1,
+    ),
+    ("planning", "chains and parallel steps", (("depth", _THREE), ("shape", _ENDS)), 10, 1),
+    (
+        "reading-and-filling",
+        "can it assemble a value from outputs and fill arguments exactly?",
+        (("spread", _ENDS), ("arguments", _ENDS)),
+        10,
+        1,
+    ),
+    (
+        "profile",
+        "one line per knob: how much each moves this model",
+        tuple((knob, _ENDS) for knob in ("depth", *_PROBE_KNOBS)),
+        20,
+        2,
+    ),
+)
+_CARD = ("card", "the published cards' full design")
+_CARD_TASKS = 60
+_CARD_ATTEMPTS = 5
+
+
+def _card_design() -> tuple[str, ...]:
+    """Every level of each published knob, then that knob's control arms: `arm_specs()`'s order."""
+    out: list[str] = []
+    for knob, pairs in _CONTROL_PAIRS.items():
+        out += [_render_arm_id(knob, level, None) for level in _levels(knob)]
+        out += [_render_arm_id(knob, level, control) for level, control in pairs]
+    return tuple(out)
+
+
+def _recipe(
+    name: str,
+    asks: str,
+    design: tuple[str, ...],
+    tasks_per_level: int,
+    attempts: int,
+    shipped: frozenset[str],
+) -> Recipe:
+    knobs = tuple(dict.fromkeys(_parse_arm_id(arm).knob for arm in design))
+    probed = tuple(knob for knob in knobs if knob not in _CONTROL_PAIRS)
+    offered = not probed or any(knob in shipped for knob in probed)
+    usable = set(_CONTROL_PAIRS) | shipped
+    return Recipe(
+        name=name,
+        asks=asks,
+        knobs=knobs,
+        arms=tuple(arm for arm in design if _parse_arm_id(arm).knob in usable) if offered else (),
+        tasks_per_level=tasks_per_level,
+        attempts=attempts,
+        offered=offered,
+        waiting=tuple(knob for knob in probed if knob not in shipped),
+    )
+
+
+def recipe_table(shipped: _Iterable[str]) -> _Mapping[str, Recipe]:
+    """The recipes of spec section 17.2 with `shipped` as the knobs the probe has shipped.
+
+    A recipe is offered when it uses only the published cards' knobs (depth and the distractor
+    dial), or when at least one of its other knobs has shipped; the arms of a knob that has not
+    shipped are left out.  `shipped` takes only the seven knobs a probe ships.
+    """
+    chosen = tuple(shipped)
+    for knob in chosen:
+        if knob not in _PROBE_KNOBS:
+            raise ValueError(
+                f"{knob!r} is not a knob the probe ships; those are {_listed(list(_PROBE_KNOBS))}"
+            )
+    given = frozenset(chosen)
+    table: dict[str, Recipe] = {}
+    for name, asks, parts, tasks_per_level, attempts in _ROWS:
+        design = tuple(
+            _render_arm_id(knob, level, None)
+            for knob, which in parts
+            for level in _chosen(knob, which)
+        )
+        table[name] = _recipe(name, asks, design, tasks_per_level, attempts, given)
+    name, asks = _CARD
+    table[name] = _recipe(name, asks, _card_design(), _CARD_TASKS, _CARD_ATTEMPTS, given)
+    return _types.MappingProxyType(table)
+
+
+RECIPES: _Mapping[str, Recipe] = recipe_table(SHIPPED_KNOBS)
