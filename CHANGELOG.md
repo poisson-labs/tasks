@@ -5,6 +5,27 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### Argument difficulty
+
+- **A seventh knob makes tasks: `arguments`**, at levels 2, 4, 6 and 8: how many values each
+  stage call must carry, copied from the request. Each stage tool lists eight parameters at every
+  level, the two the task always needs and six more, of which only the two are required; the
+  request states the level less two of the six, and both stage calls must carry exactly those,
+  with exactly those values. The task is otherwise the base task.
+- **A call that leaves out a stated value, gets one wrong, or adds one the request did not state
+  is answered `bad_args`**: nothing changes and the call takes its number, as any refused call
+  does. The tool server, the verifier and the replay of a run apply the same check.
+- **An empty value in a parameter the request did not state is refused too**: it is a value the
+  request did not state, not an absent one.
+- **A control arm, `arguments:a2+len(a8)`**: the two-value task, with neutral words after the
+  request as long as what the eight-value request adds.
+- **An arguments run's tool messages are replayed against the engine** when its records are read;
+  a disagreement is `replay_mismatch` and scores nothing.
+- **`eval` takes an arguments arm, with one note**: no published card covers it. Levels between 2
+  and 8 run too. The two knobs whose tasks are not built yet are still refused in one line.
+- **`init` and `tasks.toml` do not offer argument difficulty** until its probe has shown it bites.
+- **Every task id and the generator hash moved**; no task of the other six knobs changed.
+
 ### Recipes in the settings file
 
 - **Recipes.** `poisson_tasks.arms.RECIPES` holds eight ready-made measurements, each a named set
