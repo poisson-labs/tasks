@@ -5,6 +5,21 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### Cards for any plan
+
+- **Cards for any plan.** `calibration.card_from_run(folder)` builds the card of a run folder from
+  what the run left in it: every level's records, the artifact, the document and its verdict. A
+  card is measured under the plan's own design (`Provenance.for_plan`): its seeds, its tasks per
+  level, its attempts, its decoding (a field not sent is shown as not sent) and its turn cap. A run
+  that did not finish, or whose failed attempts were not run again, gives a partial card that says
+  how many attempts it owes and marks those levels incomplete; a level the run never reached is
+  listed as not run, never as zero. `card_claims` says what a card means and what it does not
+  claim. `comparable` and `render_side_by_side` read a card beside the published ones and refuse
+  cards measured differently. `poisson_tasks.cards` lists the published cards by their model's
+  short name and recomputes each from its records; `poisson_tasks.outcomes` gives one plain
+  sentence per outcome label. A model served by its user is recorded as such, with what its server
+  reported.
+
 ### Block size
 
 - **A sixth knob makes tasks: `block`**, at levels 8, 16, 32 and 64: how many tools the model
