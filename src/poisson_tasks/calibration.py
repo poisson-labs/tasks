@@ -181,6 +181,16 @@ __all__ = [
     "run_cell",
     "RunOutcome",
     "records_from_run",
+    # cards for any plan (FD4)
+    "card_from_run",
+    "RunCard",
+    "card_verdict",
+    "CardVerdict",
+    "card_claims",
+    "Claims",
+    "comparable",
+    "Comparison",
+    "render_side_by_side",
 ]
 
 # ---------------------------------------------------------------------------
@@ -887,6 +897,22 @@ class Provenance:
             concurrency=concurrency,
         )
 
+    @classmethod
+    def for_plan(
+        cls,
+        plan: _Any,
+        *,
+        serving: _Mapping[str, _Mapping[str, _Any]],
+        rate_read_date: str,
+        budget: _Mapping[str, _Any] | None = None,
+        concurrency: int | None = None,
+    ) -> Provenance:
+        """The block for a run of `plan` (a `config.Plan`), under the plan's own design: its
+        seeds and their hash, `S` = its tasks per level, `n` = its attempts, `k_values` those of
+        1, 2 and 5 that are at most `n`, its decoding as declared, its turn cap, its model and
+        prices, and `serving`.  Every hash and version is read from the package and the wheel."""
+        raise NotImplementedError("FD4: Provenance.for_plan")
+
 
 def _vocabulary_hash() -> str:
     """A digest over the frozen vocabulary table's bytes, as shipped."""
@@ -1453,10 +1479,16 @@ def _depth_stop_note(axis: _Sequence[int]) -> str:
     )
 
 
-def render_document(artifact: Artifact) -> str:
+def render_document(artifact: Artifact, *, claims: bool = False) -> str:
     """`docs/calibration.md`: rendered from the artifact and never typed (CAL17).  Every
     sentence is a single-model difficulty claim; nothing here ranks models or claims a
-    rank statistic (CAL13, CAL14)."""
+    rank statistic (CAL13, CAL14).
+
+    With `claims`, the document also carries the card's claims block (`card_claims`): what the
+    card means and what it does not claim.  A run's card is rendered that way; the published
+    page is not."""
+    if claims:
+        raise NotImplementedError("FD4: the claims block")
     prov = artifact.provenance
     k_values = list(prov.k_values)
     header, rule = _level_header(k_values)
@@ -2737,3 +2769,91 @@ def render_combined_document(artifacts: _Sequence[Artifact]) -> str:
                             for line in card.splitlines())
         lines += ["", f"## {', '.join(_models_of(artifact))}", "", nested]
     return "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------------------
+# cards for any plan (FD4): a run's card, its verdict and its claims, and reading it beside
+# the published cards
+# ---------------------------------------------------------------------------
+
+
+@_dc.dataclass(frozen=True)
+class CardVerdict:
+    """What a card's first line says.
+
+    `word` is `"ok"` or `"refused"`.  `refused` names each cell that may not be published and
+    the gate it fails, as `(arm id, "instrument" | "no_call")`.  `partial` is true when the card
+    holds fewer scored attempts than its design asks for; `owed` counts them; `incomplete` names
+    the arms whose cells are marked incomplete and `not_run` the arms the run never recorded an
+    episode of, which have no cell and so no figure."""
+
+    word: str
+    model: str
+    partial: bool
+    owed: int
+    incomplete: tuple[str, ...]
+    not_run: tuple[str, ...]
+    refused: tuple[tuple[str, str], ...]
+
+
+@_dc.dataclass(frozen=True)
+class Claims:
+    """What a card says it means (`meaning`, one paragraph), what it does not claim (one line
+    each), and the conditions those lines were chosen by (`flags`)."""
+
+    meaning: str
+    not_claimed: tuple[str, ...]
+    flags: frozenset[str]
+
+
+@_dc.dataclass(frozen=True)
+class RunCard:
+    """A run folder's card: every arm's records, each arm's instrument tally, and, unless the
+    verdict refuses, the artifact, the document and the claims."""
+
+    records: tuple[EpisodeRecord, ...]
+    tally: _Mapping[str, _Mapping[str, int]]
+    artifact: Artifact | None
+    document: str | None
+    claims: Claims | None
+    verdict: CardVerdict
+
+
+@_dc.dataclass(frozen=True)
+class Comparison:
+    """Whether two cards can be read side by side.  `field` is the first thing they were
+    measured differently by, or `None`; `reason` says it in words; `same_model` says whether
+    both measured one model; `shared_arms` are the arms both cards hold a cell of."""
+
+    field: str | None
+    reason: str | None
+    same_model: bool
+    shared_arms: tuple[str, ...]
+
+
+def card_from_run(
+    folder: _pathlib.Path, *, serving: _Mapping[str, _Any] | None = None
+) -> RunCard:
+    """The card of the run folder `folder`, built from what the run left in it and nothing
+    else."""
+    raise NotImplementedError("FD4: card_from_run")
+
+
+def card_verdict(artifact: Artifact) -> CardVerdict:
+    """The verdict an artifact's own cells and provenance give."""
+    raise NotImplementedError("FD4: card_verdict")
+
+
+def card_claims(artifact: Artifact) -> Claims:
+    """What the card means and what it does not claim, rendered from the artifact."""
+    raise NotImplementedError("FD4: card_claims")
+
+
+def comparable(a: Artifact, b: Artifact) -> Comparison:
+    """Whether `a` and `b` were measured the same way, and what they share."""
+    raise NotImplementedError("FD4: comparable")
+
+
+def render_side_by_side(cards: _Mapping[str, Artifact]) -> str:
+    """Cards keyed by a label, each read on its own verdicts, side by side."""
+    raise NotImplementedError("FD4: render_side_by_side")
