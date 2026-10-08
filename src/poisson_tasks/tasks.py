@@ -10,7 +10,11 @@ the knobs added since need of it: targets read from a task's records, an argumen
 takes optional parameters, names translated through `surface.display_map`, and a generator
 hash over the three modules that shape a task.  `tests/test_k2_*.py` pin the similarity knob:
 B's block with twelve reads swapped for lookalikes shown under numbered names, the prompt
-naming the ledger by number, the masked fingerprint and its census.
+naming the ledger by number, the masked fingerprint and its census.  `tests/test_k5_*.py`
+pin the block-size knob: B's task with its block grown from eight tools to sixty-four, the
+right tools and six reads first in an order drawn from a domain of the knob's own, then the
+table's other reads, then read copies under names of their own, each answering as the
+engine read of its facet.
 
 Everything here is a pure function of its arguments and the frozen vocabulary table:
 no clock, no RNG, no model, no network (G1, G2).  The engine's and the knobs module's
@@ -126,6 +130,7 @@ from poisson_tasks.engine import init_state as _init_state
 from poisson_tasks.engine import mutations as _mutations
 from poisson_tasks.engine import replay as _replay
 from poisson_tasks.knobs import (
+    _BLOCK_HEAD,
     _D_B,
     _LEDGER_NUMBER,
     _LOOKALIKE_LEDGERS,
@@ -173,7 +178,8 @@ _DISTRACTOR = "distractor"
 _SIMILARITY = "similarity"
 _FAULTS = "faults"
 _HISTORY = "history"
-_GENERATED_KNOBS = (_DEPTH, _DISTRACTOR, _SIMILARITY, _FAULTS, _HISTORY)
+_BLOCK = "block"
+_GENERATED_KNOBS = (_DEPTH, _DISTRACTOR, _SIMILARITY, _FAULTS, _HISTORY, _BLOCK)
 
 # The knobs module's `d_R`, cited and not re-minted: `reference_turns` is `d_R + 1` for
 # every R arm (N16), so the number comes back off that module's own constructor.
@@ -202,6 +208,11 @@ _TOKEN_KEY_DOMAIN = b"task-generator/token-key/1"
 _DECOY_DOMAIN = b"task-generator/decoy-record/1"
 _STRUCTURE_DOMAIN = b"task-generator/structure/1"
 _ENTRY_DOMAIN = b"task-generator/entry-code/1"
+# The block knob's one order: the eight-tool head, the table's other reads, then the read
+# copies.  A domain of its own, so no task of another knob moves with it, read as eight
+# keyed blocks: a full order of the 240 copies needs about 1,600 bits, and one block is 256.
+_BLOCK_DOMAIN = b"task-generator/block-order/1"
+_BLOCK_DRAW_BLOCKS = 8
 
 # The outcome vocabulary.  Closed, in the table's order: the first label that matches
 # wins, so this order is load-bearing and not decoration.
@@ -852,7 +863,8 @@ def _render_block(
     """The block's schemas in slot order, each as `surface.display_map` shows it: the shown
     name, the engine tool it stands for, and the description the block gives it.  `block` is
     the names the block shows (`surface.shown_names`), the engine's own for every knob but
-    similarity."""
+    similarity, and on a block arm the read copies' as well, which the generator builds the
+    block in."""
     defs = _tool_defs(spec)
     shown = _surface.display_map(seed, split, rendered_arm, goal, block)
     return tuple(
@@ -970,6 +982,63 @@ def _similarity_block(
     for slot, tool in zip(read_slots[kept:], lookalikes, strict=True):
         names[slot] = tool
     return tuple(names)
+
+
+def _aliased_reads(spec: _EngineSpec) -> tuple[str, ...]:
+    """The read copies: every `{verb}_{facet}` of the table's read verbs and facets that
+    the engine does not read under, in table order.  Each is shown by `surface.display_map`
+    as the engine read of its facet, under words of its own."""
+    verbs = spec.table["read_verbs"]
+    facets = spec.table["facets"]
+    return tuple(
+        f"{verb}_{facet}"
+        for verb in verbs
+        for facet in facets
+        if f"{verb}_{facet}" not in spec.read_tools
+    )
+
+
+def _sized_block(
+    spec: _EngineSpec, seed: int, split: str, qualifier: str, level: int
+) -> tuple[str, ...]:
+    """The block knob's block at `level`: the first `level` names of one drawn order.
+
+    The order is the target ledger's two stage tools and the table's first six reads, then
+    the table's other reads, then the read copies, each part in a drawn order of its own
+    digits; so the first eight slots are the same at every level (N28), every level's
+    block is the start of the next one's, and a level adds tools and changes none it
+    already offered.  The digits come from the block knob's own domain, never the
+    scenario's draw, so no task of another knob moves (K1.1), and the draw does not read
+    the level.  The census (`structure_space`) counts exactly the orders this can make.
+    """
+    reads = _read_names(spec)
+    head_reads = _BLOCK_HEAD - _D_B
+    head = list(_stage_tools_of(spec, qualifier)[:_D_B]) + list(reads[:head_reads])
+    others = list(reads[head_reads:])
+    aliases = list(_aliased_reads(spec))
+    radices = (
+        tuple(range(len(head), 1, -1))
+        + tuple(range(len(others), 1, -1))
+        + tuple(range(len(aliases), 1, -1))
+    )
+    material = b"".join(
+        _prf(_BLOCK_DOMAIN + b"/" + str(index).encode("ascii"), seed, split)
+        for index in range(_BLOCK_DRAW_BLOCKS)
+    )
+    digits = _mixed_radix(material, radices)
+    first = len(head) - 1
+    second = first + len(others) - 1
+    order = (
+        [head[i] for i in _permutation(digits[:first], len(head))]
+        + [others[i] for i in _permutation(digits[first:second], len(others))]
+        + [aliases[i] for i in _permutation(digits[second:], len(aliases))]
+    )
+    if level > len(order):
+        raise ValueError(
+            f"a block offers at most {len(order)} tools, the two the task needs and every "
+            f"read name the table can make, not {level}"
+        )
+    return tuple(order[:level])
 
 
 def _quiet_against(name: str, core: tuple[str, ...], pieces: tuple[str, ...]) -> bool:
@@ -1728,7 +1797,11 @@ def structure_space(arm: _ArmSpec, spec: _EngineSpec | None = None) -> int:
     request is knob R's base block, prompt and system prompt at every level, so its count is
     that base arm's.  So is a history arm's: its block, system prompt and instruction are the
     base arm's at every level, and its seeded pairs are a derivation of the scenario, as a
-    depth control's are, so the count is a lower bound for the levels that seed any.
+    depth control's are, so the count is a lower bound for the levels that seed any.  A block
+    arm's count is every tool and its slot, since nothing in its block is masked: the target
+    ledger, the order of the first eight slots, the order of the table's other reads in the
+    slots they take, and the order of the copies after them; the control counts k8's, a lower
+    bound as for every control, its filler being a derivation of k64's block.
     """
     _refuse_a_knob_not_generated(arm)
     engine_spec = _resolve(spec)
@@ -1745,6 +1818,17 @@ def structure_space(arm: _ArmSpec, spec: _EngineSpec | None = None) -> int:
         placed = _math.perm(size, _D_R) * _math.perm(reads, reads - _LOOKALIKES)
         shared: int = _math.comb(_NUMBER_WIDTH, arm.level) ** _LOOKALIKE_LEDGERS
         return len(engine_spec.qualifiers) * placed * shared
+    if arm.knob == _BLOCK:
+        reads = len(_read_names(engine_spec))
+        others = reads - (_BLOCK_HEAD - _D_B)
+        aliases = len(_aliased_reads(engine_spec))
+        extra = arm.level - _BLOCK_HEAD
+        return (
+            len(engine_spec.qualifiers)
+            * _math.factorial(_BLOCK_HEAD)
+            * _math.perm(others, min(extra, others))
+            * _math.perm(aliases, max(extra - others, 0))
+        )
     space = len(engine_spec.qualifiers) * _math.factorial(_block_size(engine_spec))
     if arm.knob == _DISTRACTOR and arm.level > 0:
         pool = len(_distractor_pool(engine_spec, engine_spec.qualifiers[0]))
@@ -1794,6 +1878,8 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
     instruction = _render_instruction(slots)
     if arm.knob == _SIMILARITY:
         block = _similarity_block(engine_spec, seed, arm.split, qualifier, permutation)
+    elif arm.knob == _BLOCK:
+        block = _sized_block(engine_spec, seed, arm.split, qualifier, arm.level)
     else:
         block = _block_names(engine_spec, arm, qualifier, permutation, pool_order, instruction)
     goal = _goal_stage_index(engine_spec, arm)
@@ -1845,6 +1931,18 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
         pairs = _fewest_pairs_reaching(engine_spec, reads, wanted)
         seq_start = pairs + 1
         prompt = _seeded_messages(instruction, _seeded_block(engine_spec, reads, pairs, wanted))
+    elif arm.control is not None and arm.knob == _BLOCK:
+        # The block control: k8's block, plus the neutral filler at the end of the system
+        # prompt, as long as what k64's block adds (N29), the R control's mechanism with N3's
+        # rule extended to it.  A length-only control; the block's growth is reported.
+        high = _replace(arm, level=arm.control, control=None)
+        high_block = _sized_block(engine_spec, seed, arm.split, qualifier, arm.control)
+        high_tools = _render_block(
+            engine_spec, seed, arm.split, _arm_id(high), target, high_block
+        )
+        system_prompt = system_prompt + _filler(
+            system_prompt, _rendered_tokens(high_tools) - _rendered_tokens(tools)
+        )
     elif arm.control is not None:
         # The R control: the `r0` block, plus a frozen neutral filler whose token count
         # is the tool-block difference between `rH` and `r0`.  A length-only control, and

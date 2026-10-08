@@ -163,8 +163,11 @@ _LOOKALIKE_LEDGERS = 6
 _LOOKALIKES = _LOOKALIKE_LEDGERS * _D_B
 _MAX_SIMILARITY = _NUMBER_WIDTH - 1
 
-# Block: the right tools and six reads fill the first eight slots at every level.
+# Block: the right tools and six reads fill the first eight slots at every level, and the
+# most a block can offer is those two tools and every read name the table can make, its
+# own reads among them: 258 on the table that ships.
 _BLOCK_HEAD = 8
+_MAX_BLOCK = _D_B + len(_SPEC.table["read_verbs"]) * len(_SPEC.table["facets"])
 
 # Arguments: a stage tool lists eight parameters, two of them the engine's own.
 _ENGINE_ARGUMENTS = 2
@@ -392,6 +395,11 @@ def _unbuildable(knob: str, level: int) -> str | None:
     if knob in (_FAULTS, _HISTORY) and level < 0:
         counted = "failed calls" if knob == _FAULTS else "tokens of earlier tool work"
         return f"{knob} level {level} cannot be built: the level counts {counted}, from 0 up"
+    if knob == _BLOCK and level > _MAX_BLOCK:
+        return (
+            f"block level {level} cannot be built: a block offers at most {_MAX_BLOCK} tools, "
+            "the two the task needs and every read name the table can make"
+        )
     if knob == _BLOCK and level < _BLOCK_HEAD:
         return (
             f"block level {level} cannot be built: the level is how many tools are offered, "
