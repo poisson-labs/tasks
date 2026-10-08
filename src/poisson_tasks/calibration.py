@@ -102,6 +102,7 @@ from __future__ import annotations
 import asyncio as _asyncio
 import dataclasses as _dc
 import datetime as _datetime
+import functools as _functools
 import hashlib as _hashlib
 import importlib.metadata as _metadata
 import json as _json
@@ -110,6 +111,8 @@ import pathlib as _pathlib
 import random as _random
 import statistics as _statistics
 import time as _time
+import types as _types
+import urllib.parse as _urlparse
 from collections.abc import Callable as _Callable
 from collections.abc import Iterable as _Iterable
 from collections.abc import Mapping as _Mapping
@@ -270,9 +273,12 @@ SAMPLING_FIELDS = ("temperature", "top_p", "reasoning_effort", "max_tokens")
 _NOT_SENT = "not sent"
 
 # What a locally served model's provenance has to carry beyond `kind`: the same weights
-# served differently give different numbers.
-SERVING_KINDS = ("hosted", "local")
+# served differently give different numbers.  A model the user serves (`self_served`: an Ollama
+# or vLLM server of their own) carries its endpoint and what the server reported about itself,
+# which pins less than `local` does, and the card says so.
+SERVING_KINDS = ("hosted", "local", "self_served")
 SERVING_FIELDS_LOCAL = ("stack", "stack_version", "flags", "gpu", "revision")
+_SELF_SERVED_PROVIDERS = ("ollama", "vllm")
 _RATE_FIELDS = ("input_rate", "cached_input_rate", "output_rate")
 
 # The two control arms per knob (`knobs.py`), the same four `tests/test_tg_m5_standalone.py`
@@ -286,6 +292,11 @@ TALLY_FILE = "instrument-tally.jsonl"
 rewrites."""
 TRACES_FILE = "traces.jsonl"
 RECORDS_FILE = "episodes.jsonl"
+_PLAN_FILE = "plan.json"
+_LEDGER_FILE = "spend.jsonl"
+_LOG_FILE = "run.log"
+"""What a run folder holds beside its arm folders (`runs.run_plan` writes them): the plan a card
+is measured under, the ledger of what the run paid, and the run's own log."""
 
 _DEPTH = "depth"
 _DISTRACTOR = "distractor"
@@ -754,6 +765,20 @@ class Provenance:
     concurrency: int | None = None
     """How many episodes the run had in flight at once, when it recorded that.  Time depends
     on it, so the card prints it wherever it prints seconds; it decides nothing."""
+    arms: _Sequence[str] | None = None
+    """The arm ids the run's plan asked for, in the plan's order, when the card was built for a
+    plan: an arm here with no cell is one the run never reached, listed as not run.  A block for
+    the published design has none."""
+    strictness: str | None = None
+    """The plan's strictness when it is not the published design's (`strict`): `leaky`, or the
+    kinds joined by commas when its arms differ.  A leaky arm scores another predicate, so two
+    cards must share this to be read side by side."""
+    split: str | None = None
+    """The plan's split when it is not the published design's (`eval`): the train split's tasks
+    are other tasks, so two cards must share this too."""
+    resumed: bool | None = None
+    """True when some of the run's attempts were made by a later run of its folder than others;
+    absent otherwise, so a block for the published design keeps its bytes."""
 
     def __post_init__(self) -> None:
         for name in ("package_version", "engine_hash", "generator_hash", "vocabulary_hash",
@@ -825,11 +850,31 @@ class Provenance:
                     raise ValueError(
                         f"serving[{model_id!r}].revision must be a 40-character commit hash"
                     )
+            elif kind == "self_served":
+                endpoint = entry.get("endpoint")
+                if not isinstance(endpoint, str) or not endpoint:
+                    raise ValueError(f"serving[{model_id!r}] (self_served) needs its endpoint")
             else:
                 _require_keys(entry, ("endpoint_host",), f"serving[{model_id!r}] (hosted)")
+        if self.arms is not None and (
+            not self.arms or any(not isinstance(arm, str) or not arm for arm in self.arms)
+        ):
+            raise ValueError(
+                f"arms names the plan's arms by their ids, or is absent: {self.arms!r}"
+            )
+        for name in ("strictness", "split"):
+            value = getattr(self, name)
+            if value is not None and (not isinstance(value, str) or not value):
+                raise ValueError(f"{name} is a non-empty string, or absent: {value!r}")
+        if self.resumed is not None and not isinstance(self.resumed, bool):
+            raise ValueError(f"resumed is true, or absent: {self.resumed!r}")
 
     def as_dict(self) -> dict[str, _Any]:
         out: dict[str, _Any] = _json.loads(_json.dumps(_dc.asdict(self)))
+        for name in ("arms", "strictness", "split", "resumed"):
+            if out.get(name) is None:
+                # A block for the published design has none of these; its bytes stay.
+                out.pop(name, None)
         if out.get("max_model_calls") is None:
             # A run with no turn limit serialises exactly as it did before the field existed.
             out.pop("max_model_calls", None)
@@ -911,8 +956,67 @@ class Provenance:
         """The block for a run of `plan` (a `config.Plan`), under the plan's own design: its
         seeds and their hash, `S` = its tasks per level, `n` = its attempts, `k_values` those of
         1, 2 and 5 that are at most `n`, its decoding as declared, its turn cap, its model and
-        prices, and `serving`.  Every hash and version is read from the package and the wheel."""
-        raise NotImplementedError("FD4: Provenance.for_plan")
+        prices, and `serving`.  Every hash and version is read from the package and the wheel.
+
+        The generator hash is the plan's own arms', so a plan at another generator version is
+        measured under it and is stale against the package.  The model entry's `endpoint_host`
+        is the endpoint's host and port, and its rates the plan's price when it has one.  A run
+        of a plan has caps, not the published design's budget, and its caps are in no file of
+        its folder, so without `budget` the block records none and the card prints it as not
+        recorded.  The plan's arms, and its strictness and split when they are not the
+        published design's, travel in the block: a card read back from its own files still
+        knows what the plan asked for."""
+        seeds = [int(seed) for seed in plan.seeds]
+        if not seeds or not plan.arms:
+            raise ValueError("a plan with no seed or no arm has no design to measure under")
+        n = int(plan.attempts)
+        spec = plan.arms[0]
+        bundle = _generate(spec, seeds[0])
+        entry: dict[str, _Any] = {
+            "id": plan.model.name,
+            "revision": plan.model.name,
+            "endpoint_host": _urlparse.urlsplit(plan.model.base_url).netloc,
+        }
+        price = plan.model.price
+        if price is not None:
+            entry.update(
+                input_rate=float(price.input),
+                cached_input_rate=float(price.cached_input),
+                output_rate=float(price.output),
+            )
+        strict = {str(arm.strictness) for arm in plan.arms}
+        splits = {str(arm.split) for arm in plan.arms}
+        return cls(
+            package_version=_metadata.version("poisson-tasks"),
+            engine_hash=_engine_hash(_EngineSpec.load()),
+            generator_hash=bundle.generator_hash,
+            vocabulary_hash=_vocabulary_hash(),
+            verifiers_version=_metadata.version("verifiers"),
+            harness_id=_MEASURED_HARNESS,
+            models=[entry],
+            decoding=dict(plan.decoding),
+            seed_list=seeds,
+            seed_list_hash=_seed_list_digest(seeds),
+            S=len(seeds),
+            n=n,
+            k_values=[k for k in K_VALUES if k <= n],
+            bootstrap_resamples=BOOTSTRAP_RESAMPLES,
+            bootstrap_seed=BOOTSTRAP_SEED,
+            delta_star=DELTA_STAR,
+            saturation_high=SATURATION_HIGH,
+            saturation_low=SATURATION_LOW,
+            instrument_threshold=INSTRUMENT_THRESHOLD,
+            rate_read_date=rate_read_date,
+            serving={key: dict(value) for key, value in serving.items()},
+            budget=dict({"tokens": None, "wall_clock_seconds": None} if budget is None
+                        else budget),
+            no_call_threshold=NO_CALL_THRESHOLD,
+            max_model_calls=int(plan.max_model_calls),
+            concurrency=concurrency,
+            arms=[_arm_id(arm) for arm in plan.arms],
+            strictness=None if strict == {"strict"} else ",".join(sorted(strict)),
+            split=None if splits == {SPLIT} else ",".join(sorted(splits)),
+        )
 
 
 def _vocabulary_hash() -> str:
@@ -1117,7 +1221,6 @@ def _cell_figures(
     arm, model = key
     rate = instrument_rate(cell, tally)
     kept = scored(cell)
-    raw_blocks = _blocks(cell)
     blocks = _blocks(kept)
     n_min = min(len(block) for block in blocks)
     strict_1 = pass_at_1(kept)
@@ -1159,8 +1262,11 @@ def _cell_figures(
         "S_declared": provenance.S,
         "S_observed": len(blocks),
         "n_declared": provenance.n,
+        # Fewer scored attempts than the design asks for, whatever the reason: a task the run
+        # never reached, or an attempt that failed and was not run again.  A failed attempt is
+        # counted by the instrument figures, never as an attempt the level has.
         "incomplete": len(blocks) < provenance.S
-        or any(len(block) < provenance.n for block in raw_blocks),
+        or any(len(block) < provenance.n for block in blocks),
         "pass_at_1": strict_1,
         "pass_at_1_interval": [interval_1[0], interval_1[1]],
         "pass_at_k": pass_k,
@@ -1375,12 +1481,17 @@ def build_artifact(
     )
 
 
+def _artifact_text(artifact: Artifact) -> str:
+    """`artifact.json`'s text: keys sorted, so two writes of one artifact are one file, and
+    what `cards.recompute` compares a rebuilt card with."""
+    return _json.dumps(artifact.as_dict(), indent=2, sort_keys=True) + "\n"
+
+
 def write_artifact(artifact: Artifact, path: _pathlib.Path) -> _pathlib.Path:
     """The machine-readable file, keys sorted, so two writes of one artifact are one file."""
     path = _pathlib.Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(_json.dumps(artifact.as_dict(), indent=2, sort_keys=True) + "\n",
-                    encoding="utf-8")
+    path.write_text(_artifact_text(artifact), encoding="utf-8")
     return path
 
 
@@ -1485,11 +1596,10 @@ def render_document(artifact: Artifact, *, claims: bool = False) -> str:
     sentence is a single-model difficulty claim; nothing here ranks models or claims a
     rank statistic (CAL13, CAL14).
 
-    With `claims`, the document also carries the card's claims block (`card_claims`): what the
-    card means and what it does not claim.  A run's card is rendered that way; the published
-    page is not."""
-    if claims:
-        raise NotImplementedError("FD4: the claims block")
+    With `claims`, the document also carries the card's claims block (`_claims_block`): what
+    ran when the card is partial, what the card means and what it does not claim, after the
+    provenance.  A run's card is rendered that way; the published page is not, and every line
+    of this rendering is in the other, in order."""
     prov = artifact.provenance
     k_values = list(prov.k_values)
     header, rule = _level_header(k_values)
@@ -1726,8 +1836,7 @@ def render_document(artifact: Artifact, *, claims: bool = False) -> str:
         f"- delta* = {prov.delta_star}; saturation at or below {prov.saturation_low} and at or "
         f"above {prov.saturation_high}; instrument threshold {prov.instrument_threshold}; "
         f"no-call threshold {prov.no_call_threshold}",
-        f"- budget: {prov.budget['tokens']} tokens, {prov.budget['wall_clock_seconds']} s wall "
-        "clock, or the provider out of credit, whichever first",
+        _budget_line(prov),
         f"- rates read on {prov.rate_read_date}",
         f"- concurrency: {_concurrency(prov)}",
     ]
@@ -1743,9 +1852,44 @@ def render_document(artifact: Artifact, *, claims: bool = False) -> str:
                 f"{entry['gpu']}, revision {entry['revision']}, flags "
                 + " ".join(str(flag) for flag in entry["flags"])
             )
+        elif entry.get("kind") == "self_served":
+            lines.append(_self_served_line(model_id, entry))
         else:
             lines.append(f"- {model_id} hosted at {entry.get('endpoint_host')}")
+    if claims:
+        lines += _claims_block(artifact)
     return "\n".join(lines) + "\n"
+
+
+def _budget_line(prov: Provenance) -> str:
+    """The published design's budget as it has always been printed; a run of a plan has caps,
+    not a budget, and its block records none, which prints as not recorded, never as a limit
+    the run did not have."""
+    tokens = prov.budget.get("tokens")
+    wall = prov.budget.get("wall_clock_seconds")
+    if tokens is None and wall is None:
+        return f"- budget: {NOT_RECORDED}"
+    return (
+        f"- budget: {tokens} tokens, {wall} s wall "
+        "clock, or the provider out of credit, whichever first"
+    )
+
+
+_SERVER_FACT_WORDS = {
+    "stack_version": "version", "model_digest": "model digest", "served_model": "served model",
+}
+
+
+def _self_served_line(model_id: str, entry: _Mapping[str, _Any]) -> str:
+    """A model the user serves: its stack and endpoint, and each fact the server reported, by
+    name; or that it reported nothing."""
+    reported = [str(name) for name in (entry.get("reported_by_server") or [])]
+    told = "; ".join(f"{_SERVER_FACT_WORDS.get(name, name)} {entry.get(name)}" for name in reported)
+    stack = entry.get("stack") or "a server of their own"
+    return (
+        f"- {model_id} served by its user with {stack} at {entry.get('endpoint')}; the server "
+        f"reported {told if told else 'nothing'}"
+    )
 
 
 def render_readme_lines(artifact: Artifact) -> str:
@@ -2617,10 +2761,12 @@ def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecor
 _COMPARABLE = (
     "generator_hash", "engine_hash", "vocabulary_hash", "seed_list_hash", "S", "n",
     "decoding", "harness_id", "delta_star", "saturation_high", "saturation_low",
-    "bootstrap_resamples", "bootstrap_seed",
+    "bootstrap_resamples", "bootstrap_seed", "strictness", "split",
 )
 """What two cards must share to be read side by side: the same tasks, the same attempts and
-decoding, and the same rule for calling a difference.  Serving, budget, rates and the turn cap
+decoding, the same rule for calling a difference, and the same strictness and split (an arm's
+id names neither, a leaky arm scores another predicate, and the train split is other tasks; a
+block for the published design leaves both unset).  Serving, budget, rates and the turn cap
 are each model's own and are printed on each card.  So are time and the run's concurrency:
 neither is here, and nothing on the page compares them."""
 
@@ -2832,29 +2978,590 @@ class Comparison:
     shared_arms: tuple[str, ...]
 
 
+# ---- a run folder, read without the run engine --------------------------------------------
+
+
+def _plan_of(folder: _pathlib.Path) -> _Any:
+    """The plan a run folder's `plan.json` holds, made again as `config.Plan`.  Not a run folder
+    is one line naming the folder."""
+    from poisson_tasks import config as _config
+
+    try:
+        held = _json.loads((folder / _PLAN_FILE).read_text(encoding="utf-8"))["plan"]
+        model = dict(held["model"])
+        if model.get("price") is not None:
+            model["price"] = _config.PriceConfig(**model["price"])
+        return _config.Plan(
+            preset=str(held["preset"]),
+            arms=tuple(_ArmSpec(**arm) for arm in held["arms"]),
+            seeds=tuple(int(seed) for seed in held["seeds"]),
+            attempts=int(held["attempts"]),
+            model=_config.ModelConfig(**model),
+            decoding=_types.MappingProxyType(dict(held["decoding"])),
+            max_model_calls=int(held["max_model_calls"]),
+        )
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise ValueError(f"{folder} is not a run folder: it holds no plan") from error
+
+
+def _ledger_lines(folder: _pathlib.Path) -> list[dict[str, _Any]]:
+    """The whole lines of the run folder's ledger that parse; a torn or malformed line is
+    skipped, as the run engine skips it."""
+    path = folder / _LEDGER_FILE
+    if not path.exists():
+        return []
+    out: list[dict[str, _Any]] = []
+    for piece in path.read_bytes().splitlines(keepends=True):
+        if not piece.endswith(b"\n"):
+            continue
+        try:
+            line = _json.loads(piece)
+        except ValueError:
+            continue
+        if isinstance(line, dict):
+            out.append(line)
+    return out
+
+
+def _run_ids(arm_folder: _pathlib.Path) -> set[str]:
+    """The ids of the runs that wrote an arm's trace lines (the wheel stamps each episode with
+    its run's)."""
+    path = arm_folder / TRACES_FILE
+    ids: set[str] = set()
+    if not path.exists():
+        return ids
+    for piece in path.read_bytes().splitlines(keepends=True):
+        if not piece.endswith(b"\n"):
+            continue
+        try:
+            row = _json.loads(piece)
+        except ValueError:
+            continue
+        run = row.get("run") if isinstance(row, dict) else None
+        if isinstance(run, dict) and run.get("id") is not None:
+            ids.add(str(run["id"]))
+    return ids
+
+
+def _resumed(folder: _pathlib.Path, plan: _Any) -> bool:
+    """Whether a later run of the folder made some of its attempts.  Two signs, either enough:
+    an arm's trace lines stamped by more than one run, or a ledger line repeated for one
+    attempt, which is an attempt run again after it failed or was cut short."""
+    for spec in plan.arms:
+        if len(_run_ids(folder / _run_dir_name(spec))) > 1:
+            return True
+    seen: set[tuple[_Any, _Any, _Any]] = set()
+    for line in _ledger_lines(folder):
+        key = (line.get("arm"), line.get("seed"), line.get("attempt"))
+        if key in seen:
+            return True
+        seen.add(key)
+    return False
+
+
+def _run_date(folder: _pathlib.Path) -> str:
+    """The day the run started, from the first dated line of its log, else from its plan file:
+    the rates' date for a model with no price, read from the folder so the card recomputes."""
+    log = folder / _LOG_FILE
+    if log.exists():
+        for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                return _datetime.date.fromisoformat(line[:10]).isoformat()
+            except ValueError:
+                continue
+    stamp = (folder / _PLAN_FILE).stat().st_mtime
+    return _datetime.datetime.fromtimestamp(stamp, _datetime.UTC).date().isoformat()
+
+
+def _serving_entry(plan: _Any, given: _Mapping[str, _Any] | None) -> dict[str, _Any]:
+    """The plan's model's serving entry.  A model of a provider the user serves is `self_served`
+    at the plan's endpoint, with what `given` (a `providers.server_facts` mapping) says the
+    server reported, or nothing reported; facts for another endpoint describe a server this run
+    did not use and are refused.  Any other model is `hosted` at the endpoint's host and port,
+    and has no server of the user's to report."""
+    name = plan.model.name
+    if plan.model.provider in _SELF_SERVED_PROVIDERS:
+        entry: dict[str, _Any] = {
+            "kind": "self_served",
+            "stack": plan.model.provider,
+            "endpoint": plan.model.base_url,
+            "reported_by_server": [],
+        }
+        if given is not None:
+            if given.get("endpoint") not in (None, plan.model.base_url):
+                raise ValueError(
+                    f"the server facts are for {given.get('endpoint')}, and this run used "
+                    f"{plan.model.base_url}; a card records its own run's server"
+                )
+            if given.get("kind") not in (None, "self_served"):
+                raise ValueError(
+                    f"the server facts say {name} is {given.get('kind')!r}; a model served by "
+                    "its user is self_served"
+                )
+            entry.update(given)
+        return entry
+    if given is not None:
+        raise ValueError(
+            f"{name} is hosted ({plan.model.provider}); it has no server of the user's whose "
+            "facts a card could record"
+        )
+    return {"kind": "hosted", "endpoint_host": _urlparse.urlsplit(plan.model.base_url).netloc}
+
+
+def _gate(cell: Cell, tally: _Mapping[str, int] | None, prov: Provenance) -> str | None:
+    """The gate a cell fails, by the arithmetic `_check_cell` refuses it with: `instrument`
+    when its instrument rate is over the threshold or it has no scored episode, `no_call` when
+    more than the declared share of its scored episodes made no tool call; else `None`."""
+    if instrument_rate(cell, tally or None) > prov.instrument_threshold:
+        return "instrument"
+    kept = scored(cell)
+    if not kept:
+        return "instrument"
+    if sum(1 for row in kept if _made_no_call(row)) / len(kept) > prov.no_call_threshold:
+        return "no_call"
+    return None
+
+
 def card_from_run(
     folder: _pathlib.Path, *, serving: _Mapping[str, _Any] | None = None
 ) -> RunCard:
     """The card of the run folder `folder`, built from what the run left in it and nothing
-    else."""
-    raise NotImplementedError("FD4: card_from_run")
+    else: per arm of its plan, in the plan's order, `records_from_run` over the arm's folder and
+    the arm's instrument tally; then the artifact under `Provenance.for_plan` of that plan,
+    its verdict, its claims and its document with the claims block.  It only reads the folder,
+    and opens no socket: a self-served model's server facts come from `serving` or are not
+    recorded.  A cell over a gate refuses the card: records and tally only, and the verdict
+    names the cell and the gate.  Not a run folder, or a run that recorded no episode, is a
+    `ValueError` of one line naming the folder."""
+    folder = _pathlib.Path(folder)
+    plan = _plan_of(folder)
+    name = str(plan.model.name)
+    records: list[EpisodeRecord] = []
+    tally: dict[str, dict[str, int]] = {}
+    cells: dict[CellKey, Cell] = {}
+    tallies: dict[CellKey, _Mapping[str, int]] = {}
+    for spec in plan.arms:
+        arm = _arm_id(spec)
+        arm_folder = folder / _run_dir_name(spec)
+        tally[arm] = read_tally(arm_folder) if arm_folder.exists() else {}
+        rows = (
+            records_from_run(arm_folder, model=name)
+            if (arm_folder / TRACES_FILE).exists() else []
+        )
+        records += rows
+        if rows:
+            cells[(arm, name)] = rows
+            tallies[(arm, name)] = tally[arm]
+    if not records:
+        raise ValueError(f"the run folder {folder} holds no recorded episode")
+    entry = _serving_entry(plan, serving)
+    price = plan.model.price
+    read_on = str(price.read_on) if price is not None else _run_date(folder)
+    prov = Provenance.for_plan(plan, serving={name: entry}, rate_read_date=read_on)
+    if _resumed(folder, plan):
+        prov = _dc.replace(prov, resumed=True)
+    refused = tuple(
+        (arm, gate) for (arm, _), rows in cells.items()
+        if (gate := _gate(rows, tallies[(arm, name)], prov)) is not None
+    )
+    if refused:
+        design = prov.S * prov.n
+        owed = sum(design - len(scored(rows)) for rows in cells.values())
+        not_run = tuple(arm for arm in (prov.arms or ()) if (arm, name) not in cells)
+        owed += len(not_run) * design
+        verdict = CardVerdict(
+            word="refused", model=name, partial=owed > 0, owed=owed, incomplete=(),
+            not_run=not_run, refused=refused,
+        )
+        return RunCard(records=tuple(records), tally=tally, artifact=None, document=None,
+                       claims=None, verdict=verdict)
+    artifact = build_artifact(cells, prov, tally=tallies)
+    return RunCard(
+        records=tuple(records), tally=tally, artifact=artifact,
+        document=render_document(artifact, claims=True), claims=card_claims(artifact),
+        verdict=card_verdict(artifact),
+    )
 
 
 def card_verdict(artifact: Artifact) -> CardVerdict:
-    """The verdict an artifact's own cells and provenance give."""
-    raise NotImplementedError("FD4: card_verdict")
+    """The verdict an artifact's own cells and provenance give, so a card read back from its
+    files says what its first line said.  A cell is refused by the share its figures already
+    carry against the thresholds its block declares.  What is owed is every attempt the design
+    asks for that no cell holds a scored record of: the shortfall of each cell, and the whole
+    design of each arm the plan asked for that has no cell, which is listed as not run."""
+    prov = artifact.provenance
+    models = sorted({str(cell["model"]) for cell in artifact.cells})
+    if not models:
+        raise ValueError("the artifact holds no cell, so there is no card to judge")
+    refused: list[tuple[str, str]] = []
+    for cell in artifact.cells:
+        if cell["instrument_rate"] > prov.instrument_threshold:
+            refused.append((str(cell["arm_id"]), "instrument"))
+        elif cell["no_call_share"] > prov.no_call_threshold:
+            refused.append((str(cell["arm_id"]), "no_call"))
+    design = prov.S * prov.n
+    held = {str(cell["arm_id"]) for cell in artifact.cells}
+    not_run = tuple(arm for arm in (prov.arms or ()) if arm not in held)
+    owed = sum(max(0, design - int(cell["episodes_scored"])) for cell in artifact.cells)
+    owed += len(not_run) * design
+    incomplete = tuple(str(cell["arm_id"]) for cell in artifact.cells if cell["incomplete"])
+    return CardVerdict(
+        word="refused" if refused else "ok", model=models[0], partial=owed > 0, owed=owed,
+        incomplete=incomplete, not_run=not_run, refused=tuple(refused),
+    )
+
+
+# ---- the claims (FD4.4) ---------------------------------------------------------------------
+
+
+@_functools.cache
+def _package_generator_hash() -> str:
+    """The generator hash this install's package gives: what a card is stale against."""
+    return str(_generate(arm_specs()[0], seed_list()[0]).generator_hash)
+
+
+@_functools.cache
+def _published_blocks() -> tuple[tuple[Provenance, frozenset[str]], ...]:
+    """Each published card's provenance block and the arms it holds a cell of, read from the
+    artifact it ships as (`cards.published`); empty where an install has no cards."""
+    from poisson_tasks import cards as _cards
+
+    out: list[tuple[Provenance, frozenset[str]]] = []
+    for card in _cards.published():
+        stored = _json.loads((card.folder / "artifact.json").read_text(encoding="utf-8"))
+        out.append((Provenance(**stored["provenance"]),
+                    frozenset(str(cell["arm_id"]) for cell in stored["cells"])))
+    return tuple(out)
+
+
+def _differing(a: Provenance, b: Provenance) -> list[str]:
+    """The fields of `_COMPARABLE` two blocks differ in, in that tuple's order."""
+    return [name for name in _COMPARABLE if getattr(a, name, None) != getattr(b, name, None)]
+
+
+def _where(prov: Provenance, model: str) -> str:
+    """Where the model was served, in words: the endpoint of a model the user serves, the stack
+    and machine of one served locally, the host and port of a hosted one."""
+    entry = dict(prov.serving.get(model) or {})
+    kind = entry.get("kind")
+    if kind == "self_served":
+        return f"served by its user at {entry.get('endpoint')}"
+    if kind == "local":
+        return (
+            f"served locally with {entry.get('stack')} {entry.get('stack_version')} on "
+            f"{entry.get('gpu')}"
+        )
+    host = entry.get("endpoint_host") or prov.model_entry(model).get("endpoint_host")
+    return f"hosted at {host}"
+
+
+_LINE_ALWAYS = (
+    "It is one model's result on these tasks: it ranks no models, and it says nothing about "
+    "another model or about tasks other than these."
+)
+_LINE_NOT_COMPARABLE = (
+    "It is not comparable with the published cards: it was not measured the same way, so none "
+    "of its figures reads against theirs."
+)
+_LINE_NOT_COVERED = (
+    "No published card covers this plan: none holds any of its levels, so nothing here can "
+    "be read beside a published figure."
+)
+_LINE_SELF_SERVED = (
+    "Its model was served by its user: how it was served is not pinned beyond what the server "
+    "reported, so a later run of the same weights served differently is not the same "
+    "measurement."
+)
+_LINE_DISTRACTOR = (
+    "The distractor knob is experimental: it did not make tasks harder for either calibrated "
+    "model."
+)
+_LINE_STALE = (
+    "It is pinned to the generator it was made with, which is not the one this install has, so "
+    "it is stale."
+)
+_LINE_RESUMED = (
+    "Some of its attempts were made by a later run of its folder: a resumed attempt is a fresh "
+    "attempt, not a copy of the one it replaces."
+)
 
 
 def card_claims(artifact: Artifact) -> Claims:
-    """What the card means and what it does not claim, rendered from the artifact."""
-    raise NotImplementedError("FD4: card_claims")
+    """What the card means and what it does not claim, rendered from the artifact.
+
+    The meaning names the model, where it was served, and the design's tasks and attempts per
+    level, and says how a rate and a difference are read.  Each not-claimed line follows one
+    condition, read from the block and the cells against the published cards' blocks: fewer
+    tasks per level than they have (`small_sample`); not measured as they were
+    (`not_comparable`); a model the user serves (`self_served`); a distractor cell
+    (`distractor`); a generator other than the package's (`stale`); attempts from a later run
+    of the folder (`resumed`); no published card holding any of its levels (`not_covered`).
+    The first line, that it is one model's result and ranks nothing, needs no condition."""
+    prov = artifact.provenance
+    models = sorted({str(cell["model"]) for cell in artifact.cells})
+    model = models[0] if models else str(prov.models[0]["id"])
+    arms = {str(cell["arm_id"]) for cell in artifact.cells}
+    published = _published_blocks()
+    flags: set[str] = set()
+    if published and prov.S < min(other.S for other, _ in published):
+        flags.add("small_sample")
+    if published and any(_differing(prov, other) for other, _ in published):
+        flags.add("not_comparable")
+    if any(dict(entry).get("kind") == "self_served" for entry in prov.serving.values()):
+        flags.add("self_served")
+    if any((spec := _spec_for(arm)) is not None and spec.knob == _DISTRACTOR for arm in arms):
+        flags.add("distractor")
+    if prov.generator_hash != _package_generator_hash():
+        flags.add("stale")
+    if prov.resumed:
+        flags.add("resumed")
+    if published and not any(arms & held for _, held in published):
+        flags.add("not_covered")
+    meaning = (
+        f"This card is {model}, {_where(prov, model)}, over {prov.S} "
+        f"task{'' if prov.S == 1 else 's'} per level with {prov.n} "
+        f"attempt{'' if prov.n == 1 else 's'} at each. A rate is the share of this model's "
+        "attempts on these tasks that reached the goal and stopped there (strict) or reached it "
+        "at all (leaky). Each interval resamples tasks. Two levels are called different only "
+        "when the paired interval excludes zero and the gap is at least "
+        f"{prov.delta_star:.2f}."
+    )
+    if published and "not_comparable" not in flags:
+        meaning += (
+            " It was measured the same way as the published cards and can be read beside them."
+        )
+    lines = [_LINE_ALWAYS]
+    if "small_sample" in flags:
+        fewest = min(other.S for other, _ in published)
+        lines.append(
+            f"With fewer than the published {fewest} tasks per level, the intervals are wide "
+            "and most pairs of levels will read too small to call; that is the design's "
+            "resolution, not evidence that the levels are the same."
+        )
+    for flag, line in (
+        ("not_comparable", _LINE_NOT_COMPARABLE), ("not_covered", _LINE_NOT_COVERED),
+        ("self_served", _LINE_SELF_SERVED), ("distractor", _LINE_DISTRACTOR),
+        ("stale", _LINE_STALE), ("resumed", _LINE_RESUMED),
+    ):
+        if flag in flags:
+            lines.append(line)
+    return Claims(meaning=meaning, not_claimed=tuple(lines), flags=frozenset(flags))
+
+
+def _claims_block(artifact: Artifact) -> list[str]:
+    """The lines a run's card carries after its provenance: what ran, when the card is partial
+    (what it owes, the levels not run, the levels incomplete); what it means; what it does not
+    claim.  An insertion: the published renderer's lines are not touched."""
+    verdict = card_verdict(artifact)
+    claims = card_claims(artifact)
+    prov = artifact.provenance
+    out: list[str] = []
+    if verdict.partial:
+        design = prov.S * prov.n
+        asked = len(prov.arms) if prov.arms else len(artifact.cells)
+        cells = {str(cell["arm_id"]): cell for cell in artifact.cells}
+        out += [
+            "",
+            "## What ran",
+            "",
+            f"This card is partial: the run owes {verdict.owed} of the {design * asked} attempts "
+            "its design asks for, and a run of the same plan in the same folder makes them.",
+        ]
+        out += [f"- `{arm}` was not run: it has no figures." for arm in verdict.not_run]
+        out += [
+            f"- `{arm}` is incomplete: {cells[arm]['episodes_scored']} of {design} attempts "
+            f"over {cells[arm]['S_observed']} of {cells[arm]['S_declared']} tasks."
+            for arm in verdict.incomplete
+        ]
+    out += ["", "## What this card means", "", claims.meaning, "", "## What it does not claim", ""]
+    out += [f"- {line}" for line in claims.not_claimed]
+    return out
+
+
+# ---- reading a card beside the published ones (FD4.5, FD4.6) -------------------------------
+
+
+def _bare(model: str) -> str:
+    """A model's id without its `@revision`: how a run names the model a card recorded with
+    one."""
+    return model.split("@", 1)[0]
+
+
+_RULE_FIELDS = {
+    "delta_star": "the smallest difference called",
+    "saturation_high": "the upper saturation bound",
+    "saturation_low": "the lower saturation bound",
+    "bootstrap_resamples": "the number of resamples",
+    "bootstrap_seed": "the resampling seed",
+}
+
+
+def _differs(field: str, a: Provenance, b: Provenance) -> str:
+    """One line saying what the first differing field means."""
+    if field == "generator_hash":
+        return "the generators differ: the cards' tasks were made by different generator versions"
+    if field == "engine_hash":
+        return "the domains differ: the cards' tasks were made over different engines"
+    if field == "vocabulary_hash":
+        return "the vocabularies differ: the cards' tasks were worded from different tables"
+    if field in ("seed_list_hash", "S"):
+        if a.S != b.S:
+            return (
+                f"the seed lists differ: one card used {a.S} tasks per level and the other "
+                f"{b.S}"
+            )
+        return "the seed lists differ: the cards did not use the same tasks"
+    if field == "n":
+        return f"the attempts differ: one card made {a.n} per task and the other {b.n}"
+    if field == "decoding":
+        return "the decoding differs: the cards did not send the same sampling settings"
+    if field == "harness_id":
+        return "the harnesses differ: the cards' episodes were run through different harnesses"
+    if field == "strictness":
+        return (
+            f"the strictness differs: one card scores {a.strictness or 'strict'} arms and the "
+            f"other {b.strictness or 'strict'}"
+        )
+    if field == "split":
+        return (
+            f"the splits differ: one card's tasks are from the {a.split or SPLIT} split and the "
+            f"other's from the {b.split or SPLIT}"
+        )
+    return f"the rule for calling a difference differs: {_RULE_FIELDS.get(field, field)}"
 
 
 def comparable(a: Artifact, b: Artifact) -> Comparison:
-    """Whether `a` and `b` were measured the same way, and what they share."""
-    raise NotImplementedError("FD4: comparable")
+    """Whether `a` and `b` were measured the same way, and what they share: the first field of
+    `_COMPARABLE` they differ in, said in words, or none; whether both measured one model
+    (matched without a revision); and the arms both hold a cell of, in `a`'s order."""
+    differ = _differing(a.provenance, b.provenance)
+    field = differ[0] if differ else None
+    a_models = {_bare(str(cell["model"])) for cell in a.cells}
+    b_models = {_bare(str(cell["model"])) for cell in b.cells}
+    b_arms = {str(cell["arm_id"]) for cell in b.cells}
+    return Comparison(
+        field=field,
+        reason=None if field is None else _differs(field, a.provenance, b.provenance),
+        same_model=a_models == b_models,
+        shared_arms=tuple(str(cell["arm_id"]) for cell in a.cells if cell["arm_id"] in b_arms),
+    )
+
+
+def _verdict_words(verdict: CardVerdict) -> str:
+    if verdict.word == "refused":
+        return "refused: " + ", ".join(f"{arm} ({gate})" for arm, gate in verdict.refused)
+    if verdict.partial:
+        return f"partial, {verdict.owed} attempts owed"
+    return "complete"
 
 
 def render_side_by_side(cards: _Mapping[str, Artifact]) -> str:
-    """Cards keyed by a label, each read on its own verdicts, side by side."""
-    raise NotImplementedError("FD4: render_side_by_side")
+    """Cards keyed by a label, each read on its own verdicts, side by side: one table per level
+    more than one card holds, a row per card, and each card's own adjacent-level calls.  Nothing
+    is pooled.  Refused in one line naming the two labels when `comparable` names a field for
+    any pair, or when a pair shares no level, since nothing can be read side by side there."""
+    labels = list(cards)
+    if not labels:
+        raise ValueError("no card to render")
+    for index, first in enumerate(labels):
+        for second in labels[index + 1:]:
+            answer = comparable(cards[first], cards[second])
+            if answer.field is not None:
+                raise ValueError(
+                    f"{first} and {second} cannot be read side by side: {answer.reason}")
+            if not answer.shared_arms:
+                raise ValueError(
+                    f"{first} and {second} cannot be read side by side: no level is on both")
+    prov = cards[labels[0]].provenance
+    lines: list[str] = [
+        "# Cards side by side",
+        "",
+        f"{len(labels)} cards measured the same way: generator `{prov.generator_hash}`, the same "
+        f"{prov.S} tasks per level from the {prov.split or SPLIT} split (seed list "
+        f"`{prov.seed_list_hash}`), {prov.n} attempts per task, the same decoding, and a "
+        "difference called only when its paired 95% interval excludes zero and it is at least "
+        f"{prov.delta_star:.2f}.",
+        "",
+        "Every number is one card's own, read from that card's artifact. Nothing here pools or "
+        "ranks: a level is shown where more than one card holds it, one row per card, and a "
+        "card's time is not compared with another's.",
+        "",
+        "## Cards",
+        "",
+    ]
+    for label in labels:
+        artifact = cards[label]
+        verdict = card_verdict(artifact)
+        lines.append(
+            f"- **{label}**: {verdict.model}, {_where(artifact.provenance, verdict.model)}; "
+            f"{_verdict_words(verdict)}"
+        )
+    held: dict[str, list[str]] = {}
+    for label in labels:
+        for cell in cards[label].cells:
+            held.setdefault(str(cell["arm_id"]), []).append(label)
+    shared = [arm for arm, who in held.items() if len(who) > 1]
+    alone = [arm for arm, who in held.items() if len(who) == 1]
+    lines += ["", "## Levels", ""]
+    if alone:
+        lines += [
+            "On one card only, so not shown here: "
+            + ", ".join(f"`{arm}` ({held[arm][0]})" for arm in alone) + ".",
+            "",
+        ]
+    header = (
+        "| level | card | model | strict pass@1 | 95% interval | leaky pass@1 | leaky 95% "
+        "interval | overshoot | tasks | attempts | incomplete |"
+    )
+    rule = "|" + "---|" * 11
+    for arm in shared:
+        lines += ["", f"### `{arm}`", "", header, rule]
+        for label in held[arm]:
+            cell = next(c for c in cards[label].cells if c["arm_id"] == arm)
+            lines.append(
+                f"| `{arm}` | {label} | {cell['model']} | {_fmt(cell['pass_at_1'])} | "
+                f"{_interval(cell['pass_at_1_interval'])} | {_fmt(cell['leaky_at_1'])} | "
+                f"{_interval(cell['leaky_at_1_interval'])} | {_fmt(cell['overshoot_share'])} | "
+                f"{cell['S_observed']} of {cell['S_declared']} | {cell['n_declared']} | "
+                f"{_fmt(cell['incomplete'])} |"
+            )
+    pair_rows: list[str] = []
+    for label in labels:
+        artifact = cards[label]
+        for predicate, pairs in (("leaky", artifact.reach_pairs), ("strict", artifact.pairs)):
+            for pair in pairs:
+                a_arm = f"{pair['knob']}:{_level_id(pair['knob'], pair['level_a'])}"
+                b_arm = f"{pair['knob']}:{_level_id(pair['knob'], pair['level_b'])}"
+                if a_arm not in shared or b_arm not in shared:
+                    continue
+                call = str(pair["verdict"])
+                if pair["reason"] is not None:
+                    call = f"{call}: {pair['reason']}"
+                interval = None if pair["low"] is None else (pair["low"], pair["high"])
+                pair_rows.append(
+                    f"| {label} | {pair['knob']} | {predicate} | {pair['level_a']} vs "
+                    f"{pair['level_b']} | {_fmt(pair['delta'])} | {_interval(interval)} | "
+                    f"{call} |"
+                )
+    lines += [
+        "",
+        "## Adjacent levels, each card's own call",
+        "",
+        "Each row is one card's comparison of two adjacent levels both cards hold, by its own "
+        f"paired interval and delta* = {prov.delta_star:.2f}; depth is read on leaky pass@1. "
+        "No row pools cards or says the cards agree.",
+        "",
+        "| card | knob | predicate | levels | delta | 95% paired interval | verdict |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    lines += pair_rows if pair_rows else ["| | | | no two adjacent levels are on more than "
+                                           "one card | | | |"]
+    return "\n".join(lines) + "\n"
+
+
+def _level_id(knob: str, level: int) -> str:
+    """A knob's level as its arm id's level part (`d3`, `r2@k16`), from the arm an id names."""
+    try:
+        return _arm_id(_plain(knob, level)).split(":", 1)[1]
+    except ValueError:
+        return str(level)
