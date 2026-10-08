@@ -14,7 +14,11 @@ naming the ledger by number, the masked fingerprint and its census.  `tests/test
 pin the block-size knob: B's task with its block grown from eight tools to sixty-four, the
 right tools and six reads first in an order drawn from a domain of the knob's own, then the
 table's other reads, then read copies under names of their own, each answering as the
-engine read of its facet.
+engine read of its facet.  `tests/test_k6_*.py` pin the argument-difficulty knob: B's task
+with each stage tool listing six more parameters, the request stating the level less two
+of their values, which both stage calls must carry exactly, and the check that refuses
+any other stage call in front of the engine, in `surface.py` so that the verifier, the
+tool server and a run's replay apply one check.
 
 Everything here is a pure function of its arguments and the frozen vocabulary table:
 no clock, no RNG, no model, no network (G1, G2).  The engine's and the knobs module's
@@ -130,12 +134,15 @@ from poisson_tasks.engine import init_state as _init_state
 from poisson_tasks.engine import mutations as _mutations
 from poisson_tasks.engine import replay as _replay
 from poisson_tasks.knobs import (
+    _ARGUMENT_CODES,
     _BLOCK_HEAD,
     _D_B,
+    _ENGINE_ARGUMENTS,
     _LEDGER_NUMBER,
     _LOOKALIKE_LEDGERS,
     _LOOKALIKES,
     _NUMBER_WIDTH,
+    _OWN_SLOT,
     _parse_arm_id,
 )
 from poisson_tasks.knobs import ArmSpec as _ArmSpec
@@ -179,7 +186,8 @@ _SIMILARITY = "similarity"
 _FAULTS = "faults"
 _HISTORY = "history"
 _BLOCK = "block"
-_GENERATED_KNOBS = (_DEPTH, _DISTRACTOR, _SIMILARITY, _FAULTS, _HISTORY, _BLOCK)
+_ARGUMENTS = "arguments"
+_GENERATED_KNOBS = (_DEPTH, _DISTRACTOR, _SIMILARITY, _FAULTS, _HISTORY, _BLOCK, _ARGUMENTS)
 
 # The knobs module's `d_R`, cited and not re-minted: `reference_turns` is `d_R + 1` for
 # every R arm (N16), so the number comes back off that module's own constructor.
@@ -213,6 +221,9 @@ _ENTRY_DOMAIN = b"task-generator/entry-code/1"
 # keyed blocks: a full order of the 240 copies needs about 1,600 bits, and one block is 256.
 _BLOCK_DOMAIN = b"task-generator/block-order/1"
 _BLOCK_DRAW_BLOCKS = 8
+# The arguments knob's one draw: the six words a task's stage calls may have to carry.  A
+# domain of its own, so no task of another knob moves with it.
+_ARGUMENT_DOMAIN = b"task-generator/argument-values/1"
 
 # The outcome vocabulary.  Closed, in the table's order: the first label that matches
 # wins, so this order is load-bearing and not decoration.
@@ -268,10 +279,14 @@ _SLOT_CLASS = "ledger_class"
 _SLOT_NUMBER = "ledger_number"
 _SLOT_LADDER = "stage_ladder"
 _SLOT_GOAL = "goal_stage"
+# The arguments knob's own slot, the one N6 leaves out: the values the request states, as
+# the request states them.  The knobs module names it, so it is cited and not re-minted.
+_SLOT_STATED = _OWN_SLOT[_ARGUMENTS]
 
-# The slots G15 masks: an id, an entry code and a ledger number are opaque strings the model
-# copies, and none is structure.  Masking by slot name is what keeps the mask off the prose.
-_OPAQUE_SLOTS = (_SLOT_RECORD, _SLOT_ENTRY, _SLOT_NUMBER)
+# The slots G15 masks: an id, an entry code, a ledger number and the stated values are
+# opaque strings the model copies, and none is structure.  Masking by slot name is what
+# keeps the mask off the prose.
+_OPAQUE_SLOTS = (_SLOT_RECORD, _SLOT_ENTRY, _SLOT_NUMBER, _SLOT_STATED)
 _MASK = "<opaque>"
 
 _SYSTEM_PROMPT = (
@@ -831,10 +846,15 @@ def _row(value: _RecordsValue, cls: str, record: str) -> tuple[int, str | None]:
 
 
 def _render_tool(
-    tool: _Any, name: str | None = None, description: str | None = None
+    tool: _Any,
+    name: str | None = None,
+    description: str | None = None,
+    extra: tuple[str, ...] = (),
 ) -> dict[str, _Any]:
     """One tool's schema, as the block carries it: under the name and the description the
-    block shows it with, which are the engine's own unless given.
+    block shows it with, which are the engine's own unless given, and with `extra`
+    parameters listed beside the tool's own, each a string and none required (an arguments
+    arm's six more on each stage tool; the engine's own stay the required ones, N30).
 
     Keys are written in one order and every hash over the block is taken with
     `sort_keys`, so neither the rendering nor its digest moves with insertion order.
@@ -845,7 +865,10 @@ def _render_tool(
         "description": tool.description if description is None else description,
         "parameters": {
             "type": "object",
-            "properties": {name: {"type": tool.parameters[name]} for name in names},
+            "properties": {
+                name: {"type": tool.parameters.get(name, "string")}
+                for name in sorted((*names, *extra))
+            },
             "required": names,
             "additionalProperties": False,
         },
@@ -864,11 +887,20 @@ def _render_block(
     name, the engine tool it stands for, and the description the block gives it.  `block` is
     the names the block shows (`surface.shown_names`), the engine's own for every knob but
     similarity, and on a block arm the read copies' as well, which the generator builds the
-    block in."""
+    block in.  On an arguments arm each stage tool lists the six argument parameters beside
+    its own, at every level and on the control alike, so the block is one block across the
+    knob's arms (N4, N30)."""
     defs = _tool_defs(spec)
     shown = _surface.display_map(seed, split, rendered_arm, goal, block)
+    wide = _parse_arm_id(rendered_arm).knob == _ARGUMENTS
     return tuple(
-        _render_tool(defs[entry.engine], name, entry.description) for name, entry in shown.items()
+        _render_tool(
+            defs[entry.engine],
+            name,
+            entry.description,
+            _ARGUMENT_CODES if wide and entry.engine in spec.stage_tools else (),
+        )
+        for name, entry in shown.items()
     )
 
 
@@ -909,6 +941,8 @@ def _block_names(
     knob R's base block at every level (N4), because its level is a plan over the calls and
     not a change to the block.  History: the same base block at every level (N4), because its
     level is earlier tool work before the first move and not a change to the block.
+    Arguments: the same base block too (N4), its level being how many values the stage calls
+    carry, which widens the stage tools' schemas and designates no slot.
     """
     size = _block_size(spec)
     stage_tools = _stage_tools_of(spec, qualifier)
@@ -923,7 +957,7 @@ def _block_names(
             f"{len(base)} tools available"
         )
     names = [base[index] for index in permutation]
-    if arm.knob in (_DEPTH, _FAULTS, _HISTORY) or arm.level == 0:
+    if arm.knob in (_DEPTH, _FAULTS, _HISTORY, _ARGUMENTS) or arm.level == 0:
         return tuple(names)
 
     pool = _distractor_pool(spec, qualifier)
@@ -1131,6 +1165,47 @@ def _filler(base: str, tokens: int) -> str:
     if not words:
         return ""
     return _FILLER_PREFIX + " ".join(words)
+
+
+def _argument_values(seed: int, split: str, record: str) -> tuple[str, ...]:
+    """The six words an arguments task's stage calls may have to carry, one per argument
+    parameter in `_ARGUMENT_CODES`' order: an ordered selection of the split's record-id
+    words that are not words of the task's own record id, drawn from the knob's own domain.
+
+    Record-id words because vocabulary v2 keeps both lists out of every tool name (N7, N31),
+    each is one reference token, and the splits' lists are disjoint, so the values move with
+    the split as the record id does.  The level is no input: a level states the first
+    `level - 2` of the six, so each level states what the level below states, and more.  Six
+    different words, none of the record's: a value in the wrong parameter, or the record's
+    own words in one, is wrong in a way the check can see.
+    """
+    _count, separator = _record_id_shape()
+    taken = set(record.split(separator))
+    words = tuple(word for word in _record_id_words(split) if word not in taken)
+    radices = tuple(range(len(words), len(words) - len(_ARGUMENT_CODES), -1))
+    digits = _mixed_radix(_prf(_ARGUMENT_DOMAIN, seed, split), radices)
+    return tuple(words[index] for index in _selection(digits, len(words)))
+
+
+def _stated_values(seed: int, split: str, record: str, level: int) -> dict[str, str]:
+    """The values an arguments arm at `level` states, each under its parameter: the first
+    `level - 2` of the task's six words.  None at the knob's base level."""
+    values = _argument_values(seed, split, record)
+    return dict(zip(_ARGUMENT_CODES[: level - _ENGINE_ARGUMENTS], values, strict=False))
+
+
+def _stated_text(stated: dict[str, str]) -> str:
+    """The stated values as the request states them and the knob's own slot holds them:
+    each parameter's name in words, then its value in double quotes, as the record id and the
+    entry code are quoted, so a model reads which parameter takes which value as it reads
+    which record takes which code.  Empty when nothing is stated."""
+    return ", ".join(f'{name.replace("_", " ")} "{value}"' for name, value in stated.items())
+
+
+def _with_stated(instruction: str, stated_text: str) -> str:
+    """B's request, then one sentence stating the values when there are any.  The sentence's
+    own words, like the template's, carry no token a tool name carries (N7)."""
+    return instruction + (f"\nCarry {stated_text}." if stated_text else "")
 
 
 # ---------------------------------------------------------------------------
@@ -1372,8 +1447,13 @@ def _negative_controls(
     block: tuple[str, ...],
     reference: tuple[_Call, ...],
     final_token: str | None,
+    stated: dict[str, str] | None = None,
 ) -> dict[str, tuple[_Call, ...]]:
     """One control per system label a call sequence can produce.
+
+    `stated` is an arguments arm's stated values: a stage call this adds to the reference
+    carries them too, or the check would refuse it and the control would pass instead of
+    giving its label.
 
     `passed` is `reference_calls` itself and `verifier_error` is fault-injected, so
     neither is generated.  Format-check clause 1 depends on a family's raw format and is
@@ -1393,7 +1473,7 @@ def _negative_controls(
     # The decoy id in the target class: knob D's block holds no other class's tools, so
     # this is the only mutation of another record any call inside the block can make.
     controls[_COLLATERAL] = reference + (
-        (stage_tools[0], {record_param: decoy, entry_param: code}),
+        (stage_tools[0], {record_param: decoy, entry_param: code, **(stated or {})}),
     )
     # `overshoot` needs a tool in the block that carries the target past the goal.  At the
     # top stage there is none, and knob R's block holds stages 1 and 2 alone, so there is
@@ -1580,13 +1660,19 @@ def _verdict(
     # answered itself takes none, and reaches the engine here as it always has, as no tool or
     # as arguments the engine refuses, changing nothing.
     plan = _surface.reference_plan(bundle.arm_id, shown, bundle.reference_calls)
+    # An arguments arm's stated values, read off the reference as the tool server and the
+    # record reader read them, applied by the same function: a stage call that does not carry
+    # exactly them is refused there and moves no record here either.
+    stated = _surface.stated_values(bundle.arm_id, shown, bundle.reference_calls)
     state = start
     counts: dict[str, int] = {}
     for turn in turns:
         for name, args in turn.calls:
             call: _Call = (_surface.engine_name(shown, name), args)
             if _reaches_the_server(name, args, block):
-                state, counts, _observation = _surface.apply_planned(state, counts, call, plan)
+                state, counts, _observation = _surface.apply_planned(
+                    state, counts, call, plan, stated=stated
+                )
             else:
                 state, _observation = _apply(state, call)
     final = _records_value(state)
@@ -1801,7 +1887,9 @@ def structure_space(arm: _ArmSpec, spec: _EngineSpec | None = None) -> int:
     arm's count is every tool and its slot, since nothing in its block is masked: the target
     ledger, the order of the first eight slots, the order of the table's other reads in the
     slots they take, and the order of the copies after them; the control counts k8's, a lower
-    bound as for every control, its filler being a derivation of k64's block.
+    bound as for every control, its filler being a derivation of k64's block.  An arguments
+    arm's count is B's at every level and on the control: its block is B's, its stage tools'
+    schemas the same at every level, and the stated values are masked with the record id.
     """
     _refuse_a_knob_not_generated(arm)
     engine_spec = _resolve(spec)
@@ -1876,6 +1964,14 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
     number = _surface.target_number(seed, arm.split) if arm.knob == _SIMILARITY else None
     slots = _prompt_slots(engine_spec, arm, record, code, qualifier, number)
     instruction = _render_instruction(slots)
+    stated: dict[str, str] = {}
+    if arm.knob == _ARGUMENTS:
+        # Arguments: B's request, then the level less two of the task's six values, each
+        # stated after its parameter's name (N31), in the knob's own slot too, which the
+        # fingerprint masks; both stage calls carry them (below) and the check requires them.
+        stated = _stated_values(seed, arm.split, record, arm.level)
+        slots = slots + ((_SLOT_STATED, _stated_text(stated)),)
+        instruction = _with_stated(instruction, _stated_text(stated))
     if arm.knob == _SIMILARITY:
         block = _similarity_block(engine_spec, seed, arm.split, qualifier, permutation)
     elif arm.knob == _BLOCK:
@@ -1943,6 +2039,14 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
         system_prompt = system_prompt + _filler(
             system_prompt, _rendered_tokens(high_tools) - _rendered_tokens(tools)
         )
+    elif arm.control is not None and arm.knob == _ARGUMENTS:
+        # The arguments control: a2's request, plus the neutral filler at its end, as long as
+        # what a8's stated values add to the request (N32), where N3 does not look and the
+        # filler words keep it neutral.  A length-only control; the schema is the same.
+        high_stated = _stated_values(seed, arm.split, record, arm.control)
+        wanted = _count_tokens(_with_stated(_render_instruction(slots), _stated_text(high_stated)))
+        instruction = instruction + _filler(instruction, wanted - _count_tokens(instruction))
+        prompt = instruction
     elif arm.control is not None:
         # The R control: the `r0` block, plus a frozen neutral filler whose token count
         # is the tool-block difference between `rH` and `r0`.  A length-only control, and
@@ -1964,6 +2068,12 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
     )
     start = _init_state(scenario, seq_start)
     final, _replayed = _replay(scenario, list(reference_calls), seq_start)
+    if stated:
+        # Both stage calls carry the stated values, after the engine replay that sets the
+        # expected records: the engine never sees them, and the observations are B's.
+        reference_calls = tuple(
+            (name, {**arguments, **stated}) for name, arguments in reference_calls
+        )
     if arm.knob == _FAULTS:
         # The reference carries the retries: each planned failure's call, answered
         # `unavailable`, and the same call again (N25).  The plan is read off the arm id and
@@ -1977,7 +2087,7 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
 
     controls = _negative_controls(
         engine_spec, scenario, arm, qualifier, record, decoy, arm.split, block,
-        reference_calls, final_token,
+        reference_calls, final_token, stated,
     )
     # The reference and the controls call the tools as the block shows them, which `verify`
     # and the tool server map back to the engine; a control's call to a tool outside the
