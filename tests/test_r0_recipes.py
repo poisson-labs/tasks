@@ -252,9 +252,9 @@ def test_before_the_probe_only_first_look_and_card_are_offered() -> None:
 
 def test_every_arm_offered_generates_and_only_a_probe_knob_can_ship() -> None:
     """Unbuilt knobs stay refused: every arm of every recipe the package offers makes a task, and
-    `recipe_table` takes only the seven probe knobs.  Bugs caught: a knob the generator does not
-    make yet (block, on this tree) put in `SHIPPED_KNOBS`; a misspelt knob taken silently, so a
-    recipe stays withdrawn with nothing said."""
+    `recipe_table` takes only the seven probe knobs.  Bugs caught: a knob that has no tasks yet put
+    in `SHIPPED_KNOBS`; a misspelt knob taken silently, so a recipe stays withdrawn with nothing
+    said."""
     shipped = tuple(arms().SHIPPED_KNOBS)
     assert set(shipped) <= set(PROBE_KNOBS) and len(set(shipped)) == len(shipped), shipped
     for name, recipe in arms().RECIPES.items():
