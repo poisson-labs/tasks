@@ -38,7 +38,7 @@ import urllib.parse
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
-from poisson_tasks.arms import _CONTROL_PAIRS, DEFAULT_GENERATOR_VERSION, arm_from_id
+from poisson_tasks.arms import _CONTROL_PAIRS, DEFAULT_GENERATOR_VERSION, RECIPES, arm_from_id
 from poisson_tasks.knobs import ArmSpec, arm_id, levels
 from poisson_tasks.tokenizer import _ENCODING_PATH
 
@@ -73,7 +73,9 @@ __all__ = [
 SCHEMA_VERSION = 1
 
 _NOT_SENT = "not sent"
-_MEASURES = ("first-look", "card", "custom")
+# `[measure] preset` takes each recipe offered, then `custom`; a recipe whose knobs have not
+# shipped is refused by name.
+_PRESETS = (*(name for name, recipe in RECIPES.items() if recipe.offered), "custom")
 _KNOBS = tuple(_CONTROL_PAIRS)
 _STRICTNESSES = ("strict", "leaky")
 _FIRST_LOOK_LEVELS = (1, 3, 8)
@@ -311,6 +313,15 @@ def _listed(items: Sequence[Any], last: str = "and") -> str:
     if len(words) < 2:
         return "".join(words)
     return ", ".join(words[:-1]) + f" {last} " + words[-1]
+
+
+def _not_shipped(knobs: Sequence[str]) -> str:
+    """The knobs a recipe waits on, said as not shipped: it is offered once any one ships."""
+    if len(knobs) == 1:
+        return f"{knobs[0]} has not shipped"
+    if len(knobs) == 2:
+        return f"neither {knobs[0]} nor {knobs[1]} has shipped"
+    return f"none of {_listed(knobs)} has shipped"
 
 
 def _edits(a: str, b: str) -> int:
@@ -659,7 +670,16 @@ class _Reader:
 
     def measure(self) -> MeasureConfig:
         self.table("measure")
-        preset = self.choice("measure.preset", self.need("measure.preset"), _MEASURES, "a measure")
+        key = "measure.preset"
+        value = self.need(key)
+        recipe = RECIPES.get(value) if isinstance(value, str) else None
+        if recipe is not None and not recipe.offered:
+            raise self.refusal(
+                key,
+                f"{self.name(key)}: {_show(value)} is a recipe not offered yet, because "
+                f"{_not_shipped(recipe.waiting)}",
+            )
+        preset = self.choice(key, value, _PRESETS, "a recipe")
         custom_keys = ("knob", "levels", "controls", "strictness")
         if preset != "custom":
             for field in custom_keys:
@@ -969,7 +989,7 @@ def dump_config(config: ProjectConfig) -> str:
         ]
     out += [
         "[measure]",
-        _line(f"preset = {_toml(measure.preset)}", " | ".join(_MEASURES)),
+        _line(f"preset = {_toml(measure.preset)}", " | ".join(_PRESETS)),
     ]
     if not custom:
         out.append('# With preset = "custom":')
@@ -1065,6 +1085,7 @@ INIT_FLAGS: tuple[InitFlag, ...] = (
     InitFlag("--price", "model.price", "prices", None),
     InitFlag("--price-read-on", "model.price.read_on", "date", None),
     InitFlag("--no-price", "model.price", "switch", False),
+    InitFlag("--recipe", "measure.preset", "choice", "first-look"),
     InitFlag("--measure", "measure.preset", "choice", "first-look"),
     InitFlag("--knob", "measure.knob", "choice", "depth"),
     InitFlag("--levels", "measure.levels", "integers", None),
@@ -1096,6 +1117,9 @@ _FLAGS = {flag.flag: flag for flag in INIT_FLAGS}
 # Init's flags that set no key of the file; they are init's own to act on.
 _FLAGS_OF_INIT_ALONE = ("--yes", "--fetch", "--no-fetch", "--check-key", "--no-check-key")
 _SWITCHED_OFF = ("--no-controls",)
+# A flag kept under an older name for one release: the older name sets what the newer one does,
+# and given both, the last one given counts, as with any flag given twice.
+_ALIASES = {"--measure": "--recipe"}
 
 
 def _name_as_flag(key: str) -> str:
@@ -1136,7 +1160,7 @@ def _given_flags(argv: Sequence[str]) -> dict[str, Any]:
         name, equals, attached = word.partition("=")
         if name in _FLAGS_OF_INIT_ALONE and not equals:
             continue
-        flag = _FLAGS.get(name)
+        flag = _FLAGS.get(_ALIASES.get(name, name))
         if flag is None:
             near = _nearest(name, tuple(_FLAGS)) if name.startswith("--") else None
             hint = "" if near is None else f"; did you mean {near}?"
@@ -1156,7 +1180,7 @@ def _given_flags(argv: Sequence[str]) -> dict[str, Any]:
             index += 1
         else:
             raise ConfigError(f"{name} needs a value", key=flag.key)
-        given[name] = text if flag.type == "prices" else _flag_value(flag, text)
+        given[flag.flag] = text if flag.type == "prices" else _flag_value(flag, text)
     return given
 
 
@@ -1255,7 +1279,7 @@ def config_from_init_args(
     if price is not None:
         model["price"] = price
 
-    measure: dict[str, Any] = {"preset": given.get("--measure", "first-look")}
+    measure: dict[str, Any] = {"preset": given.get("--recipe", "first-look")}
     custom = {
         "knob": given.get("--knob", _MISSING),
         "levels": given.get("--levels", _MISSING),
@@ -1273,17 +1297,18 @@ def config_from_init_args(
             custom["strictness"] = "strict"
     measure.update({field: value for field, value in custom.items() if value is not _MISSING})
 
+    # A recipe sets the tasks per level and the attempts; the flags still override them.
     tasks: dict[str, Any] = {}
-    card = measure["preset"] == "card"
+    recipe = RECIPES.get(measure["preset"]) if isinstance(measure["preset"], str) else None
+    per_level = _FLAGS["--tasks-per-level"].default if recipe is None else recipe.tasks_per_level
+    attempts = _FLAGS["--attempts"].default if recipe is None else recipe.attempts
     if "--seeds" in given:
         tasks["seeds"] = given["--seeds"]
     if "--tasks-per-level" in given:
         tasks["per_level"] = given["--tasks-per-level"]
     elif "seeds" not in tasks:
-        tasks["per_level"] = _CARD_TASKS if card else _FLAGS["--tasks-per-level"].default
-    tasks["attempts"] = given.get(
-        "--attempts", _CARD_ATTEMPTS if card else _FLAGS["--attempts"].default
-    )
+        tasks["per_level"] = per_level
+    tasks["attempts"] = given.get("--attempts", attempts)
     if "--generator-version" in given:
         tasks["generator_version"] = given["--generator-version"]
 
@@ -1349,7 +1374,7 @@ def equivalent_init_command(config: ProjectConfig, *, prog: str) -> list[str]:
                 "spend_usd under [limits], and init always writes a dollar cap beside a price",
                 key="limits.spend_usd",
             )
-    command += ["--measure", measure.preset]
+    command += ["--recipe", measure.preset]
     if measure.preset == "custom":
         command += ["--knob", str(measure.knob), "--levels", joined(measure.levels or ())]
         command.append("--controls" if measure.controls else "--no-controls")
@@ -1385,9 +1410,10 @@ def equivalent_init_command(config: ProjectConfig, *, prog: str) -> list[str]:
 
 @dataclasses.dataclass(frozen=True)
 class Plan:
-    """What a config runs: the arms in the published cards' own order, the seeds in the order
-    they run, the attempts at each task, the model, the decoding and the turn cap.  It carries no
-    cap on spending, no concurrency and no folder: none of them changes what runs."""
+    """What a config runs: the arms in the published cards' own order (a recipe's in its own),
+    the seeds in the order they run, the attempts at each task, the model, the decoding and the
+    turn cap.  It carries no cap on spending, no concurrency and no folder: none of them changes
+    what runs."""
 
     preset: str
     arms: tuple[ArmSpec, ...]
@@ -1416,11 +1442,9 @@ def resolve_plan(config: ProjectConfig) -> Plan:
 
     if measure.preset == "card":
         arms = card_arms
-    elif measure.preset == "first-look":
+    elif measure.preset in RECIPES:
         arms = tuple(
-            arm_from_id(arm_id(spec), generator_version=version)
-            for spec in card_arms
-            if spec.knob == "depth" and spec.control is None and spec.level in _FIRST_LOOK_LEVELS
+            arm_from_id(arm, generator_version=version) for arm in RECIPES[measure.preset].arms
         )
     else:
         knob = measure.knob or "depth"
