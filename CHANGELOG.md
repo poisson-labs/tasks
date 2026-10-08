@@ -5,6 +5,28 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### Block size
+
+- **A sixth knob makes tasks: `block`**, at levels 8, 16, 32 and 64: how many tools the model
+  is offered. The first eight are the same at every level: the two tools the task needs and six
+  read tools, in an order drawn for the task, so the right tools sit in the same places. Higher
+  levels add the table's other read tools, then read tools under names of their own: each pairs
+  one of the table's read verbs with one of its fields, is described in its own words, and
+  answers exactly as the table's read of that field. The task is otherwise the base task: the
+  same system prompt, the same request and the same two calls to make.
+- **A control arm, `block:k8+len(k64)`**: the eight-tool block, with neutral words added to the
+  system prompt as long as what the sixty-four-tool block adds, so a drop can be read against
+  the same length.
+- **A block run's tool messages are replayed against the engine** when its records are read,
+  the renamed reads included; a disagreement is `replay_mismatch` and scores nothing.
+- **`eval` takes a block arm, with one note**: no published card covers it. Levels between 8
+  and 64 run too. The three knobs whose tasks are not built yet are still refused in one line,
+  by the generator and by `eval`.
+- **A block of more than 258 tools is refused when the arm is made**: the two tools the task
+  needs and every read name the table can make.
+- **`init` and `tasks.toml` do not offer block size** until its probe has shown it bites.
+- **Every task id and the generator hash moved**; no task of the other five knobs changed.
+
 ### The run engine: the estimate, the cap, resume and Ctrl-C
 
 - **What a plan will cost, before anything is spent.** `poisson_tasks.runs.estimate` reads the

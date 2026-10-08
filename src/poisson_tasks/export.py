@@ -147,13 +147,15 @@ def _arm_mapping(arm: _Any) -> dict[str, _Any]:
     than when the tasks are generated: a field missing, misspelled or extra; a strictness other
     than the two (a misspelled one was scored as strict); a split other than the two; a level or
     a control that is not a whole number, or outside what the knob can make.  Depth runs from 1
-    to 8, distractor from 0 to 14, similarity from 0 to 3, faults from 0 to 4 and history from 0
-    to 2400, which are the ends of each knob's candidate levels: the stage ladder has eight
-    stages, the tool table offers fourteen distractors, a lookalike shares at most three of a
-    ledger number's four digits, four failed calls is the first level that makes a model retry
-    one tool twice, and 2400 tokens of earlier tool work is the most that keeps an episode of
-    model B's at the turn cap under its context's headroom.  A knob the generator makes no
-    tasks for yet is refused by name.
+    to 8, distractor from 0 to 14, similarity from 0 to 3, faults from 0 to 4, history from 0
+    to 2400 and block from 8 to 64, which are the ends of each knob's candidate levels: the
+    stage ladder has eight stages, the tool table offers fourteen distractors, a lookalike
+    shares at most three of a ledger number's four digits, four failed calls is the first
+    level that makes a model retry one tool twice, 2400 tokens of earlier tool work is the
+    most that keeps an episode of model B's at the turn cap under its context's headroom, and
+    sixty-four tools is the most a block can offer and keep model B's first request under that
+    headroom, as eight, the two the task needs and six reads, is the fewest.  A knob the
+    generator makes no tasks for yet is refused by name.
 
     An arm the generator can make and no published card measured is taken, with one note.
     """
@@ -306,6 +308,11 @@ class ExportTasksetConfig(_vf.TasksetConfig):
             "knob 'history' (levels 0, 300, 600, 1200, 2400) sets how many tokens of earlier "
             "tool work, read calls and their answers as the reference tokenizer counts them, "
             "the conversation holds before the model's first move; no published card "
+            "measures it yet. "
+            "knob 'block' (levels 8, 16, 32, 64) sets how many tools the model is offered: the "
+            "two the task needs and six read tools fill the first eight places at every level, "
+            "and the rest are read tools, past sixteen under names of their own; its control arm "
+            "block:k8+len(k64) adds the same length to the system prompt; no published card "
             "measures it yet. "
             "See docs/calibration.md."
         ),
