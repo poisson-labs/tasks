@@ -20,7 +20,7 @@ must not say the cards measure similarity.
 **2. The six other new knobs stay refused**, by the generator (`generate`, `structure_space`)
 and by `eval`, each as a `ValueError` (never a `KeyError`), beside similarity taken, until each
 knob's own module opens it: faults opened at K3, history at K4, block at K5, arguments at K6,
-and the two others stay refused.
+shape at K7, and the one other stays refused.
 
 **3. `tasks.toml` and `init` still do not offer similarity.**  Spec K-P3: no difficulty knob
 reaches `init`, `tasks.toml` or a published card until its probe has shown it bites.  `eval` is
@@ -46,9 +46,10 @@ TASKSET_ID = "poisson-tasks"
 SEEDS = [404, 55]
 # Faults left this list when K3 gave it tasks (retrofit ruled with K3 Session A's filing),
 # history when K4 did (retrofit ruled with K4 Session A's filing), block when K5 did (retrofit
-# ruled with K5 Session A's filing), and arguments when K6 did (retrofit ruled with K6 Session
-# A's filing); the two knobs still here stay refused until their own modules.
-STILL_SHUT = ("shape:w2", "shape:w1+len(w4)", "spread:p2")
+# ruled with K5 Session A's filing), arguments when K6 did (retrofit ruled with K6 Session A's
+# filing), and shape when K7 did (retrofit ruled with K7 Session A's filing); the one knob still
+# here stays refused until its own module.
+STILL_SHUT = ("spread:p2",)
 
 
 def loaders() -> Any:
