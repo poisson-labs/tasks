@@ -172,6 +172,10 @@ _MAX_BLOCK = _D_B + len(_SPEC.table["read_verbs"]) * len(_SPEC.table["facets"])
 # Arguments: a stage tool lists eight parameters, two of them the engine's own.
 _ENGINE_ARGUMENTS = 2
 _MAX_ARGUMENTS = 8
+# The six parameters each stage tool lists beside the engine's two on an arguments arm, in
+# the order the levels state them: a4 states the first two, a6 the first four, a8 all six.
+# Opaque `*_code` names whose words no tool name carries (N7).
+_ARGUMENT_CODES = ("lot_code", "batch_code", "bin_code", "crate_code", "dock_code", "bay_code")
 
 # Shape: four stage calls at every width, side by side in equal rows.
 _SHAPE_CALLS = 4

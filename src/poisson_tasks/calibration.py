@@ -306,10 +306,11 @@ _KNOBS = (_DEPTH, _DISTRACTOR)
 # messages are not the engine's answers to the calls as made, because the tools are served
 # under names the engine does not know (similarity) or planned failures are answered in front
 # of it (faults), or whose answers are numbered from after earlier tool work the prompt holds
-# (history), or served under read copies' names the engine does not know (block), so that the
-# tool server and the verifier applying any of these differently, or starting their numbers
-# apart, is a failure the records would otherwise never show.
-_REPLAY_CHECKED = ("similarity", "faults", "history", "block")
+# (history), or served under read copies' names the engine does not know (block), or refused
+# by the argument check in front of it (arguments), so that the tool server and the verifier
+# applying any of these differently, or starting their numbers apart, is a failure the
+# records would otherwise never show.
+_REPLAY_CHECKED = ("similarity", "faults", "history", "block", "arguments")
 _REPLAY_MISMATCH = "replay_mismatch"
 # The status a planned failure answers with, as the faults knob's system prompt names it.
 _UNAVAILABLE = "unavailable"
@@ -2622,8 +2623,9 @@ def _replay_agrees(data: _Any, trace: _Any) -> bool:
     call the harness refused is answered with the harness's own line, which carries no
     number, and is not replayed.  The calls that reached it, in the order the server numbered
     them and each under the engine name its shown name stands for, are replayed through the
-    engine with the arm's planned failures applied in front of it, by the one function the
-    server and the verifier apply them with, and every observation must equal its tool
+    engine with the arm's planned failures and its argument check applied in front of it, by
+    the one function the server and the verifier apply them with, and every observation must
+    equal its tool
     message byte for byte: the adapter's own replay check, applied to a run's traces.
     """
     from poisson_tasks import surface as _surface
@@ -2649,11 +2651,14 @@ def _replay_agrees(data: _Any, trace: _Any) -> bool:
         for _seq, _content, (name, arguments) in reached
     ]
     plan = _surface.reference_plan(bundle.arm_id, shown, bundle.reference_calls)
+    stated = _surface.stated_values(bundle.arm_id, shown, bundle.reference_calls)
     state = _init_state(_scenario_for(bundle.seed, bundle.split), bundle.seq_start)
     counts: dict[str, int] = {}
     observations: list[str] = []
     for call in calls:
-        state, counts, observation = _surface.apply_planned(state, counts, call, plan)
+        state, counts, observation = _surface.apply_planned(
+            state, counts, call, plan, stated=stated
+        )
         observations.append(observation)
     return observations == [content for _seq, content, _call in reached]
 

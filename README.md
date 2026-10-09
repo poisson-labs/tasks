@@ -49,11 +49,14 @@ using the tools it is given and nothing else.
   again, with a control arm, `faults:f0+len(f4)`, that adds the same length as earlier tool
   work; `history` at `0, 300, 600, 1200, 2400`, how many tokens of earlier tool work
   the conversation holds before the first move, which is length itself, so it has no
-  control arm; and `block` at `8, 16, 32, 64`, how many tools are offered, the two the
+  control arm; `block` at `8, 16, 32, 64`, how many tools are offered, the two the
   task needs and six reads first at every level and read tools under names of their own
   past sixteen, with a control arm, `block:k8+len(k64)`, that adds the same length to
-  the system prompt. Three more knobs are named with their levels and arm ids, and get
-  their tasks module by module [*source:* [`docs/knobs-and-arms.md`](docs/knobs-and-arms.md)].
+  the system prompt; and `arguments` at `2, 4, 6, 8`, how many values each stage call
+  must carry, copied from the request, the two the task always needs and the level less
+  two of six more each stage tool lists, with a control arm, `arguments:a2+len(a8)`,
+  that adds the same length to the request. Two more knobs are named with their levels
+  and arm ids, and get their tasks module by module [*source:* [`docs/knobs-and-arms.md`](docs/knobs-and-arms.md)].
 - **The pin ledger.** Thirty rows, each an equality across the arms of one contrast,
   measured on the generated bundles. A violated row refuses the contrast before any model
   runs -- except the rows that report rather than refuse, N5, the block's token count,
@@ -67,7 +70,7 @@ using the tools it is given and nothing else.
 |---|---|
 | the domain engine | **built** -- a pure state machine over a twelve-class ledger |
 | the reference tokenizer | **built** -- o200k_base, offline |
-| knobs, arms and the pin ledger | **built** -- nine knobs named, six with tasks (`depth`, `distractor`, `similarity`, `faults`, `history`, `block`), the control arms, thirty rows; the `distractor` knob is **experimental** (below) |
+| knobs, arms and the pin ledger | **built** -- nine knobs named, seven with tasks (`depth`, `distractor`, `similarity`, `faults`, `history`, `block`, `arguments`), the control arms, thirty rows; the `distractor` knob is **experimental** (below) |
 | task and verifier generation | **built** -- `generate`, `verify`, the outcome vocabulary, the negative controls |
 | the Proofload adapter, scripted path | **built** -- runs end to end against Proofload with no model, on an installed Proofload checkout |
 | the `verifiers` taskset export | **built** -- the task data, the task with its reward, the tool server, and a finite taskset over a declared list of seeds |

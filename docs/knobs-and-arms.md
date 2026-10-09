@@ -8,7 +8,7 @@ the pin ledger is what makes that a measurement rather than a hope.
 
 ## The knobs
 
-Nine are named. The generator makes tasks for the first six today; the other three have
+Nine are named. The generator makes tasks for the first seven today; the other two have
 their levels, their arm ids, their turn budgets and their pin-ledger rows, and
 `generate` refuses their arms in one line until their tasks are built.
 

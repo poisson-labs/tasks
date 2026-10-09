@@ -148,14 +148,16 @@ def _arm_mapping(arm: _Any) -> dict[str, _Any]:
     than the two (a misspelled one was scored as strict); a split other than the two; a level or
     a control that is not a whole number, or outside what the knob can make.  Depth runs from 1
     to 8, distractor from 0 to 14, similarity from 0 to 3, faults from 0 to 4, history from 0
-    to 2400 and block from 8 to 64, which are the ends of each knob's candidate levels: the
-    stage ladder has eight stages, the tool table offers fourteen distractors, a lookalike
-    shares at most three of a ledger number's four digits, four failed calls is the first
-    level that makes a model retry one tool twice, 2400 tokens of earlier tool work is the
-    most that keeps an episode of model B's at the turn cap under its context's headroom, and
-    sixty-four tools is the most a block can offer and keep model B's first request under that
-    headroom, as eight, the two the task needs and six reads, is the fewest.  A knob the
-    generator makes no tasks for yet is refused by name.
+    to 2400, block from 8 to 64 and arguments from 2 to 8, which are the ends of each knob's
+    candidate levels: the stage ladder has eight stages, the tool table offers fourteen
+    distractors, a lookalike shares at most three of a ledger number's four digits, four
+    failed calls is the first level that makes a model retry one tool twice, 2400 tokens of
+    earlier tool work is the most that keeps an episode of model B's at the turn cap under its
+    context's headroom, sixty-four tools is the most a block can offer and keep model B's
+    first request under that headroom, as eight, the two the task needs and six reads, is the
+    fewest, and a stage call carries the two values the engine needs at the least and those
+    plus the six more its tool lists at the most.  A knob the generator makes no tasks for yet
+    is refused by name.
 
     An arm the generator can make and no published card measured is taken, with one note.
     """
@@ -313,6 +315,11 @@ class ExportTasksetConfig(_vf.TasksetConfig):
             "two the task needs and six read tools fill the first eight places at every level, "
             "and the rest are read tools, past sixteen under names of their own; its control arm "
             "block:k8+len(k64) adds the same length to the system prompt; no published card "
+            "measures it yet. "
+            "knob 'arguments' (levels 2, 4, 6, 8) sets how many values each stage call must "
+            "carry, copied from the request: the two the task always needs and the level less "
+            "two of six more its tool lists, exactly those and no other; its control arm "
+            "arguments:a2+len(a8) adds the same length to the request; no published card "
             "measures it yet. "
             "See docs/calibration.md."
         ),
@@ -867,6 +874,7 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
         self._shown: dict[str, _surface.Shown] = {}
         self._engine_state: _Any = None
         self._plan: dict[str, int] = {}
+        self._stated: dict[str, str] | None = None
         self._counts: dict[str, int] = {}
         self._lock = _asyncio.Lock()
 
@@ -881,7 +889,9 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
         it, so the server answers a call exactly as the verifier will replay it.  A faults
         arm's planned failures are `surface.reference_plan`'s, derived the same way, keyed
         on how many times this server has been asked for each tool; every other arm plans
-        none, and the counts start at nothing.
+        none, and the counts start at nothing.  An arguments arm's stated values are
+        `surface.stated_values`', read off the reference calls the task data carries, and
+        every other arm has none.
         """
         self._block = tuple(dict(tool) for tool in task.tools)
         self._shown = _surface.display_map(
@@ -894,9 +904,9 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
         self._engine_state = _init_state(
             _scenario_for(task.seed, task.split), task.seq_start
         )
-        self._plan = _surface.reference_plan(
-            task.arm_id, self._shown, [(str(call[0]), call[1]) for call in task.reference_calls]
-        )
+        reference = [(str(call[0]), call[1]) for call in task.reference_calls]
+        self._plan = _surface.reference_plan(task.arm_id, self._shown, reference)
+        self._stated = _surface.stated_values(task.arm_id, self._shown, reference)
         self._counts = {}
 
     def register(self, mcp: _FastMCP) -> None:
@@ -920,14 +930,19 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
             # An in-process lock: `apply` is pure, and the
             # counter lives in the state this coroutine reads and then writes, so two
             # calls that interleave between the two would take the same `seq` (E5).  The
-            # planned failures are applied in front of the engine by the one function the
-            # verifier replays through, and the engine step is handed in under this
-            # module's name for it, so every step the server takes goes through `_apply`
-            # under the lock, planned arm or not.
+            # planned failures and the argument check are applied in front of the engine by
+            # the one function the verifier replays through, and the engine step is handed
+            # in under this module's name for it, so every step the server takes goes
+            # through `_apply` under the lock, planned arm or not.
             async with self._lock:
                 state = self._engine_state
                 after, counts, observation = _surface.apply_planned(
-                    state, self._counts, (engine, arguments), self._plan, step=_apply
+                    state,
+                    self._counts,
+                    (engine, arguments),
+                    self._plan,
+                    step=_apply,
+                    stated=self._stated,
                 )
                 self._engine_state = after
                 self._counts = counts
