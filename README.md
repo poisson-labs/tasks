@@ -59,8 +59,11 @@ using the tools it is given and nothing else.
   four stage calls advance side by side, one record through four stages, the target and
   the decoy two stages each, or the target record one stage in four ledgers, the block
   holding exactly the stage tools the width needs, with a control arm,
-  `shape:w1+len(w4)`, that adds the same length to the request. One more knob is named
-  with its levels and arm ids, and gets its tasks in its own module [*source:* [`docs/knobs-and-arms.md`](docs/knobs-and-arms.md)].
+  `shape:w1+len(w4)`, that adds the same length to the request; and `spread` at
+  `1, 2, 4`, how many tool answers the entry code is split across, the request naming
+  four reads in place of stating the code and the first level-many of their answers
+  carrying its parts in order, the rest answering `none`, whose request, block and calls
+  are the same at every level so it needs no control arm. All nine knobs have tasks [*source:* [`docs/knobs-and-arms.md`](docs/knobs-and-arms.md)].
 - **The pin ledger.** Thirty rows, each an equality across the arms of one contrast,
   measured on the generated bundles. A violated row refuses the contrast before any model
   runs -- except the rows that report rather than refuse, N5, the block's token count,
@@ -74,7 +77,7 @@ using the tools it is given and nothing else.
 |---|---|
 | the domain engine | **built** -- a pure state machine over a twelve-class ledger |
 | the reference tokenizer | **built** -- o200k_base, offline |
-| knobs, arms and the pin ledger | **built** -- nine knobs named, eight with tasks (`depth`, `distractor`, `similarity`, `faults`, `history`, `block`, `arguments`, `shape`), the control arms, thirty rows; the `distractor` knob is **experimental** (below) |
+| knobs, arms and the pin ledger | **built** -- nine knobs named, all nine with tasks (`depth`, `distractor`, `similarity`, `faults`, `history`, `block`, `arguments`, `shape`, `spread`), the control arms, thirty rows; the `distractor` knob is **experimental** (below) |
 | task and verifier generation | **built** -- `generate`, `verify`, the outcome vocabulary, the negative controls |
 | the Proofload adapter, scripted path | **built** -- runs end to end against Proofload with no model, on an installed Proofload checkout |
 | the `verifiers` taskset export | **built** -- the task data, the task with its reward, the tool server, and a finite taskset over a declared list of seeds |
