@@ -20,7 +20,8 @@ must not say the cards measure similarity.
 **2. The six other new knobs stay refused**, by the generator (`generate`, `structure_space`)
 and by `eval`, each as a `ValueError` (never a `KeyError`), beside similarity taken, until each
 knob's own module opens it: faults opened at K3, history at K4, block at K5, arguments at K6,
-shape at K7, and the one other stays refused.
+shape at K7 and spread, the last, at K8, so no knob is left to refuse.  The test that held them
+keeps its other half, similarity taken, under a name that says so (ruled 2026-10-09).
 
 **3. `tasks.toml` and `init` still do not offer similarity.**  Spec K-P3: no difficulty knob
 reaches `init`, `tasks.toml` or a published card until its probe has shown it bites.  `eval` is
@@ -44,12 +45,6 @@ from poisson_tasks.tasks import generate, structure_space
 
 TASKSET_ID = "poisson-tasks"
 SEEDS = [404, 55]
-# Faults left this list when K3 gave it tasks (retrofit ruled with K3 Session A's filing),
-# history when K4 did (retrofit ruled with K4 Session A's filing), block when K5 did (retrofit
-# ruled with K5 Session A's filing), arguments when K6 did (retrofit ruled with K6 Session A's
-# filing), and shape when K7 did (retrofit ruled with K7 Session A's filing); the one knob still
-# here stays refused until its own module.
-STILL_SHUT = ("spread:p2",)
 
 
 def loaders() -> Any:
@@ -86,19 +81,17 @@ def test_eval_takes_every_similarity_arm_with_the_one_note_for_an_arm_no_card_co
     assert said == []
 
 
-@pytest.mark.parametrize("text", STILL_SHUT)
-def test_the_six_knobs_without_tasks_stay_refused_beside_similarity(text: str) -> None:
-    """Shape 2.  Each refusal is a `ValueError`, so a `KeyError` from the published cards' table
-    fails here; similarity, the control, generates, has a census and is taken by `eval`."""
-    spec = arm_from_id(text)
-    with pytest.raises(ValueError):
-        generate(spec, 404)
-    with pytest.raises(ValueError):
-        structure_space(spec)
-    with pytest.raises(ValueError):
-        taskset_config(text)
-    with pytest.raises(ValueError):
-        taskset_config(dataclasses.asdict(spec))
+def test_similarity_generates_has_a_census_and_is_taken_by_eval() -> None:
+    """Shape 2.  Similarity generates, has a census and is taken by `eval`.
+
+    The test was `test_the_six_knobs_without_tasks_stay_refused_beside_similarity`, parametrised
+    by the arms still refused, each refused as a `ValueError` by
+    `generate`, `structure_space` and `eval` by id and as the six fields.  Faults left that list
+    when K3 gave it tasks, history at K4, block at K5, arguments at K6, shape at K7 and spread, its
+    last arm, at K8 (each a retrofit ruled with that module's Session A filing).  With no arm left,
+    a parametrisation over the empty list would be collected as one skipped case and run nothing,
+    so the parametrisation and its refusals went with the list, the control's half runs as it did,
+    and the name says what is left (ruled 2026-10-09)."""
     control = arm_from_id("similarity:s1")
     assert generate(control, 404).arm_id == "similarity:s1"
     assert structure_space(control) > 0
