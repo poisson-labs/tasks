@@ -8,9 +8,7 @@ the pin ledger is what makes that a measurement rather than a hope.
 
 ## The knobs
 
-Nine are named. The generator makes tasks for the first eight today; the other one has
-its levels, its arm ids, its turn budget and its pin-ledger row, and
-`generate` refuses its arms in one line until its tasks are built.
+Nine are named, and the generator makes tasks for all nine.
 
 **`depth`** -- how many chained stage calls the goal is away. Levels `1, 2, 3, 5, 8`. A
 depth-*d* task needs *d* calls plus a reply turn, and the chain token makes them
