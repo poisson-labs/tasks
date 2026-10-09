@@ -309,7 +309,7 @@ QWEN3_8B = ServePin(
   distribution.
 """
 
-EXPECTED_GENERATOR_HASH = "8edd01f39f9ae897f54e757fc62381a5319ce36426f2aff5198cbe10ff719ada"
+EXPECTED_GENERATOR_HASH = "b460964dc153fab4535af3b39abd41d50198f3dcc644ae3e43ddee85544b57f9"
 """The generator this driver expects the installed package to be: the package's own.  Results
 are only comparable on one generator, so preflight refuses a package whose generator differs."""
 

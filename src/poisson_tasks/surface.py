@@ -21,6 +21,12 @@ it: an arguments arm's stage call must carry exactly the extra values its reques
 states, read off the reference by `stated_values`, and `apply_planned` refuses any other
 stage call with a `bad_args` line in front of the engine, which then sees only its own
 two arguments (`tests/test_k6_check.py`, `tests/test_k6_live.py`).
+
+The information-spread knob's answers live here for the same reason: a spread arm's four
+named reads, read off the reference by `spread_answers`, are answered by `apply_planned` in
+front of the engine with the part of the entry code each holds, or `none`, a full stop and
+keyed hex (`spread_payload`), when a call names the read's tool, item and page exactly; every
+other read is the engine's (`tests/test_k8_only.py`, `tests/test_k8_live.py`).
 """
 
 from __future__ import annotations
@@ -44,7 +50,9 @@ from poisson_tasks.knobs import (
     _FAULTS,
     _LOOKALIKE_LEDGERS,
     _MAX_SIMILARITY,
+    _NO_PART,
     _NUMBER_WIDTH,
+    _PART_END,
     _SIMILARITY,
     _SPREAD,
     _UNAVAILABLE,
@@ -66,6 +74,10 @@ _LEDGERS_DOMAIN = b"task-generator/similarity-ledgers/1"
 _PLACES_DOMAIN = b"task-generator/similarity-places/1"
 _DIGITS_DOMAIN = b"task-generator/similarity-digits/1"
 _DIGITS = "0123456789"
+# The spread knob's one draw here: the hex that fills a named read's answer after its head,
+# one fill per read, keyed by the task and the read's place and never by the level.  A
+# domain of its own; respelling it moves every spread task's answers.
+_FILL_DOMAIN = b"task-generator/spread-fill/1"
 # A changed place may take eight digits or nine (never the target's, and never 0 in the first
 # place).  A rank drawn from 72, a multiple of both, lands evenly on either set.
 _RANK_RADIX = 72
@@ -73,6 +85,9 @@ _RANK_RADIX = 72
 # A name no engine knows.  A call to a name the block does not show is replayed as this, so it
 # is answered as no tool and changes nothing, as the harness answers it without the server.
 _NO_TOOL = ""
+
+# The engine's own word for a call that worked, which a named read's answer carries.
+_OK = "ok"
 
 # What the first stage tool's description says of the entry code, and what it says on a spread
 # arm, where the request does not state the code and four reads hold its parts.
@@ -388,6 +403,62 @@ def _status_line(seq: int, status_word: str) -> str:
     return separator.join((rendered_seq, status, str(layout["error_payload"])))
 
 
+def _answer_line(seq: int, payload: str) -> str:
+    """A named read's answer in front of the engine: the engine's own line at `seq`, `ok` in
+    the status field and `payload` in the payload's, rendered from the table's layout as a
+    refusal is (`_status_line`), so the line is `L_obs` bytes like every other observation."""
+    layout = _SPEC.layout
+    rendered_seq = str(seq).rjust(layout["seq_width"], layout["seq_fill"])
+    if len(rendered_seq) != layout["seq_width"]:
+        raise ValueError(f"seq {seq} does not fit the {layout['seq_width']}-byte field")
+    if len(payload) != layout["payload_width"]:
+        raise ValueError(f"payload {payload!r} is not {layout['payload_width']} bytes")
+    status = _OK.ljust(layout["status_width"], layout["status_fill"])
+    separator: str = layout["separator"]
+    return separator.join((rendered_seq, status, payload))
+
+
+def spread_payload(seed: int, split: str, position: int, part: str) -> str:
+    """What the named read at `position` answers on a spread arm: its head, the part of the
+    entry code it holds or `none` when it holds none, a full stop, and lowercase hex from a
+    keyed hash to the width of the table's payload field, as the spec gives it.
+
+    The fill is one string per read, keyed by the task and the read's place in the request
+    and never by the level, so across the levels a read's answer changes only in its head and
+    the four reads' fills differ; hex, and not dashes, spaces or zeros, because those fall
+    outside N8's band or look like the engine's error payload.
+    """
+    width: int = _SPEC.layout["payload_width"]
+    head = (part or _NO_PART) + _PART_END
+    fill = _prf(_FILL_DOMAIN + b"/" + str(position).encode("ascii"), seed, split).hex()
+    return head + fill[: width - len(head)]
+
+
+_Spread = _Sequence[tuple[str, _Mapping[str, str], str]]
+
+
+def spread_answers(
+    arm_id: str,
+    shown: dict[str, Shown],
+    reference_calls: _Sequence[tuple[str, _Any]],
+    reference_observations: _Sequence[str],
+) -> _Spread | None:
+    """A spread arm's named reads and their answers: each read call the reference makes, under
+    the engine name its shown name stands for, with its arguments and the payload its
+    observation carries.  Read off the reference the generator already writes, so no bundle
+    field holds them, and derived the same way by the generator, `tasks.verify`, the tool
+    server and the record reader.  `None` on every other knob, whose reads are the engine's."""
+    if _parse_arm_id(arm_id).knob != _SPREAD:
+        return None
+    answers: list[tuple[str, _Mapping[str, str], str]] = []
+    for (name, arguments), observation in zip(reference_calls, reference_observations, strict=True):
+        engine = engine_name(shown, name)
+        if engine in _SPEC.read_tools and isinstance(arguments, _Mapping):
+            payload = str(observation).split()[2]
+            answers.append((engine, {str(k): str(v) for k, v in arguments.items()}, payload))
+    return tuple(answers)
+
+
 _Step = _Callable[[_DomainState, tuple[str, _Any]], tuple[_DomainState, str]]
 
 # The status word the argument check refuses with: the engine's own for a call whose
@@ -442,9 +513,10 @@ def apply_planned(
     *,
     step: _Step = _apply,
     stated: _Mapping[str, str] | None = None,
+    spread: _Spread | None = None,
 ) -> tuple[_DomainState, dict[str, int], str]:
-    """One call that reached the tool server, with the planned failures and the argument
-    check applied in front of the engine.
+    """One call that reached the tool server, with the planned failures, the named reads'
+    answers and the argument check applied in front of the engine.
 
     `counts` is how many times each tool has been called so far, whatever the arguments, and
     the first `plan[tool]` calls to a tool answer `unavailable`: the counter advances, as it
@@ -459,6 +531,13 @@ def apply_planned(
     one that carries them reaches the engine with only its own two arguments.  The check
     stands before the engine, so a wrong second stage call before the first is `bad_args`
     and not the engine's `not_ready`.
+
+    `spread` is a spread arm's named reads and their answers (`spread_answers`), and `None`
+    on any other arm.  A call naming one of them exactly, its tool and the same argument
+    object, its item and its page and nothing more, is answered `ok` at its number with the
+    read's payload and reaches no engine; the counter advances, as on every call, and the
+    records do not.  Any other read, the same read on another page, with another item, with
+    a key more or in another case included, is the engine's.
     """
     name, arguments = call
     made = counts.get(name, 0)
@@ -466,6 +545,11 @@ def apply_planned(
     if made < plan.get(name, 0):
         seq = state.next_seq
         return _replace(state, next_seq=seq + 1), after_counts, _status_line(seq, _UNAVAILABLE)
+    if spread is not None and isinstance(arguments, _Mapping):
+        for read, read_arguments, payload in spread:
+            if name == read and dict(arguments) == read_arguments:
+                seq = state.next_seq
+                return _replace(state, next_seq=seq + 1), after_counts, _answer_line(seq, payload)
     if stated is not None and name in _SPEC.stage_tools and isinstance(arguments, _Mapping):
         checked = _checked_stage_call(name, arguments, stated)
         if checked is None:

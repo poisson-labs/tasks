@@ -23,6 +23,11 @@ knob: four stage calls arranged by the width, one record through four stages, th
 and the decoy two stages each, or the target record one stage in four ledgers; the block
 B's with exactly the stage tools the width needs; the request listing one line per goal;
 the reference going stage by stage across the records; and the verdict over every target.
+`tests/test_k8_*.py` pin the information-spread knob: B's task with the request naming four
+reads in place of stating the entry code, the code split across the first P of their answers
+and the rest answering `none`, each answer a head, a full stop and keyed hex, answered in front
+of the engine by `surface.py` so that the generator, the verifier, the tool server and a run's
+replay give one answer; the block, the system prompt and the six calls B's at every level.
 
 Everything here is a pure function of its arguments and the frozen vocabulary table:
 no clock, no RNG, no model, no network (G1, G2).  The engine's and the knobs module's
@@ -149,7 +154,9 @@ from poisson_tasks.knobs import (
     _OWN_SLOT,
     _SHAPE_CALLS,
     _SHAPE_WIDTHS,
+    _SPREAD_READS,
     _parse_arm_id,
+    _split_evenly,
 )
 from poisson_tasks.knobs import ArmSpec as _ArmSpec
 from poisson_tasks.knobs import PinRecord as _PinRecord
@@ -194,6 +201,7 @@ _HISTORY = "history"
 _BLOCK = "block"
 _ARGUMENTS = "arguments"
 _SHAPE = "shape"
+_SPREAD = "spread"
 _GENERATED_KNOBS = (
     _DEPTH,
     _DISTRACTOR,
@@ -203,6 +211,7 @@ _GENERATED_KNOBS = (
     _BLOCK,
     _ARGUMENTS,
     _SHAPE,
+    _SPREAD,
 )
 
 # The knobs module's `d_R`, cited and not re-minted: `reference_turns` is `d_R + 1` for
@@ -251,6 +260,10 @@ _ARGUMENT_DOMAIN = b"task-generator/argument-values/1"
 # record in.  A domain of its own, so no task of another knob moves with it and the
 # scenario's draw stays what it was.
 _SHAPE_DOMAIN = b"task-generator/shape-ledgers/1"
+# The spread knob's one draw: the four reads its request names, each with an item and a page.
+# A domain of its own, so no task of another knob moves with it and the scenario's draw stays
+# what it was.
+_SPREAD_DOMAIN = b"task-generator/spread-reads/1"
 
 # The outcome vocabulary.  Closed, in the table's order: the first label that matches
 # wins, so this order is load-bearing and not decoration.
@@ -300,6 +313,7 @@ _FAULTS_SENTENCE = (
 _TEMPLATE_ID = "ledger-chain/v1"
 _NUMBER_TEMPLATE_ID = "ledger-number/v1"
 _GOALS_TEMPLATE_ID = "ledger-goals/v1"
+_SPREAD_TEMPLATE_ID = "ledger-spread/v1"
 
 _SLOT_RECORD = "record_id"
 _SLOT_ENTRY = "entry_code"
@@ -312,13 +326,25 @@ _SLOT_GOAL = "goal_stage"
 _SLOT_STATED = _OWN_SLOT[_ARGUMENTS]
 # The shape knob's own slot, likewise: the goal lines, one per target.
 _SLOT_GOALS = _OWN_SLOT[_SHAPE]
+# The spread knob's own slot: the four read lines, one per named read.  Not N6's exception,
+# because the lines are the same at every level; the knobs module names no slot for it.
+_SLOT_READS = "named_reads"
 
 # The slots G15 masks: an id, an entry code, a ledger number and the stated values are
 # opaque strings the model copies, and none is structure.  Masking by slot name is what
 # keeps the mask off the prose.  The goal lines are masked whole: the record ids in them
 # are opaque, and the ledgers and stages they name are already read off the block, the goal
-# and the target list the fingerprint carries for a shape arm.
-_OPAQUE_SLOTS = (_SLOT_RECORD, _SLOT_ENTRY, _SLOT_NUMBER, _SLOT_STATED, _SLOT_GOALS)
+# and the target list the fingerprint carries for a shape arm.  The named reads are masked
+# whole too: their pages are opaque keys, which facet and item each names is a draw of the
+# task's and not its structure, and the parts are in answers no first request holds.
+_OPAQUE_SLOTS = (
+    _SLOT_RECORD,
+    _SLOT_ENTRY,
+    _SLOT_NUMBER,
+    _SLOT_STATED,
+    _SLOT_GOALS,
+    _SLOT_READS,
+)
 _MASK = "<opaque>"
 
 _SYSTEM_PROMPT = (
@@ -369,6 +395,23 @@ _GOAL_LINE = (
     "{" + _SLOT_GOAL + "}, and no further."
 )
 _GOALS_TEMPLATE = _B_LINES[1] + "\n{" + _SLOT_GOALS + "}\n" + _B_LINES[3]
+
+# Spread's template: B's first three lines, the four named reads on a line each, the spec's
+# two sentences, a line on the answers' shape, and B's last line without the entry code, so
+# the request differs from B's only where the knob needs it, and states no code (N35).  Each
+# read line names the read's facet as the engine's own read describes it, its item and its
+# page, the item and the page in double quotes as B quotes the record id.  The prose carries
+# `in`, `order`, `listed` and `reads`, pieces of read tools' and ledgers' names, so this
+# template stays out of `_check_template_words`: N7 cannot move on a spread contrast, whose
+# request and block are the same at every level.
+_READ_LINE = '{index}. the {facet} field of catalogue item "{item}" on page "{page}"'
+_SPREAD_TEMPLATE = (
+    "\n".join(_B_LINES[:3]) + "\nThe four reads:\n{" + _SLOT_READS + "}\n"
+    "The entry code is split across the answers of these four reads, in the order listed: join "
+    "the parts. An answer that holds no part reads `none`.\n"
+    "Each answer's payload is its part, a full stop, then filler.\n"
+    "Open with the joined entry code; each later stage needs what the stage before returned."
+)
 
 _LADDER_SEPARATOR = " then "
 
@@ -988,7 +1031,9 @@ def _block_names(
     not a change to the block.  History: the same base block at every level (N4), because its
     level is earlier tool work before the first move and not a change to the block.
     Arguments: the same base block too (N4), its level being how many values the stage calls
-    carry, which widens the stage tools' schemas and designates no slot.
+    carry, which widens the stage tools' schemas and designates no slot.  Spread: the same
+    base block too (N4), its level being how many of the four named reads answer with a
+    part, which changes the answers and designates no slot.
     """
     size = _block_size(spec)
     stage_tools = _stage_tools_of(spec, qualifier)
@@ -1003,7 +1048,7 @@ def _block_names(
             f"{len(base)} tools available"
         )
     names = [base[index] for index in permutation]
-    if arm.knob in (_DEPTH, _FAULTS, _HISTORY, _ARGUMENTS) or arm.level == 0:
+    if arm.knob in (_DEPTH, _FAULTS, _HISTORY, _ARGUMENTS, _SPREAD) or arm.level == 0:
         return tuple(names)
 
     pool = _distractor_pool(spec, qualifier)
@@ -1254,6 +1299,68 @@ def _shape_slots(
     )
 
 
+def _spread_reads(spec: _EngineSpec, seed: int, split: str) -> tuple[_Call, ...]:
+    """A spread task's four named reads, in the order the request lists them: four different
+    read tools of B's fourteen, each with a catalogue item and a page key, drawn from the knob's
+    own domain, so no task of another knob moves with it.
+
+    The draw reads the seed and the split and never the level, so the four are the same at
+    every level (N35); its order is the listed order, which decides which read holds which part.
+    One draw, one image: an ordered selection of the tools, then an item and a page for each.
+    """
+    reads = _read_names(spec)[: _block_size(spec) - _D_R]
+    items = _catalogue_items(spec)
+    pages = _page_keys(spec)
+    item_param = _param(spec, "item")
+    page_param = _param(spec, "page")
+    radices = (
+        tuple(range(len(reads), len(reads) - _SPREAD_READS, -1))
+        + (len(items),) * _SPREAD_READS
+        + (len(pages),) * _SPREAD_READS
+    )
+    digits = _mixed_radix(_prf(_SPREAD_DOMAIN, seed, split), radices)
+    tools = [reads[index] for index in _selection(digits[:_SPREAD_READS], len(reads))]
+    return tuple(
+        (
+            tool,
+            {
+                item_param: items[digits[_SPREAD_READS + position]],
+                page_param: pages[digits[2 * _SPREAD_READS + position]],
+            },
+        )
+        for position, tool in enumerate(tools)
+    )
+
+
+def _spread_lines(spec: _EngineSpec, reads: tuple[_Call, ...]) -> str:
+    """The named reads as the request lists them, one numbered line each, in the knob's own
+    slot: the read's facet as the engine's read describes it, its item and its page."""
+    item_param = _param(spec, "item")
+    page_param = _param(spec, "page")
+    return "\n".join(
+        _READ_LINE.format(
+            index=position + 1,
+            facet=spec.read_tools[tool],
+            item=args[item_param],
+            page=args[page_param],
+        )
+        for position, (tool, args) in enumerate(reads)
+    )
+
+
+def _spread_parts(code: str, level: int) -> tuple[str, ...]:
+    """What each of the four named reads answers at `level`, in the listed order: the entry
+    code in `level` parts as evenly as it goes, the earlier parts longer, in the first `level`
+    reads, and nothing in the rest (N35).  Entry codes are four to eight letters, so four parts
+    always exist."""
+    parts: list[str] = []
+    start = 0
+    for size in _split_evenly(len(code), level):
+        parts.append(code[start : start + size])
+        start += size
+    return tuple(parts) + ("",) * (_SPREAD_READS - level)
+
+
 def _prompt_slots(
     spec: _EngineSpec,
     arm: _ArmSpec,
@@ -1282,11 +1389,14 @@ def _prompt_slots(
 def _template_of(slots: tuple[tuple[str, str], ...]) -> tuple[str, str]:
     """The template id and the template the slots fill: the one that names the ledger by
     number when the slots carry a number, the one that lists goal lines when the slots carry
-    them, else the one that names the ledger by class."""
+    them, the one that names four reads when the slots carry them, else the one that names the
+    ledger by class."""
     if any(name == _SLOT_NUMBER for name, _value in slots):
         return _NUMBER_TEMPLATE_ID, _NUMBER_TEMPLATE
     if any(name == _SLOT_GOALS for name, _value in slots):
         return _GOALS_TEMPLATE_ID, _GOALS_TEMPLATE
+    if any(name == _SLOT_READS for name, _value in slots):
+        return _SPREAD_TEMPLATE_ID, _SPREAD_TEMPLATE
     return _TEMPLATE_ID, _USER_TEMPLATE
 
 
@@ -1875,6 +1985,12 @@ def _verdict(
     # record reader read them, applied by the same function: a stage call that does not carry
     # exactly them is refused there and moves no record here either.
     stated = _surface.stated_values(bundle.arm_id, shown, bundle.reference_calls)
+    # A spread arm's named reads and their answers, read off the reference as the tool server
+    # and the record reader read them, answered by the same function: a read moves no record,
+    # so the verdict cannot see them, but the replay is then the one the server made.
+    spread = _surface.spread_answers(
+        bundle.arm_id, shown, bundle.reference_calls, bundle.reference_observations
+    )
     state = start
     counts: dict[str, int] = {}
     for turn in turns:
@@ -1882,7 +1998,7 @@ def _verdict(
             call: _Call = (_surface.engine_name(shown, name), args)
             if _reaches_the_server(name, args, block):
                 state, counts, _observation = _surface.apply_planned(
-                    state, counts, call, plan, stated=stated
+                    state, counts, call, plan, stated=stated, spread=spread
                 )
             else:
                 state, _observation = _apply(state, call)
@@ -2120,12 +2236,14 @@ def structure_space(arm: _ArmSpec, spec: _EngineSpec | None = None) -> int:
     bound as for every control, its filler being a derivation of k64's block.  An arguments
     arm's count is B's at every level and on the control: its block is B's, its stage tools'
     schemas the same at every level, and the stated values are masked with the record id.  A
-    shape arm's count is B's too at the widths whose block holds one ledger's tools and on the
-    control, the goal lines masked whole; at the width that advances the target record in
-    four ledgers it is B's times the choice of the three other ledgers among the eleven, each
-    set of four first-stage tools taking every order of the sixteen slots, as B's two take
-    every order; the order the three are drawn in is not counted, since the slot draw already
-    ranges over it.
+    spread arm's count is B's at every level: its block, system prompt and the request's prose
+    are B's but for the words every spread request carries, and the named reads are masked
+    with the record id.  A shape arm's count is B's too at the widths whose block holds one
+    ledger's tools and on the control, the goal lines masked whole; at the width that advances
+    the target record in four ledgers it is B's times the choice of the three other ledgers
+    among the eleven, each set of four first-stage tools taking every order of the sixteen
+    slots, as B's two take every order; the order the three are drawn in is not counted, since
+    the slot draw already ranges over it.
     """
     _refuse_a_knob_not_generated(arm)
     engine_spec = _resolve(spec)
@@ -2211,6 +2329,15 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
             engine_spec, seed, arm.split, qualifier, record, decoy, arm.level, goal
         )
         slots = _shape_slots(engine_spec, targets, code)
+    elif arm.knob == _SPREAD:
+        # Spread: B's slots but the entry code, then the four named reads in the knob's own
+        # slot, which the fingerprint masks (N35); the request states no code.
+        spread_reads = _spread_reads(engine_spec, seed, arm.split)
+        slots = tuple(
+            slot
+            for slot in _prompt_slots(engine_spec, arm, record, code, qualifier, number)
+            if slot[0] != _SLOT_ENTRY
+        ) + ((_SLOT_READS, _spread_lines(engine_spec, spread_reads)),)
     else:
         slots = _prompt_slots(engine_spec, arm, record, code, qualifier, number)
     instruction = _render_instruction(slots)
@@ -2337,6 +2464,29 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
         reference_calls, reference_observations = _shape_calls(
             engine_spec, scenario, targets, seq_start
         )
+    elif arm.knob == _SPREAD:
+        # Spread: the four named reads in the listed order, each answered in front of the
+        # engine with its part or `none` through the one function the tool server and `verify`
+        # answer them with, then B's two stage calls numbered after them (N35).
+        answers = tuple(
+            (tool, args, _surface.spread_payload(seed, arm.split, position, part))
+            for position, ((tool, args), part) in enumerate(
+                zip(spread_reads, _spread_parts(code, arm.level), strict=True)
+            )
+        )
+        state = _init_state(scenario, seq_start)
+        counts: dict[str, int] = {}
+        read_observations: list[str] = []
+        for tool, args, _payload in answers:
+            state, counts, observation = _surface.apply_planned(
+                state, counts, (tool, args), {}, spread=answers
+            )
+            read_observations.append(observation)
+        chain_calls, chain_observations = _chain_calls(
+            engine_spec, scenario, qualifier, record, goal, seq_start + len(answers)
+        )
+        reference_calls = spread_reads + chain_calls
+        reference_observations = tuple(read_observations) + chain_observations
     else:
         reference_calls, reference_observations = _chain_calls(
             engine_spec, scenario, qualifier, record, goal, seq_start
@@ -2467,6 +2617,10 @@ def _check_template_words() -> None:
     with the level, and the contrast refuses.  The designation rules in `_block_names`
     are the second line; this is the first, and it is asserted at import because the
     failure it prevents surfaces three modules away as a refused ledger row.
+
+    Spread's template is not checked: the spec's sentence carries pieces of read tools' and
+    ledgers' names (`in` is a piece of `invoice`), and N7 cannot move on a spread contrast,
+    whose request and block are the same at every level.
     """
     prose = "\n".join((_USER_TEMPLATE, _NUMBER_TEMPLATE, _GOALS_TEMPLATE, _GOAL_LINE))
     for slot in (
