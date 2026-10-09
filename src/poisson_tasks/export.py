@@ -148,15 +148,17 @@ def _arm_mapping(arm: _Any) -> dict[str, _Any]:
     than the two (a misspelled one was scored as strict); a split other than the two; a level or
     a control that is not a whole number, or outside what the knob can make.  Depth runs from 1
     to 8, distractor from 0 to 14, similarity from 0 to 3, faults from 0 to 4, history from 0
-    to 2400, block from 8 to 64 and arguments from 2 to 8, which are the ends of each knob's
-    candidate levels: the stage ladder has eight stages, the tool table offers fourteen
-    distractors, a lookalike shares at most three of a ledger number's four digits, four
-    failed calls is the first level that makes a model retry one tool twice, 2400 tokens of
-    earlier tool work is the most that keeps an episode of model B's at the turn cap under its
-    context's headroom, sixty-four tools is the most a block can offer and keep model B's
-    first request under that headroom, as eight, the two the task needs and six reads, is the
-    fewest, and a stage call carries the two values the engine needs at the least and those
-    plus the six more its tool lists at the most.  A knob the generator makes no tasks for yet
+    to 2400, block from 8 to 64, arguments from 2 to 8 and shape from 1 to 4, which are the
+    ends of each knob's candidate levels: the stage ladder has eight stages, the tool table
+    offers fourteen distractors, a lookalike shares at most three of a ledger number's four
+    digits, four failed calls is the first level that makes a model retry one tool twice, 2400
+    tokens of earlier tool work is the most that keeps an episode of model B's at the turn cap
+    under its context's headroom, sixty-four tools is the most a block can offer and keep
+    model B's first request under that headroom, as eight, the two the task needs and six
+    reads, is the fewest, a stage call carries the two values the engine needs at the least
+    and those plus the six more its tool lists at the most, and four stage calls advance one
+    record, two or four side by side.  A shape width inside those ends that is not 1, 2 or 4
+    is refused when the arm is made, in one line.  A knob the generator makes no tasks for yet
     is refused by name.
 
     An arm the generator can make and no published card measured is taken, with one note.
@@ -321,6 +323,11 @@ class ExportTasksetConfig(_vf.TasksetConfig):
             "two of six more its tool lists, exactly those and no other; its control arm "
             "arguments:a2+len(a8) adds the same length to the request; no published card "
             "measures it yet. "
+            "knob 'shape' (levels 1, 2, 4) sets how many records four stage calls advance side "
+            "by side: one record through four stages, the target and the decoy two stages "
+            "each, or the target record one stage in four ledgers, the block holding exactly "
+            "the stage tools the width needs; its control arm shape:w1+len(w4) adds the same "
+            "length to the request; no published card measures it yet. "
             "See docs/calibration.md."
         ),
     )

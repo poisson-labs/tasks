@@ -5,6 +5,31 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### Task shape
+
+- **An eighth knob makes tasks: `shape`**, at widths 1, 2 and 4: whether four stage calls form
+  one chain or run side by side. `shape:w1` advances one record through four stages; `shape:w2`
+  advances the target record and the decoy two stages each; `shape:w4` advances the target
+  record one stage in four ledgers. Every width makes four stage calls and a reply, in a block of
+  sixteen tools holding exactly the stage tools it needs, so no tool can carry a record past its
+  goal.
+- **The request lists one line per goal**; nothing else in it moves with the width.
+- **A control arm, `shape:w1+len(w4)`**: the one-chain task, with neutral words after the request
+  as long as what the four-line request adds.
+- **A task with several records to advance is judged on all of them**: every one must reach its
+  goal, and a change to any other record is `collateral_mutation`. `shape:w2` has no
+  `collateral_mutation` control, because no tool in its block can change a record that is not
+  one of its two.
+- **Calls may be batched**: an episode that makes independent calls in one turn passes, and the
+  card's model calls and tool calls show it.
+- **A shape run's tool messages are replayed against the engine** when its records are read; a
+  disagreement is `replay_mismatch` and scores nothing.
+- **`eval` takes a shape arm, with one note**: no published card covers it. A width other than 1,
+  2 or 4 is refused in one line. The one knob whose tasks are not built yet is still refused in
+  one line.
+- **`init` and `tasks.toml` do not offer task shape** until its probe has shown it bites.
+- **Every task id and the generator hash moved**; no task of the other seven knobs changed.
+
 ### Argument difficulty
 
 - **A seventh knob makes tasks: `arguments`**, at levels 2, 4, 6 and 8: how many values each

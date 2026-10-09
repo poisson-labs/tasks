@@ -18,7 +18,11 @@ engine read of its facet.  `tests/test_k6_*.py` pin the argument-difficulty knob
 with each stage tool listing six more parameters, the request stating the level less two
 of their values, which both stage calls must carry exactly, and the check that refuses
 any other stage call in front of the engine, in `surface.py` so that the verifier, the
-tool server and a run's replay apply one check.
+tool server and a run's replay apply one check.  `tests/test_k7_*.py` pin the task-shape
+knob: four stage calls arranged by the width, one record through four stages, the target
+and the decoy two stages each, or the target record one stage in four ledgers; the block
+B's with exactly the stage tools the width needs; the request listing one line per goal;
+the reference going stage by stage across the records; and the verdict over every target.
 
 Everything here is a pure function of its arguments and the frozen vocabulary table:
 no clock, no RNG, no model, no network (G1, G2).  The engine's and the knobs module's
@@ -143,6 +147,8 @@ from poisson_tasks.knobs import (
     _LOOKALIKES,
     _NUMBER_WIDTH,
     _OWN_SLOT,
+    _SHAPE_CALLS,
+    _SHAPE_WIDTHS,
     _parse_arm_id,
 )
 from poisson_tasks.knobs import ArmSpec as _ArmSpec
@@ -187,7 +193,17 @@ _FAULTS = "faults"
 _HISTORY = "history"
 _BLOCK = "block"
 _ARGUMENTS = "arguments"
-_GENERATED_KNOBS = (_DEPTH, _DISTRACTOR, _SIMILARITY, _FAULTS, _HISTORY, _BLOCK, _ARGUMENTS)
+_SHAPE = "shape"
+_GENERATED_KNOBS = (
+    _DEPTH,
+    _DISTRACTOR,
+    _SIMILARITY,
+    _FAULTS,
+    _HISTORY,
+    _BLOCK,
+    _ARGUMENTS,
+    _SHAPE,
+)
 
 # The knobs module's `d_R`, cited and not re-minted: `reference_turns` is `d_R + 1` for
 # every R arm (N16), so the number comes back off that module's own constructor.
@@ -202,6 +218,13 @@ _D_R = (
     ).reference_turns
     - 1
 )
+
+# The shape knob's three widths, cited from the knobs module and named for what each
+# arranges: one record through four stages, two records (the target and the decoy, in the
+# target ledger) two stages each, and the target record one stage in four ledgers.  Four
+# stage calls at every width (N33), so a target's goal is the calls shared out over the
+# width.
+_ONE_CHAIN, _TWO_RECORDS, _FOUR_LEDGERS = _SHAPE_WIDTHS
 
 # Domain separators.  Each changes only if its construction changes, which would be a new
 # generator version anyway -- the same shape as the engine's `engine_hash` separator.
@@ -224,6 +247,10 @@ _BLOCK_DRAW_BLOCKS = 8
 # The arguments knob's one draw: the six words a task's stage calls may have to carry.  A
 # domain of its own, so no task of another knob moves with it.
 _ARGUMENT_DOMAIN = b"task-generator/argument-values/1"
+# The shape knob's one draw: the three other ledgers its widest task advances the target
+# record in.  A domain of its own, so no task of another knob moves with it and the
+# scenario's draw stays what it was.
+_SHAPE_DOMAIN = b"task-generator/shape-ledgers/1"
 
 # The outcome vocabulary.  Closed, in the table's order: the first label that matches
 # wins, so this order is load-bearing and not decoration.
@@ -272,6 +299,7 @@ _FAULTS_SENTENCE = (
 # same template sentence for sentence.
 _TEMPLATE_ID = "ledger-chain/v1"
 _NUMBER_TEMPLATE_ID = "ledger-number/v1"
+_GOALS_TEMPLATE_ID = "ledger-goals/v1"
 
 _SLOT_RECORD = "record_id"
 _SLOT_ENTRY = "entry_code"
@@ -282,11 +310,15 @@ _SLOT_GOAL = "goal_stage"
 # The arguments knob's own slot, the one N6 leaves out: the values the request states, as
 # the request states them.  The knobs module names it, so it is cited and not re-minted.
 _SLOT_STATED = _OWN_SLOT[_ARGUMENTS]
+# The shape knob's own slot, likewise: the goal lines, one per target.
+_SLOT_GOALS = _OWN_SLOT[_SHAPE]
 
 # The slots G15 masks: an id, an entry code, a ledger number and the stated values are
 # opaque strings the model copies, and none is structure.  Masking by slot name is what
-# keeps the mask off the prose.
-_OPAQUE_SLOTS = (_SLOT_RECORD, _SLOT_ENTRY, _SLOT_NUMBER, _SLOT_STATED)
+# keeps the mask off the prose.  The goal lines are masked whole: the record ids in them
+# are opaque, and the ledgers and stages they name are already read off the block, the goal
+# and the target list the fingerprint carries for a shape arm.
+_OPAQUE_SLOTS = (_SLOT_RECORD, _SLOT_ENTRY, _SLOT_NUMBER, _SLOT_STATED, _SLOT_GOALS)
 _MASK = "<opaque>"
 
 _SYSTEM_PROMPT = (
@@ -326,6 +358,18 @@ _NUMBER_TEMPLATE = _USER_TEMPLATE.replace(
     "of the {" + _SLOT_CLASS + "} ledger", "of ledger {" + _SLOT_NUMBER + "}"
 )
 
+# Shape's template: B's stage-ladder line, then one line per goal, then B's entry-code line,
+# so the request differs from B's only where the knob needs it.  Each goal line is B's
+# "and no further" line with the record and its ledger named, the id in double quotes as B
+# quotes it.  A wider task names more ledgers, and those words are in the tool names: that
+# is the knob, and why N7 is reported and not refused on a shape contrast.
+_B_LINES = _USER_TEMPLATE.split("\n")
+_GOAL_LINE = (
+    'Raise record "{' + _SLOT_RECORD + '}" of the {' + _SLOT_CLASS + "} ledger through "
+    "{" + _SLOT_GOAL + "}, and no further."
+)
+_GOALS_TEMPLATE = _B_LINES[1] + "\n{" + _SLOT_GOALS + "}\n" + _B_LINES[3]
+
 _LADDER_SEPARATOR = " then "
 
 # The R control's filler: a frozen neutral passage appended to the system prompt, whose
@@ -352,6 +396,8 @@ _SEARCH_STEPS = 4000
 
 _Args = _Any
 _Call = tuple[str, _Args]
+# A target: a ledger, a record in it and the stage the record is to reach.
+_Target = tuple[str, str, int]
 _RecordsRow = tuple[str, str, int, "str | None"]
 _RecordsValue = tuple[_RecordsRow, ...]
 _Option = tuple[int, str, dict[str, str], str]
@@ -1075,6 +1121,38 @@ def _sized_block(
     return tuple(order[:level])
 
 
+def _shape_block(
+    spec: _EngineSpec, qualifier: str, permutation: tuple[int, ...], targets: tuple[_Target, ...]
+) -> tuple[str, ...]:
+    """A shape task's block, in engine names: B's block holding exactly the stage tools the
+    width needs, every target's ledger's stage tools up to its goal, and B's reads to sixteen.
+
+    B's base list is the target ledger's two stage tools and then fourteen reads, permuted by
+    the scenario's slot draw.  Here the first two places hold the first two stage tools the
+    width needs, the last two places, B's last two reads', hold any others, and the twelve
+    reads between keep their places.  So the width that needs exactly B's stage tools has
+    B's block, the stage tools take the same four slots at every other width, and no read
+    moves between widths.  Nothing above a target's goal is listed, so no tool in the block
+    can carry any target past it, and the block is sixteen at every width (N33).
+    """
+    size = _block_size(spec)
+    needed = tuple(
+        dict.fromkeys(
+            tool
+            for ledger, _record, goal in targets
+            for tool in _stage_tools_of(spec, ledger)[:goal]
+        )
+    )
+    reads = _read_names(spec)[: size - len(needed)]
+    base = list(needed[:_D_B]) + list(reads) + list(needed[_D_B:])
+    if len(base) != size or len(needed) < _D_B:
+        raise ValueError(
+            f"the vocabulary table cannot fill a {size}-slot block for shape: {len(needed)} "
+            f"stage tools needed and {len(reads)} reads available"
+        )
+    return tuple(base[index] for index in permutation)
+
+
 def _quiet_against(name: str, core: tuple[str, ...], pieces: tuple[str, ...]) -> bool:
     """True when `name` adds no instruction token the always-present tools already carry.
 
@@ -1094,8 +1172,86 @@ def _quiet_against(name: str, core: tuple[str, ...], pieces: tuple[str, ...]) ->
 
 
 def _goal_stage_index(spec: _EngineSpec, arm: _ArmSpec) -> int:
-    """The stage the task asks for: the level for knob D, `d_R` for every R level."""
-    return arm.level if arm.knob == _DEPTH else _D_R
+    """The stage the task asks for: the level for knob D, `d_R` for every R level, and for
+    a shape arm the four stage calls shared out over the width, each target's chain."""
+    if arm.knob == _DEPTH:
+        return arm.level
+    if arm.knob == _SHAPE:
+        return _SHAPE_CALLS // arm.level
+    return _D_R
+
+
+def _shape_other_ledgers(width: int) -> int:
+    """How many ledgers besides the target's a shape task at `width` advances the target
+    record in: three at the widest width, none at the others."""
+    return width - 1 if width == _FOUR_LEDGERS else 0
+
+
+def _shape_ledgers(
+    spec: _EngineSpec, seed: int, split: str, qualifier: str, count: int
+) -> tuple[str, ...]:
+    """The `count` other ledgers a shape task advances the target record in, in drawn order:
+    an ordered selection of the ledgers that are not the target's, from the knob's own domain,
+    so no task of another knob moves with it.  The draw reads the seed and the split and never
+    the target ledger, which it only leaves out."""
+    others = tuple(other for other in spec.qualifiers if other != qualifier)
+    if count > len(others):
+        raise ValueError(
+            f"a shape task advances the target record in {count + 1} ledgers and the table "
+            f"has {len(spec.qualifiers)}"
+        )
+    radices = tuple(range(len(others), len(others) - count, -1))
+    digits = _mixed_radix(_prf(_SHAPE_DOMAIN, seed, split), radices)
+    return tuple(others[index] for index in _selection(digits, len(others)))
+
+
+def _shape_targets(
+    spec: _EngineSpec,
+    seed: int,
+    split: str,
+    qualifier: str,
+    record: str,
+    decoy: str,
+    width: int,
+    goal: int,
+) -> tuple[_Target, ...]:
+    """A shape task's targets at `width`, each to reach `goal`, the goal record first: at
+    width one the target record alone, through four stages; at width two that record and the
+    decoy, which the scenario holds in the same ledger, two stages each; at width four the
+    target record in the target ledger and in three others drawn for the task, one stage
+    each.  The request lists them in this order and the reference advances them in it."""
+    first = (qualifier, record, goal)
+    if width == _ONE_CHAIN:
+        return (first,)
+    if width == _TWO_RECORDS:
+        return (first, (qualifier, decoy, goal))
+    if width == _FOUR_LEDGERS:
+        others = _shape_ledgers(spec, seed, split, qualifier, _shape_other_ledgers(width))
+        return (first,) + tuple((other, record, goal) for other in others)
+    raise ValueError(f"no shape task advances {width} records side by side")
+
+
+def _shape_slots(
+    spec: _EngineSpec, targets: tuple[_Target, ...], code: str
+) -> tuple[tuple[str, str], ...]:
+    """A shape task's slots, in template order: the stage ladder, one goal line per target in
+    the knob's own slot, and the entry code.  The goal lines are the knob, so N6 leaves that
+    slot out; every other slot is the same at every width."""
+    lines = "\n".join(
+        _GOAL_LINE.format(
+            **{
+                _SLOT_RECORD: record,
+                _SLOT_CLASS: ledger,
+                _SLOT_GOAL: spec.stage_names[goal - 1],
+            }
+        )
+        for ledger, record, goal in targets
+    )
+    return (
+        (_SLOT_LADDER, _LADDER_SEPARATOR.join(spec.stage_names)),
+        (_SLOT_GOALS, lines),
+        (_SLOT_ENTRY, code),
+    )
 
 
 def _prompt_slots(
@@ -1125,9 +1281,12 @@ def _prompt_slots(
 
 def _template_of(slots: tuple[tuple[str, str], ...]) -> tuple[str, str]:
     """The template id and the template the slots fill: the one that names the ledger by
-    number when the slots carry a number, else the one that names it by class."""
+    number when the slots carry a number, the one that lists goal lines when the slots carry
+    them, else the one that names the ledger by class."""
     if any(name == _SLOT_NUMBER for name, _value in slots):
         return _NUMBER_TEMPLATE_ID, _NUMBER_TEMPLATE
+    if any(name == _SLOT_GOALS for name, _value in slots):
+        return _GOALS_TEMPLATE_ID, _GOALS_TEMPLATE
     return _TEMPLATE_ID, _USER_TEMPLATE
 
 
@@ -1251,6 +1410,50 @@ def _chain_calls(
         token = _payload_of(observation)
         calls.append(call)
         observations.append(observation)
+    return tuple(calls), tuple(observations)
+
+
+def _shape_calls(
+    spec: _EngineSpec, scenario: _Scenario, targets: tuple[_Target, ...], seq_start: int
+) -> tuple[tuple[_Call, ...], tuple[str, ...]]:
+    """A shape task's reference: four stage calls over the targets, stage by stage, every
+    target's first stage in the targets' order, then every second, and so on, with their
+    observations numbered from `seq_start`.
+
+    Each record's calls are its ledger's stage tools from the first up to its goal, the first
+    with the entry code and each later one with the token the call before it on that record
+    returned (E3's precondition, as a chain's).  So the reference is the batched episode made
+    one call per turn, and a model that batches a stage's calls into one turn meets the same
+    answers in the same order.
+    """
+    record_param = _param(spec, "record")
+    entry_param = _param(spec, "entry")
+    token_param = _param(spec, "token")
+    state = _init_state(scenario, seq_start)
+    tokens: dict[tuple[str, str], str] = {}
+    calls: list[_Call] = []
+    observations: list[str] = []
+    for stage in range(1, max(goal for _ledger, _record, goal in targets) + 1):
+        for ledger, record, goal in targets:
+            if goal < stage:
+                continue
+            stage_tools = _stage_tools_of(spec, ledger)
+            if stage > len(stage_tools):
+                raise ValueError(f"stage {stage} is past the {len(stage_tools)}-stage ladder")
+            if stage == 1:
+                args = {record_param: record, entry_param: scenario.records[(ledger, record)]}
+            else:
+                args = {record_param: record, token_param: tokens[(ledger, record)]}
+            call: _Call = (stage_tools[stage - 1], args)
+            state, observation = _apply(state, call)
+            if _status_of(observation) != _OK_STATUS:
+                raise ValueError(
+                    f"the reference was refused at stage {stage} of record {record!r} in the "
+                    f"{ledger} ledger: {observation}"
+                )
+            tokens[(ledger, record)] = _payload_of(observation)
+            calls.append(call)
+            observations.append(observation)
     return tuple(calls), tuple(observations)
 
 
@@ -1448,12 +1651,14 @@ def _negative_controls(
     reference: tuple[_Call, ...],
     final_token: str | None,
     stated: dict[str, str] | None = None,
+    targets: tuple[_Target, ...] | None = None,
 ) -> dict[str, tuple[_Call, ...]]:
     """One control per system label a call sequence can produce.
 
     `stated` is an arguments arm's stated values: a stage call this adds to the reference
     carries them too, or the check would refuse it and the control would pass instead of
-    giving its label.
+    giving its label.  `targets` is the records the task advances, the goal record first;
+    every task but a shape task's has the one, the goal record at the goal stage.
 
     `passed` is `reference_calls` itself and `verifier_error` is fault-injected, so
     neither is generated.  Format-check clause 1 depends on a family's raw format and is
@@ -1465,16 +1670,22 @@ def _negative_controls(
     token_param = _param(spec, "token")
     code = scenario.records[(qualifier, record)]
     stage_tools = _stage_tools_of(spec, qualifier)
-    goal = _goal_stage_index(spec, arm)
+    if targets is None:
+        targets = ((qualifier, record, _goal_stage_index(spec, arm)),)
+    goal = targets[0][2]
 
     controls: dict[str, tuple[_Call, ...]] = {}
     controls[_WRONG_STATE] = reference[:-1]
     controls[_TURN_LIMIT] = reference
     # The decoy id in the target class: knob D's block holds no other class's tools, so
-    # this is the only mutation of another record any call inside the block can make.
-    controls[_COLLATERAL] = reference + (
-        (stage_tools[0], {record_param: decoy, entry_param: code, **(stated or {})}),
-    )
+    # this is the only mutation of another record any call inside the block can make.  A
+    # task that advances the decoy too, shape's two-record width, has no such control: every
+    # stage tool in its block is the target ledger's, both of whose records are targets, so
+    # no call in the block can change a record that is not one.
+    if (qualifier, decoy) not in {(ledger, moved) for ledger, moved, _goal in targets}:
+        controls[_COLLATERAL] = reference + (
+            (stage_tools[0], {record_param: decoy, entry_param: code, **(stated or {})}),
+        )
     # `overshoot` needs a tool in the block that carries the target past the goal.  At the
     # top stage there is none, and knob R's block holds stages 1 and 2 alone, so there is
     # none there either; G7 is carried by `collateral_mutation` in both cases.
@@ -1787,7 +1998,9 @@ def structural_fingerprint(bundle: TaskBundle) -> str:
     including the control arm's seeded history -- so a control and its plain arm are
     different structures, and a census that ignored the seeded block would report a space
     the control does not have.  The mask is applied to the slots the template declares
-    opaque, never to the rendered string, so no pattern can reach the prose.
+    opaque, never to the rendered string, so no pattern can reach the prose.  A shape arm's
+    fingerprint also carries its target list, the ledgers and goal stages of every record
+    the task advances, with the record ids masked (`_masked_targets`).
     """
     seeded: list[_Any] = []
     if not isinstance(bundle.prompt, str):
@@ -1810,7 +2023,24 @@ def structural_fingerprint(bundle: TaskBundle) -> str:
         "goal_stage": bundle.goal[2],
         "seeded": seeded,
     }
+    targets = _masked_targets(bundle)
+    if targets is not None:
+        body["targets"] = targets
     return _hashlib.sha256(_FINGERPRINT_DOMAIN + _canonical_bytes(body)).hexdigest()
+
+
+def _masked_targets(bundle: TaskBundle) -> list[list[_Any]] | None:
+    """The target list the fingerprint adds for a shape arm, and for no other: each target's
+    ledger and goal stage, sorted, the record ids left out as every record id is masked.
+    Every other knob's one target is already the target class at the goal stage, and a bundle
+    whose arm id names no arm has no knob to add a list for."""
+    try:
+        knob = _parse_arm_id(bundle.arm_id).knob
+    except ValueError:
+        return None
+    if knob != _SHAPE:
+        return None
+    return sorted([ledger, stage] for (ledger, _record), stage in _targets(bundle).items())
 
 
 def _masked_tools(bundle: TaskBundle) -> _Any:
@@ -1889,7 +2119,13 @@ def structure_space(arm: _ArmSpec, spec: _EngineSpec | None = None) -> int:
     slots they take, and the order of the copies after them; the control counts k8's, a lower
     bound as for every control, its filler being a derivation of k64's block.  An arguments
     arm's count is B's at every level and on the control: its block is B's, its stage tools'
-    schemas the same at every level, and the stated values are masked with the record id.
+    schemas the same at every level, and the stated values are masked with the record id.  A
+    shape arm's count is B's too at the widths whose block holds one ledger's tools and on the
+    control, the goal lines masked whole; at the width that advances the target record in
+    four ledgers it is B's times the choice of the three other ledgers among the eleven, each
+    set of four first-stage tools taking every order of the sixteen slots, as B's two take
+    every order; the order the three are drawn in is not counted, since the slot draw already
+    ranges over it.
     """
     _refuse_a_knob_not_generated(arm)
     engine_spec = _resolve(spec)
@@ -1918,6 +2154,9 @@ def structure_space(arm: _ArmSpec, spec: _EngineSpec | None = None) -> int:
             * _math.perm(aliases, max(extra - others, 0))
         )
     space = len(engine_spec.qualifiers) * _math.factorial(_block_size(engine_spec))
+    if arm.knob == _SHAPE:
+        others = len(engine_spec.qualifiers) - 1
+        return space * _math.comb(others, _shape_other_ledgers(arm.level))
     if arm.knob == _DISTRACTOR and arm.level > 0:
         pool = len(_distractor_pool(engine_spec, engine_spec.qualifiers[0]))
         for position in range(arm.level):
@@ -1962,7 +2201,18 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
     code = scenario.records[(qualifier, record)]
     rendered = _arm_id(arm)
     number = _surface.target_number(seed, arm.split) if arm.knob == _SIMILARITY else None
-    slots = _prompt_slots(engine_spec, arm, record, code, qualifier, number)
+    goal = _goal_stage_index(engine_spec, arm)
+    target = (qualifier, record, goal)
+    targets: tuple[_Target, ...] = (target,)
+    if arm.knob == _SHAPE:
+        # Shape: the width's targets, the goal record first, and a request listing one line
+        # per goal in the knob's own slot (N34), the rest of it B's at every width.
+        targets = _shape_targets(
+            engine_spec, seed, arm.split, qualifier, record, decoy, arm.level, goal
+        )
+        slots = _shape_slots(engine_spec, targets, code)
+    else:
+        slots = _prompt_slots(engine_spec, arm, record, code, qualifier, number)
     instruction = _render_instruction(slots)
     stated: dict[str, str] = {}
     if arm.knob == _ARGUMENTS:
@@ -1976,10 +2226,10 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
         block = _similarity_block(engine_spec, seed, arm.split, qualifier, permutation)
     elif arm.knob == _BLOCK:
         block = _sized_block(engine_spec, seed, arm.split, qualifier, arm.level)
+    elif arm.knob == _SHAPE:
+        block = _shape_block(engine_spec, qualifier, permutation, targets)
     else:
         block = _block_names(engine_spec, arm, qualifier, permutation, pool_order, instruction)
-    goal = _goal_stage_index(engine_spec, arm)
-    target = (qualifier, record, goal)
     # The block is built in engine names and shown under the names the surface gives them;
     # the two are one list for every knob but similarity.
     shown_block = _surface.shown_names(seed, arm.split, rendered, target, block)
@@ -2047,6 +2297,26 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
         wanted = _count_tokens(_with_stated(_render_instruction(slots), _stated_text(high_stated)))
         instruction = instruction + _filler(instruction, wanted - _count_tokens(instruction))
         prompt = instruction
+    elif arm.control is not None and arm.knob == _SHAPE:
+        # The shape control: w1's request, plus the neutral filler at its end, as long as what
+        # w4's goal lines add to the request (N34), where N3 does not look and the filler words
+        # keep it neutral.  A length-only control; the block, the targets and the reference
+        # are w1's.
+        high = _replace(arm, level=arm.control, control=None)
+        high_targets = _shape_targets(
+            engine_spec,
+            seed,
+            arm.split,
+            qualifier,
+            record,
+            decoy,
+            high.level,
+            _goal_stage_index(engine_spec, high),
+        )
+        high_slots = _shape_slots(engine_spec, high_targets, code)
+        wanted = _count_tokens(_render_instruction(high_slots))
+        instruction = instruction + _filler(instruction, wanted - _count_tokens(instruction))
+        prompt = instruction
     elif arm.control is not None:
         # The R control: the `r0` block, plus a frozen neutral filler whose token count
         # is the tool-block difference between `rH` and `r0`.  A length-only control, and
@@ -2062,10 +2332,15 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
             system_prompt, _rendered_tokens(high_tools) - _rendered_tokens(tools)
         )
 
-    depth = goal
-    reference_calls, reference_observations = _chain_calls(
-        engine_spec, scenario, qualifier, record, depth, seq_start
-    )
+    if arm.knob == _SHAPE:
+        # Shape: the targets advanced side by side, stage by stage, four calls at every width.
+        reference_calls, reference_observations = _shape_calls(
+            engine_spec, scenario, targets, seq_start
+        )
+    else:
+        reference_calls, reference_observations = _chain_calls(
+            engine_spec, scenario, qualifier, record, goal, seq_start
+        )
     start = _init_state(scenario, seq_start)
     final, _replayed = _replay(scenario, list(reference_calls), seq_start)
     if stated:
@@ -2087,7 +2362,7 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
 
     controls = _negative_controls(
         engine_spec, scenario, arm, qualifier, record, decoy, arm.split, block,
-        reference_calls, final_token, stated,
+        reference_calls, final_token, stated, targets,
     )
     # The reference and the controls call the tools as the block shows them, which `verify`
     # and the tool server map back to the engine; a control's call to a tool outside the
@@ -2193,8 +2468,16 @@ def _check_template_words() -> None:
     are the second line; this is the first, and it is asserted at import because the
     failure it prevents surfaces three modules away as a refused ledger row.
     """
-    prose = _USER_TEMPLATE + "\n" + _NUMBER_TEMPLATE
-    for slot in (_SLOT_RECORD, _SLOT_CLASS, _SLOT_NUMBER, _SLOT_LADDER, _SLOT_GOAL, _SLOT_ENTRY):
+    prose = "\n".join((_USER_TEMPLATE, _NUMBER_TEMPLATE, _GOALS_TEMPLATE, _GOAL_LINE))
+    for slot in (
+        _SLOT_RECORD,
+        _SLOT_CLASS,
+        _SLOT_NUMBER,
+        _SLOT_LADDER,
+        _SLOT_GOAL,
+        _SLOT_ENTRY,
+        _SLOT_GOALS,
+    ):
         prose = prose.replace("{" + slot + "}", "\n")
     names = tuple(_SPEC.read_tools) + tuple(_SPEC.qualifiers)
     for piece in _instruction_pieces(prose):

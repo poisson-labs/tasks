@@ -310,7 +310,7 @@ _KNOBS = (_DEPTH, _DISTRACTOR)
 # by the argument check in front of it (arguments), so that the tool server and the verifier
 # applying any of these differently, or starting their numbers apart, is a failure the
 # records would otherwise never show.
-_REPLAY_CHECKED = ("similarity", "faults", "history", "block", "arguments")
+_REPLAY_CHECKED = ("similarity", "faults", "history", "block", "arguments", "shape")
 _REPLAY_MISMATCH = "replay_mismatch"
 # The status a planned failure answers with, as the faults knob's system prompt names it.
 _UNAVAILABLE = "unavailable"
