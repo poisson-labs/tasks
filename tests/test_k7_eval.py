@@ -2,13 +2,11 @@
 
 Taylor's standing rulings for a knob that gains tasks: the `eval` command takes its arms, the
 published cards' table answers for the knob so that no arm raises a `KeyError`, and an arm no
-published card covers gets the one note saying so; the census takes them.  The one knob still
-unbuilt (information spread) stays refused by the generator, the census and `eval`; the frozen
-`tests/test_k2_eval.py::test_the_six_knobs_without_tasks_stay_refused_beside_similarity` holds it,
-its list of arms losing its two shape arms in this session's retrofit commit (a ruling), and this
-file holds each of those refusals to one line naming the knob.  `tasks.toml` and `init` do not
-offer task shape before its probe (spec K-P3), nothing is offered before a probe, and the
-shipped-knobs list the recipes read stays empty.
+published card covers gets the one note saying so; the census takes them.  The one knob then
+unbuilt (information spread) was held here to one-line refusals by the generator, the census and
+`eval` until K8 gave it tasks; that test left this file in a recorded retrofit, ruled with K8
+Session A's filing.  `tasks.toml` and `init` do not offer task shape before its probe (spec
+K-P3), nothing is offered before a probe, and the shipped-knobs list the recipes read stays empty.
 
 Shapes decided here
 -------------------
@@ -27,10 +25,7 @@ in for one, and by `eval`, by id and as the six fields.  The frozen
 is one line naming the knob.  On `main`, before K7, `eval` refuses the six fields for the knob
 itself (it has no tasks); after it, for the width.
 
-**3. Spread stays refused, in one line naming it**, by `generate`, `structure_space` and `eval` (by
-id and as the six fields).
-
-**4. Nothing is offered before its probe**: the project file and `init`'s flags refuse `shape` by the
+**3. Nothing is offered before its probe**: the project file and `init`'s flags refuse `shape` by the
 key that names it; the file `init` writes names none of the seven knobs without a probe; the
 package's list of shipped knobs is empty, so the recipe that measures shape (`planning`) is not
 offered and waits on it.  (The frozen `tests/test_r0_recipes.py` checks that every arm offered
@@ -58,7 +53,6 @@ SEEDS = [404, 55]
 # The knobs no probe has yet shown to bite: none is offered before its probe (spec K-P3).
 UNPROBED = ("similarity", "faults", "history", "block", "arguments", "shape", "spread")
 UNBUILDABLE = ("shape:w3", "shape:w0", "shape:w5", "shape:w8", "shape:w1+len(w3)")
-STILL_SHUT = "spread:p2"
 
 
 def loaders() -> Any:
@@ -128,22 +122,6 @@ def test_a_width_the_knob_cannot_build_is_refused_in_one_line_naming_it(text: st
         assert "\n" not in message and "shape" in message, message
 
 
-def test_spread_stays_refused_in_one_line_naming_it() -> None:
-    """Shape 3."""
-    spec = arm_from_id(STILL_SHUT)
-    asked: list[Any] = [
-        lambda: generate(spec, 404),
-        lambda: structure_space(spec),
-        lambda: taskset_config(STILL_SHUT),
-        lambda: taskset_config(dataclasses.asdict(spec)),
-    ]
-    for ask in asked:
-        with pytest.raises(ValueError) as refused:
-            ask()
-        message = one_line(refused.value)
-        assert "\n" not in message and "spread" in message, message
-
-
 def custom_file(knob: str) -> str:
     """The file `init --measure custom --knob depth` writes, naming `knob` instead."""
     made = config_module.config_from_init_args(["--measure", "custom", "--knob", "depth"])
@@ -154,7 +132,7 @@ def custom_file(knob: str) -> str:
 
 
 def test_tasks_toml_and_init_do_not_offer_shape_and_nothing_has_shipped() -> None:
-    """Shape 4."""
+    """Shape 3."""
     written = custom_file("depth")
     config_module.loads_config(written)
     for knob in UNPROBED:
