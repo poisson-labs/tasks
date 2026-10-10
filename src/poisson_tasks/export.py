@@ -148,18 +148,19 @@ def _arm_mapping(arm: _Any) -> dict[str, _Any]:
     than the two (a misspelled one was scored as strict); a split other than the two; a level or
     a control that is not a whole number, or outside what the knob can make.  Depth runs from 1
     to 8, distractor from 0 to 14, similarity from 0 to 3, faults from 0 to 4, history from 0
-    to 2400, block from 8 to 64, arguments from 2 to 8 and shape from 1 to 4, which are the
-    ends of each knob's candidate levels: the stage ladder has eight stages, the tool table
-    offers fourteen distractors, a lookalike shares at most three of a ledger number's four
-    digits, four failed calls is the first level that makes a model retry one tool twice, 2400
-    tokens of earlier tool work is the most that keeps an episode of model B's at the turn cap
-    under its context's headroom, sixty-four tools is the most a block can offer and keep
-    model B's first request under that headroom, as eight, the two the task needs and six
-    reads, is the fewest, a stage call carries the two values the engine needs at the least
-    and those plus the six more its tool lists at the most, and four stage calls advance one
-    record, two or four side by side.  A shape width inside those ends that is not 1, 2 or 4
-    is refused when the arm is made, in one line.  A knob the generator makes no tasks for yet
-    is refused by name.
+    to 2400, block from 8 to 64, arguments from 2 to 8, shape from 1 to 4 and spread from 1
+    to 4, which are the ends of each knob's candidate levels: the stage ladder has eight
+    stages, the tool table offers fourteen distractors, a lookalike shares at most three of a
+    ledger number's four digits, four failed calls is the first level that makes a model retry
+    one tool twice, 2400 tokens of earlier tool work is the most that keeps an episode of
+    model B's at the turn cap under its context's headroom, sixty-four tools is the most a
+    block can offer and keep model B's first request under that headroom, as eight, the two
+    the task needs and six reads, is the fewest, a stage call carries the two values the
+    engine needs at the least and those plus the six more its tool lists at the most, four
+    stage calls advance one record, two or four side by side, and an entry code is split
+    across one to all four of the reads a request names.  A shape width inside those ends that
+    is not 1, 2 or 4 is refused when the arm is made, in one line.  A name that is no knob is
+    refused by name.
 
     An arm the generator can make and no published card measured is taken, with one note.
     """
@@ -328,6 +329,11 @@ class ExportTasksetConfig(_vf.TasksetConfig):
             "each, or the target record one stage in four ledgers, the block holding exactly "
             "the stage tools the width needs; its control arm shape:w1+len(w4) adds the same "
             "length to the request; no published card measures it yet. "
+            "knob 'spread' (levels 1, 2, 4) sets how many tool answers the entry code is split "
+            "across: the request names four reads in place of stating the code, the first "
+            "level-many answer with a part of it in order and the rest with none, and the "
+            "block, the prompt and the calls are the same at every level, so it has no control "
+            "arm; no published card measures it yet. "
             "See docs/calibration.md."
         ),
     )
@@ -882,6 +888,7 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
         self._engine_state: _Any = None
         self._plan: dict[str, int] = {}
         self._stated: dict[str, str] | None = None
+        self._spread: _surface._Spread | None = None
         self._counts: dict[str, int] = {}
         self._lock = _asyncio.Lock()
 
@@ -898,7 +905,9 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
         on how many times this server has been asked for each tool; every other arm plans
         none, and the counts start at nothing.  An arguments arm's stated values are
         `surface.stated_values`', read off the reference calls the task data carries, and
-        every other arm has none.
+        every other arm has none.  A spread arm's named reads and their answers are
+        `surface.spread_answers`', read off the reference calls and observations the task
+        data carries, and every other arm has none.
         """
         self._block = tuple(dict(tool) for tool in task.tools)
         self._shown = _surface.display_map(
@@ -914,6 +923,9 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
         reference = [(str(call[0]), call[1]) for call in task.reference_calls]
         self._plan = _surface.reference_plan(task.arm_id, self._shown, reference)
         self._stated = _surface.stated_values(task.arm_id, self._shown, reference)
+        self._spread = _surface.spread_answers(
+            task.arm_id, self._shown, reference, list(task.reference_observations)
+        )
         self._counts = {}
 
     def register(self, mcp: _FastMCP) -> None:
@@ -937,10 +949,10 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
             # An in-process lock: `apply` is pure, and the
             # counter lives in the state this coroutine reads and then writes, so two
             # calls that interleave between the two would take the same `seq` (E5).  The
-            # planned failures and the argument check are applied in front of the engine by
-            # the one function the verifier replays through, and the engine step is handed
-            # in under this module's name for it, so every step the server takes goes
-            # through `_apply` under the lock, planned arm or not.
+            # planned failures, the named reads' answers and the argument check are applied
+            # in front of the engine by the one function the verifier replays through, and
+            # the engine step is handed in under this module's name for it, so every step the
+            # server takes goes through `_apply` under the lock, planned arm or not.
             async with self._lock:
                 state = self._engine_state
                 after, counts, observation = _surface.apply_planned(
@@ -950,6 +962,7 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
                     self._plan,
                     step=_apply,
                     stated=self._stated,
+                    spread=self._spread,
                 )
                 self._engine_state = after
                 self._counts = counts

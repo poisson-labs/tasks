@@ -5,6 +5,25 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### Information spread
+
+- **A ninth knob makes tasks: `spread`**, at levels 1, 2 and 4: how many tool answers the entry
+  code is split across. The request no longer states the entry code. It names four reads, by
+  item, facet and page, the same at every level, and at level P the first P of their answers
+  carry the code's parts, in order, each part followed by a full stop and filler; the rest
+  answer `none`. The first stage tool says its code is assembled from the reads the request names.
+- **Everything else is the base task's**: the block, the system prompt, and the six calls the
+  reference makes, the four reads then the two stage calls. Only those four reads, made exactly
+  as named, are answered with parts; every other read is the engine's.
+- **No control arm**: the request and the calls are the same at every level.
+- **A spread run's tool messages are replayed against the engine**, the named reads' answers
+  included, when its records are read; a disagreement is `replay_mismatch` and scores nothing.
+- **`eval` takes a spread arm, with one note**: no published card covers it. A level outside 1
+  to 4, or a control arm, is refused in one line. Every knob now has tasks.
+- **`init` and `tasks.toml` do not offer information spread** until its probe has shown it bites.
+- **Every task id and the generator hash moved**; no task of the other eight knobs changed. The
+  built-in generator is now frozen until the probe.
+
 ### Task shape
 
 - **An eighth knob makes tasks: `shape`**, at widths 1, 2 and 4: whether four stage calls form
