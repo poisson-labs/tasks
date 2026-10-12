@@ -44,13 +44,15 @@ ANTHROPIC_SECRET = (
     "Wd4Kq8Zr2Tn6Vb0Xy3Mh7Lc1Pf5Gs9Jk2Ue6Ra0Yo4Ni8Bt3Qe7Dw1Hz5Cx9Fv2Sm6Lp0Kg4Jt8-Ab1Cd2Ef"
 )
 ANTHROPIC_KEY = "sk-ant-api03-" + ANTHROPIC_SECRET + "AA"
-LOCAL_KEY = "token-Zq8Wx3Rv7Kp2Lm9"
-"""A server's own key (vLLM's `--api-key`): no public prefix, so all of it is secret."""
+LOCAL_KEY = "token-Zq8Wx3sk-Rv7Kp2Lm9"
+"""A server's own key (vLLM's `--api-key`): no public prefix at its start, so all of it is
+secret, the `sk-` past its start included."""
 SHORT_KEY = "sk-Zq9"
 """A secret part shorter than four characters: the whole key stands for it."""
-ESCAPED_KEY = 'sk-Zq8"Wx3\\Rv7"Kp2\\Lm9Tn4Yb6Hd1Gf5'
-"""Characters JSON escapes, which a header can carry: the key shows escaped once in a provider's
-error as verifiers keeps it, and twice in a trace line."""
+ESCAPED_KEY = 'sk-Zq8"Wx3\\Rv7"Kp2\\Lm9"Tn4\\Yb6"Hd1\\Gf5'
+"""Characters JSON escapes, which a header can carry, no more than three characters apart: the
+key shows escaped once in a provider's error as verifiers keeps it, and twice in a trace line,
+and no run of twelve of it reads the same at two levels of escaping."""
 
 KEYS: dict[str, tuple[str, str]] = {
     "project": (PROJECT_KEY, PROJECT_SECRET),
@@ -145,6 +147,7 @@ def strings(value: Any) -> Iterable[str]:
 
 
 REFUSED_MODEL = "keymask-401"
+COST = 1e-05
 ECHO_MODEL = "keymask-echo"
 
 
@@ -155,7 +158,10 @@ class KeyQuoting(FixtureModel):
     can: masked to its prefix and last four, whole, and the secret part's first three characters
     as a word of their own; and it names a project, whose `proj` the prefix holds.
     `keymask-echo` plays the reference policy and ends with a reply that quotes the key whole, a
-    run of twelve of the secret part and a run of eleven, each as `echo` makes them."""
+    run of twelve of the secret part and a run of eleven, each as `echo` makes them.  Every answer
+    it serves reports the call's cost, as OpenRouter's do, in a number the wheel writes
+    `0.00001` and Python's `json` writes `1e-05`, so a line written again is told from the
+    wheel's."""
 
     def __init__(self, secret: str) -> None:
         super().__init__()
@@ -175,6 +181,8 @@ class KeyQuoting(FixtureModel):
                 }
             }
         status, answer = super()._answer(body, key)
+        if status == 200:
+            answer["usage"]["cost"] = COST
         if model == ECHO_MODEL and status == 200:
             message = answer["choices"][0]["message"]
             if message.get("content") == "Done.":
@@ -182,15 +190,25 @@ class KeyQuoting(FixtureModel):
         return status, answer
 
 
+def kept_run(secret: str) -> str:
+    """The run of the secret part `keymask-echo`'s reply holds that a run must keep: from its
+    nineteenth character, the longest that is under twelve characters as a trace line holds it
+    (escaped once), eleven for a key with nothing to escape."""
+    size = KEY_RUN - 1
+    while len(json.dumps(secret[18 : 18 + size])) - 2 >= KEY_RUN:
+        size -= 1
+    return secret[18 : 18 + size]
+
+
 def echo(key: str, secret: str) -> str:
-    """`keymask-echo`'s last reply: the key whole, then runs of twelve and eleven of the secret
-    part, each escaped once as JSON (a key a text carries quoted)."""
+    """`keymask-echo`'s last reply: the key whole and a run of twelve of the secret part, each
+    escaped once as JSON (a key a text carries quoted), then `kept_run` as written."""
     once = json.dumps(key)[1:-1]
-    return f"Done. {once} | {json.dumps(secret[4:16])[1:-1]} | {secret[18:29]}"
+    return f"Done. {once} | {json.dumps(secret[4:16])[1:-1]} | {kept_run(secret)}"
 
 
 def echo_masked(key: str, secret: str) -> str:
-    """`echo` as a run must write it: the key and the run of twelve masked, the prefix kept, the
-    run of eleven kept."""
+    """`echo` as a run must write it: the key and the run of twelve masked, the prefix kept,
+    `kept_run` kept."""
     prefix = key[: len(key) - len(secret)]
-    return f"Done. {prefix}**** | **** | {secret[18:29]}"
+    return f"Done. {prefix}**** | **** | {kept_run(secret)}"

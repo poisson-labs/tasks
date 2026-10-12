@@ -13,7 +13,9 @@ the replay check.
   whole, masked and in part: every error the traces record, the first error and `run.log` hold no
   four characters of the secret part in a row; the public prefix stays, and so do the provider's
   other words; every line is still JSON the wheel reads; everything but the error texts is the
-  wheel's own; and no file, the result and neither stream holds twelve.
+  wheel's own; no file, the result and neither stream holds twelve; and the episodes verifiers
+  handed over are left as they were, their errors still quoting the key, for what the run reads
+  from them after.
 - **Masked anywhere it is the key's.** A provider that puts the key in a reply: the key and a run
   of twelve of it are masked in that string, a run of eleven is kept, and the rest of the line is
   the wheel's own.
@@ -211,6 +213,12 @@ def test_the_key_a_provider_quotes_back_is_masked_in_its_errors_the_log_and_the_
     wheel = wheel_lines(finished, tmp_path / "wheel")
     for row in rows:
         assert without_error_texts(row) == without_error_texts(json.loads(wheel[row["id"]]))
+    quoted = json.dumps(key)[1:-1]
+    for episode_id, line in wheel.items():
+        assert any(quoted in text for text in error_texts(json.loads(line))), (
+            "the episode verifiers handed over was masked, not a copy of it",
+            episode_id,
+        )
 
 
 # ---------------------------------------------------------------------------
