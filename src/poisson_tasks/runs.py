@@ -43,9 +43,15 @@ failed before any was scored, and a run whose every episode failed is never done
 call and no finished episode within the watchdog's limit, which stops the run and whatever it
 started, quoting the last lines of `run.log`.
 
-**The key** never shows: every text the run writes for itself, verifiers' log records in `run.log`,
-the trace lines it appends and the first error it reports, has every run of four or more
-characters of the key masked.
+**The key** never shows, and nothing else is masked.  A key's public prefix, the one every key of
+its kind starts with (`sk-proj-`), is not secret; what follows it is the secret part.  Where a
+provider can put the key, the texts that can carry it, every run of four or more characters of the
+secret part is masked: each provider error a trace records (its message and its traceback), the
+first error the run reports, and every line of `run.log`.  Every other byte of a trace line is the
+wheel's own, as the run produced it, even where it happens to share characters with the key (the
+tasks' item codes hold `-pro`, as every `sk-proj-` key does).  A run of twelve or more characters of
+the secret part is the key's: no text a run makes for itself holds one by chance, so a trace line
+that holds one anywhere else is masked there too, string by string, and stays JSON.
 
 **The machine** (spec §8.6): the harness's environment carries `PIP_REQUIRE_VIRTUALENV=1` and
 `UV_NO_MODIFY_PATH=1`, set in this process for the run's length.
@@ -96,6 +102,16 @@ _GRACE_SECONDS = 10.0
 _STREAK = 5
 """Failed episodes in a row, before any was scored, that stop a run (spec §8.7)."""
 _LOG_TAIL_LINES = 20
+_MASK = "****"
+_MASKED_RUN = 4
+"""In a text that can carry the key, a run of this many characters of its secret part is masked."""
+_KEY_RUN = 12
+"""A run of this many characters of the key's secret part is the key's, wherever it is."""
+_PUBLIC_PREFIX = re.compile(
+    r"sk-(?:proj|svcacct|admin|None)-|sk-ant-(?:api|admin)\d\d-|sk-or-v\d+-|sk-"
+    r"|gsk_|xai-|fw_|hf_|pplx-|nvapi-|csk-|AIza"
+)
+"""The public prefixes of the keys providers issue: every key of a kind starts with its prefix."""
 _RESERVATION_QUANTILE = 0.95
 
 # The published cards by their short names (ruled 2026-10-03, spec §4.4) and the folders their
@@ -635,33 +651,75 @@ class RunResult:
     log_tail: str | None = None
 
 
-class _Scrub:
-    """Masks every run of four or more characters of a secret in a text, so neither the secret
-    nor the part a masked key shows ever leaves the run."""
+def _secret_forms(key: str) -> list[str]:
+    """The key's secret part, without its public prefix, as written and JSON-escaped once and
+    twice: a provider's error quotes the key escaped once as verifiers keeps it, and a trace line
+    holds that text escaped again.  A secret part shorter than the masked run is no secret part,
+    and the whole key stands for it."""
+    match = _PUBLIC_PREFIX.match(key)
+    secret = key[match.end() :] if match else key
+    if len(secret) < _MASKED_RUN:
+        secret = key
+    once = json.dumps(secret)[1:-1]
+    return list(dict.fromkeys([secret, once, json.dumps(once)[1:-1]]))
 
-    def __init__(self, secrets: Sequence[str]) -> None:
-        self._secrets = [secret for secret in secrets if len(secret) >= 4]
-        self._grams = {
-            secret[i : i + 4] for secret in self._secrets for i in range(len(secret) - 3)
-        }
 
-    def text(self, text: str) -> str:
-        if not self._grams:
+class _Runs:
+    """Every run of `length` or more characters of one of `forms`, found and masked; a form
+    shorter than `length` is a run whole."""
+
+    def __init__(self, forms: Sequence[str], length: int) -> None:
+        self._forms = [form for form in forms if len(form) >= _MASKED_RUN]
+        self._grams: dict[int, set[str]] = {}
+        for form in self._forms:
+            size = min(length, len(form))
+            self._grams.setdefault(size, set()).update(
+                form[i : i + size] for i in range(len(form) - size + 1)
+            )
+
+    def found(self, text: str) -> bool:
+        return any(gram in text for grams in self._grams.values() for gram in grams)
+
+    def mask(self, text: str) -> str:
+        if not self.found(text):
             return text
         out: list[str] = []
         i = 0
         n = len(text)
         while i < n:
-            if text[i : i + 4] in self._grams:
-                j = i + 4
-                while j < n and any(text[i : j + 1] in secret for secret in self._secrets):
+            size = next(
+                (size for size, grams in self._grams.items() if text[i : i + size] in grams), 0
+            )
+            if size:
+                j = i + size
+                while j < n and any(text[i : j + 1] in form for form in self._forms):
                     j += 1
-                out.append("****")
+                out.append(_MASK)
                 i = j
             else:
                 out.append(text[i])
                 i += 1
         return "".join(out)
+
+
+class _Scrub:
+    """The key's secret part in a run's texts: `text` masks every run of four or more of its
+    characters, for a text that can carry the key; `holds_key` finds a run of twelve or more,
+    the key's wherever it is, and `key_masked` masks those alone."""
+
+    def __init__(self, secrets: Sequence[str]) -> None:
+        forms = [form for secret in secrets for form in _secret_forms(secret)]
+        self._masked = _Runs(forms, _MASKED_RUN)
+        self._key = _Runs(forms, _KEY_RUN)
+
+    def text(self, text: str) -> str:
+        return self._masked.mask(text)
+
+    def holds_key(self, text: str) -> bool:
+        return self._key.found(text)
+
+    def key_masked(self, text: str) -> str:
+        return self._key.mask(text)
 
 
 class _ScrubbingFormatter(logging.Formatter):
@@ -919,14 +977,65 @@ def _write_plan(path: Path, plan: Plan) -> None:
     os.replace(tmp, path / _PLAN_FILE)
 
 
+def _errors_masked(value: Any, scrub: _Scrub) -> Any:
+    """`value` with every provider error in it masked, its message and its traceback, and every
+    other field the same object; `value` itself when no error in it holds part of the key."""
+    from pydantic import BaseModel
+    from verifiers.v1.trace import Error
+
+    changed: dict[str, Any] = {}
+    if isinstance(value, Error):
+        for name in ("message", "traceback"):
+            text = getattr(value, name)
+            if text is not None and (masked := scrub.text(text)) != text:
+                changed[name] = masked
+        return value.model_copy(update=changed) if changed else value
+    if isinstance(value, BaseModel):
+        for name, info in type(value).model_fields.items():
+            item = getattr(value, name)
+            if not info.exclude and (masked := _errors_masked(item, scrub)) is not item:
+                changed[name] = masked
+        return value.model_copy(update=changed) if changed else value
+    if isinstance(value, (list, tuple)):
+        items = [_errors_masked(item, scrub) for item in value]
+        if all(new is old for new, old in zip(items, value, strict=True)):
+            return value
+        return items if isinstance(value, list) else tuple(items)
+    if isinstance(value, dict):
+        entries = {key: _errors_masked(item, scrub) for key, item in value.items()}
+        if all(entries[key] is item for key, item in value.items()):
+            return value
+        return entries
+    return value
+
+
+def _key_masked(line: str, scrub: _Scrub) -> str:
+    """A trace line that holds the key outside its errors, with the key masked in every string
+    of it, names included; still one JSON document."""
+
+    def masked(value: Any) -> Any:
+        if isinstance(value, str):
+            return scrub.key_masked(value)
+        if isinstance(value, list):
+            return [masked(item) for item in value]
+        if isinstance(value, dict):
+            return {masked(key): masked(item) for key, item in value.items()}
+        return value
+
+    return json.dumps(masked(json.loads(line)), ensure_ascii=False, separators=(",", ":"))
+
+
 async def _append_trace(out: Path, episode: Any, lock: asyncio.Lock, scrub: _Scrub) -> None:
     """One finished episode as one line of the arm's `traces.jsonl`, as the wheel writes it,
-    with the key masked; written whole even under cancellation."""
+    with the key masked in its provider errors, and anywhere else it is whole; written whole
+    even under cancellation."""
     from verifiers.v1.cli.output import type_adapter
     from verifiers.v1.utils.aio import run_shielded
 
-    data = type_adapter(type(episode)).dump_json(episode, exclude_none=True)
-    text = scrub.text(data.decode("utf-8"))
+    shown = _errors_masked(episode, scrub)
+    text = type_adapter(type(shown)).dump_json(shown, exclude_none=True).decode("utf-8")
+    if scrub.holds_key(text):
+        text = _key_masked(text, scrub)
 
     def write() -> None:
         with (out / _TRACES_FILE).open("a", encoding="utf-8") as handle:
