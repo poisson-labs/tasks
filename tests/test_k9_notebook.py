@@ -26,7 +26,7 @@ from typing import Any
 import pytest
 
 from poisson_tasks import calibration_run as run
-from tests.k9_fake import Behaviour
+from tests.k9_fake import Behaviour, cached_registry
 from tests.k9_support import (
     ARMS,
     BASES,
@@ -199,11 +199,11 @@ def flow(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     behaviour = Behaviour.from_mapping(
         {**QWEN.as_mapping(), "error": {"history:t2400": list(probe.PROBE_SEEDS[:2])}}
     )
-    rig = knob_rig(
-        tmp_path_factory.mktemp("k9-rig"),
-        behaviour,
-        tmp_path_factory.mktemp("k9-rig-cache") / "registry",
-    )
+    cache = tmp_path_factory.mktemp("k9-rig-cache") / "registry"
+    # The fake's task list is built here, into the cache the fake reads, so the served fake
+    # answers at once: built inside `serve`, it can outlast the helper's wait under heavy load.
+    cached_registry(list(probe.ARMS), [*probe.PHASE1_SEEDS, *probe.PROBE_SEEDS[:2]], cache)
+    rig = knob_rig(tmp_path_factory.mktemp("k9-rig"), behaviour, cache)
     found: dict[str, Any] = {"rig": rig}
     try:
         rig.serve()
