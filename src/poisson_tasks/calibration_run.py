@@ -45,6 +45,16 @@ The pieces
   so the dollar figure is null.  `bundle` gathers the small files and a sha256 manifest into
   one zip; `verify` checks the manifest and recomputes the artifact from the records before
   anything is copied out of the bundle.
+* **The knob probe** (`--design knob-probe`, `knob_probe`).  The same steps, on the probe's own
+  design and no card: `phase1` runs one attempt at each of phase 1's three seeds on the eighteen
+  arms and gates them as the probe says (the plumbing gate in full on the seven base arms,
+  plumbing alone on the rest), writing the probe's record first; `probe` runs no episode and
+  reads the notebook's own gates on phase 1's episodes (instrument and context checks on every
+  arm, the leaky floor and the no-call stop on the base arms only); `phase3` runs the eighteen
+  arms at the probe's sixty seeds, two attempts each, and writes Qwen's records and the outcome
+  on this model; `rerun-void` sets an arm void by its instrument rate aside for its one re-run;
+  `bundle` zips the record, the records and the outcome.  `preflight` records the design, so a
+  folder never holds both.
 * **A cell run again.**  Every step can be run again in the same runtime.  `install-vllm`
   writes `INSTALL_RECORD` into the virtualenv as its last act: a finished install is never
   repeated, and a virtualenv without the record is an install that did not finish, which is
@@ -527,7 +537,8 @@ def _atomic_write(path: _pathlib.Path, data: bytes) -> None:
     _os.replace(tmp, path)
 
 
-_DURABLE_ONLY = frozenset({"lock.json", "run.json", "calibration-model-b-bundle.zip"})
+_DURABLE_ONLY = frozenset({"lock.json", "run.json", "calibration-model-b-bundle.zip",
+                           "knob-probe-qwen3-8b-bundle.zip"})
 """Written straight to the durable folder and never mirrored either way: the lock (a stale
 local copy pushed back would overwrite a live heartbeat), the run manifest and the bundle."""
 
@@ -760,6 +771,18 @@ CARD_DESIGN: Design | None = None
 CARD_ARMS: tuple[str, ...] | None = None
 """The card's arms are `arm_specs()`, all fourteen (CAL2)."""
 
+KNOB_PROBE = "knob-probe"
+DESIGNS: tuple[str, ...] = ("card", KNOB_PROBE)
+"""What a run of this driver measures: model B's card, or the knob probe (`knob_probe`), which
+runs no card.  `--design` chooses, on every step that takes the run's folders."""
+KNOB_DESIGN: _Any = None
+"""The knob probe's design: `knob_probe.DESIGN`, the pre-registered one, when `None`."""
+KNOB_RUN_DIR = "knob-probe"
+"""Where the knob probe's eighteen arms run, under the local and the durable folders."""
+KNOB_RESULTS_DIR = "knob-probe-results"
+"""The probe's record, Qwen's records in the files `knob_probe.analyse` reads, and the outcome."""
+KNOB_BUNDLE_ZIP = "knob-probe-qwen3-8b-bundle.zip"
+
 FLOOR = _cal.SATURATION_LOW
 """The probe floors when leaky pass@1 over its episodes is at or below CAL12's low bound."""
 CARD_MAX_MODEL_CALLS = _MAX_MODEL_CALLS
@@ -899,6 +922,7 @@ class Context:
     port: int
     mirror_interval: float
     pin: ServePin = QWEN3_8B
+    design: str = "card"
 
     @property
     def base_url(self) -> str:
@@ -1066,6 +1090,8 @@ def _phase_summary(
 
 
 def cmd_phase1(ctx: Context) -> int:
+    if ctx.design == KNOB_PROBE:
+        return knob_phase1(ctx)
     report_path = ctx.local / "phase1.json"
     with _session(ctx):
         existing = _read_json(report_path)
@@ -1112,6 +1138,8 @@ def cmd_phase1(ctx: Context) -> int:
 
 
 def cmd_probe(ctx: Context) -> int:
+    if ctx.design == KNOB_PROBE:
+        return knob_gate(ctx)
     report_path = ctx.local / "probe.json"
     with _session(ctx):
         phase1 = _read_json(ctx.local / "phase1.json")
@@ -1175,6 +1203,8 @@ def cmd_probe(ctx: Context) -> int:
 
 
 def cmd_phase3(ctx: Context, wall_clock_hours: float) -> int:
+    if ctx.design == KNOB_PROBE:
+        return knob_run(ctx, wall_clock_hours)
     report_path = ctx.local / "phase3.json"
     with _session(ctx):
         probe = _read_json(ctx.local / "probe.json")
@@ -1246,6 +1276,230 @@ def card_status(result: _Mapping[str, _Any]) -> str:
     if result.get("cal24") == "refused":
         return f"refused: {result.get('refusal', 'no reason recorded')}"
     return str(result.get("cal24"))
+
+
+# ---------------------------------------------------------------------------
+# the knob probe's design: phase 1, the notebook's gate, the eighteen arms
+# ---------------------------------------------------------------------------
+
+
+def _knob_design() -> _Any:
+    from poisson_tasks import knob_probe as _probe
+
+    return _probe.DESIGN if KNOB_DESIGN is None else KNOB_DESIGN
+
+
+def _concurrency(ctx: Context, arm: str) -> int:
+    """How many episodes the runner has in flight at once: the config's own limit, which the
+    calibration runner falls back to 128 without."""
+    _, config = _cal.run_config_for(spec_for(arm), model=ctx.pin.served_name)
+    return int(config.max_concurrent or 128)
+
+
+def _knob_rows(
+    root: _pathlib.Path, arms: _Sequence[str], served: str
+) -> tuple[dict[str, list[_cal.EpisodeRecord]], dict[str, dict[str, int]],
+           dict[str, dict[str, int]]]:
+    records: dict[str, list[_cal.EpisodeRecord]] = {}
+    tallies: dict[str, dict[str, int]] = {}
+    facts: dict[str, dict[str, int]] = {}
+    for arm in arms:
+        records[arm], tallies[arm], facts[arm] = _arm_rows(root / _arm_dir(arm), arm, served)
+    return records, tallies, facts
+
+
+def knob_phase1(ctx: Context) -> int:
+    """The knob probe's phase 1: one attempt at each of phase 1's three seeds, every arm, gated
+    as the probe says (the plumbing gate in full on the base arms, plumbing alone on the rest).
+    The probe's record is written before the first episode."""
+    from poisson_tasks import knob_probe as _probe
+
+    chosen = _knob_design()
+    report_path = ctx.local / "phase1.json"
+    with _session(ctx):
+        existing = _read_json(report_path)
+        if isinstance(existing, dict):
+            _say(f"phase 1 already ran: passed={existing['passed']}")
+            return 0 if existing["passed"] else 2
+        serving = _serving(ctx)
+        _probe.check_record(
+            ctx.local / KNOB_RESULTS_DIR / "record.json",
+            _probe.probe_record(chosen, model=ctx.pin.served_name, base_url=ctx.base_url,
+                                extra={"serving": {k: serving.get(k) for k in
+                                                   ("stack_version", "gpu", "flags",
+                                                    "template_sha256")},
+                                       "concurrency": _concurrency(ctx, chosen.arms[0])}),
+            {"when": _now(), "step": "phase1"},
+        )
+        started = _time.monotonic()
+        phase = Design(seeds=chosen.phase1_seeds, n=chosen.phase1_attempts,
+                       k_values=(chosen.phase1_attempts,))
+        with design(phase):
+            stop = _run_arms(ctx, "phase1", chosen.arms, budget_for=lambda _: _cal.DEFAULT_BUDGET)
+            records, tallies, facts = _knob_rows(ctx.local / "phase1", chosen.arms,
+                                                 ctx.pin.served_name)
+            verdict = _probe.phase1_verdict(records, tallies, design=chosen)
+        passed = verdict.passed and stop is None
+        report = {
+            "phase": 1, "design": KNOB_PROBE, "model": ctx.pin.served_name,
+            "arms": list(chosen.arms), "seeds": list(chosen.phase1_seeds),
+            "n": chosen.phase1_attempts, "passed": passed,
+            "reasons": list(verdict.reasons) + ([f"stopped: {stop}"] if stop else []),
+            "plumbing": verdict.plumbing, "per_episode": list(verdict.bases.per_episode),
+            "tally": tallies, "per_arm_facts": facts,
+            "elapsed_seconds": round(_time.monotonic() - started, 1),
+            **_phase_summary([row for rows in records.values() for row in rows], facts),
+        }
+        _write_json(report_path, report)
+        _say(_json.dumps({k: report[k] for k in ("passed", "reasons", "episodes", "scored")}))
+        return 0 if passed else 2
+
+
+def knob_gate(ctx: Context) -> int:
+    """The notebook's own gates for the knob probe, read on phase 1's episodes and running none:
+    the instrument and context checks on every arm, the leaky floor and the no-call stop on the
+    seven base arms only."""
+    from poisson_tasks import knob_probe as _probe
+
+    chosen = _knob_design()
+    report_path = ctx.local / "probe.json"
+    with _session(ctx):
+        phase1 = _read_json(ctx.local / "phase1.json")
+        if not (isinstance(phase1, dict) and phase1.get("passed")):
+            _say("STOP: phase 1 has not passed its gate; the probe does not run")
+            return 2
+        existing = _read_json(report_path)
+        if isinstance(existing, dict):
+            _say(f"the gate already ran: proceed={existing['proceed']}")
+            return 0 if existing["proceed"] else 3
+        records, tallies, facts = _knob_rows(ctx.local / "phase1", chosen.arms,
+                                             ctx.pin.served_name)
+        cap = ctx.pin.max_model_len - int(_cal.DECODING["max_tokens"])
+        verdict = _probe.notebook_verdict(records, tallies, facts, prompt_cap=cap)
+        report = {
+            "phase": "probe", "design": KNOB_PROBE, "model": ctx.pin.served_name,
+            "proceed": verdict.proceed, "reasons": list(verdict.reasons),
+            "floor_arms": list(_probe.BASES), "floor": FLOOR, "headroom": HEADROOM,
+            "prompt_cap": cap, "leaky": verdict.leaky, "no_call": verdict.no_call,
+            "max_prompt_tokens": verdict.max_prompt_tokens,
+            "context_stops": verdict.context_stops, "per_arm_facts": facts,
+        }
+        _write_json(report_path, report)
+        _say(_json.dumps({k: report[k] for k in ("proceed", "reasons", "leaky", "no_call",
+                                                    "max_prompt_tokens")}))
+        if not verdict.proceed:
+            _say("STOP: the notebook's gates say the probe should not run on this model")
+        return 0 if verdict.proceed else 3
+
+
+def knob_run(ctx: Context, wall_clock_hours: float) -> int:
+    """The knob probe's eighteen arms, in order, sixty tasks and two attempts each, resumable,
+    within the wall-clock allowance; then Qwen's records and its outcome on this model alone."""
+    from poisson_tasks import knob_probe as _probe
+
+    chosen = _knob_design()
+    report_path = ctx.local / "phase3.json"
+    results = ctx.local / KNOB_RESULTS_DIR
+    with _session(ctx):
+        gate = _read_json(ctx.local / "probe.json")
+        if not (isinstance(gate, dict) and gate.get("proceed")):
+            _say("STOP: the notebook's gates have not cleared the probe; it does not run")
+            return 3
+        existing = _read_json(report_path)
+        if isinstance(existing, dict) and existing.get("status") == "complete":
+            _say("the probe already finished: complete")
+            return 0
+        _serving(ctx)
+        status_path = ctx.local / "status.json"
+        status = _read_json(status_path) or {}
+        p3 = status.setdefault("phase3", {"arms": {}, "elapsed_s": 0.0})
+        total_s = wall_clock_hours * 3600.0
+
+        def budget_for(_arm: str) -> dict[str, _Any]:
+            remaining = max(0.0, total_s - float(p3["elapsed_s"]))
+            return {"tokens": _cal.DEFAULT_BUDGET["tokens"], "wall_clock_seconds": remaining}
+
+        def after_arm(arm: str, outcome: _Any, elapsed: float) -> None:
+            p3["elapsed_s"] = float(p3["elapsed_s"]) + elapsed
+            p3["arms"][arm] = {"episodes_kept": outcome.episodes_kept,
+                               "episodes_run": outcome.episodes_run,
+                               "episodes_owed": outcome.episodes_owed,
+                               "stop": None if outcome.stop is None else outcome.stop.reason}
+            _write_json(status_path, status)
+            done = sum(1 for a in chosen.arms
+                       if p3["arms"].get(a, {}).get("episodes_owed") == 0)
+            _say(f"[probe] {done} of {len(chosen.arms)} arms done, "
+                 f"{p3['elapsed_s'] / 3600:.2f} h used of {wall_clock_hours:.2f} h")
+
+        run = Design(seeds=chosen.probe_seeds, n=chosen.attempts,
+                     k_values=tuple(range(1, chosen.attempts + 1)))
+        with design(run):
+            stop = _run_arms(ctx, KNOB_RUN_DIR, chosen.arms, budget_for=budget_for,
+                             after_arm=after_arm)
+        records, tallies, facts = _knob_rows(ctx.local / KNOB_RUN_DIR, chosen.arms,
+                                             ctx.pin.served_name)
+        complete = stop is None and all(
+            p3["arms"].get(a, {}).get("episodes_owed") == 0 for a in chosen.arms)
+        reruns = _read_json(results / "reruns.json") or []
+        _probe.write_model_records(
+            results, [row for arm in chosen.arms for row in records[arm]], tallies,
+            reruns=reruns,
+            facts={"model": ctx.pin.served_name, "concurrency": _concurrency(ctx, chosen.arms[0]),
+                   "dollars": None, "rates": None, "wall_clock_hours": wall_clock_hours,
+                   "elapsed_s": p3["elapsed_s"], "stop": stop, "per_arm_facts": facts},
+        )
+        outcome = _probe.analyse({ctx.pin.served_name: _probe.read_model_records(results)},
+                                 design=chosen)
+        _probe.write_outcome(results, outcome)
+        state = "complete" if complete else "stopped"
+        report = {"phase": 3, "design": KNOB_PROBE, "model": ctx.pin.served_name,
+                  "status": state, "stop": stop, "wall_clock_hours": wall_clock_hours,
+                  "elapsed_s": p3["elapsed_s"], "arms": p3["arms"]}
+        _write_json(report_path, report)
+        for row in outcome["outcomes"]:
+            found = row["per_model"].get(ctx.pin.served_name)
+            _say(f"{row['knob']}: {found['status'] if found else 'not run'}")
+        void = [arm for arm, r in outcome["arms"][ctx.pin.served_name].items() if r["void"]]
+        if void:
+            _say(f"void: {', '.join(void)}; an arm void by its instrument rate may be run "
+                 "once more (the rerun-void step)")
+        _say(f"the probe {state}" + (f" (stop: {stop})" if stop else ""))
+        return 0 if complete else 4
+
+
+def knob_rerun(ctx: Context, arm: str, cause: str) -> int:
+    """Set an arm the run found void by its instrument rate aside, here and on the durable
+    folder, for its one re-run; the next run of the arms then runs it from nothing.  An arm that
+    has had its re-run is left as it is."""
+    from poisson_tasks import knob_probe as _probe
+
+    chosen = _knob_design()
+    if arm not in chosen.arms:
+        return _refuse(f"{arm} is not one of the probe's arms")
+    results = ctx.local / KNOB_RESULTS_DIR
+    with _session(ctx):
+        reruns = list(_read_json(results / "reruns.json") or [])
+        if any(str(entry.get("arm")) == arm for entry in reruns):
+            _say(f"{arm} has had its one re-run; nothing to do")
+            return 0
+        records, tallies, _facts = _knob_rows(ctx.local / KNOB_RUN_DIR, [arm],
+                                              ctx.pin.served_name)
+        result = _probe.arm_results(records, tallies, model=ctx.pin.served_name,
+                                    design=_dc.replace(chosen, arms=(arm,)))[arm]
+        name = _arm_dir(arm)
+        try:
+            entry = _probe.start_rerun(arm, result, cause=cause, reruns=reruns, folders=[
+                (ctx.local / KNOB_RUN_DIR / name, ctx.local / "void" / f"{name}-1"),
+                (ctx.durable / KNOB_RUN_DIR / name, ctx.durable / "void" / f"{name}-1"),
+            ])
+        except _probe.RerunRefused as error:
+            return _refuse(str(error))
+        _write_json(results / "reruns.json", [*reruns, entry])
+        report = _read_json(ctx.local / "phase3.json")
+        if isinstance(report, dict):
+            _write_json(ctx.local / "phase3.json", {**report, "status": "rerun"})
+        _say(f"{arm} is set aside for its one re-run; run the phase 3 cell again")
+        return 0
 
 
 # ---------------------------------------------------------------------------
@@ -1339,19 +1593,30 @@ BUNDLE_GLOBS = ("phase1/*/traces.jsonl", "phase1/*/instrument-tally.jsonl",
                 "probe/*/traces.jsonl", "probe/*/instrument-tally.jsonl")
 BUNDLE_ZIP = "calibration-model-b-bundle.zip"
 MANIFEST = "MANIFEST.sha256"
+KNOB_BUNDLE_FILES = (
+    "phase1.json", "probe.json", "phase3.json", "serving.json", MANIFEST_FILE, "status.json",
+    "vllm.log", *(f"{KNOB_RESULTS_DIR}/{name}" for name in (
+        "record.json", "episodes.jsonl", "tallies.json", "reruns.json", "facts.json",
+        "outcome.json", "outcome.md")),
+)
+"""The knob probe's bundle: its reports, its record, Qwen's records and the outcome on Qwen
+alone.  The eighteen arms' raw traces stay in the durable folder, as phase 3's do."""
+KNOB_BUNDLE_GLOBS = ("phase1/*/traces.jsonl", "phase1/*/instrument-tally.jsonl")
 
 
-def make_bundle(durable: _pathlib.Path) -> _pathlib.Path:
+def make_bundle(durable: _pathlib.Path, design: str = "card") -> _pathlib.Path:
     """The run's card, reports and logs, flattened out of `card/`, with a sha256 manifest, zipped.
-    Phase 3's raw traces are not in it; they stay in the durable folder."""
+    Phase 3's raw traces are not in it; they stay in the durable folder.  The knob probe's bundle
+    holds its own files instead (`KNOB_BUNDLE_FILES`)."""
     durable = _pathlib.Path(durable)
+    knob = design == KNOB_PROBE
     staging = durable / "bundle"
     if staging.exists():
         _shutil.rmtree(staging)
     staging.mkdir(parents=True)
     names: list[str] = []
-    sources = [durable / name for name in BUNDLE_FILES]
-    for pattern in BUNDLE_GLOBS:
+    sources = [durable / name for name in (KNOB_BUNDLE_FILES if knob else BUNDLE_FILES)]
+    for pattern in KNOB_BUNDLE_GLOBS if knob else BUNDLE_GLOBS:
         sources += sorted(durable.glob(pattern))
     for source in sources:
         if not source.is_file():
@@ -1367,7 +1632,7 @@ def make_bundle(durable: _pathlib.Path) -> _pathlib.Path:
         for name in sorted(names)
     ]
     (staging / MANIFEST).write_text("\n".join(lines) + "\n", encoding="utf-8")
-    archive = durable / BUNDLE_ZIP
+    archive = durable / (KNOB_BUNDLE_ZIP if knob else BUNDLE_ZIP)
     with _zipfile.ZipFile(archive, "w", compression=_zipfile.ZIP_DEFLATED) as handle:
         for name in sorted([*names, MANIFEST]):
             handle.write(staging / name, arcname=name)
@@ -1769,6 +2034,9 @@ def cmd_preflight(ctx: Context) -> int:
         "package_version": _metadata.version("poisson-tasks"),
         "verifiers_version": _metadata.version("verifiers"),
     }
+    if ctx.design != "card":
+        # A folder holds one design: a card's run and the probe's never resume on each other.
+        facts["design"] = ctx.design
     try:
         ctx.local.mkdir(parents=True, exist_ok=True)
         Mirror(ctx.local, ctx.durable).restore()
@@ -1821,6 +2089,8 @@ def build_parser() -> _argparse.ArgumentParser:
         p.add_argument("--port", type=int, default=QWEN3_8B.port)
         p.add_argument("--mirror-interval", type=float, default=30.0,
                        help="seconds between pushes to the durable folder")
+        p.add_argument("--design", choices=DESIGNS, default="card",
+                       help="what the run measures: model B's card, or the knob probe")
 
     p = sub.add_parser("install-vllm", help="install the pinned vLLM into its own virtualenv")
     p.add_argument("--venv", type=_pathlib.Path, required=True)
@@ -1848,6 +2118,13 @@ def build_parser() -> _argparse.ArgumentParser:
                         "stops cleanly at whichever of this, the token budget or the "
                         "provider's credit comes first")
 
+    p = sub.add_parser("rerun-void", help="the knob probe: set an arm void by its instrument "
+                                          "rate aside for its one re-run")
+    run_args(p)
+    p.add_argument("--arm", required=True)
+    p.add_argument("--cause", required=True,
+                   help="what failed: the server, the key or the provider")
+
     p = sub.add_parser("finalize", help="rebuild the card from a durable folder, no GPU")
     p.add_argument("--durable", type=_pathlib.Path, required=True)
     p.add_argument("--out", type=_pathlib.Path, required=True)
@@ -1872,7 +2149,7 @@ def main(argv: _Sequence[str] | None = None) -> int:
         if args.command == "verify":
             return cmd_verify(args.bundle, args.into)
         if args.command == "bundle":
-            _say(str(make_bundle(args.durable)))
+            _say(str(make_bundle(args.durable, design=args.design)))
             return 0
         if args.command == "finalize":
             serving = _read_json(args.durable / "serving.json")
@@ -1889,7 +2166,7 @@ def main(argv: _Sequence[str] | None = None) -> int:
             _say(f"phase 3 seconds used on the durable folder: {used}")
             return 0
         ctx = Context(local=args.local, durable=args.durable, port=args.port,
-                      mirror_interval=args.mirror_interval)
+                      mirror_interval=args.mirror_interval, design=args.design)
         if args.command == "serve":
             return cmd_serve(ctx, vllm=args.vllm, tokenizer_config=args.tokenizer_config,
                              timeout_s=args.timeout)
@@ -1905,6 +2182,11 @@ def main(argv: _Sequence[str] | None = None) -> int:
             return cmd_phase3(ctx, args.wall_clock_hours)
         if args.command == "status":
             return cmd_status(ctx)
+        if args.command == "rerun-void":
+            if ctx.design != KNOB_PROBE:
+                return _refuse("rerun-void is the knob probe's step: run it with "
+                               "--design knob-probe")
+            return knob_rerun(ctx, args.arm, args.cause)
     except KeyboardInterrupt:
         _say("interrupted: everything finished is on the durable folder; run the same cell "
              "again to resume")
