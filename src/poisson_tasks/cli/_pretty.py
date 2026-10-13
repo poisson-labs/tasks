@@ -385,7 +385,10 @@ def _question_style() -> Any:
 # ---------------------------------------------------------------------------
 
 
-def _bar(estimate: float, low: float, high: float, width: int = 21) -> Text:
+BAR_WIDTH = 17
+
+
+def _bar(estimate: float, low: float, high: float, width: int = BAR_WIDTH) -> Text:
     """The interval on a 0-to-1 track, so a wide interval looks wide."""
     def at(value: float) -> int:
         return round(value * (width - 1))
@@ -412,7 +415,7 @@ def _levels_table(cells: Sequence[Mapping[str, Any]], *, units_in_cells: bool) -
     table.add_column("level", no_wrap=True)
     table.add_column("strict pass@1", justify="right", no_wrap=True)
     table.add_column("95% interval", no_wrap=True)
-    table.add_column("0 " + "·" * 17 + " 1", no_wrap=True)
+    table.add_column("0 " + "·" * (BAR_WIDTH - 4) + " 1", no_wrap=True)
     table.add_column("leaky", justify="right", no_wrap=True)
     table.add_column("overshoot", justify="right", no_wrap=True)
     table.add_column("tasks" if units_in_cells else "tasks × attempts", no_wrap=True)
@@ -444,19 +447,33 @@ def _levels_table(cells: Sequence[Mapping[str, Any]], *, units_in_cells: bool) -
     return table
 
 
-def levels_table(cells: Sequence[Mapping[str, Any]], *, width: int) -> Table:
-    """The card's levels as a table for a terminal `width` columns wide.  When the table with
-    its units in every cell (`10 tasks × 1 attempt`) would be wider than the terminal, the units
-    move into the header (`tasks × attempts`) and the figures stay (the look's item 27)."""
+def _natural_width(table: Table, width: int) -> int:
+    """How wide the table draws when nothing in it is wrapped or cut."""
+    with open(os.devnull, "w") as sink:
+        measured = Console(width=max(width, 20), file=sink, color_system=None)
+        return int(table.__rich_measure__(measured, measured.options).maximum)
+
+
+def levels_table(cells: Sequence[Mapping[str, Any]], *, width: int) -> Any:
+    """The card's levels for a terminal `width` columns wide.  When the table with its units in
+    every cell (`10 tasks × 1 attempt`) would be wider than the terminal, the units move into the
+    header (`tasks × attempts`) and the figures stay (the look's item 27); when even that is
+    wider, the levels are printed as the plain style prints them, one wrapped line each, so
+    nothing is cut."""
     table = _levels_table(cells, units_in_cells=True)
-    measured = Console(width=max(width, 20), file=open(os.devnull, "w"), color_system=None)
-    try:
-        needed = table.__rich_measure__(measured, measured.options).minimum
-    finally:
-        measured.file.close()
-    if needed <= width:
+    if _natural_width(table, width) <= width:
         return table
-    return _levels_table(cells, units_in_cells=False)
+    table = _levels_table(cells, units_in_cells=False)
+    if _natural_width(table, width) <= width:
+        return table
+    from poisson_tasks.cli._plain import level_line
+
+    grid = Table.grid(padding=(0, 2))
+    grid.add_column(no_wrap=True, style="bold")
+    grid.add_column(overflow="fold")
+    for cell in cells:
+        grid.add_row(str(cell["arm_id"]), level_line(cell))
+    return grid
 
 
 # ---------------------------------------------------------------------------

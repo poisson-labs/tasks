@@ -35,7 +35,7 @@ TOKENIZER_QUESTION = (
 PUBLISHED_MODEL = "gpt-5-nano-2025-08-07"
 PUBLISHED_PRICE_SHOWN = "0.05, 0.005, 0.40 — read 2026-09-25; check them"
 PUBLISHED_NOTE = (
-    "This one has a published card. A first look runs ten of its tasks per level, so you can\n"
+    "This one has a published card. A first look runs ten of its tasks per level, so you can "
     "read your levels against it; only the published design is comparable in the card's sense."
 )
 MEASURES = (

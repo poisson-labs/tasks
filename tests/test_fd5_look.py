@@ -124,6 +124,7 @@ def in_terminals(
     the output has been quiet for a second and a half, at most `presses` times.  Each
     terminal's side is held open until everything is read.  Returns the exit code and what
     each stream carried, escapes included."""
+    env = {**env, "COLUMNS": str(columns)}
     masters: dict[str, int] = {}
     slaves: dict[str, int] = {}
     pipes: dict[str, Any] = {}
@@ -374,7 +375,10 @@ def test_item_2_plain_wraps_long_lines_on_a_terminal_with_a_hanging_indent(
     assert code == 0, (out, err)
     defaults = re.findall(r"\[([^\[\]\n]*)\]", stripped(out) + stripped(err))
     assert any("0.05" in default and "0.40" in default for default in defaults), defaults
-    assert all(len(line) <= 60 for line in stripped(err).splitlines()), stripped(err)
+    # the newline after an answer is the terminal's echo, which lives on stdin's terminal (here
+    # stdout's), so on stderr alone a prompt and the line after it share a line: split them
+    questions = re.sub(r"\] (?= *\S)", "] \n", stripped(err))
+    assert all(len(line) <= 60 for line in questions.splitlines()), questions
 
 
 # ---------------------------------------------------------------------------
@@ -434,6 +438,11 @@ def styles_of(text: str, word: str) -> list[Any]:
     return found
 
 
+NAMED = {1: "red", 2: "green", 3: "yellow", 4: "blue", 5: "magenta", 6: "cyan",
+         9: "red", 10: "green", 11: "yellow", 12: "blue", 13: "magenta", 14: "cyan"}
+"""The terminal's named colours by their number, as escapes name them."""
+
+
 def colour_names(styles: list[Any]) -> set[str]:
     from rich.style import Style
 
@@ -441,7 +450,8 @@ def colour_names(styles: list[Any]) -> set[str]:
     for style in styles:
         made = Style.parse(style) if isinstance(style, str) else style
         if made.color is not None:
-            names.add(made.color.name)
+            names.add(NAMED.get(made.color.number, made.color.name)
+                      if made.color.number is not None else made.color.name)
         if made.bold:
             names.add("bold")
         if made.dim:
@@ -514,24 +524,32 @@ def levels() -> list[dict[str, Any]]:
 
 
 def test_item_27_a_table_too_wide_for_the_terminal_moves_its_units_into_the_header() -> None:
-    """At 120 columns the tasks column's cells carry their units (`10 tasks × 1 attempt`); at 60
-    the units move into the header and every figure stays."""
+    """At 120 columns the tasks column's cells carry their units (`10 tasks × 1 attempt`); at
+    100 the units move into the header and every figure stays; at 60, where even that is too
+    wide, the levels are printed one line each with every figure, nothing cut."""
     from rich.text import Text
 
     def draw(width: int) -> str:
         return Text.from_ansi(rendered(width, lambda console: console.print(
             pretty_module().levels_table(levels(), width=width)))).plain
 
+    figures = ("depth:d1", "depth:d3", "depth:d8", "0.600", "0.300", "0.900", "0.400", "1.000",
+               "not run", "incomplete", "4 of 10")
     wide = draw(120)
     assert "10 tasks × 1 attempt" in wide, wide
-    narrow = draw(60)
+    narrow = draw(100)
     assert "10 tasks × 1 attempt" not in narrow, narrow
     header = narrow.splitlines()[0] + narrow.splitlines()[1]
     assert "tasks" in header and "attempt" in header, narrow
-    for figure in ("depth:d1", "depth:d3", "depth:d8", "0.600", "0.300", "0.900", "0.400",
-                   "1.000", "not run", "incomplete", "4 of 10"):
+    assert "10 × 1" in narrow, narrow
+    for figure in figures:
         assert figure in narrow, (figure, narrow)
-    assert all(len(line) <= 60 for line in narrow.splitlines()), narrow
+    assert all(len(line) <= 100 for line in narrow.splitlines()), narrow
+    narrowest = draw(60)
+    assert "…" not in narrowest, narrowest
+    for figure in (*figures, "10 tasks × 1 attempt"):
+        assert figure in narrowest, (figure, narrowest)
+    assert all(len(line) <= 60 for line in narrowest.splitlines()), narrowest
 
 
 # ---------------------------------------------------------------------------
