@@ -6,6 +6,8 @@
   command hands the flags to the library in the order typed;
 - **Ctrl-C outside a verb's own handling** (rule L6): an interrupt while `generate` makes its
   tasks is a stop, `stopped` on stdout and exit 130, with nothing written;
+- **`card` with no run of the settings file's plan** says so, naming the runs folder, and its
+  next command is the run, rather than failing on a folder that is not there;
 - **`transcripts.read_transcript`**: a list whose items are both messages (a `role`) and turns
   (`content`, `calls`, `finish_reason`) is refused as ambiguous, not read as one of them; the
   OpenAI form's calls are ordered by the `seq` their answers open with, a call the harness
@@ -78,6 +80,20 @@ def test_ctrl_c_while_generate_makes_its_tasks_is_a_stop_with_exit_130(
     assert ran.code == 130, ran
     assert ran.word == "stopped", ran
     assert not list(world.work.iterdir())
+
+
+def test_card_with_no_run_names_the_runs_folder_and_points_at_the_run(
+    prog: str, world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tests.fd5_support import next_commands
+
+    made = config().config_from_init_args(["--tasks-per-level", "1", "--runs-dir", "made"])
+    (world.work / "tasks.toml").write_text(config().dump_config(made), encoding="utf-8")
+    ran = invoke(["card"], prog=prog, monkeypatch=monkeypatch)
+    assert ran.code == 1, ran
+    errors = [line for line in ran.err_lines if line.startswith("error: ")]
+    assert len(errors) == 1 and "made" in errors[0] and "tasks.toml" in errors[0], ran
+    assert next_commands(ran.err) == [f"{prog} run"], ran
 
 
 def transcripts() -> Any:
