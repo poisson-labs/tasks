@@ -9,9 +9,12 @@ let it finish (the look's item 23); a dry run shows the plan and stops.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import math
+import os
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -230,8 +233,6 @@ def run(ctx: Context) -> Result:
                   "source": estimate.source, "same_model": estimate.same_model},
               "cap": {"spend_usd": caps["spend_usd"], "tokens": caps["tokens"]}},
     )
-    ctx.show(plan_result)
-
     # the cap against the estimate, before the question (the look's item 23)
     over: str | None = None
     if caps["spend_usd"] is not None and expected_dollars is not None:
@@ -254,6 +255,7 @@ def run(ctx: Context) -> Result:
         if over is not None:
             ui.note(over)
         return plan_result
+    ctx.show(plan_result)
     if over is not None:
         raise Refusal(over, [suggestion])
 
@@ -291,7 +293,8 @@ def run(ctx: Context) -> Result:
         arm_counts.append((knobs.arm_id(spec), per_arm, min(kept_here, per_arm)))
     concurrency = args.concurrency if args.concurrency is not None else settings.limits.concurrency
     try:
-        with ui.progress(total=total, arms=arm_counts, folder=str(path)) as progress:
+        with _stdin_closed(), ui.progress(total=total, arms=arm_counts,
+                                          folder=str(path)) as progress:
             result = runs.run_plan(plan, folder, caps=caps, concurrency=concurrency,
                                    events=progress.advance)
     except KeyboardInterrupt:
@@ -304,6 +307,30 @@ def run(ctx: Context) -> Result:
             next=[_resume_command(ctx, folder)], exit=130,
         )) from None
     return _ended(ctx, plan, folder, result, total)
+
+
+@contextlib.contextmanager
+def _stdin_closed() -> Iterator[None]:
+    """The run's length with standard input pointed at nothing.  The harness's programs inherit
+    this process's descriptors, and one that finds a terminal on its input takes it over: the
+    tool server never comes up (verifiers polls for it for 180 seconds), and the terminal is
+    revoked for this process when that program exits.  Nothing reads stdin during a run; the
+    question was asked before it, and Ctrl-C arrives as a signal."""
+    try:
+        if not os.isatty(0):
+            yield
+            return
+    except (OSError, ValueError):
+        yield
+        return
+    kept = os.dup(0)
+    try:
+        with open(os.devnull) as nothing:
+            os.dup2(nothing.fileno(), 0)
+        yield
+    finally:
+        os.dup2(kept, 0)
+        os.close(kept)
 
 
 def _spent_words(dollars: float | None) -> str:
