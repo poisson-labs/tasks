@@ -91,13 +91,12 @@ class Result:
 
 
 class Refusal(Exception):
-    """An `error:` line: nothing was spent or written.  `exit` is 1, or what the verb says."""
+    """An `error:` line: nothing was spent or written.  Exit 1."""
 
-    def __init__(self, message: str, next: Sequence[str] = (), *, exit: int = 1) -> None:
+    def __init__(self, message: str, next: Sequence[str] = ()) -> None:
         super().__init__(message)
         self.message = message
         self.next = list(next)
-        self.exit = exit
 
 
 class Usage(Exception):

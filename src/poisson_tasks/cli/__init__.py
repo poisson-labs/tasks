@@ -206,7 +206,7 @@ def main(argv: Sequence[str] | None = None, *, prog: str | None = None) -> int:
         if ctx.json and ctx.shown:
             ui.json(ctx.shown[0])
         ui.error(refused.message, refused.next)
-        return refused.exit
+        return 1
     except KeyboardInterrupt:
         try:
             result = Result(schema=f"poisson-tasks.{args.verb}/1", verdict="stopped",

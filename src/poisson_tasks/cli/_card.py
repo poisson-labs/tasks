@@ -254,18 +254,40 @@ def _run_card(ctx: Context) -> Result:
     )
 
 
+DEPTH_NOTE_MARK = "no stage lies above the goal"
+"""Words of the published cards' note on depth, by which the note is found in a document."""
+
+
+def _note_in(document: str) -> str | None:
+    for line in document.splitlines():
+        if DEPTH_NOTE_MARK in line:
+            return line.strip().lstrip("- ").strip()
+    return None
+
+
 def _depth_note(document: str, cells: list[dict[str, Any]]) -> str | None:
-    """The published cards' own note on depth, from the card's document, when the card's depth
-    arms include the ladder's top level (the look's item 19): at the top level strict cannot
-    fail by overshooting, so depth is read on leaky."""
+    """The published cards' own note on depth when the card's depth arms include the ladder's
+    top level (the look's item 19): at the top level strict cannot fail by overshooting, so
+    depth is read on leaky.  Taken from the card's own document when it carries the note (a
+    card with the whole axis), else from the published card's document, which a card with
+    fewer levels does not render; never typed here."""
     from poisson_tasks.knobs import levels
 
     top = max(levels("depth"))
     if not any(str(cell["arm_id"]) == f"depth:d{top}" for cell in cells):
         return None
-    for line in document.splitlines():
-        if "no stage lies above the goal" in line:
-            return line.strip().lstrip("- ").strip()
+    found = _note_in(document)
+    if found is not None:
+        return found
+    from poisson_tasks import calibration
+
+    for published in cards.published():
+        try:
+            found = _note_in(calibration.render_document(cards.recompute(published).artifact))
+        except (OSError, ValueError):
+            continue
+        if found is not None:
+            return found
     return None
 
 
