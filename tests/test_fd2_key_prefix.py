@@ -7,9 +7,9 @@ rule; the run engine masks by the same one).  Before, the prefix counted too, so
 key a code holding `proj` or a version holding `-pro` was dropped from the check's sentence.
 
 - **Kept**: a value that shares only the public prefix with the key.
-- **Still dropped**: a value holding four characters of the secret part, right after the prefix
-  or anywhere in a key with no public prefix at its start, and a key too short to have a secret
-  part counts whole.
+- **Still dropped**: a value holding four characters of the secret part, right after the prefix,
+  at its end (the last four a provider shows of a masked key), or anywhere in a key with no public
+  prefix at its start; and a key too short to have a secret part counts whole.
 """
 
 from __future__ import annotations
@@ -120,8 +120,15 @@ def test_a_servers_version_that_shares_only_the_public_prefix_is_kept(
         (PROJECT_KEY, "sk-proj-Qm7R"),
         (LOCAL_KEY, "token-Zq8"),
         (SHORT_KEY, "sk-Zq9"),
+        (PROJECT_KEY, "key-" + PROJECT_KEY[-4:]),
     ],
-    ids=["after-the-prefix", "the-prefix-and-four-more", "no-public-prefix", "too-short-to-split"],
+    ids=[
+        "after-the-prefix",
+        "the-prefix-and-four-more",
+        "no-public-prefix",
+        "too-short-to-split",
+        "its-last-four",
+    ],
 )
 def test_four_characters_of_the_secret_part_still_drop_the_code(
     key: str, code: str, fake: Callable[[], FakeServer], monkeypatch: pytest.MonkeyPatch
