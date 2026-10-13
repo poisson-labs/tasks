@@ -153,6 +153,8 @@ def test_fd5_19_every_episode_ran_is_done_exit_0_and_the_next_step_is_the_card(
     assert fixture.calls() == 2 * 2
     assert scored_tasks(plan, folders[0]) == planned_tasks(plan)
     assert next_commands(ran.out)[-1] == f"{prog} card"
+    # the leak rule (ruled 2026-10-12): twelve characters of the key's secret part nowhere in
+    # the output or the folder, four nowhere in `run.log`
     assert_clean(ran, "run", folders[0])
 
 
@@ -279,12 +281,14 @@ def test_fd5_19_nothing_happening_stops_with_exit_3_quoting_run_log(
         assert started.exists(), "the stuck bootstrap never started"
         assert ran.code == 3, ran
         assert last_verdict(ran.out)[0] == "stopped", ran
-        assert_clean(ran, "run")
         log = [line.strip() for line in (run_folders(world)[0] / "run.log").read_text(
             encoding="utf-8").splitlines() if line.strip()]
         quoted = [index for index, line in enumerate(log) if line in ran.out]
         assert len(quoted) >= 2, (ran.out, log[-8:])
         assert any(b == a + 1 for a, b in zip(quoted, quoted[1:])), "no run of the log is quoted"
+        # the leak rule (ruled 2026-10-12): the lines quoted from `run.log` can carry the key, so
+        # they hold no four characters of its secret part; the rest of the output no twelve
+        assert_clean(ran, "run", quoted=[log[index] for index in quoted])
         assert fixture.calls() == 0
         assert wait_until(lambda: not marked_processes(mark), 20), marked_processes(mark)
     finally:
@@ -312,6 +316,8 @@ def test_fd5_4_a_run_in_a_process_of_its_own_says_nothing_raw_on_stderr(
     assert ran.code == 0, ran
     assert last_verdict(ran.out)[0] == "done", ran
     assert ran.record["ended"] == "returned", ran.record
+    # the leak rule (ruled 2026-10-12): every file of every run folder, traces included, holds no
+    # twelve characters of the key's secret part, and `run.log` no four
     assert_clean(ran, "run", world.work / "runs")
     assert [line for line in ran.err_lines if line.startswith("note: ")], ran
 

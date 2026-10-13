@@ -61,6 +61,7 @@ import pytest
 from tests.fd2_fakes import KEY_BODY, SENTINEL, network_guard
 from tests.fd3_support import KEY, KEY_VAR, PRICE_FIELDS
 from tests.helpers import INTERNAL
+from tests.keymask_support import key_runs, masked_runs
 
 REPO = Path(__file__).resolve().parents[1]
 CHILD = Path(__file__).with_name("fd5_child.py")
@@ -181,6 +182,13 @@ _SHELL_VARIABLES = (
 _SECRET = re.compile(r"API_KEY|TOKEN|SECRET", re.IGNORECASE)
 MADE_UP_KEYS = frozenset({KEY, SENTINEL})
 """The tests' own keys (FD3's and FD2's), the only values a key variable may hold in a test."""
+
+SECRET_PARTS = {KEY: KEY.removeprefix("sk-"), SENTINEL: KEY_BODY}
+"""Each made-up key's secret part: what follows its public prefix (`sk-`, `sk-proj-`), written
+out.  The leak rule (`tests/keymask_support.py`, ruled 2026-10-12): a key's public prefix is
+not secret; no text the command prints or writes holds twelve characters in a row of the secret
+part (`key_runs`); a text that can carry the key, `run.log` and the lines that quote the first
+error or `run.log`, holds no four in a row (`masked_runs`)."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -365,7 +373,8 @@ def invoke(
     stderr captured as UTF-8 streams that are not terminals.
 
     Unless `check` is false, every call is held to the shared look (`conformance`) and searched
-    for the tests' made-up keys, so every test that drives the command checks FD5.4 to FD5.6:
+    for the tests' made-up keys (the leak rule, `SECRET_PARTS`), so every test that drives the
+    command checks FD5.4 to FD5.6:
     except that a dialogue's questions go to stderr (stdin given as a terminal's answers), `--debug`
     prints a traceback, `--print` and `--json` make stdout data, and help and the version are not
     verdict lines."""
@@ -409,7 +418,8 @@ def held_to(ran: Ran, *, asked: bool = False) -> None:
         problems = [p for p in problems if not p.startswith("stderr")]
     assert not problems, "\n".join(problems) + f"\n{ran}"
     for text in (ran.out, ran.err):
-        assert leaked(text, KEY) == [] and leaked(text, KEY_BODY) == [], f"a key leaked\n{ran}"
+        for secret in SECRET_PARTS.values():
+            assert key_runs(text, secret) == [], f"a key leaked\n{ran}"
 
 
 # ---------------------------------------------------------------------------
@@ -522,19 +532,30 @@ def conformance(ran: Ran, verb: str | None) -> list[str]:
     return problems
 
 
-def assert_clean(ran: Any, verb: str | None, *folders: Path) -> None:
-    """`ran` keeps the shared look's checkable rules (FD5.4 to FD5.6), and no four characters in
-    a row of either made-up key the tests use are in its output or in any file under `folders`."""
+def assert_clean(
+    ran: Any, verb: str | None, *folders: Path, quoted: Sequence[str] = ()
+) -> None:
+    """`ran` keeps the shared look's checkable rules (FD5.4 to FD5.6), and the leak rule holds
+    (`SECRET_PARTS`): its output and every file under `folders` hold no twelve characters in a
+    row of either made-up key's secret part; every `run.log` under `folders`, and the lines of
+    the output `quoted` names (the first error, or `run.log`'s tail), hold no four."""
     problems = conformance(ran, verb) if isinstance(ran, Ran) else [
         f"stderr line of no allowed kind: {line!r}" for line in stderr_conforms(ran.err)]
     assert not problems, "\n".join(problems) + f"\n{ran}"
     texts = [ran.out, ran.err]
+    carriers = list(quoted)
     for folder in folders:
         for path in Path(folder).rglob("*"):
             if path.is_file():
-                texts.append(path.read_bytes().decode("utf-8", "replace"))
-    for text in texts:
-        assert leaked(text, KEY) == [] and leaked(text, KEY_BODY) == [], "a key leaked"
+                text = path.read_bytes().decode("utf-8", "replace")
+                texts.append(text)
+                if path.name == "run.log":
+                    carriers.append(text)
+    for secret in SECRET_PARTS.values():
+        for text in texts:
+            assert key_runs(text, secret) == [], "a key leaked"
+        for text in carriers:
+            assert masked_runs(text, secret) == [], "a key leaked where a provider can put it"
 
 
 def error_lines(ran: Any) -> list[str]:
