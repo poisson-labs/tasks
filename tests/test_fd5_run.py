@@ -38,11 +38,19 @@ whether or not the key is set; a run that would send something refuses a key tha
 
 **2. The `next:` command after the cap carries `--spend-cap` (or `--token-cap`) with a higher
 cap**, and run as printed it resumes the same folder.
+
+**3. A plan expected to cost more than its cap is refused before the question** (the look's
+item 23, ruled 2026-10-13; rule L7): exit 1, the plan on screen, one `error:` line, and a
+`next:` command carrying a cap that would let it finish, the larger of $1.00 and twice the
+estimate rounded up to a whole dollar (item 11's rule).  So the two cap tests below run a plan
+whose estimate is under its cap and whose measured spend is not (`over_estimate_design`); they
+set the cap below the first episode's estimate until 2026-10-13, which item 23 refuses.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import os
 import shlex
 import signal
@@ -67,7 +75,6 @@ from tests.fd3_support import (
     stub_bin,
     wait_until,
 )
-from tests.fd4_support import partial_design
 from tests.fd5_support import (
     CHILD,
     Answers,
@@ -128,6 +135,27 @@ def harness_line(out: str) -> list[str]:
     return [line for line in out.splitlines()
             if "uv" in line.split() or "uv's" in line
             if "astral.sh" in line and "PyPI" in line]
+
+
+def over_estimate_design(base_url: str) -> tuple[list[str], float]:
+    """`init`'s flags for a plan the cap stops partway, and that cap: two tasks at depth 1 and
+    3, one at a time, priced on cached input alone, of which the fixture reports more per call
+    (400 tokens) than the published card's records average per episode; so the estimate, read
+    from those records, stays under the cap, and the fixture's measured spend passes it after
+    the two depth-1 episodes (the look's item 23, ruled 2026-10-13).  The test checks both."""
+    cap = 0.10
+    flags = fixture_flags(base_url, levels="1,3", tasks_per_level=2, concurrency=1,
+                          spend_cap=cap,
+                          extra=["--price", "0,50,0", "--price-read-on", "2026-10-13"])
+    return flags, cap
+
+
+def under_the_cap(plan: Any, cap: float) -> None:
+    """The estimate is under `cap`, and the fixture's first two depth-1 episodes are not."""
+    estimate = runs().estimate(plan)
+    assert estimate.dollars_expected is not None and estimate.dollars_expected < cap, estimate
+    per_call = 400 * 50 / 1_000_000
+    assert 2 * 2 * per_call < cap < 2 * 2 * per_call + 4 * per_call, (per_call, cap)
 
 
 # ---------------------------------------------------------------------------
@@ -197,11 +225,10 @@ def test_fd5_19_the_cap_stops_with_exit_3_and_its_next_command_resumes_to_done(
     harness_env: Path, fixture: FixtureModel, prog: str, world: World,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    count, cap = partial_design()
-    write_config(world.work / "tasks.toml",
-                 fixture_flags(fixture.base_url, levels="1,3", tasks_per_level=count,
-                               concurrency=1, spend_cap=cap))
+    flags, cap = over_estimate_design(fixture.base_url)
+    write_config(world.work / "tasks.toml", flags)
     plan = plan_of(world.work / "tasks.toml")
+    under_the_cap(plan, cap)
     stopped = invoke(["run", "--yes"], prog=prog, monkeypatch=monkeypatch)
     assert stopped.code == 3, stopped
     assert last_verdict(stopped.out)[0] == "stopped", stopped
@@ -434,15 +461,50 @@ def test_fd5_19_a_resumed_runs_plan_discloses_uvs_installer(
     harness_env: Path, fixture: FixtureModel, prog: str, world: World,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    count, cap = partial_design()
-    write_config(world.work / "tasks.toml",
-                 fixture_flags(fixture.base_url, levels="1,3", tasks_per_level=count,
-                               concurrency=1, spend_cap=cap))
+    flags, cap = over_estimate_design(fixture.base_url)
+    write_config(world.work / "tasks.toml", flags)
+    under_the_cap(plan_of(world.work / "tasks.toml"), cap)
     assert invoke(["run", "--yes"], prog=prog, monkeypatch=monkeypatch).code == 3
     ran = invoke(["run", "--dry-run", "--spend-cap", str(cap * 4)], prog=prog,
                  monkeypatch=monkeypatch)
     assert ran.code == 0, ran
     assert ran.word == "plan" and harness_line(ran.out), ran
+
+
+@needs_uv
+def test_fd5_19_an_estimate_above_the_cap_is_refused_before_the_question(
+    harness_env: Path, fixture: FixtureModel, prog: str, world: World,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The look's item 23 (ruled 2026-10-13; rule L7): the published cards' design at the
+    fixture's prices is expected to cost more than a $1.00 cap, so the run is refused before it
+    asks: the plan stays on screen, exit 1, nothing is sent to the model, no folder is made, no
+    question is read, and the `next:` command carries a cap that would let it finish (item 11's
+    rule).  A dry run still shows the plan and exits 0."""
+    write_config(world.work / "tasks.toml",
+                 fixture_flags(fixture.base_url, recipe="card", tasks_per_level=None,
+                               attempts=5, spend_cap=1.0))
+    plan = plan_of(world.work / "tasks.toml")
+    estimate = runs().estimate(plan)
+    assert estimate.dollars_expected is not None and estimate.dollars_expected > 1.0
+    stdin = Answers(["y"])
+    ran = invoke(["run"], prog=prog, monkeypatch=monkeypatch, stdin=stdin)
+    assert ran.code == 1, ran
+    assert ran.word == "plan", ran
+    assert stdin.reads == 0, "the question was asked"
+    lines = error_lines(ran)
+    assert len(lines) == 1 and "$1.00" in lines[0], ran
+    commands = [shlex.split(command) for command in next_commands(ran.err + ran.out)]
+    assert commands, ran
+    command = strip_prog(commands[-1], prog)
+    assert command[0] == "run" and "--spend-cap" in command, command
+    offered = float(command[command.index("--spend-cap") + 1])
+    assert offered == max(1.0, float(math.ceil(2 * estimate.dollars_expected))), offered
+    assert fixture.posts() == [] and run_folders(world) == []
+    assert invoke(["run", "--yes"], prog=prog, monkeypatch=monkeypatch).code == 1
+    assert fixture.posts() == [] and run_folders(world) == []
+    dry = invoke(["run", "--dry-run"], prog=prog, monkeypatch=monkeypatch)
+    assert dry.code == 0 and dry.word == "plan", dry
 
 
 @needs_uv
