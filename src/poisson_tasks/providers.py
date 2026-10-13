@@ -18,7 +18,10 @@ from the environment when a request is made, sent only to the configured endpoin
 never written to any return value, message, exception, log or file.  Nothing an endpoint answers
 is passed on as it came: a message here is made of this module's own words, and the few values
 taken from an answer (an error code, a version, a digest) are kept only when they have the shape
-of one and hold no part of the key.
+of one and hold no four characters in a row of the key's secret part.  A key's public prefix, the
+one every key of its kind starts with (`sk-proj-`), is not secret: a value that shares only it
+with the key, such as a code holding `proj`, is kept.  `_secret_part` is that rule's one home;
+the run engine masks a run's texts by it too.
 
 **The requests** are GETs through the standard library, with the proxy settings of the
 environment, read at each call, as verifiers' own client reads them.  A redirect is not followed,
@@ -85,6 +88,14 @@ _MAX_BODY = 8 * 1024 * 1024
 _CODE = re.compile(r"[A-Za-z0-9_.\-]{1,80}")
 _VERSION = re.compile(r"[A-Za-z0-9_.+\-]{1,80}")
 _DIGEST = re.compile(r"(sha256:)?[0-9a-f]{64}")
+
+_PART = 4
+"""Four characters of the key's secret part in a row are part of the key."""
+_PUBLIC_PREFIX = re.compile(
+    r"sk-(?:proj|svcacct|admin|None)-|sk-ant-(?:api|admin)\d\d-|sk-or-v\d+-|sk-"
+    r"|gsk_|xai-|fw_|hf_|pplx-|nvapi-|csk-|AIza"
+)
+"""The public prefixes of the keys providers issue: every key of a kind starts with its prefix."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -186,9 +197,18 @@ def _sendable(key: str) -> bool:
     return all(0x21 <= ord(character) <= 0x7E for character in key)
 
 
+def _secret_part(key: str) -> str:
+    """The key without the public prefix it starts with, if it starts with one.  A secret part
+    shorter than four characters is no secret part, and the whole key stands for it."""
+    match = _PUBLIC_PREFIX.match(key)
+    secret = key[match.end() :] if match else key
+    return secret if len(secret) >= _PART else key
+
+
 def _holds_part_of(text: str, key: str) -> bool:
-    """Whether `text` holds any four characters of the key in a row."""
-    return any(key[i : i + 4] in text for i in range(len(key) - 3))
+    """Whether `text` holds any four characters of the key's secret part in a row."""
+    secret = _secret_part(key)
+    return any(secret[i : i + _PART] in text for i in range(len(secret) - _PART + 1))
 
 
 def _kept(value: Any, shape: re.Pattern[str], key: str) -> str | None:

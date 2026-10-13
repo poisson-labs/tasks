@@ -78,6 +78,7 @@ from typing import Any
 from poisson_tasks import calibration
 from poisson_tasks.config import Plan, PriceConfig, plan_hash
 from poisson_tasks.knobs import ArmSpec, arm_id
+from poisson_tasks.providers import _secret_part
 
 __all__ = [
     "Estimate",
@@ -107,11 +108,6 @@ _MASKED_RUN = 4
 """In a text that can carry the key, a run of this many characters of its secret part is masked."""
 _KEY_RUN = 12
 """A run of this many characters of the key's secret part is the key's, wherever it is."""
-_PUBLIC_PREFIX = re.compile(
-    r"sk-(?:proj|svcacct|admin|None)-|sk-ant-(?:api|admin)\d\d-|sk-or-v\d+-|sk-"
-    r"|gsk_|xai-|fw_|hf_|pplx-|nvapi-|csk-|AIza"
-)
-"""The public prefixes of the keys providers issue: every key of a kind starts with its prefix."""
 _RESERVATION_QUANTILE = 0.95
 
 # The published cards by their short names (ruled 2026-10-03, spec §4.4) and the folders their
@@ -652,14 +648,10 @@ class RunResult:
 
 
 def _secret_forms(key: str) -> list[str]:
-    """The key's secret part, without its public prefix, as written and JSON-escaped once and
-    twice: a provider's error quotes the key escaped once as verifiers keeps it, and a trace line
-    holds that text escaped again.  A secret part shorter than the masked run is no secret part,
-    and the whole key stands for it."""
-    match = _PUBLIC_PREFIX.match(key)
-    secret = key[match.end() :] if match else key
-    if len(secret) < _MASKED_RUN:
-        secret = key
+    """The key's secret part, without its public prefix (`providers._secret_part`, the key
+    check's rule too), as written and JSON-escaped once and twice: a provider's error quotes the
+    key escaped once as verifiers keeps it, and a trace line holds that text escaped again."""
+    secret = _secret_part(key)
     once = json.dumps(secret)[1:-1]
     return list(dict.fromkeys([secret, once, json.dumps(once)[1:-1]]))
 
