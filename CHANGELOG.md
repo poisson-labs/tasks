@@ -26,6 +26,11 @@ unreleased and sits at version `0.0.1`.
   by chance. A trace line that holds that many outside its errors has them masked in the string
   that holds them, and is still one JSON document. No file of a run folder, and neither stream,
   holds twelve characters of the key in a row.
+- **The free key check no longer counts the public prefix either.** It shows a provider's short
+  value, a refusal's error code or a server's version, only when the value holds no four
+  characters of the key in a row. With a project key, a code holding `proj` or a version holding
+  `-pro` was dropped from the check's sentence; it is now shown. Four characters of the rest of
+  the key still keep a value out.
 
 ### Information spread
 
