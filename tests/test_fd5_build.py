@@ -6,6 +6,8 @@
   command hands the flags to the library in the order typed;
 - **Ctrl-C outside a verb's own handling** (rule L6): an interrupt while `generate` makes its
   tasks is a stop, `stopped` on stdout and exit 130, with nothing written;
+- **`run` on Windows refuses before the tokenizer is looked for** (spec §4.3, "before anything
+  else"): with the tokenizer reported missing, the one line is still the platform's;
 - **`card` with no run of the settings file's plan** says so, naming the runs folder, and its
   next command is the run, rather than failing on a folder that is not there;
 - **`transcripts.read_transcript`**: a list whose items are both messages (a `role`) and turns
@@ -80,6 +82,30 @@ def test_ctrl_c_while_generate_makes_its_tasks_is_a_stop_with_exit_130(
     assert ran.code == 130, ran
     assert ran.word == "stopped", ran
     assert not list(world.work.iterdir())
+
+
+def test_run_on_windows_refuses_before_the_tokenizer_is_looked_for(
+    prog: str, world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import dataclasses
+    import importlib
+    import platform
+
+    from tests.fd5_support import patch_everywhere, providers
+
+    importlib.import_module("poisson_tasks.cli")
+    real = providers().environment_report
+
+    def missing(settings: Any = None) -> Any:
+        return dataclasses.replace(real(settings), tokenizer="missing")
+
+    patch_everywhere(monkeypatch, "poisson_tasks.providers", "environment_report", missing)
+    monkeypatch.setattr("sys.platform", "win32")
+    monkeypatch.setattr(platform, "system", lambda: "Windows")
+    ran = invoke(["run", "--yes"], prog=prog, monkeypatch=monkeypatch)
+    assert ran.code == 1 and ran.out == "", ran
+    assert len(ran.err_lines) == 1 and "macOS" in ran.err_lines[0], ran
+    assert "tokenizer" not in ran.err, ran
 
 
 def test_card_with_no_run_names_the_runs_folder_and_points_at_the_run(
