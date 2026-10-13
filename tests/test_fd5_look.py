@@ -314,20 +314,23 @@ CONDITIONS: dict[str, dict[str, Any]] = {
 def test_item_6_each_condition_alone_gives_the_plain_style_byte_for_byte(
     condition: str, world: World
 ) -> None:
-    """With one condition of the switch unmet, both streams are the plain build's, byte for
-    byte, with no escape sequence: `NO_COLOR` turns off the whole style, `--plain` forces it."""
+    """With one condition of the switch unmet, both streams are the plain build's on the same
+    streams (`--plain`, which wraps on a terminal as item 2 says), byte for byte, with no escape
+    sequence: `NO_COLOR` turns off the whole style, `--plain` forces it."""
     settled(world)
     case = CONDITIONS[condition]
     argv = ["run", "--dry-run", "--offline", *case.get("argv", [])]
     env = pretty_env(world, **case.get("env", {}))
-    code, out, err = piped([*argv, "--plain"], env, world)
-    tty_code, tty_out, tty_err = in_terminals(
-        argv, env, world, stdout_tty=case.get("stdout_tty", True),
-        stderr_tty=case.get("stderr_tty", True))
+    streams = {"stdout_tty": case.get("stdout_tty", True), "stderr_tty": case.get("stderr_tty", True)}
+    code, out, err = in_terminals([*argv, "--plain"], env, world, **streams)
+    tty_code, tty_out, tty_err = in_terminals(argv, env, world, **streams)
     assert tty_code == code == 0, (tty_out, tty_err)
     assert "\x1b" not in tty_out + tty_err, (tty_out, tty_err)
-    assert tty_out.replace("\r\n", "\n") == out.decode(), (tty_out, out)
-    assert tty_err.replace("\r\n", "\n") == err.decode(), (tty_err, err)
+    assert tty_out == out, (tty_out, out)
+    assert tty_err == err, (tty_err, err)
+    piped_code, piped_out, _ = piped([*argv, "--plain"], env, world)
+    assert piped_code == 0
+    assert first_verdict(stripped(tty_out)) == first_verdict(piped_out.decode()), tty_out
 
 
 def test_item_6_with_every_condition_met_the_pretty_style_runs(world: World) -> None:
