@@ -8,7 +8,10 @@ ruling 21 (2026-10-02) and ruling 45:
 - **FD3.13** the harness's environment carries `PIP_REQUIRE_VIRTUALENV=1` and
   `UV_NO_MODIFY_PATH=1`, each pinned only once the measurements show it does what spec §8.6 says;
 - **FD3.16** `run.log` holds `run`'s own progress lines, verifiers' log records and any traceback,
-  and never the key.
+  and never the key.  Amended, ruled 2026-10-12 (`tests/keymask_support.py` states the rule): no
+  four characters of the key's secret part in a row are in a text that can carry the key (the
+  run's log, its result and every error its traces record), and no twelve in a row, the key's
+  wherever they are, in any file of its folder or on either stream.
 
 **Measured** (`evidence/front-door-fd3-a/measurements/bootstrap/`
 and `installer/`), on macOS and on
@@ -87,6 +90,7 @@ from tests.fd3_support import (
     wait_until,
 )
 from tests.fixtures.model_server import FixtureModel
+from tests.keymask_support import error_texts, key_runs
 
 __all__ = ["fixture_model", "harness_env"]
 
@@ -234,7 +238,8 @@ def test_fd3_16_run_log_holds_the_runs_progress_and_verifiers_records_and_never_
 ) -> None:
     """The fixture refuses the key and quotes it back, whole and masked, as a provider's 401
     does; verifiers puts that answer in its warnings and on the trace.  None of it reaches the
-    run's log, its result, its folder or the terminal."""
+    run's log, its result or the errors its traces record, and the key reaches no file of its
+    folder and neither stream (amended, ruled 2026-10-12)."""
     monkeypatch.setenv(KEY_VAR, SENTINEL)
     plan = make_plan(fixture_model.base_url, model="fixture-401", seeds=(404, 55))
     with records_of("verifiers") as captured:
@@ -246,11 +251,15 @@ def test_fd3_16_run_log_holds_the_runs_progress_and_verifiers_records_and_never_
     log = (path / "run.log").read_text(encoding="utf-8")
     assert leaked(log) == []
     assert leaked(repr(result)) == [] and leaked(str(result.first_error)) == []
+    rows = [json.loads(line) for line in (path / "depth-d1" / "traces.jsonl").read_text(
+        encoding="utf-8").splitlines()]
+    assert rows and all(error_texts(row) for row in rows), "no trace recorded the refusal"
+    assert all(leaked(text) == [] for row in rows for text in error_texts(row))
     for file in sorted(path.rglob("*")):
         if file.is_file():
-            assert leaked(file.read_bytes().decode("utf-8", "replace")) == [], file
+            assert key_runs(file.read_bytes().decode("utf-8", "replace"), KEY_BODY) == [], file
     out, err = capfd.readouterr()
-    assert leaked(out) == [] and leaked(err) == []
+    assert key_runs(out, KEY_BODY) == [] and key_runs(err, KEY_BODY) == []
 
     assert "depth:d1" in log, "run.log has no progress line for the arm"
     theirs = [record.getMessage() for record in captured if record.levelno >= logging.WARNING]

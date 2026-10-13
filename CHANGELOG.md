@@ -5,6 +5,98 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### The run engine's key mask: the key where a provider can put it, and nothing else
+
+- **A fix to traces written with a project key.** The run engine masked any four characters of
+  the key wherever they occurred in a trace line. Every OpenAI project key starts with
+  `sk-proj-`, and the tasks' item codes hold `-pro`, so earlier runs made with a project key
+  could have had nearly every trace line rewritten: a masked number left a line that was no
+  longer JSON, and a masked reply, argument or task text failed the replay check or the verdict
+  check when the records were read. Any key could have had some lines rewritten, wherever four
+  of its characters happened to occur in the run's own text, and a key holding a quote or a
+  backslash could break a line's JSON. Runs made without a key, and the published cards, were
+  not affected. Run again any run made with a key before this fix whose records you rely on.
+- **A key's public prefix is not secret.** The prefix every key of a kind starts with, such as
+  `sk-proj-`, `sk-ant-api03-` or `gsk_`, no longer counts as part of the key.
+- **Where a provider can put the key, any four of its characters are masked**: in each provider
+  error a trace records, in the first error a run reports, and in `run.log`. The prefix stays,
+  so a masked key reads `sk-proj-****`.
+- **Every other byte of a trace line is written as the run produced it.** Twelve characters of a
+  key in a row are the key's, wherever they are: no text a run makes for itself holds that many
+  by chance. A trace line that holds that many outside its errors has them masked in the string
+  that holds them, and is still one JSON document. No file of a run folder, and neither stream,
+  holds twelve characters of the key in a row.
+- **The free key check no longer counts the public prefix either.** It shows a provider's short
+  value, a refusal's error code or a server's version, only when the value holds no four
+  characters of the key in a row. With a project key, a code holding `proj` or a version holding
+  `-pro` was dropped from the check's sentence; it is now shown. Four characters of the rest of
+  the key still keep a value out.
+
+### Information spread
+
+- **A ninth knob makes tasks: `spread`**, at levels 1, 2 and 4: how many tool answers the entry
+  code is split across. The request no longer states the entry code. It names four reads, by
+  item, facet and page, the same at every level, and at level P the first P of their answers
+  carry the code's parts, in order, each part followed by a full stop and filler; the rest
+  answer `none`. The first stage tool says its code is assembled from the reads the request names.
+- **Everything else is the base task's**: the block, the system prompt, and the six calls the
+  reference makes, the four reads then the two stage calls. Only those four reads, made exactly
+  as named, are answered with parts; every other read is the engine's.
+- **No control arm**: the request and the calls are the same at every level.
+- **A spread run's tool messages are replayed against the engine**, the named reads' answers
+  included, when its records are read; a disagreement is `replay_mismatch` and scores nothing.
+- **`eval` takes a spread arm, with one note**: no published card covers it. A level outside 1
+  to 4, or a control arm, is refused in one line. Every knob now has tasks.
+- **`init` and `tasks.toml` do not offer information spread** until its probe has shown it bites.
+- **Every task id and the generator hash moved**; no task of the other eight knobs changed. The
+  built-in generator is now frozen until the probe.
+
+### Task shape
+
+- **An eighth knob makes tasks: `shape`**, at widths 1, 2 and 4: whether four stage calls form
+  one chain or run side by side. `shape:w1` advances one record through four stages; `shape:w2`
+  advances the target record and the decoy two stages each; `shape:w4` advances the target
+  record one stage in four ledgers. Every width makes four stage calls and a reply, in a block of
+  sixteen tools holding exactly the stage tools it needs, so no tool can carry a record past its
+  goal.
+- **The request lists one line per goal**; nothing else in it moves with the width.
+- **A control arm, `shape:w1+len(w4)`**: the one-chain task, with neutral words after the request
+  as long as what the four-line request adds.
+- **A task with several records to advance is judged on all of them**: every one must reach its
+  goal, and a change to any other record is `collateral_mutation`. `shape:w2` has no
+  `collateral_mutation` control, because no tool in its block can change a record that is not
+  one of its two.
+- **Calls may be batched**: an episode that makes independent calls in one turn passes, and the
+  card's model calls and tool calls show it.
+- **A shape run's tool messages are replayed against the engine** when its records are read; a
+  disagreement is `replay_mismatch` and scores nothing.
+- **`eval` takes a shape arm, with one note**: no published card covers it. A width other than 1,
+  2 or 4 is refused in one line. The one knob whose tasks are not built yet is still refused in
+  one line.
+- **`init` and `tasks.toml` do not offer task shape** until its probe has shown it bites.
+- **Every task id and the generator hash moved**; no task of the other seven knobs changed.
+
+### Argument difficulty
+
+- **A seventh knob makes tasks: `arguments`**, at levels 2, 4, 6 and 8: how many values each
+  stage call must carry, copied from the request. Each stage tool lists eight parameters at every
+  level, the two the task always needs and six more, of which only the two are required; the
+  request states the level less two of the six, and both stage calls must carry exactly those,
+  with exactly those values. The task is otherwise the base task.
+- **A call that leaves out a stated value, gets one wrong, or adds one the request did not state
+  is answered `bad_args`**: nothing changes and the call takes its number, as any refused call
+  does. The tool server, the verifier and the replay of a run apply the same check.
+- **An empty value in a parameter the request did not state is refused too**: it is a value the
+  request did not state, not an absent one.
+- **A control arm, `arguments:a2+len(a8)`**: the two-value task, with neutral words after the
+  request as long as what the eight-value request adds.
+- **An arguments run's tool messages are replayed against the engine** when its records are read;
+  a disagreement is `replay_mismatch` and scores nothing.
+- **`eval` takes an arguments arm, with one note**: no published card covers it. Levels between 2
+  and 8 run too. The two knobs whose tasks are not built yet are still refused in one line.
+- **`init` and `tasks.toml` do not offer argument difficulty** until its probe has shown it bites.
+- **Every task id and the generator hash moved**; no task of the other six knobs changed.
+
 ### Recipes in the settings file
 
 - **Recipes.** `poisson_tasks.arms.RECIPES` holds eight ready-made measurements, each a named set
