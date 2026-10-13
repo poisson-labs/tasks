@@ -5,6 +5,33 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### The run engine's key mask: the key where a provider can put it, and nothing else
+
+- **A fix to traces written with a project key.** The run engine masked any four characters of
+  the key wherever they occurred in a trace line. Every OpenAI project key starts with
+  `sk-proj-`, and the tasks' item codes hold `-pro`, so earlier runs made with a project key
+  could have had nearly every trace line rewritten: a masked number left a line that was no
+  longer JSON, and a masked reply, argument or task text failed the replay check or the verdict
+  check when the records were read. Any key could have had some lines rewritten, wherever four
+  of its characters happened to occur in the run's own text, and a key holding a quote or a
+  backslash could break a line's JSON. Runs made without a key, and the published cards, were
+  not affected. Run again any run made with a key before this fix whose records you rely on.
+- **A key's public prefix is not secret.** The prefix every key of a kind starts with, such as
+  `sk-proj-`, `sk-ant-api03-` or `gsk_`, no longer counts as part of the key.
+- **Where a provider can put the key, any four of its characters are masked**: in each provider
+  error a trace records, in the first error a run reports, and in `run.log`. The prefix stays,
+  so a masked key reads `sk-proj-****`.
+- **Every other byte of a trace line is written as the run produced it.** Twelve characters of a
+  key in a row are the key's, wherever they are: no text a run makes for itself holds that many
+  by chance. A trace line that holds that many outside its errors has them masked in the string
+  that holds them, and is still one JSON document. No file of a run folder, and neither stream,
+  holds twelve characters of the key in a row.
+- **The free key check no longer counts the public prefix either.** It shows a provider's short
+  value, a refusal's error code or a server's version, only when the value holds no four
+  characters of the key in a row. With a project key, a code holding `proj` or a version holding
+  `-pro` was dropped from the check's sentence; it is now shown. Four characters of the rest of
+  the key still keep a value out.
+
 ### Information spread
 
 - **A ninth knob makes tasks: `spread`**, at levels 1, 2 and 4: how many tool answers the entry
