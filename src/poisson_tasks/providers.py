@@ -64,6 +64,7 @@ __all__ = [
     "NOT_CHECKABLE",
     "key_is_set",
     "check_key",
+    "refuse_plain_http_key",
     "server_facts",
     "EnvironmentReport",
     "environment_report",
@@ -189,6 +190,14 @@ def _refuse_plain_http_key(model: ModelConfig, endpoint: _Endpoint) -> None:
             "set allow_plain_http_key = true under [model] to send it anyway",
             key="model.base_url",
         )
+
+
+def refuse_plain_http_key(model: ModelConfig) -> None:
+    """The refusal `check_key` and `server_facts` make before any connection, alone: a config
+    that names a key and would send it over plain http to another machine is refused with
+    `config.ConfigError` on `model.base_url`, unless `model.allow_plain_http_key`.  Opens no
+    socket and reads no key; a config that passes returns `None`."""
+    _refuse_plain_http_key(model, _endpoint(model))
 
 
 def _sendable(key: str) -> bool:

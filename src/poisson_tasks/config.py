@@ -58,6 +58,7 @@ __all__ = [
     "dump_config",
     "InitFlag",
     "INIT_FLAGS",
+    "INIT_FLAG_ALIASES",
     "config_from_init_args",
     "default_spend_cap",
     "Plan",
@@ -306,6 +307,25 @@ def _show(value: Any) -> str:
     if isinstance(value, Mapping):
         return "a table"
     return str(value)
+
+
+def _bare_variable_name(value: str) -> str | None:
+    """The variable's name inside a value written as a shell would write it (`$NAME`,
+    `${NAME}`, `NAME=...`), or `None` when nothing of that shape names a variable."""
+    match = re.fullmatch(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)"
+                         r"|([A-Za-z_][A-Za-z0-9_]*)=.*", value, re.S)
+    if match is None:
+        return None
+    return next(group for group in match.groups() if group is not None)
+
+
+def _is_knob(word: str) -> bool:
+    """Whether the library makes tasks for a knob of this name, offered here or not."""
+    try:
+        levels(word)
+    except ValueError:
+        return False
+    return True
 
 
 def _listed(items: Sequence[Any], last: str = "and") -> str:
@@ -622,10 +642,21 @@ class _Reader:
                 f"{self.name(key)} is {_show(api_key_env)}; it must be the name of the "
                 'environment variable that holds the key, or "" for no key',
             )
-        if api_key_env and not (
-            re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", api_key_env)
-            and "API_KEY" in api_key_env.upper()
-        ):
+        if api_key_env and not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", api_key_env):
+            bare = _bare_variable_name(api_key_env)
+            if bare is not None:
+                raise self.refusal(
+                    key,
+                    f"{self.name(key)} is {_show(api_key_env)}, which is not a variable's name; "
+                    f"write the name alone, as {bare}",
+                    suggestion=bare,
+                )
+            raise self.refusal(
+                key,
+                f"{self.name(key)} is {_show(api_key_env)}, which is not a variable's name: a "
+                "name is letters, digits and _, and does not start with a digit",
+            )
+        if api_key_env and "API_KEY" not in api_key_env.upper():
             raise self.refusal(
                 key,
                 f"{self.name(key)} is {_show(api_key_env)}; the variable's name must contain "
@@ -695,7 +726,16 @@ class _Reader:
         given = {field: self.get(f"measure.{field}") for field in custom_keys}
         knob = "depth"
         if given["knob"] is not _MISSING:
-            knob = self.choice("measure.knob", given["knob"], _KNOBS, "a knob")
+            key = "measure.knob"
+            if isinstance(given["knob"], str) and given["knob"] not in _KNOBS and _is_knob(
+                given["knob"]
+            ):
+                raise self.refusal(
+                    key,
+                    f"{self.name(key)}: {_show(given['knob'])} is a knob not offered here yet; "
+                    f"the knobs offered are {_listed(_KNOBS)}",
+                )
+            knob = self.choice(key, given["knob"], _KNOBS, "a knob")
         candidates = levels(knob)
         chosen = candidates
         if given["levels"] is not _MISSING:
@@ -1117,9 +1157,10 @@ _FLAGS = {flag.flag: flag for flag in INIT_FLAGS}
 # Init's flags that set no key of the file; they are init's own to act on.
 _FLAGS_OF_INIT_ALONE = ("--yes", "--fetch", "--no-fetch", "--check-key", "--no-check-key")
 _SWITCHED_OFF = ("--no-controls",)
-# A flag kept under an older name for one release: the older name sets what the newer one does,
-# and given both, the last one given counts, as with any flag given twice.
-_ALIASES = {"--measure": "--recipe"}
+INIT_FLAG_ALIASES: Mapping[str, str] = types.MappingProxyType({"--measure": "--recipe"})
+"""A flag kept under an older name for one release, by the name it stands for: the older name
+sets what the newer one does, and given both, the last one given counts, as with any flag given
+twice.  Read-only: the one table the reader and `init`'s help read."""
 
 
 def _name_as_flag(key: str) -> str:
@@ -1160,7 +1201,7 @@ def _given_flags(argv: Sequence[str]) -> dict[str, Any]:
         name, equals, attached = word.partition("=")
         if name in _FLAGS_OF_INIT_ALONE and not equals:
             continue
-        flag = _FLAGS.get(_ALIASES.get(name, name))
+        flag = _FLAGS.get(INIT_FLAG_ALIASES.get(name, name))
         if flag is None:
             near = _nearest(name, tuple(_FLAGS)) if name.startswith("--") else None
             hint = "" if near is None else f"; did you mean {near}?"
