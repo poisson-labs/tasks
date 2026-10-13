@@ -22,7 +22,20 @@ classifiers = [
 ]
 # Everything a plain install needs. Proofload is not here: it is one of two output
 # routes and it is not public, so it is an optional extra below.
-dependencies = ["verifiers==0.3.1", "tiktoken==0.14.0", "pyyaml>=6.0"]
+#
+# Rich draws the command's output on a terminal and questionary draws init's two menus; both
+# are ordinary dependencies, not an extra (ruled 2026-10-13). The floors were measured, not
+# guessed: the pretty style's tests pass on Rich 11.0.0, the lowest version verifiers itself
+# allows, and on 12.0.0, 12.6.0, 13.0.0, 13.4.2, 13.9.4, 14.0.0 and 15.0.0; questionary 2.0.0,
+# 2.0.1 and 2.1.0 fail to draw a menu beside the prompt_toolkit they install today (2.1.0 on
+# prompt_toolkit 3.0.53: "'VSplit' object has no attribute 'content'"), and 2.1.1 works.
+dependencies = [
+    "verifiers==0.3.1",
+    "tiktoken==0.14.0",
+    "pyyaml>=6.0",
+    "rich>=11.0.0",
+    "questionary>=2.1.1",
+]
 
 [project.optional-dependencies]
 # The Proofload route has NO EXTRA while Proofload is unpublished, and the block below is
@@ -68,6 +81,10 @@ dev = [
     # tests that need it skipped where it did not.
     "jinja2>=3.1.6",
 ]
+
+# The command: `poisson-tasks`, one script, seven verbs (`python -m poisson_tasks` is the same).
+[project.scripts]
+poisson-tasks = "poisson_tasks.cli:main"
 
 # The name is settled: the tool is Poisson Tasks, the distribution is `poisson-tasks` and
 # the repository is `poisson-labs/tasks`. These three URLs carry the repository name.

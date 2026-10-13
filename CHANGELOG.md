@@ -5,6 +5,36 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### The command
+
+- **The command.** `poisson-tasks` (and `python -m poisson_tasks`) puts the library behind seven
+  verbs. `init` asks what to measure, in plain words, and writes one settings file, `tasks.toml`,
+  printing the same setup as one command that asks nothing; it fetches the tokenizer file first if
+  it is missing. `generate` makes the plan's tasks with no model and no network and writes them
+  as files, or shows one task in full. `run` shows the plan, the expected calls and cost and the
+  cap, asks, and runs it against the model, stopping at the cap and resuming after Ctrl-C.
+  `card` builds a run's card and says what it means and what it does not claim. `verify` judges
+  an answer with the task's own verifier. `export` writes the configs verifiers' `eval` runs.
+  `doctor` says whether this environment is ready. Every command prints its result first, puts
+  problems on stderr as one `error:` line, exits 0, 1, 2, 3, 4 or 130 by one table, and gives
+  `--json`.
+- **Two looks, one result.** On a terminal the command draws its result with Rich, with arrow-key
+  menus in `init`; in a pipe, under `NO_COLOR` or `CI`, with `TERM=dumb`, on a stdout that is not
+  UTF-8, or with `--json` or `--plain`, it prints plain text, byte for byte the same facts in the
+  same order. Rich and questionary are ordinary dependencies.
+- **A plan expected to cost more than its cap is refused before the question**, with a cap that
+  would let it finish; `generate`, `export` and `card` refuse to overwrite their files without
+  `--force`; a `next:` command carries the `--config` you gave; `doctor` with no settings file
+  reports on the environment alone; `export` writes JSON (TOML cannot carry an arm with no
+  control arm) and opens no socket.
+- **Two refusals reworded.** A key variable written as a shell writes it (`$OPENAI_API_KEY`) is
+  told to write the name alone; a knob the library has and the settings file does not offer yet
+  is said to be not offered here yet, not "not a knob".
+- **Library names added for the command:** `config.INIT_FLAG_ALIASES`,
+  `providers.refuse_plain_http_key`, and `poisson_tasks.transcripts` (`read_transcript`,
+  `verdict_of`), which reads an attempt's three forms. `cards.published()` no longer needs the
+  tokenizer file.
+
 ### The run engine's key mask: the key where a provider can put it, and nothing else
 
 - **A fix to traces written with a project key.** The run engine masked any four characters of
