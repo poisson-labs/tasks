@@ -69,6 +69,10 @@ dev = [
     "jinja2>=3.1.6",
 ]
 
+# The command: `poisson-tasks`, one script, seven verbs (`python -m poisson_tasks` is the same).
+[project.scripts]
+poisson-tasks = "poisson_tasks.cli:main"
+
 # The name is settled: the tool is Poisson Tasks, the distribution is `poisson-tasks` and
 # the repository is `poisson-labs/tasks`. These three URLs carry the repository name.
 [project.urls]
