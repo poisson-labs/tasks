@@ -229,8 +229,12 @@ def _run_card(ctx: Context) -> Result:
         sentence = f"partial card for {model_name}: {plan_text}; " + "; ".join(parts)
     else:
         sentence = f"card for {model_name}: {plan_text}"
-    rows: list[Any] = [Levels(cells), Row("what it means", made.claims.meaning),
-                       Bullets("what it does not claim", list(made.claims.not_claimed))]
+    rows: list[Any] = [Levels(cells)]
+    note = _depth_note(made.document, cells)
+    if note is not None:
+        rows.append(Row("about depth", note))
+    rows += [Row("what it means", made.claims.meaning),
+             Bullets("what it does not claim", list(made.claims.not_claimed))]
     ran = _what_ran(made.document)
     if ran:
         rows.append(Bullets("what ran", ran))
@@ -248,6 +252,21 @@ def _run_card(ctx: Context) -> Result:
               "owed": verdict.owed, "levels": cells, "meaning": made.claims.meaning,
               "not_claimed": list(made.claims.not_claimed), "wrote": [str(p) for p in paths]},
     )
+
+
+def _depth_note(document: str, cells: list[dict[str, Any]]) -> str | None:
+    """The published cards' own note on depth, from the card's document, when the card's depth
+    arms include the ladder's top level (the look's item 19): at the top level strict cannot
+    fail by overshooting, so depth is read on leaky."""
+    from poisson_tasks.knobs import levels
+
+    top = max(levels("depth"))
+    if not any(str(cell["arm_id"]) == f"depth:d{top}" for cell in cells):
+        return None
+    for line in document.splitlines():
+        if "no stage lies above the goal" in line:
+            return line.strip().lstrip("- ").strip()
+    return None
 
 
 def _provenance_like(folder: Path) -> Any:
