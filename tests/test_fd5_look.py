@@ -334,6 +334,18 @@ def test_item_6_each_condition_alone_gives_the_plain_style_byte_for_byte(
     assert first_verdict(stripped(tty_out)) == first_verdict(piped_out.decode()), tty_out
 
 
+def test_item_6_json_gives_plain_even_for_the_error_line_on_a_terminal(world: World) -> None:
+    """`--json` turns off the whole pretty style, the `error:` line on stderr included: a refusal
+    under `--json` on two terminals sends no escape sequence and equals `--plain`'s byte for
+    byte (a success under `--json` prints nothing on stderr, so it could not tell)."""
+    argv = ["generate", "--arm", "dpeth:d1", "--json"]
+    code, out, err = in_terminals([*argv, "--plain"], pretty_env(world), world)
+    tty_code, tty_out, tty_err = in_terminals(argv, pretty_env(world), world)
+    assert tty_code == code == 2, (tty_out, tty_err)
+    assert "\x1b" not in tty_out + tty_err, (tty_out, tty_err)
+    assert tty_err.startswith("error: ") and tty_err == err and tty_out == out == ""
+
+
 def test_item_6_with_every_condition_met_the_pretty_style_runs(world: World) -> None:
     settled(world)
     code, out, err = in_terminals(["run", "--dry-run", "--offline"], pretty_env(world), world)
