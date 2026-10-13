@@ -547,8 +547,8 @@ class _Progress:
             if not traces:
                 continue
             reward = (traces[0].get("rewards") or {}).get("strict")
-            value = reward.get("value") if isinstance(reward, dict) else reward
-            if value == 1 or value == 1.0:
+            score = reward.get("score") if isinstance(reward, dict) else reward
+            if score == 1:
                 self.passed[arm] += 1
 
     def _summarise(self, done: int, spend: float | None = None) -> None:
