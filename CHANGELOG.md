@@ -5,6 +5,31 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### The knob probe's outcome: faults, history and shape ship
+
+- **Three knobs shipped.** The knob probe measured the seven newer knobs on `gpt-5-nano` and
+  `Qwen3-8B`. `faults` (bites on Qwen3-8B), `history` (bites on both) and `shape` (bites on
+  Qwen3-8B, the four-wide arrangement the harder) shipped: `arms.SHIPPED_KNOBS` is those three,
+  and the recipes that measure them are offered (`error-recovery`, `long-sessions`, `planning`,
+  `profile`, beside `first-look` and `card`). `tool-choice` and `reading-and-filling` wait on
+  knobs that did not ship. `similarity`, `block`, `arguments` and `spread` did not ship; they stay
+  in the generator and their arms work as before.
+- **Each knob's measured status, in the package.** `poisson_tasks.arms.knob_status()` reads
+  `knob_status.json`: each knob's status on each model (bites, does not bite, top easier, cannot
+  tell), the base and top arms' strict pass@1, and each contrast's drop and 95% interval. No knob
+  is called a non-biter on a model where its base passed below 0.15, since a drop of 0.15 could
+  not show there: that reading is "cannot tell" (spread on Qwen3-8B, base 0.008). A top-easier
+  reading is "cannot tell" where the top passed above 0.85. `docs/knobs-and-arms.md` has the
+  table.
+- **Disclosed with the outcome.** Phase 1's no-call check was changed after gpt-5-nano's first
+  phase 1 stopped on 1 of 21 base episodes (the model asked for the record id in plain text), to
+  the cards' own rule (3 or more of 21 stop); the recorded phase 1 was read again once under it,
+  with no episode run again, and passed. gpt-5-nano's run crashed at its start on macOS's
+  open-file limit; the limit was raised and the run resumed, and its first arm, void because
+  episodes in flight at the crash failed on our side, was run once more, as the pre-registration
+  allows for a cause on our side. Qwen3-8B's run reached its two-hour allowance with 14 of 18 arms
+  done, stopped cleanly, and was resumed with more time; it used 2.56 hours in all.
+
 ### The command
 
 - **The command.** `poisson-tasks` (and `python -m poisson_tasks`) puts the library behind seven
