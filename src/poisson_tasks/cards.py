@@ -22,9 +22,10 @@ import dataclasses
 import json
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from poisson_tasks import calibration
-from poisson_tasks.calibration import Artifact
+if TYPE_CHECKING:
+    from poisson_tasks.calibration import Artifact
 
 __all__ = ["PublishedCard", "Recomputed", "TALLIES_FILE", "published", "recompute"]
 
@@ -97,6 +98,10 @@ def recompute(card: PublishedCard) -> Recomputed:
     `current` reads the recorded generator hash against the package's.  A card whose files no
     longer give the same artifact is not identical; a cell its records now refuse (over a gate,
     or two models in one) is the rebuild's own `ValueError`."""
+    # Imported here, not at the top: `calibration` loads the tokenizer file when it is imported,
+    # and `published()` must list the cards' names without it (`card --help`).
+    from poisson_tasks import calibration
+
     folder = Path(card.folder)
     committed = (folder / "artifact.json").read_text(encoding="utf-8")
     stored = json.loads(committed)
