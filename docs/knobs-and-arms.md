@@ -56,9 +56,10 @@ each, strict pass@1, and the drop from the base arm to the top arm with a task-c
 interval. A knob **bites** on a model when the interval excludes zero and the drop is at least
 0.15; `faults`, `block` and `arguments` need the same drop from their control arm to the top, and
 `shape` counts either direction, as long as its length control differs from the base by less
-than 0.15. **Cannot tell** means the base arm passed below 0.15 or above 0.85 on that model, so a
-change of 0.15 could not show in both directions; a knob is not called a non-biter there. A knob
-**ships** when it bites on at least one model and is easier at the top on neither.
+than 0.15. **Cannot tell** replaces "does not bite" where the base arm passed below 0.15 on that
+model, so a drop of 0.15 could not show; a base near 1 can still drop by 0.15, so it is read as
+it came out. It also replaces "top easier" where the top arm passed above 0.85. A knob **ships**
+when it bites on at least one model and is easier at the top on neither.
 
 `faults`, `history` and `shape` shipped (`arms.SHIPPED_KNOBS`), and the recipes that measure
 them are offered. The other four did not ship. Every knob stays in the generator, and its arms
@@ -69,13 +70,13 @@ minus the top arm's, with its interval; "control" is the control arm's minus the
 
 | knob | shipped | `gpt-5-nano` | `Qwen3-8B` |
 |---|---|---|---|
-| `similarity` | no | does not bite: Δ −0.050 [−0.150, 0.042] | cannot tell: base passed 1.000; Δ 0.000 [0.000, 0.000] |
-| `faults` | yes | cannot tell: base passed 0.975; Δ 0.400 [0.300, 0.500], control 0.142 [0.033, 0.250] | bites: Δ 0.825 [0.742, 0.900], control 0.308 [0.150, 0.458] |
+| `similarity` | no | does not bite: Δ −0.050 [−0.150, 0.042] | does not bite: Δ 0.000 [0.000, 0.000] |
+| `faults` | yes | does not bite: Δ 0.400 [0.300, 0.500], control 0.142 [0.033, 0.250] | bites: Δ 0.825 [0.742, 0.900], control 0.308 [0.150, 0.458] |
 | `history` | yes | bites: Δ 0.683 [0.608, 0.750] | bites: Δ 0.308 [0.217, 0.417] |
-| `block` | no | cannot tell: base passed 0.883; Δ −0.067 [−0.142, 0.000], control −0.008 [−0.058, 0.042] | cannot tell: base passed 1.000; Δ 0.000 [0.000, 0.000], control 0.000 [0.000, 0.000] |
-| `arguments` | no | does not bite: Δ 0.092 [0.000, 0.183], control 0.000 [−0.108, 0.100] | cannot tell: base passed 0.983; Δ 0.150 [0.067, 0.242], control 0.100 [0.017, 0.183] |
+| `block` | no | does not bite: Δ −0.067 [−0.142, 0.000], control −0.008 [−0.058, 0.042] | does not bite: Δ 0.000 [0.000, 0.000], control 0.000 [0.000, 0.000] |
+| `arguments` | no | does not bite: Δ 0.092 [0.000, 0.183], control 0.000 [−0.108, 0.100] | does not bite: Δ 0.150 [0.067, 0.242], control 0.100 [0.017, 0.183] |
 | `shape` | yes | does not bite: Δ −0.300 [−0.425, −0.175], length control 0.158 [0.058, 0.258] | bites: Δ 0.358 [0.233, 0.483], length control 0.000 [−0.033, 0.033]; `shape:w4` harder |
-| `spread` | no | cannot tell: base passed 0.067; Δ −0.250 [−0.358, −0.142] | cannot tell: base passed 0.008; Δ 0.008 [0.000, 0.033] |
+| `spread` | no | top easier: Δ −0.250 [−0.358, −0.142] | cannot tell: base passed 0.008; Δ 0.008 [0.000, 0.033] |
 
 ## Arms
 

@@ -9,7 +9,7 @@
     "contrast": "a contrast's delta is arm a's strict pass@1 minus arm b's, paired over the tasks",
     "interval": "95%, task-clustered bootstrap, 2,000 resamples, seed 20260922",
     "bites": "the base against the top: the interval excludes zero and the drop is at least 0.15; for faults, block and arguments the control arm against the top meets the same rule; for shape the drop counts either way, and the length control differs from the base by less than 0.15",
-    "cannot_tell": "the base arm's strict pass@1 is below 0.15 or above 0.85, so a change of 0.15 could not show in both directions; a knob is called neither a non-biter nor easier at the top there",
+    "cannot_tell": "a reading of does not bite where the base arm's strict pass@1 is below 0.15 (floor), so a drop of 0.15 could not show; or a reading of top easier where the top arm's strict pass@1 is above 0.85 (ceiling); a bite is always a bite",
     "floor": 0.15,
     "ceiling": 0.85
   },
@@ -21,13 +21,17 @@
     "similarity": {
       "shipped": false,
       "outcome": "does not ship",
-      "says": "does not ship: does not bite on gpt-5-nano; cannot tell on Qwen3-8B (its base passed 1.000)",
+      "says": "does not ship: does not bite on gpt-5-nano; does not bite on Qwen3-8B",
       "models": {
         "gpt-5-nano-2025-08-07": {
           "status": "does not bite",
           "base": {
             "arm": "similarity:s0",
             "strict": 0.4083
+          },
+          "top": {
+            "arm": "similarity:s3",
+            "strict": 0.4583
           },
           "contrasts": [
             {
@@ -45,9 +49,13 @@
           "harder": null
         },
         "Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218": {
-          "status": "cannot tell",
+          "status": "does not bite",
           "base": {
             "arm": "similarity:s0",
+            "strict": 1.0
+          },
+          "top": {
+            "arm": "similarity:s3",
             "strict": 1.0
           },
           "contrasts": [
@@ -70,13 +78,17 @@
     "faults": {
       "shipped": true,
       "outcome": "ships",
-      "says": "ships: cannot tell on gpt-5-nano (its base passed 0.975); bites on Qwen3-8B",
+      "says": "ships: does not bite on gpt-5-nano; bites on Qwen3-8B",
       "models": {
         "gpt-5-nano-2025-08-07": {
-          "status": "cannot tell",
+          "status": "does not bite",
           "base": {
             "arm": "faults:f0",
             "strict": 0.975
+          },
+          "top": {
+            "arm": "faults:f4",
+            "strict": 0.575
           },
           "contrasts": [
             {
@@ -109,6 +121,10 @@
           "base": {
             "arm": "faults:f0",
             "strict": 0.9917
+          },
+          "top": {
+            "arm": "faults:f4",
+            "strict": 0.1667
           },
           "contrasts": [
             {
@@ -149,6 +165,10 @@
             "arm": "history:t0",
             "strict": 0.9083
           },
+          "top": {
+            "arm": "history:t2400",
+            "strict": 0.225
+          },
           "contrasts": [
             {
               "a": "history:t0",
@@ -170,6 +190,10 @@
             "arm": "history:t0",
             "strict": 1.0
           },
+          "top": {
+            "arm": "history:t2400",
+            "strict": 0.6917
+          },
           "contrasts": [
             {
               "a": "history:t0",
@@ -190,13 +214,17 @@
     "block": {
       "shipped": false,
       "outcome": "does not ship",
-      "says": "does not ship: cannot tell on gpt-5-nano (its base passed 0.883); cannot tell on Qwen3-8B (its base passed 1.000)",
+      "says": "does not ship: does not bite on gpt-5-nano; does not bite on Qwen3-8B",
       "models": {
         "gpt-5-nano-2025-08-07": {
-          "status": "cannot tell",
+          "status": "does not bite",
           "base": {
             "arm": "block:k8",
             "strict": 0.8833
+          },
+          "top": {
+            "arm": "block:k64",
+            "strict": 0.95
           },
           "contrasts": [
             {
@@ -225,9 +253,13 @@
           "harder": null
         },
         "Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218": {
-          "status": "cannot tell",
+          "status": "does not bite",
           "base": {
             "arm": "block:k8",
+            "strict": 1.0
+          },
+          "top": {
+            "arm": "block:k64",
             "strict": 1.0
           },
           "contrasts": [
@@ -261,13 +293,17 @@
     "arguments": {
       "shipped": false,
       "outcome": "does not ship",
-      "says": "does not ship: does not bite on gpt-5-nano; cannot tell on Qwen3-8B (its base passed 0.983)",
+      "says": "does not ship: does not bite on gpt-5-nano; does not bite on Qwen3-8B",
       "models": {
         "gpt-5-nano-2025-08-07": {
           "status": "does not bite",
           "base": {
             "arm": "arguments:a2",
             "strict": 0.8083
+          },
+          "top": {
+            "arm": "arguments:a8",
+            "strict": 0.7167
           },
           "contrasts": [
             {
@@ -296,10 +332,14 @@
           "harder": null
         },
         "Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218": {
-          "status": "cannot tell",
+          "status": "does not bite",
           "base": {
             "arm": "arguments:a2",
             "strict": 0.9833
+          },
+          "top": {
+            "arm": "arguments:a8",
+            "strict": 0.8333
           },
           "contrasts": [
             {
@@ -340,6 +380,10 @@
             "arm": "shape:w1",
             "strict": 0.325
           },
+          "top": {
+            "arm": "shape:w4",
+            "strict": 0.625
+          },
           "contrasts": [
             {
               "a": "shape:w1",
@@ -372,6 +416,10 @@
             "arm": "shape:w1",
             "strict": 0.9667
           },
+          "top": {
+            "arm": "shape:w4",
+            "strict": 0.6083
+          },
           "contrasts": [
             {
               "a": "shape:w1",
@@ -403,13 +451,17 @@
     "spread": {
       "shipped": false,
       "outcome": "does not ship",
-      "says": "does not ship: cannot tell on gpt-5-nano (its base passed 0.067); cannot tell on Qwen3-8B (its base passed 0.008)",
+      "says": "does not ship: the top is easier on gpt-5-nano; cannot tell on Qwen3-8B (its base passed 0.008)",
       "models": {
         "gpt-5-nano-2025-08-07": {
-          "status": "cannot tell",
+          "status": "top easier",
           "base": {
             "arm": "spread:p1",
             "strict": 0.0667
+          },
+          "top": {
+            "arm": "spread:p4",
+            "strict": 0.3167
           },
           "contrasts": [
             {
@@ -431,6 +483,10 @@
           "base": {
             "arm": "spread:p1",
             "strict": 0.0083
+          },
+          "top": {
+            "arm": "spread:p4",
+            "strict": 0.0
           },
           "contrasts": [
             {

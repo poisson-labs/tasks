@@ -304,11 +304,11 @@ def knob_status() -> dict[str, _Any]:
     Read from the package's `knob_status.json`, a fresh copy on every call.  `models` names each
     model the probe ran.  `knobs` maps the seven probe knobs, in the probe's order, to whether the
     knob `shipped`, its `outcome`, a line that `says` it in words, and per model its `status` (one
-    of bites, does not bite, top easier and cannot tell), its `base` arm with that arm's strict
-    pass@1, and each contrast's `delta` with its 95% `interval`.  `probe` says how it was
-    measured; "cannot tell" is a base arm that passed below `floor` or above `ceiling` on that
-    model, where a change of the rule's size could not show in both directions, so the knob is
-    called neither a non-biter nor easier at the top there.
+    of bites, does not bite, top easier and cannot tell), its `base` and `top` arms with each
+    arm's strict pass@1, and each contrast's `delta` with its 95% `interval`.  `probe` says how
+    it was measured.  "Cannot tell" replaces "does not bite" where the base arm passed below
+    `floor`, so a drop of the rule's size could not show, and replaces "top easier" where the
+    top arm passed above `ceiling`; a bite is always a bite.
     """
     table: dict[str, _Any] = _json.loads(_STATUS_PATH.read_text(encoding="utf-8"))
     return table
