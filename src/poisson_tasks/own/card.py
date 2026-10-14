@@ -1,5 +1,6 @@
 """The card on a user's own tools: its first lines, beside a published card, each level against
-the first, and the set's own near-duplicates (spec §6.3, §9).
+the first, the knob probe's statuses beside that table, and the set's own near-duplicates (spec
+§6.3 as ruled, §9).
 
 An own-tools card is never pooled with a published card: `beside_published` prints the two
 documents whole under the line `DIFFERENT_TASKS`, and refuses a published card of another
@@ -9,8 +10,12 @@ overshoot and what leaky accepts is collateral); a pair saturated on the same si
 with no delta.  A knob "made your tasks harder" when a level is called different from the first
 under the two-clause rule with a lower rate (yes/no 30).  The near-duplicate census reports the
 closest pair of names by edit distance over the longer length and the closest pair of
-descriptions by one less the share of words in common, descriptively (yes/no 31).
-`tests/test_o2_card.py` pins this.
+descriptions by one less the share of words in common, descriptively (yes/no 31).  Every knob
+stays available on own tools (Taylor's ruling of 2026-10-13 23:26): each carries its measured
+status on each probe model, read only from `arms.knob_status()` (`probe_statuses`), and the card
+states it beside its own per-set table with `PROBE_SENTENCE`, which says the statuses come from
+the built-in tasks on two models while the table is measured on the user's own tools.
+`tests/test_o2_card.py` and `tests/test_o2c_every_knob.py` pin this.
 """
 
 from __future__ import annotations
@@ -21,6 +26,7 @@ from collections.abc import Sequence as _Sequence
 from dataclasses import dataclass as _dataclass
 from typing import Any as _Any
 
+from poisson_tasks import arms as _arms
 from poisson_tasks import calibration as _cal
 from poisson_tasks.arms import arm_from_id as _arm_from_id
 from poisson_tasks.own.generator import GENERATOR_VERSION as _GENERATOR_VERSION
@@ -36,10 +42,17 @@ __all__ = [
     "near_duplicates",
     "EXCLUDED",
     "PREDICATE",
+    "PROBE_SENTENCE",
+    "probe_statuses",
+    "probe_lines",
     "rows_from_artifact",
 ]
 
 DIFFERENT_TASKS = "different tasks: read each card on its own"
+PROBE_SENTENCE = (
+    "The probe's statuses below come from the built-in tasks on two models, not from your tools;"
+    " the table above is measured on your own tools, and the two are not the same measurement."
+)
 EXCLUDED = "excluded"
 PREDICATE = "strict"
 _FORMAT_WORDS = {
@@ -178,6 +191,35 @@ def bite(rows: _Sequence[AgainstFirst]) -> dict[str, str]:
                 " sample size: no level read lower than the first under the two-clause rule."
             )
     return out
+
+
+def probe_statuses(knobs: _Sequence[str]) -> dict[str, dict[str, str]]:
+    """Each of `knobs` the knob probe measured, mapped to its status on each probe model by the
+    model's short name, exactly as `arms.knob_status()` gives them; a knob the table does not hold
+    (depth, which the published cards measured) is left out."""
+    table = _arms.knob_status()
+    names = {str(model): str(short) for model, short in dict(table["models"]).items()}
+    held = dict(table["knobs"])
+    out: dict[str, dict[str, str]] = {}
+    for knob in knobs:
+        if knob in held:
+            out[knob] = {names.get(str(model), str(model)): str(entry["status"])
+                         for model, entry in dict(held[knob]["models"]).items()}
+    return out
+
+
+def probe_lines(knobs: _Sequence[str]) -> list[str]:
+    """One line per knob, in the order given: its status on each probe model, or that the
+    published cards measured it and the probe did not."""
+    statuses = probe_statuses(knobs)
+    lines: list[str] = []
+    for knob in knobs:
+        if knob in statuses:
+            said = "; ".join(f"{status} on {model}" for model, status in statuses[knob].items())
+            lines.append(f"- {knob}: {said}.")
+        else:
+            lines.append(f"- {knob}: measured on the published cards, not by the probe.")
+    return lines
 
 
 def _edit_distance(a: str, b: str) -> int:

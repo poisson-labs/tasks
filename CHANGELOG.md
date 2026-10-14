@@ -15,10 +15,19 @@ unreleased and sits at version `0.0.1`.
   against first level within itself, and is never pooled with a published card. The export serves
   an own-tools task under the taskset `poisson-tasks-own`. This is the library: `init` asking for
   the file, `tasks.toml`'s `[own]` table and `run` on an own plan arrive with the next part.
+- **Every knob on your tools.** All nine knobs are offered on your tools, within each set's
+  limits, whether or not the knob probe shipped them (ruled 2026-10-13 23:26: the probe ran on
+  two small models, and every dial is revisited in v2 on current models). The recipes still lead
+  with the knobs that shipped. Each knob carries its measured status on each probe model, read from
+  `arms.knob_status()`, and the card on your tools states it beside its own per-set table, saying
+  that the statuses come from the built-in tasks on two models while the table is measured on your
+  tools.
 - **Library names added:** `poisson_tasks.own.simulator`, `.generator`, `.verdict`, `.recipes`,
   `.export` and `.card`, the top-level module `poisson_tasks_own`, `Provenance.tools` (the
   own-tools provenance kind, absent from every published block), and the wider list of JSON Schema
-  keywords the readers refuse (`own._schema.UNCHECKABLE`, nineteen more than spec §3's five).
+  keywords the readers refuse (`own._schema.UNCHECKABLE`, nineteen more than spec §3's five);
+  `own.recipes.shipped_knobs`, `own.card.probe_statuses`, `probe_lines` and `PROBE_SENTENCE`.
+
 ### The knob probe's outcome: faults, history and shape ship
 
 - **Three knobs shipped.** The knob probe measured the seven newer knobs on `gpt-5-nano` and

@@ -1893,6 +1893,16 @@ def render_document(artifact: Artifact, *, claims: bool = False) -> str:
         said = _own_card.bite(rows_against_first)
         lines += [f"- {line}" for line in said.values()] or [
             "- No knob has two levels on this card, so none is read against its first."]
+        # Every knob stays available on own tools (ruled 2026-10-13 23:26); each carries the
+        # knob probe's status on each probe model, said apart from the per-set table above.
+        knobs_here = list(dict.fromkeys(
+            spec.knob for cell in artifact.cells
+            if (spec := _spec_for(cell["arm_id"])) is not None and spec.control is None
+        ))
+        lines += ["", "### What the knob probe measured on the built-in tasks", "",
+                  _own_card.PROBE_SENTENCE, ""]
+        lines += _own_card.probe_lines(knobs_here) or [
+            "- No knob of the probe's is on this card."]
     else:
         lines += [
             "",
