@@ -189,6 +189,7 @@ def drive(
     silent: Iterable[tuple[str, int]] = (),
     old_gate: bool = False,
     behaviour: Behaviour | None = None,
+    concurrency: int = 8,
 ) -> dict[str, Any]:
     """`run_probe` on the smaller design into `folder` against the fake on `port`: its exit code,
     its lines, its refusals and the requests the fake saw."""
@@ -210,7 +211,7 @@ def drive(
                 code = probe.run_probe(
                     folder,
                     cap=cap,
-                    concurrency=8,
+                    concurrency=concurrency,
                     env_file=env_file(where),
                     base_url=fake.base_url,
                     design=design,

@@ -582,7 +582,9 @@ def test_run_after_a_re_gate_counts_phase_1s_spend_toward_the_cap(
 ) -> None:
     """The finished run's spend is phase 1's and the probe's ledgers together.  The same run under
     a cap of phase 1's spend plus half the probe's stops at the cap with the probe's ledger inside
-    what phase 1 left; had phase 1's spend not counted, the probe would have had room to finish."""
+    what phase 1 left; had phase 1's spend not counted, the probe would have had room to finish.
+    It runs one episode at a time, as the frozen cap test does: at eight at once the run engine
+    lets the episodes already in flight finish past its cap."""
     folder = resumed["folder"]
     probe_spend = ledger_total(folder / "probe")
     status = json.loads((folder / "status.json").read_text())
@@ -593,7 +595,7 @@ def test_run_after_a_re_gate_counts_phase_1s_spend_toward_the_cap(
     tight = copy_of(one, tmp_path)
     assert regate(tight, REASON)[0] == 0
     cap = one.spent + probe_spend / 2
-    found = drive(tmp_path, tight, port=one.port, cache=cache, cap=cap)
+    found = drive(tmp_path, tight, port=one.port, cache=cache, cap=cap, concurrency=1)
     held = json.loads((tight / "status.json").read_text())
     assert found["code"] == 4 and held["stop"] == "spend_cap", found["out"]
     assert ledger_total(tight / "probe") <= cap - one.spent + 1e-12
