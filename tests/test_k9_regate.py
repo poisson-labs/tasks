@@ -129,6 +129,16 @@ def test_the_rule_is_the_share_above_the_cards_threshold_not_a_count_of_three() 
     assert len(no_call_reasons(above.reasons)) == 1
 
 
+def test_a_phase_1_with_no_base_episode_stops_on_its_reasons_without_a_share() -> None:
+    """No base episode recorded: phase 1 stops on what the gate and the plumbing say (nothing
+    recorded, the missing episodes), and the share of nothing is not computed."""
+    records = phase1_records(skip=[(arm, seed) for arm in BASES for seed in PHASE1])
+    found = verdict(records)
+    first = old_phase1_verdict(records, {})
+    assert not found.passed and found.bases.episodes == 0
+    assert found.reasons == first.reasons
+
+
 def test_no_calls_on_tops_and_controls_still_never_stop_phase_1() -> None:
     every_other = tuple((arm, seed) for arm in TOPS + CONTROLS for seed in PHASE1)
     found = verdict(phase1_records(every_other + ONE + (("faults:f0", 601375552),)))
@@ -368,7 +378,10 @@ def test_the_re_gate_refuses_without_a_reason(tmp_path: Path, one: Failed) -> No
         code, _, err = regate(folder, blank)
         assert refused(code, err), (code, err)
         assert tree(folder) == before
-    assert regate(folder, REASON)[0] == 0
+    assert regate(folder, f"  {REASON}\n")[0] == 0
+    from poisson_tasks import knob_probe as probe
+
+    assert json.loads((folder / probe.REGATE_FILE).read_text())["reason"] == REASON
 
 
 @needs_uv
@@ -432,6 +445,20 @@ def test_the_re_gate_refuses_episodes_that_are_not_the_ones_phase_1_was_gated_on
     assert refused(*regate(other, REASON, design=probe.DESIGN)[::2])
     assert tree(other) == before
     assert regate(other, REASON)[0] == 0
+
+
+@needs_uv
+def test_the_re_gate_refuses_a_verdict_without_its_record(tmp_path: Path, one: Failed) -> None:
+    """The record says which probe the folder holds; without it the re-gate refuses, writing
+    nothing, and with it back it re-gates."""
+    folder = copy_of(one, tmp_path)
+    record = (folder / "record.json").read_bytes()
+    (folder / "record.json").unlink()
+    before = tree(folder)
+    assert refused(*regate(folder, REASON)[::2])
+    assert tree(folder) == before
+    (folder / "record.json").write_bytes(record)
+    assert regate(folder, REASON)[0] == 0
 
 
 @contextmanager
@@ -643,6 +670,20 @@ def test_the_two_models_outcome_carries_the_line_for_the_re_gated_model_alone(
     page = (tmp_path / "out" / "outcome.md").read_text()
     lines = [line for line in page.splitlines() if "re-gated" in line.lower()]
     assert len(lines) == 1 and MODEL in lines[0] and OTHER not in lines[0]
+
+
+def test_a_reason_over_several_lines_stays_on_the_one_disclosure_line() -> None:
+    from poisson_tasks import knob_probe as probe
+
+    regated = {
+        "when": "2026-10-14T00:41:30+00:00", "reason": "first line\nsecond line\n\tthird",
+        "rule_date": "2026-10-13", "threshold": 0.1, "no_call": 1, "episodes": 21,
+        "passed": True, "reasons": [],
+        "original_reasons": ["base arms: 1 of 21 episodes made no tool call"],
+    }
+    line = probe.phase1_disclosure(MODEL, regated)
+    assert "\n" not in line and "\t" not in line
+    assert line.endswith("first line second line third")
 
 
 # ---------------------------------------------------------------------------
