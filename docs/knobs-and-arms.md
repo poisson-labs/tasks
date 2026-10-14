@@ -54,11 +54,11 @@ The seven newer knobs were each measured once, on `gpt-5-nano` and on `Qwen3-8B`
 lowest and highest levels and at the control arm where there is one: 60 tasks, two attempts
 each, strict pass@1, and the drop from the base arm to the top arm with a task-clustered 95%
 interval. A knob **bites** on a model when the interval excludes zero and the drop is at least
-0.15; a knob with a control arm needs the drop from its control too, and `shape` counts either
-direction, as long as its length control differs from the base by less than 0.15. **Cannot
-tell** means the base arm passed below 0.15 or above 0.85 on that model, so a change of 0.15
-could not show in both directions; a knob is not called a non-biter there. A knob **ships** when
-it bites on at least one model and is easier at the top on neither.
+0.15; `faults`, `block` and `arguments` need the same drop from their control arm to the top, and
+`shape` counts either direction, as long as its length control differs from the base by less
+than 0.15. **Cannot tell** means the base arm passed below 0.15 or above 0.85 on that model, so a
+change of 0.15 could not show in both directions; a knob is not called a non-biter there. A knob
+**ships** when it bites on at least one model and is easier at the top on neither.
 
 `faults`, `history` and `shape` shipped (`arms.SHIPPED_KNOBS`), and the recipes that measure
 them are offered. The other four did not ship. Every knob stays in the generator, and its arms
