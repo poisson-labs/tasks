@@ -978,7 +978,7 @@ def phase1_disclosure(model: str, regated: _Mapping[str, _Any]) -> str:
         f"made no tool call ({_stops_at(episodes, threshold)} or more). The recorded phase 1 was "
         f"read again under it on {regated['when']}: {regated['no_call']} of {episodes} "
         f"made no tool call, so it {'passed' if regated['passed'] else 'failed'} ({now}). "
-        f"No episode was run again. The reason recorded: {regated['reason']}"
+        f"No episode was run again. The reason recorded: {' '.join(str(regated['reason']).split())}"
     )
 
 
