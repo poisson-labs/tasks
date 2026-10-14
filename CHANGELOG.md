@@ -16,9 +16,11 @@ unreleased and sits at version `0.0.1`.
   in the generator and their arms work as before.
 - **Each knob's measured status, in the package.** `poisson_tasks.arms.knob_status()` reads
   `knob_status.json`: each knob's status on each model (bites, does not bite, top easier, cannot
-  tell), the base arm's strict pass@1, and each contrast's drop and 95% interval. "Cannot tell"
-  is a base that passed below 0.15 or above 0.85 on that model, where a change of 0.15 could not
-  show both ways; no knob is called a non-biter there. `docs/knobs-and-arms.md` has the table.
+  tell), the base and top arms' strict pass@1, and each contrast's drop and 95% interval. No knob
+  is called a non-biter on a model where its base passed below 0.15, since a drop of 0.15 could
+  not show there: that reading is "cannot tell" (spread on Qwen3-8B, base 0.008). A top-easier
+  reading is "cannot tell" where the top passed above 0.85. `docs/knobs-and-arms.md` has the
+  table.
 - **Disclosed with the outcome.** Phase 1's no-call check was changed after gpt-5-nano's first
   phase 1 stopped on 1 of 21 base episodes (the model asked for the record id in plain text), to
   the cards' own rule (3 or more of 21 stop); the recorded phase 1 was read again once under it,
