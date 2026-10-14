@@ -1868,7 +1868,7 @@ def render_document(artifact: Artifact, *, claims: bool = False) -> str:
             "",
             "## Each level against the first",
             "",
-            "On your tools each knob is read against its own first level (own-tools spec §6.3): "
+            "On your tools each knob is read against its own first level: "
             "the difference is paired over the shared seeds inside each resample, on strict "
             f"pass@1. A level is *{DISTINGUISHABLE}* from the first only when its paired 95% "
             "interval excludes zero **and** the difference is at least delta* = "
