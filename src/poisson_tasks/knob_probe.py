@@ -24,10 +24,19 @@ The design
 Phase 1
 -------
 One attempt at each of phase 1's three seeds, every arm, before anything else.  The cards' plumbing
-gate applies in full to the seven base arms, pooled.  The other eleven are checked for plumbing
-only (every planned episode recorded and scored, no instrument label, an empty tally), because
-"half reach the structural minimum" and "at least one tool call" could stop the probe on a knob
-that bites hard.  If phase 1 fails the probe stops there and reports what it spent.
+gate applies to the seven base arms, pooled, with its no-call clause read as the cards' share rule:
+phase 1 stops when more than 0.10 of the 21 base episodes made no tool call, so 3 or more.  That
+clause is a new pre-registration, made on 2026-10-13 after the first gpt-5-nano run's phase 1 had
+stopped on 1 of 21 under "any one"; every other check is as first registered.  The other eleven
+arms are checked for plumbing only (every planned episode recorded and scored, no instrument
+label, an empty tally), because "half reach the structural minimum" and "at least one tool call"
+could stop the probe on a knob that bites hard.  If phase 1 fails the probe stops there and
+reports what it spent.
+
+A folder whose phase 1 failed may be re-gated once (`regate_phase1`): its recorded episodes are
+read again under the amended clause, with a reason written down, no episode run and no call made.
+The first verdict stays in `phase1.json`, the new one is written beside it, and the outcome says
+so in a line of its own.
 
 The run (gpt-5-nano)
 --------------------
@@ -40,7 +49,8 @@ loads the key from a `.env` file without printing it, checks it with the one fre
 front door makes, and writes the probe's record: the frozen generator's hash, both seed lists and
 their hashes, the arms, the settings, the cap and the concurrency.  Run again, it resumes a stopped
 run; a failed phase 1 and a finished probe are not run again, so no failed episode is quietly run
-twice, and only a recorded re-run of a void arm reopens a finished probe.
+twice, and only a recorded re-run of a void arm reopens a finished probe.  After a passing re-gate
+it goes on with the probe in the same folder, within the same cap, phase 1's spend counted.
 
 The analysis
 ------------
@@ -111,6 +121,7 @@ __all__ = [
     "FROZEN_GENERATOR_HASH",
     "GeneratorMoved",
     "check_generator",
+    "PHASE1_NO_CALL",
     "Phase1Verdict",
     "phase1_verdict",
     "notebook_verdict",
@@ -133,6 +144,9 @@ __all__ = [
     "read_model_records",
     "RerunRefused",
     "start_rerun",
+    "REGATE_FILE",
+    "regate_phase1",
+    "phase1_disclosure",
     "KeyMissing",
     "load_key",
     "run_probe",
@@ -272,6 +286,11 @@ RESAMPLES = _cal.BOOTSTRAP_RESAMPLES
 BOOTSTRAP_SEED = _cal.BOOTSTRAP_SEED
 VOID_INSTRUMENT = _cal.INSTRUMENT_THRESHOLD
 VOID_NO_CALL = _cal.NO_CALL_THRESHOLD
+PHASE1_NO_CALL = _cal.NO_CALL_THRESHOLD
+"""Phase 1 stops when more than this share of the base arms' episodes, pooled, made no tool call:
+3 or more of 21.  The cards' own refusal threshold, as pre-registered for phase 1 on 2026-10-13."""
+PHASE1_NO_CALL_DATE = "2026-10-13"
+"""When phase 1's no-call clause became the share rule, after the first gpt-5-nano run's phase 1."""
 _EXACT = 1e-9
 """Pass rates here are multiples of 1/120, so Δ = 0.15 is 18/120 exactly; a comparison with 0.15
 allows for the last bit of floating point, so 0.7 - 0.55 is not read as below it."""
@@ -334,8 +353,9 @@ def _merged(tallies: _Iterable[_Mapping[str, int]]) -> dict[str, int]:
 
 @_dc.dataclass(frozen=True)
 class Phase1Verdict:
-    """Phase 1's gate: the plumbing gate in full on the base arms, pooled, and plumbing alone on
-    every other arm.  `plumbing` holds the reasons each arm failed on, by arm."""
+    """Phase 1's gate: the plumbing gate on the base arms, pooled, its no-call clause read as the
+    share rule, and plumbing alone on every other arm.  `bases` is the base arms' gate as phase 1
+    reads it; `plumbing` holds the reasons each arm failed on, by arm."""
 
     passed: bool
     reasons: tuple[str, ...]
@@ -357,18 +377,41 @@ def _plumbing(
     return tuple(reasons)
 
 
+def _shared_no_call(gate: _cal.PlumbingVerdict) -> _cal.PlumbingVerdict:
+    """The cards' gate with its no-call clause read as the share rule: its reason for any episode
+    without a tool call is dropped, and one for a share above `PHASE1_NO_CALL` takes its place."""
+    if not gate.no_call:
+        return gate
+    theirs = f"{gate.no_call} of {gate.episodes} episodes made no tool call"
+    share = gate.no_call / gate.episodes
+    ours = (
+        f"{gate.no_call} of {gate.episodes} episodes made no tool call, a share of {share:.3f}, "
+        f"above {PHASE1_NO_CALL}"
+    )
+    reasons = [
+        ours if reason == theirs else reason
+        for reason in gate.reasons
+        if reason != theirs or share > PHASE1_NO_CALL
+    ]
+    return _dc.replace(gate, passed=not reasons, reasons=tuple(reasons))
+
+
 def phase1_verdict(
     records: _Mapping[str, _Sequence[_cal.EpisodeRecord]],
     tallies: _Mapping[str, _Mapping[str, int]],
     *,
     design: Design = DESIGN,
 ) -> Phase1Verdict:
-    """Phase 1 passes when the seven base arms pass the plumbing gate in full, pooled, and every
-    arm has every planned episode recorded and scored with an empty tally."""
+    """Phase 1 passes when the seven base arms pass the plumbing gate, pooled, and every arm has
+    every planned episode recorded and scored with an empty tally.  Of the gate's clauses, the
+    no-call one alone is read as the cards' share rule: the base arms stop phase 1 when more than
+    `PHASE1_NO_CALL` of their episodes made no tool call, not on any one."""
     planned = design.phase1_episodes_per_arm
     bases = [arm for arm in design.arms if arm in BASES]
     base_rows = [row for arm in bases for row in records.get(arm, ())]
-    gate = _cal.plumbing_gate(base_rows, _merged(tallies.get(arm, {}) for arm in bases))
+    gate = _shared_no_call(
+        _cal.plumbing_gate(base_rows, _merged(tallies.get(arm, {}) for arm in bases))
+    )
     reasons = [f"base arms: {reason}" for reason in gate.reasons]
     plumbing: dict[str, tuple[str, ...]] = {}
     for arm in design.arms:
@@ -915,6 +958,30 @@ def _fmt(value: _Any, digits: int = 3) -> str:
     return str(value)
 
 
+def _stops_at(episodes: int, threshold: float) -> int:
+    """The fewest of `episodes` without a tool call that stop phase 1 under the share rule."""
+    return next(n for n in range(episodes + 1) if n / episodes > threshold)
+
+
+def phase1_disclosure(model: str, regated: _Mapping[str, _Any]) -> str:
+    """The outcome's line for a model whose phase 1 was re-gated: what changed, when and why,
+    with the counts, from the re-gate's record (`facts["phase1_regate"]`)."""
+    episodes, threshold = int(regated["episodes"]), float(regated["threshold"])
+    first = "; ".join(regated["original_reasons"])
+    now = "; ".join(regated["reasons"]) or "no reason to stop"
+    return (
+        f"**Phase 1 re-gated ({model}).** Phase 1's no-call check on the base arms was changed "
+        f"after this run's phase 1. As first registered it stopped the probe on any base-arm "
+        f"episode without a tool call, and this run's phase 1 stopped on it ({first}). On "
+        f"{regated['rule_date']}, after seeing that result, the check was changed to the cards' "
+        f"own rule: stop when more than {threshold:.0%} of the {episodes} base episodes, pooled, "
+        f"made no tool call ({_stops_at(episodes, threshold)} or more). The recorded phase 1 was "
+        f"read again under it on {regated['when']}: {regated['no_call']} of {episodes} "
+        f"made no tool call, so it {'passed' if regated['passed'] else 'failed'} ({now}). "
+        f"No episode was run again. The reason recorded: {' '.join(str(regated['reason']).split())}"
+    )
+
+
 def render_outcome(result: _Mapping[str, _Any]) -> str:
     """The outcome as a page to read: each knob's outcome, each knob on each model, every arm's
     measures, the check, and what each model's run recorded."""
@@ -923,6 +990,10 @@ def render_outcome(result: _Mapping[str, _Any]) -> str:
         f"Generator `{result['frozen_generator_hash']}`; probe seed list "
         f"`{result['probe_seed_list_hash']}`."
     )
+    for model, facts in result["facts"].items():
+        regated = facts.get("phase1_regate")
+        if isinstance(regated, dict):
+            lines += ["", "> " + phase1_disclosure(model, regated)]
     lines += ["", "## Each knob", "", "| knob | outcome | why |", "|---|---|---|"]
     for row in result["outcomes"]:
         why = "; ".join(row["reasons"])
@@ -1371,12 +1442,21 @@ def run_probe(
 
     phase1_path = folder / "phase1.json"
     phase1 = _read_json(phase1_path)
+    regated = None
     if isinstance(phase1, dict) and not phase1.get("passed"):
-        _say(
-            "STOP: phase 1 failed in this folder, so the probe does not run: "
-            + "; ".join(phase1.get("reasons", []))
-        )
-        return 2
+        regated = _read_json(folder / REGATE_FILE)
+        if not isinstance(regated, dict):
+            _say(
+                "STOP: phase 1 failed in this folder, so the probe does not run: "
+                + "; ".join(phase1.get("reasons", []))
+            )
+            return 2
+        if not regated.get("passed"):
+            _say(
+                "STOP: phase 1 failed in this folder and its re-gate failed too, so the probe "
+                "does not run: " + "; ".join(regated.get("reasons", []))
+            )
+            return 2
     if not isinstance(phase1, dict):
         plan1 = probe_plan(
             design,
@@ -1432,7 +1512,15 @@ def run_probe(
             for reason in verdict.reasons:
                 _say(f"  {reason}")
             return 2
-    _say(f"phase 1 passed: {phase1['episodes']} episodes, ${float(phase1['spent']):.4f}")
+    if isinstance(regated, dict):
+        _say(
+            f"phase 1 passed on its re-gate of {regated['when']} ({regated['no_call']} of "
+            f"{regated['episodes']} base episodes made no tool call; first gated: "
+            + "; ".join(phase1.get("reasons", []))
+            + f"): {phase1['episodes']} episodes, ${float(phase1['spent']):.4f}"
+        )
+    else:
+        _say(f"phase 1 passed: {phase1['episodes']} episodes, ${float(phase1['spent']):.4f}")
 
     status = _read_json(folder / "status.json")
     if (
@@ -1494,6 +1582,14 @@ def run_probe(
         "rates": rates,
         "stop": stop,
     }
+    if isinstance(regated, dict):
+        facts["phase1_regate"] = {
+            name: regated[name]
+            for name in (
+                "when", "reason", "rule_date", "threshold", "no_call", "episodes", "passed",
+                "reasons",
+            )
+        } | {"original_reasons": list(phase1.get("reasons", []))}
     write_model_records(
         folder / "records",
         [row for arm in design.arms for row in records[arm]],
@@ -1566,6 +1662,96 @@ def rerun_void(
 
 
 # ---------------------------------------------------------------------------
+# the one re-gate a failed phase 1 may have
+# ---------------------------------------------------------------------------
+
+REGATE_FILE = "phase1-regate.json"
+"""Where a folder's re-gate is recorded, beside the first verdict (`phase1.json`)."""
+
+
+def regate_phase1(folder: _pathlib.Path, reason: str, *, design: Design = DESIGN) -> int:
+    """Read a failed phase 1's recorded episodes again under the amended no-call clause.
+
+    Runs no episode and makes no call: it reads the folder's phase 1 traces, gates them with
+    `phase1_verdict`, and writes the result to `REGATE_FILE`, with the first verdict copied
+    beside it; `phase1.json` is left as it is.  Refused without a reason, a second time, on a
+    folder with no phase 1 verdict or one that passed, on a folder of another design, and when the
+    episodes found are not the ones the first verdict read.  Returns 0 when the re-gate passes
+    (`run` then goes on in the folder), 2 when it fails (the folder is final), 1 when refused."""
+    folder = _pathlib.Path(folder)
+    if not reason.strip():
+        return _refuse("a re-gate records its reason: say why phase 1 is read again")
+    held = _read_json(folder / "record.json")
+    if not isinstance(held, dict):
+        return _refuse(
+            f"{folder} holds no probe run (no record.json); there is no phase 1 to re-gate"
+        )
+    phase1 = _read_json(folder / "phase1.json")
+    if not isinstance(phase1, dict):
+        return _refuse(
+            f"{folder} holds no phase 1 verdict (no phase1.json): phase 1 did not finish, and the "
+            "same run command resumes it"
+        )
+    earlier = _read_json(folder / REGATE_FILE)
+    if earlier is not None:
+        when = earlier.get("when") if isinstance(earlier, dict) else None
+        return _refuse(f"phase 1 in {folder} was re-gated on {when}; a folder is re-gated once")
+    if phase1.get("passed"):
+        return _refuse(f"phase 1 passed in {folder}; there is nothing to re-gate")
+    model, base_url = str(held.get("model")), str(held.get("base_url"))
+    expected = probe_record(design, model=model, base_url=base_url, extra={})
+    differ = [name for name in _SETTLED if held.get(name) != expected.get(name)]
+    if differ:
+        return _refuse(
+            f"{folder} holds a probe run with other settings than this design's ("
+            + ", ".join(differ)
+            + ")"
+        )
+    records, tallies = _collect(folder / "phase1", design, model)
+    verdict = phase1_verdict(records, tallies, design=design)
+    episodes = sum(len(rows) for rows in records.values())
+    if episodes != phase1.get("episodes") or list(verdict.bases.per_episode) != phase1.get(
+        "per_episode"
+    ):
+        return _refuse(
+            f"the phase 1 episodes in {folder} are not the ones its verdict read ({episodes} "
+            f"found, {phase1.get('episodes')} gated); it is not re-gated"
+        )
+    entry = {
+        "when": _now(),
+        "reason": reason.strip(),
+        "rule_date": PHASE1_NO_CALL_DATE,
+        "threshold": PHASE1_NO_CALL,
+        "passed": verdict.passed,
+        "reasons": list(verdict.reasons),
+        "no_call": verdict.bases.no_call,
+        "episodes": verdict.bases.episodes,
+        "per_episode": list(verdict.bases.per_episode),
+        "plumbing": verdict.plumbing,
+        "original": {
+            "passed": phase1.get("passed"),
+            "reasons": phase1.get("reasons"),
+            "spent": phase1.get("spent"),
+            "episodes": phase1.get("episodes"),
+        },
+    }
+    _write_json(folder / REGATE_FILE, entry)
+    _say("phase 1 first gated: failed: " + "; ".join(phase1.get("reasons", [])))
+    _say(
+        f"phase 1 re-gated under the share rule of {PHASE1_NO_CALL_DATE} (stop above "
+        f"{PHASE1_NO_CALL} of the base episodes): {verdict.bases.no_call} of "
+        f"{verdict.bases.episodes} made no tool call; "
+        + ("passed" if verdict.passed else "failed: " + "; ".join(verdict.reasons))
+    )
+    _say(f"both verdicts are kept: phase1.json and {REGATE_FILE}; no episode was run")
+    if verdict.passed:
+        _say("run the same run command, with the same cap, to go on with the probe in this folder")
+        return 0
+    _say("STOP: the re-gate failed too; phase 1 is final for this folder")
+    return 2
+
+
+# ---------------------------------------------------------------------------
 # the command line (a module, not a command of the tool)
 # ---------------------------------------------------------------------------
 
@@ -1573,8 +1759,8 @@ def rerun_void(
 def build_parser() -> _argparse.ArgumentParser:
     parser = _argparse.ArgumentParser(
         prog="python -m poisson_tasks.knob_probe",
-        description="The knob probe: gpt-5-nano's run, a void arm's one re-run, and the outcome "
-        "from both models' records (see the module docstring).",
+        description="The knob probe: gpt-5-nano's run, a void arm's one re-run, a failed phase "
+        "1's one re-gate, and the outcome from both models' records (see the module docstring).",
     )
     sub = parser.add_subparsers(dest="command", required=True)
     p = sub.add_parser("run", help="phase 1, the eighteen arms and the outcome; resumes")
@@ -1601,6 +1787,11 @@ def build_parser() -> _argparse.ArgumentParser:
         "--cause", required=True, help="what failed: the server, the key or the provider"
     )
     p.add_argument("--model", default=MODEL, help=_argparse.SUPPRESS)
+    p = sub.add_parser(
+        "regate", help="read a failed phase 1 again under the share rule, once; runs nothing"
+    )
+    p.add_argument("--folder", type=_pathlib.Path, required=True)
+    p.add_argument("--reason", required=True, help="why phase 1 is read again, recorded with it")
     p = sub.add_parser("analyse", help="the outcome from one or both models' records")
     p.add_argument(
         "--records",
@@ -1626,6 +1817,8 @@ def main(argv: _Sequence[str] | None = None) -> int:
         )
     if args.command == "rerun-void":
         return rerun_void(args.folder, args.arm, args.cause, model=args.model)
+    if args.command == "regate":
+        return regate_phase1(args.folder, args.reason)
     if args.command == "analyse":
         models: dict[str, dict[str, _Any]] = {}
         for folder in args.records:

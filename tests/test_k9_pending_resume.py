@@ -7,7 +7,10 @@ second run of the driver does after a stop, a failed phase 1 or a finished probe
 same cap over the folder's two ledgers (and, as its resume does, runs again any episode that ended
 in an instrument failure, every one of which stays in its arm's tally and instrument rate).  A
 failed phase 1 is final for its folder: the command reports it and runs nothing (a new folder
-starts again).  A probe that finished is not run again: the command writes the outcome again and
+starts again).  Amended 2026-10-13 for one step only: a recorded re-gate (`regate`, once, with a
+reason, running nothing) may read the folder's phase 1 again under the amended no-call rule, and a
+passing re-gate lets the command go on in the folder; the command alone still refuses a failed
+phase 1, and a failed re-gate is final (`test_k9_regate.py`).  A probe that finished is not run again: the command writes the outcome again and
 runs nothing, so no failed episode is quietly run twice; only a recorded re-run of a void arm
 reopens it.  **A no** changes any of the three.
 """
@@ -73,6 +76,7 @@ def test_a_finished_probe_is_not_run_again(tmp_path: Path) -> None:
 
 
 def test_a_failed_phase_1_is_final_for_its_folder(tmp_path: Path) -> None:
+    """The command alone, run again: no re-gate, so the failed phase 1 stands."""
     behaviour = Behaviour.from_mapping({"no_call": ["similarity:s0"]})
     (code, _, _), (again, more, said) = twice(tmp_path, behaviour)
     assert code == 2 and again == 2 and more == 0
