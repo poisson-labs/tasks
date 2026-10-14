@@ -2,7 +2,8 @@
 
 **The question.**  "The existing `plumbing_gate` applies in full to the seven base arms."  It can
 be called once on their 21 episodes together (at least 11 of 21 reach their structural minimum,
-none without a tool call), or once per base arm (at least 2 of 3 each).
+and, since 2026-10-13, no more than 2 of 21 without a tool call: the cards' share rule), or once
+per base arm (at least 2 of 3 each).
 
 **Proposed: pooled**, one call on the 21: the function as it stands, applied to the base arms.
 **A no** reads it per arm, so one base arm whose three episodes all stop short stops the probe.

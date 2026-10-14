@@ -1310,8 +1310,8 @@ def _knob_rows(
 
 def knob_phase1(ctx: Context) -> int:
     """The knob probe's phase 1: one attempt at each of phase 1's three seeds, every arm, gated
-    as the probe says (the plumbing gate in full on the base arms, plumbing alone on the rest).
-    The probe's record is written before the first episode."""
+    as the probe says (the plumbing gate on the base arms, its no-call clause the share rule;
+    plumbing alone on the rest).  The probe's record is written before the first episode."""
     from poisson_tasks import knob_probe as _probe
 
     chosen = _knob_design()
