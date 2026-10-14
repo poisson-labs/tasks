@@ -2,16 +2,18 @@
 
 The invariant is O2.4 of the knobs plan (spec §6): each knob of §6.1 applies as written, within
 the set's limits; depth and shape are offered only with flows, and refused with the spec's
-sentence without them.  And §6.3: a knob that did not ship as a difficulty control is not
-offered on own tools either; Taylor ruled 2026-10-13 that this session starts before the probe's
-results, so every expectation here reads `arms.SHIPPED_KNOBS` (empty today) and must hold whatever
-that list later holds.
+sentence without them.  And §6.3 as Taylor ruled it on 2026-10-13 23:26 (a recorded
+retrofit of this file after the freeze, O2 Session B1's second follow-up): every knob stays
+available on own tools in launch one, and the sentence that a knob which did not ship is not offered
+is withdrawn; the recipes still lead with the knobs that shipped, read from `arms.SHIPPED_KNOBS`
+whatever that list holds.
 
 Shapes decided here
 -------------------
 
 **1. `generator.KNOBS`** is §6.1's knobs that have levels, in the table's order: similarity,
-faults, history, block, arguments, spread, depth, shape.  Cost and time is on every card and is
+faults, history, block, arguments, spread, depth, shape.  Every one the set reaches is offered on own
+tools (`recipes.offered_knobs`); the ones that shipped lead the recipes (`recipes.shipped_knobs`).  Cost and time is on every card and is
 no knob.  `knob_levels(toolset, knob, *, flows=())` is the levels this set reaches, empty where
 it reaches none; `generate` refuses any other level in one line (`ValueError`), and refuses depth
 and shape without flows with `UNAVAILABLE_WITHOUT_FLOWS`, §6.2's sentence, in its line.
@@ -222,16 +224,15 @@ SHIPPED_CASES = [(), *[(knob,) for knob in SHIPPABLE], SHIPPABLE]
 
 @pytest.mark.parametrize("shipped", SHIPPED_CASES, ids=lambda s: "+".join(s) or "none")
 @pytest.mark.parametrize("label", ["acme-mcp", "petstore", "everything"])
-def test_a_knob_is_offered_on_own_tools_only_when_it_shipped_and_the_set_reaches_it(
+def test_every_knob_the_set_reaches_is_offered_on_own_tools_whatever_shipped(
     label: str, shipped: tuple[str, ...]
 ) -> None:
+    """Retrofitted 2026-10-14 under Taylor's ruling of 2026-10-13 23:26: this test held the offer to
+    depth and the shipped knobs; every knob the set reaches is offered, whatever shipped."""
     toolset = fixture_sets()[label]
     flows = flows_for(label)
     gen, rec = generator(), recipes()
-    expected = tuple(
-        knob for knob in KNOBS
-        if gen.knob_levels(toolset, knob, flows=flows) and (knob == "depth" or knob in shipped)
-    )
+    expected = tuple(knob for knob in KNOBS if gen.knob_levels(toolset, knob, flows=flows))
     assert rec.offered_knobs(toolset, flows=flows, shipped=shipped) == expected
 
 
@@ -264,7 +265,9 @@ def test_the_recipes_on_own_tools_are_those_whose_knobs_work_on_the_set(
     `test_o2_pending_recipe_card.py`'s."""
     toolset, flows = fixture_sets()[label], flows_for(label)
     gen, rec = generator(), recipes()
-    offered = rec.offered_knobs(toolset, flows=flows, shipped=shipped)
+    # Retrofitted 2026-10-14 (the ruling of 2026-10-13 23:26): the recipes lead with the knobs that
+    # shipped and the set reaches, `shipped_knobs`, while `offered_knobs` is every knob it reaches.
+    offered = rec.shipped_knobs(toolset, flows=flows, shipped=shipped)
     table = rec.recipes_for(toolset, flows=flows, shipped=shipped)
     built_in = arms_module.recipe_table(SHIPPABLE)
     assert list(table) == list(arms_module.RECIPES)
