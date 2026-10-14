@@ -11,14 +11,17 @@ The knob probe (spec Knobs §9) ran on gpt-5-nano and Qwen3-8B.  Its outcome as 
    block, `reading-and-filling` on spread and arguments.
 2. **Every knob stays.**  The four that did not ship keep their tasks and their arms (the kept
    digests of every knob's tasks pin that), each labelled with its measured status on each model.
-3. **No knob is called a non-biter where its base could not show it.**  On a model where the
-   knob's base arm's strict pass@1 is not clear of 0 and 1, a status other than "bites" is
-   "cannot tell", with the base rate given.  Clear is read as the decision rule's own size,
-   delta* = 0.15, from each end: a base from 0.15 to 0.85, where a change of 0.15 could show in
-   either direction.  Spread's base on gpt-5-nano is 0.067.
+3. **No knob is called a non-biter where its base could not show it.**  As Taylor ruled the
+   reading on 2026-10-14 (a recorded change to this file, after the freeze): a "does not bite"
+   is "cannot tell", with the base rate given, when the knob's base arm's strict pass@1 is below
+   0.15, the rule's own drop, so a drop of that size could not show.  A base near 1 can still
+   drop by 0.15, so the ceiling never makes a non-bite "cannot tell"; it applies only to a "top
+   easier" reading, which is "cannot tell" when the top arm's strict pass@1 is above 0.85.  A
+   bite is always a bite.  Spread's base on gpt-5-nano is 0.067, and its top there (0.317) was
+   easier by the rule, so that reading stands.
 4. **The status table is package data**, `src/poisson_tasks/knob_status.json`, read through one
    public function, `arms.knob_status()`, so the wheel carries it: each knob's status on each
-   model (bites, does not bite, top easier, cannot tell) with the base arm's strict pass@1 and each
+   model (bites, does not bite, top easier, cannot tell) with the base and top arms' strict pass@1 and each
    contrast's Δ and 95% interval.  `docs/knobs-and-arms.md` states the same statuses.
 
 The numbers are the combined outcome's (`python -m poisson_tasks.knob_probe analyse` over both
@@ -58,17 +61,28 @@ BASES = {
     "shape": "shape:w1",
     "spread": "spread:p1",
 }
+TOPS = {
+    "similarity": "similarity:s3",
+    "faults": "faults:f4",
+    "history": "history:t2400",
+    "block": "block:k64",
+    "arguments": "arguments:a8",
+    "shape": "shape:w4",
+    "spread": "spread:p4",
+}
 STATUSES = ("bites", "does not bite", "top easier", "cannot tell")
 DELTA = 0.15
+FLOOR = DELTA
+CEILING = 1 - DELTA
 # The outcome with ruling 3 read in, (gpt-5-nano, Qwen3-8B).
 MEASURED = {
-    "similarity": ("does not bite", "cannot tell"),
-    "faults": ("cannot tell", "bites"),
+    "similarity": ("does not bite", "does not bite"),
+    "faults": ("does not bite", "bites"),
     "history": ("bites", "bites"),
-    "block": ("cannot tell", "cannot tell"),
-    "arguments": ("does not bite", "cannot tell"),
+    "block": ("does not bite", "does not bite"),
+    "arguments": ("does not bite", "does not bite"),
     "shape": ("does not bite", "bites"),
-    "spread": ("cannot tell", "cannot tell"),
+    "spread": ("top easier", "cannot tell"),
 }
 
 
@@ -76,8 +90,20 @@ def knob_of(arm: str) -> str:
     return arm_from_id(arm).knob
 
 
-def clear(base: float) -> bool:
-    return DELTA <= base <= 1 - DELTA
+def published(measured: str, base: float, top: float) -> str:
+    """Ruling 3 as ruled: the floor turns only a non-bite, the ceiling only a top-easier."""
+    if measured == "does not bite" and base < FLOOR:
+        return "cannot tell"
+    if measured == "top easier" and top > CEILING:
+        return "cannot tell"
+    return measured
+
+
+def why(cell: dict[str, Any]) -> str:
+    """The rate a "cannot tell" names: the base's at the floor, the top's at the ceiling."""
+    if cell["base"]["strict"] < FLOOR:
+        return f"base passed {cell['base']['strict']:.3f}"
+    return f"top passed {cell['top']['strict']:.3f}"
 
 
 def strings(value: Any) -> list[str]:
@@ -152,22 +178,25 @@ def test_every_probe_knob_has_its_measured_status_on_each_model_and_shipped_is_t
         for model, cell in row["models"].items():
             assert cell["status"] in STATUSES, (knob, model)
             assert cell["base"]["arm"] == BASES[knob], (knob, model)
+            assert cell["top"]["arm"] == TOPS[knob], (knob, model)
             assert 0 <= cell["base"]["strict"] <= 1, (knob, model)
+            assert 0 <= cell["top"]["strict"] <= 1, (knob, model)
         assert tuple(cell["status"] for cell in row["models"].values()) == MEASURED[knob], knob
     spread = table["knobs"]["spread"]["models"][NANO]
-    assert spread["status"] == "cannot tell"
+    assert spread["status"] == "top easier"
     assert spread["base"]["strict"] == pytest.approx(8 / 120, abs=5e-5)
+    assert spread["top"]["strict"] == pytest.approx(38 / 120, abs=5e-5)
 
 
-def test_no_knob_is_called_a_non_biter_where_its_base_is_not_clear_of_0_and_1() -> None:
-    """Ruling 3, and each status follows from its own numbers by spec §9.4 and §9.5.  Bugs
-    caught: a knob called a non-biter (or easier at the top) on a model whose base was at the
-    floor or the ceiling; "cannot tell" where the base was clear; a bite turned into "cannot
-    tell"; a status that its contrasts do not give; a contrast marked as meeting the rule whose
-    interval or size does not."""
+def test_no_knob_is_called_a_non_biter_where_its_base_could_not_show_a_drop() -> None:
+    """Ruling 3 as ruled, and each status follows from its own numbers by spec §9.4 and §9.5.
+    Bugs caught: a knob called a non-biter on a model whose base was below 0.15; a non-bite
+    made "cannot tell" by a base near 1; the floor applied to a top-easier reading, or the
+    ceiling not applied to one; a bite turned into "cannot tell"; a status that its contrasts do
+    not give; a contrast marked as meeting the rule whose interval or size does not."""
     table = arms.knob_status()
-    assert table["probe"]["floor"] == DELTA
-    assert table["probe"]["ceiling"] == pytest.approx(1 - DELTA)
+    assert table["probe"]["floor"] == FLOOR
+    assert table["probe"]["ceiling"] == pytest.approx(CEILING)
     for knob, row in table["knobs"].items():
         for model, cell in row["models"].items():
             where = (knob, model)
@@ -192,15 +221,15 @@ def test_no_knob_is_called_a_non_biter_where_its_base_is_not_clear_of_0_and_1() 
                 bites = all(c["meets"] for c in contrasts)
                 easier = not bites and first["the_other_way"]
             measured = "bites" if bites else "top easier" if easier else "does not bite"
-            base = cell["base"]["strict"]
-            expected = measured if bites or clear(base) else "cannot tell"
-            assert cell["status"] == expected, (where, base, measured)
+            base, top = cell["base"]["strict"], cell["top"]["strict"]
+            expected = published(measured, base, top)
+            assert cell["status"] == expected, (where, base, top, measured)
 
 
 def test_each_knobs_line_says_its_statuses_in_plain_words() -> None:
     """The words a reader sees.  Bugs caught: a line that calls a knob a non-biter on a model
-    where its status is "cannot tell", or names no base rate there; a line that names a private
-    place, person or internal id."""
+    where its status is "cannot tell", or names no rate there; a line that names a private place,
+    person or internal id."""
     table = arms.knob_status()
     for knob, row in table["knobs"].items():
         says = row["says"]
@@ -211,8 +240,7 @@ def test_each_knobs_line_says_its_statuses_in_plain_words() -> None:
                 "bites": f"bites on {name}",
                 "does not bite": f"does not bite on {name}",
                 "top easier": f"the top is easier on {name}",
-                "cannot tell": f"cannot tell on {name} (its base passed "
-                f"{cell['base']['strict']:.3f})",
+                "cannot tell": f"cannot tell on {name} (its {why(cell)})",
             }[cell["status"]]
             assert phrase in says, (knob, model, says)
     hits = [text for text in strings(table) if INTERNAL.search(text)]
@@ -222,7 +250,7 @@ def test_each_knobs_line_says_its_statuses_in_plain_words() -> None:
 def test_the_knobs_page_states_each_knobs_status_on_each_model() -> None:
     """Ruling 2's label where a reader looks for a knob.  Bugs caught: the page's table left out
     of step with the file; a knob that did not ship missing from it; a "cannot tell" cell with no
-    base rate."""
+    rate."""
     page = (REPO / "docs" / "knobs-and-arms.md").read_text(encoding="utf-8")
     table = arms.knob_status()
     for knob, row in table["knobs"].items():
@@ -234,4 +262,4 @@ def test_the_knobs_page_states_each_knobs_status_on_each_model() -> None:
         for cell_text, cell in zip(cells[1:3], row["models"].values(), strict=True):
             assert cell_text.startswith(cell["status"]), (knob, cell_text)
             if cell["status"] == "cannot tell":
-                assert f"base passed {cell['base']['strict']:.3f}" in cell_text, (knob, cell_text)
+                assert why(cell) in cell_text, (knob, cell_text)
