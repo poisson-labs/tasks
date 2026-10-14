@@ -414,10 +414,18 @@ def test_generate_writes_own_wire_rows_and_shows_a_task(
     shown = invoke(["generate", "--show", "--task", "2"], monkeypatch)
     assert shown.code == 0, shown
     assert expected[1].task_id in shown.out and "the reference solution" in shown.out
-    for name, label in (("malformed_call", "malformed_call"),
-                        ("collateral_mutation", "collateral_mutation")):
-        assert any(line.strip().startswith(name) and label in line
-                   for line in shown.out.splitlines()), (name, shown.out)
+    from poisson_tasks.own import verdict as own_verdict
+    from poisson_tasks.tasks import FormatSpec, Turn
+
+    fmt = FormatSpec(name="direct", markers=())
+    for name, calls in expected[1].negative_controls.items():
+        limit = name == "turn_limit"
+        turns = tuple(Turn(content="", calls=(call,), finish_reason="tool_calls") for call in calls)
+        if not limit:
+            turns += (Turn(content="Done.", calls=(), finish_reason="stop"),)
+        label = own_verdict.verify(expected[1], turns, not limit, limit, fmt).label
+        lines = [line.split() for line in shown.out.splitlines() if line.strip().startswith(name + " ")]
+        assert lines and lines[0][1] == label, (name, label, shown.out)
 
 
 def test_export_names_the_own_taskset_and_run_dry_run_names_your_tools(
@@ -461,10 +469,83 @@ def test_the_cli_reads_the_tool_file_beside_the_settings_file_not_the_working_fo
                   *FLOWS], monkeypatch)
     assert ran.code == 0, ran
     assert not (work / "tools.json").exists()
+    # the default cap is made from the estimate, which reads the tool file beside the settings file
+    from tests.test_o2_cli import library_file
+
+    toolset, flows = acme_with_flows(project)
+    default = recipes.default_recipe(toolset, flows=flows)
+    assert default is not None
+    assert (project / "tasks.toml").read_text(encoding="utf-8") == library_file(
+        ["--own-file", "tools.json", *FLOWS, "--recipe", default], project)
     checked = invoke(["doctor", "--offline", "--config", "project/tasks.toml"], monkeypatch)
     assert checked.code == 0, checked
     assert doctor_rows(checked)["tools"][0] == "ok"
     made = invoke(["generate", "--config", "project/tasks.toml"], monkeypatch)
     assert made.code == 0, made
     assert sorted(path.name for path in (project / "tasks").iterdir())
+
+
+# --------------------------------------------------------------------------
+# what the first mutation pass found unpinned
+# --------------------------------------------------------------------------
+
+
+def test_the_plans_tool_count_is_the_usable_tools_not_the_refused(tmp_path: Path) -> None:
+    listing = json.loads(fixture("acme-mcp-tools-list.json"))
+    listing["tools"].append({"name": "pick", "description": "Picks.",
+                             "inputSchema": {"type": "object",
+                                             "properties": {"v": {"anyOf": [{"type": "string"}]}}}})
+    (tmp_path / "tools.json").write_bytes(json.dumps(listing).encode())
+    plan = config.resolve_plan(config.loads_config(own_text('preset = "first-look"')), root=tmp_path)
+    assert plan.own is not None and plan.own["tools"] == 5
+    reading = own.read_tools((tmp_path / "tools.json").read_bytes(), name="tools")
+    assert len(reading.refused) == 1 and len(reading.toolset.tools) == 5
+
+
+def test_the_runs_tasks_carry_the_intents_and_the_folder_keys_match_them(tmp_path: Path) -> None:
+    toolset, flows = acme_with_flows(tmp_path)
+    text = own_text('preset = "first-look"',
+                    '\n[own.intents]\nrefund_order = "refund a customer\'s order"\n')
+    plan = config.resolve_plan(config.loads_config(text), root=tmp_path)
+    from poisson_tasks.own.export import task_from_bundle
+
+    for spec in plan.arms:
+        bundles = runs.own_bundles(plan, spec, plan.seeds)
+        expected = [generator.generate(toolset, spec, seed, flows=flows,
+                                       intents={"refund_order": "refund a customer's order"})
+                    for seed in plan.seeds]
+        assert bundles == expected
+        assert any("refund a customer's order" in bundle.request.lower() for bundle in bundles)
+        assert runs._task_hashes(spec, plan.seeds, plan) == [
+            str(task_from_bundle(bundle).hash) for bundle in expected]
+
+
+def test_doctors_last_run_is_of_the_same_set_not_only_the_same_file_name(
+    work: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", MADE_UP_KEY)
+    (work / "tools.json").write_bytes(fixture("acme-mcp-tools-list.json"))
+    flags = ["--own-file", "tools.json", "--own-name", "mine", "--recipe", "custom", "--knob", "faults"]
+    assert invoke(["init", *QUIET, *flags], monkeypatch).code == 0
+    other = config.config_from_init_args(["--own-file", "tools.json", "--own-name", "theirs",
+                                          "--recipe", "custom", "--knob", "faults"])
+    plan = config.resolve_plan(other, root=work)
+    folder = runs.find_run(plan, work / "runs")
+    Path(folder.path).mkdir(parents=True)
+    (Path(folder.path) / "plan.json").write_text(json.dumps(runs._plan_document(plan)),
+                                                  encoding="utf-8")
+    (work / "tools.json").write_bytes(fixture("acme-mcp-tools-list.json") + b"\n")
+    rows = doctor_rows(invoke(["doctor", "--offline"], monkeypatch))
+    assert "run" not in rows, rows
+
+
+def test_the_dialogue_says_the_summary_line_before_the_recipe_question(
+    work: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (work / "tools.json").write_bytes(fixture("acme-mcp-tools-list.json"))
+    first = own.summary(own.read_tools(fixture("acme-mcp-tools-list.json"), name="tools")).splitlines()[0]
+    stdin = Answers(["", "", "", "", str(len(offered_recipes()) + 1), "tools.json"])
+    ran = invoke(["init", "--no-check-key", *FLOWS], monkeypatch, stdin)
+    assert ran.code == 0, ran
+    assert first in ran.err and ran.err.index(first) < ran.err.index("What do you want to measure on")
 
