@@ -10,6 +10,12 @@ its key otherwise; `strictness` is as for the built-in tasks; the arms come in t
 levels, whatever order they were written in (as FD1's shape 6 has it for the built-in tasks).  `init`'s dialogue does not ask for it; the flags
 `--recipe custom --knob ... --levels ...` and the file say it.  A no refuses `custom` beside
 `[own]` under `measure.preset`.
+
+*Ruled yes 2026-10-13, and on 2026-10-13 23:26 every knob stays available on own tools (spec Own
+Tools §6.3 as amended): retrofitted 2026-10-14 by O2 Session B2, a recorded commit.  As frozen, a
+knob the probe had not shipped was refused under `measure.knob`; `custom` now takes any knob the
+set reaches, whatever `arms.SHIPPED_KNOBS` holds, and the knob that is no knob on own tools (the
+distractor dial) is still refused under `measure.knob`.*
 """
 
 from __future__ import annotations
@@ -53,9 +59,7 @@ def test_custom_takes_a_knob_offered_on_the_set_at_levels_it_reaches(
         ("depth", 1, "leaky", "own-1"), ("depth", 2, "leaky", "own-1")]
     assert outcome('preset = "custom"\nknob = "depth"\nlevels = [3]', tmp_path) == "measure.levels"
     faults = outcome('preset = "custom"\nknob = "faults"\nlevels = [0, 4]', tmp_path)
-    if "faults" in shipped:
-        assert [(a.knob, a.level) for a in faults.arms] == [("faults", 0), ("faults", 4)]
-    else:
-        assert faults == "measure.knob"
+    # every knob the set reaches, shipped or not (ruled 2026-10-13 23:26)
+    assert [(a.knob, a.level) for a in faults.arms] == [("faults", 0), ("faults", 4)]
     assert outcome('preset = "custom"\nknob = "distractor"\nlevels = [0]', tmp_path) == "measure.knob"
 
