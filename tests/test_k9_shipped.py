@@ -185,9 +185,7 @@ def test_no_knob_is_called_a_non_biter_where_its_base_is_not_clear_of_0_and_1() 
             if knob == "shape":
                 assert len(contrasts) == 2, where
                 control = contrasts[1]
-                bites = (first["meets"] or first["the_other_way"]) and not (
-                    control["meets"] or control["the_other_way"]
-                )
+                bites = (first["meets"] or first["the_other_way"]) and abs(control["delta"]) < DELTA
                 easier = False
             else:
                 assert len(contrasts) == (2 if knob in ("faults", "block", "arguments") else 1)
@@ -236,4 +234,4 @@ def test_the_knobs_page_states_each_knobs_status_on_each_model() -> None:
         for cell_text, cell in zip(cells[1:3], row["models"].values(), strict=True):
             assert cell_text.startswith(cell["status"]), (knob, cell_text)
             if cell["status"] == "cannot tell":
-                assert f"{cell['base']['strict']:.3f}" in cell_text, (knob, cell_text)
+                assert f"base passed {cell['base']['strict']:.3f}" in cell_text, (knob, cell_text)
