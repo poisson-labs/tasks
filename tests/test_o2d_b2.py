@@ -465,8 +465,10 @@ def test_the_cli_reads_the_tool_file_beside_the_settings_file_not_the_working_fo
     project = work / "project"
     project.mkdir()
     (project / "tools.json").write_bytes(fixture("acme-mcp-tools-list.json"))
+    # a plan large enough that its estimate moves the default cap above the $1.00 floor
+    size = ["--tasks-per-level", "60", "--attempts", "100"]
     ran = invoke(["init", *QUIET, "--config", "project/tasks.toml", "--own-file", "tools.json",
-                  *FLOWS], monkeypatch)
+                  *FLOWS, *size], monkeypatch)
     assert ran.code == 0, ran
     assert not (work / "tools.json").exists()
     # the default cap is made from the estimate, which reads the tool file beside the settings file
@@ -475,8 +477,9 @@ def test_the_cli_reads_the_tool_file_beside_the_settings_file_not_the_working_fo
     toolset, flows = acme_with_flows(project)
     default = recipes.default_recipe(toolset, flows=flows)
     assert default is not None
-    assert (project / "tasks.toml").read_text(encoding="utf-8") == library_file(
-        ["--own-file", "tools.json", *FLOWS, "--recipe", default], project)
+    expected = library_file(["--own-file", "tools.json", *FLOWS, *size, "--recipe", default], project)
+    assert config.loads_config(expected).limits.spend_usd != config.default_spend_cap(None)
+    assert (project / "tasks.toml").read_text(encoding="utf-8") == expected
     checked = invoke(["doctor", "--offline", "--config", "project/tasks.toml"], monkeypatch)
     assert checked.code == 0, checked
     assert doctor_rows(checked)["tools"][0] == "ok"
