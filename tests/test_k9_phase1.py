@@ -1,7 +1,10 @@
 """K9.3, the gates before the run: phase 1's, as the spec splits it, and the notebook's own for Qwen.
 
 The spec: phase 1, before anything else, is one attempt at each of phase 1's three seeds per arm.
-The existing `plumbing_gate` applies in full to the seven base arms; the other eleven are checked
+The existing `plumbing_gate` applies to the seven base arms, its no-call clause read since
+2026-10-13 as the cards' share rule: more than 0.10 of the 21 base episodes, pooled, without a tool
+call stops phase 1, so 3 or more (a new pre-registration of that one clause, made after the first
+gpt-5-nano run stopped on 1 of 21; `test_k9_regate.py` pins it).  The other eleven are checked
 only for plumbing (every episode scores and none carries an instrument label), because "half reach
 the structural minimum" and "at least one tool call" could stop the probe on a knob that bites
 hard.  For Qwen the notebook's probe-only design applies the plumbing and instrument checks and
@@ -81,6 +84,7 @@ def test_a_top_that_stops_short_of_its_minimum_does_not_stop_phase_1() -> None:
 
 
 def test_a_base_that_never_calls_a_tool_stops_phase_1() -> None:
+    """Its three episodes are 3 of the 21: the share rule's boundary."""
     found = verdict(phase1(**{"history_t0": {"calls": 0, "passed": False}}))
     assert not found.passed
     assert any(r.startswith("base arms: ") and "made no tool call" in r for r in found.reasons)
