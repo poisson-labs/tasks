@@ -48,6 +48,36 @@ shape width other than 1, 2 or 4, a spread level outside 1 to 4.
 `levels(knob)` returns the candidate levels. Which of them a study actually sweeps is a
 pre-registration decision, not a property of the generator.
 
+### What the knob probe measured
+
+The seven newer knobs were each measured once, on `gpt-5-nano` and on `Qwen3-8B`, at their
+lowest and highest levels and at the control arm where there is one: 60 tasks, two attempts
+each, strict pass@1, and the drop from the base arm to the top arm with a task-clustered 95%
+interval. A knob **bites** on a model when the interval excludes zero and the drop is at least
+0.15; `faults`, `block` and `arguments` need the same drop from their control arm to the top, and
+`shape` counts either direction, as long as its length control differs from the base by less
+than 0.15. **Cannot tell** replaces "does not bite" where the base arm passed below 0.15 on that
+model, so a drop of 0.15 could not show; a base near 1 can still drop by 0.15, so it is read as
+it came out. It also replaces "top easier" where the top arm passed above 0.85. A knob **ships**
+when it bites on at least one model and is easier at the top on neither.
+
+`faults`, `history` and `shape` shipped (`arms.SHIPPED_KNOBS`), and the recipes that measure
+them are offered. The other four did not ship. Every knob stays in the generator, and its arms
+work whether or not it shipped; these are two models, measured once. The table, with every
+contrast, is `poisson_tasks.arms.knob_status()`. In each cell Δ is the base arm's strict pass@1
+minus the top arm's, with its interval; "control" is the control arm's minus the top arm's; for
+`shape`, "length control" is the base's minus the length control's.
+
+| knob | shipped | `gpt-5-nano` | `Qwen3-8B` |
+|---|---|---|---|
+| `similarity` | no | does not bite: Δ −0.050 [−0.150, 0.042] | does not bite: Δ 0.000 [0.000, 0.000] |
+| `faults` | yes | does not bite: Δ 0.400 [0.300, 0.500], control 0.142 [0.033, 0.250] | bites: Δ 0.825 [0.742, 0.900], control 0.308 [0.150, 0.458] |
+| `history` | yes | bites: Δ 0.683 [0.608, 0.750] | bites: Δ 0.308 [0.217, 0.417] |
+| `block` | no | does not bite: Δ −0.067 [−0.142, 0.000], control −0.008 [−0.058, 0.042] | does not bite: Δ 0.000 [0.000, 0.000], control 0.000 [0.000, 0.000] |
+| `arguments` | no | does not bite: Δ 0.092 [0.000, 0.183], control 0.000 [−0.108, 0.100] | does not bite: Δ 0.150 [0.067, 0.242], control 0.100 [0.017, 0.183] |
+| `shape` | yes | does not bite: Δ −0.300 [−0.425, −0.175], length control 0.158 [0.058, 0.258] | bites: Δ 0.358 [0.233, 0.483], length control 0.000 [−0.033, 0.033]; `shape:w4` harder |
+| `spread` | no | top easier: Δ −0.250 [−0.358, −0.142] | cannot tell: base passed 0.008; Δ 0.008 [0.000, 0.033] |
+
 ## Arms
 
 ```python

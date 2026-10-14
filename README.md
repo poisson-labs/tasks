@@ -77,7 +77,7 @@ using the tools it is given and nothing else.
 |---|---|
 | the domain engine | **built** -- a pure state machine over a twelve-class ledger |
 | the reference tokenizer | **built** -- o200k_base, offline |
-| knobs, arms and the pin ledger | **built** -- nine knobs named, all nine with tasks (`depth`, `distractor`, `similarity`, `faults`, `history`, `block`, `arguments`, `shape`, `spread`), the control arms, thirty rows; the `distractor` knob is **experimental** (below) |
+| knobs, arms and the pin ledger | **built** -- nine knobs named, all nine with tasks (`depth`, `distractor`, `similarity`, `faults`, `history`, `block`, `arguments`, `shape`, `spread`), the control arms, thirty rows; the `distractor` knob is **experimental** (below); the knob probe shipped `faults`, `history` and `shape`, and [each knob's measured status](docs/knobs-and-arms.md#what-the-knob-probe-measured) is in the package |
 | task and verifier generation | **built** -- `generate`, `verify`, the outcome vocabulary, the negative controls |
 | the Proofload adapter, scripted path | **built** -- runs end to end against Proofload with no model, on an installed Proofload checkout |
 | the `verifiers` taskset export | **built** -- the task data, the task with its reward, the tool server, and a finite taskset over a declared list of seeds |

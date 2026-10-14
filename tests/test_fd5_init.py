@@ -14,9 +14,10 @@ question coming first and `init` without the tokenizer are in `tests/test_fd5_fr
   written and the key's line is the library's.  `--no-check-key` opens no socket; under `--yes`
   the key is checked with one free request.
 - **Recipes** (R0, spec Knobs §17.4): `--recipe` sets question 6 and `--measure` is its alias; a
-  recipe not offered is refused in one line naming the recipe and the knobs it waits on, today
-  every recipe but `first-look` and `card`; `custom` offers depth and the distractor dial and no
-  other knob.  Whether the command opens `custom` further is not this module's to decide: today's
+  recipe not offered is refused in one line naming the recipe and the knobs it waits on (every
+  recipe but `first-look` and `card` before the knob probe; `tool-choice` and
+  `reading-and-filling` since it shipped faults, history and shape on 2026-10-14); `custom`
+  offers depth and the distractor dial and no other knob.  Whether the command opens `custom` further is not this module's to decide: today's
   behaviour is pinned.
 - **The questions** (spec §6.1): with the defaults taken, choosing the published design at
   question 6 asks two questions fewer than the first look, and choosing the knob and levels

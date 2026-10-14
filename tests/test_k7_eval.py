@@ -5,8 +5,9 @@ published cards' table answers for the knob so that no arm raises a `KeyError`, 
 published card covers gets the one note saying so; the census takes them.  The one knob then
 unbuilt (information spread) was held here to one-line refusals by the generator, the census and
 `eval` until K8 gave it tasks; that test left this file in a recorded retrofit, ruled with K8
-Session A's filing.  `tasks.toml` and `init` do not offer task shape before its probe (spec
-K-P3), nothing is offered before a probe, and the shipped-knobs list the recipes read stays empty.
+Session A's filing.  `tasks.toml` and `init` do not offer task shape as the custom knob (spec
+K-P3); the knob probe shipped it (ruled 2026-10-14), so the shipped-knobs list the recipes read
+names it and the recipe that measures it is offered.
 
 Shapes decided here
 -------------------
@@ -25,11 +26,12 @@ in for one, and by `eval`, by id and as the six fields.  The frozen
 is one line naming the knob.  On `main`, before K7, `eval` refuses the six fields for the knob
 itself (it has no tasks); after it, for the width.
 
-**3. Nothing is offered before its probe**: the project file and `init`'s flags refuse `shape` by the
-key that names it; the file `init` writes names none of the seven knobs without a probe; the
-package's list of shipped knobs is empty, so the recipe that measures shape (`planning`) is not
-offered and waits on it.  (The frozen `tests/test_r0_recipes.py` checks that every arm offered
-generates, which stops catching a shipped shape once shape generates.)
+**3. Shape is offered through its recipe, not as the custom knob**: the project file and `init`'s
+flags refuse `shape` as the custom knob by the key that names it; the file `init` writes names none
+of the seven probe knobs; the knob probe shipped shape (ruled 2026-10-14, a recorded retrofit of
+this file), so the package's list of shipped knobs names it and the recipe that measures shape
+(`planning`) is offered and waits on nothing.  (The frozen `tests/test_r0_recipes.py` checks that
+every arm offered generates, which stops catching a shipped shape once shape generates.)
 """
 
 from __future__ import annotations
@@ -131,7 +133,7 @@ def custom_file(knob: str) -> str:
     return text.replace(line, f'knob = "{knob}"')
 
 
-def test_tasks_toml_and_init_do_not_offer_shape_and_nothing_has_shipped() -> None:
+def test_tasks_toml_and_init_do_not_offer_shape_as_custom_and_planning_is_offered() -> None:
     """Shape 3."""
     written = custom_file("depth")
     config_module.loads_config(written)
@@ -144,6 +146,7 @@ def test_tasks_toml_and_init_do_not_offer_shape_and_nothing_has_shipped() -> Non
     with pytest.raises(config_module.ConfigError) as flagged:
         config_module.config_from_init_args(["--measure", "custom", "--knob", "shape"])
     assert flagged.value.key == "measure.knob"
-    assert tuple(arms_module.SHIPPED_KNOBS) == ()
+    assert "shape" in arms_module.SHIPPED_KNOBS
     planning = arms_module.RECIPES["planning"]
-    assert not planning.offered and "shape" in planning.waiting
+    assert planning.offered and tuple(planning.waiting) == ()
+    assert {"shape:w1", "shape:w4"} <= set(planning.arms)
