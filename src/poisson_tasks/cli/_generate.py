@@ -4,7 +4,9 @@ The tokenizer file is checked before anything that generates is imported.  The p
 settings file's, or the flags' (`--arm`, or `--knob` with `--levels`).  Every task is made, the
 contrast is checked through the pin ledger seed by seed, and only then are the files written,
 one per arm, each line the task in the wire form other runners read; `--print` sends the same
-lines to stdout and `--show` prints one task in full and writes nothing.
+lines to stdout and `--show` prints one task in full and writes nothing.  On the user's own tools
+(a settings file with `[own]`) the tasks are the own generator's, written in the own export's
+wire form; there is no pin ledger there, the contrast being the generator's own.
 """
 
 from __future__ import annotations
@@ -21,10 +23,12 @@ from poisson_tasks.cli._common import (
     arm_folder,
     load_settings,
     need_tokenizer,
+    own_plan_words,
     plan_words,
     refuse_overwrite,
     resolve,
     settings_exist,
+    settings_root,
     shown,
 )
 from poisson_tasks.cli._result import Part, Refusal, Result, Row, Usage
@@ -101,7 +105,7 @@ def _plan(ctx: Context) -> tuple[Any, Path, int]:
             [ctx.command("init")],
         )
     settings = load_settings(ctx)
-    plan = resolve(settings)
+    plan = resolve(settings, settings_root(ctx))
     folder = Path(ctx.config_path).parent / settings.output.tasks
     return plan, folder, settings.limits.max_model_calls
 
@@ -119,7 +123,19 @@ def generate(ctx: Context) -> Result:
 
     made: dict[Any, list[Any]] = {spec: [] for spec in plan.arms}
     sentences: list[str] = []
-    for index, seed in enumerate(plan.seeds):
+    if plan.own is not None:
+        from poisson_tasks import runs
+
+        try:
+            for spec in plan.arms:
+                made[spec] = list(runs.own_bundles(plan, spec, plan.seeds))
+        except ValueError as refused:
+            raise Refusal(str(refused)) from None
+        sentences.append(
+            "none on your tools: each arm's tasks differ in the knob's level alone by the "
+            "generator's own construction, and there is no built-in table to hold fixed"
+        )
+    for index, seed in enumerate(plan.seeds if plan.own is None else ()):
         bundles = {spec: tasks.generate(spec, seed) for spec in plan.arms}
         for spec, bundle in bundles.items():
             made[spec].append(bundle)
@@ -140,7 +156,13 @@ def generate(ctx: Context) -> Result:
 
     from poisson_tasks.export import task_from_bundle
 
+    if plan.own is not None:
+        from poisson_tasks.own.export import task_from_bundle as own_task_from_bundle
+
     def line(bundle: Any) -> str:
+        if plan.own is not None:
+            own_text: str = own_task_from_bundle(bundle).data.model_dump_json()
+            return own_text
         text: str = task_from_bundle(bundle).data.model_dump_json()
         return text
 
@@ -159,11 +181,15 @@ def generate(ctx: Context) -> Result:
         path.write_text("".join(line(bundle) + "\n" for bundle in made[spec]), encoding="utf-8")
         wrote.append(f"{shown(path)} ({_format.plural(len(made[spec]), 'task')})")
     total = sum(len(bundles) for bundles in made.values())
+    rows: list[Any] = [Row("pin ledger", " ".join(sentences))]
+    if plan.own is not None:
+        rows.append(Row("your tools", own_plan_words(plan)))
+    rows.append(Row("wrote", ", ".join(wrote)))
     return Result(
         schema=SCHEMA, verdict="ok",
         sentence=f"generated {_format.plural(total, 'task')}: {plan_words(plan)}, no model and "
                  "no network",
-        rows=[Row("pin ledger", " ".join(sentences)), Row("wrote", ", ".join(wrote))],
+        rows=rows,
         next=[ctx.command("run")],
         data={"tasks": total, "files": [str(path) for path in paths], "pin_ledger": sentences},
     )
@@ -182,13 +208,27 @@ def task_name(arm_id: str, place: int | None, seed: int) -> str:
     return f"{arm_id} task {place} (seed {seed})"
 
 
+def _one_task(plan: Any, spec: Any, seed: int) -> Any:
+    """One task of the plan: the built-in generator's, or the own generator's on own tools."""
+    from poisson_tasks import tasks
+
+    if plan.own is not None:
+        from poisson_tasks import runs
+
+        try:
+            return runs.own_bundles(plan, spec, [seed])[0]
+        except ValueError as refused:
+            raise Refusal(str(refused)) from None
+    return tasks.generate(spec, seed)
+
+
 def pick_task(plan: Any, spec: Any, place: int | None, seed: int | None) -> tuple[Any, str]:
     """The bundle `--task N` or `--seed S` names in the plan, and its name."""
-    from poisson_tasks import knobs, tasks
+    from poisson_tasks import knobs
 
     arm_id = knobs.arm_id(spec)
     if seed is not None:
-        return tasks.generate(spec, seed), task_name(arm_id, None, seed)
+        return _one_task(plan, spec, seed), task_name(arm_id, None, seed)
     place = 1 if place is None else place
     if place < 1 or place > len(plan.seeds):
         raise Refusal(
@@ -196,7 +236,18 @@ def pick_task(plan: Any, spec: Any, place: int | None, seed: int | None) -> tupl
             f"{_format.plural(len(plan.seeds), 'task')} per level, counted from 1"
         )
     chosen = plan.seeds[place - 1]
-    return tasks.generate(spec, chosen), task_name(arm_id, place, chosen)
+    return _one_task(plan, spec, chosen), task_name(arm_id, place, chosen)
+
+
+def _verify_fn(bundle: Any) -> Any:
+    """The verifier the task was generated with: the own verdict for a task on own tools."""
+    from poisson_tasks import tasks
+
+    if hasattr(bundle, "set_name") and hasattr(bundle, "file_digest"):
+        from poisson_tasks.own import verdict as own_verdict
+
+        return own_verdict.verify
+    return tasks.verify
 
 
 def wrong_answers(bundle: Any) -> list[tuple[str, str, str, bool]]:
@@ -205,6 +256,7 @@ def wrong_answers(bundle: Any) -> list[tuple[str, str, str, bool]]:
     from poisson_tasks import outcomes, tasks
 
     fmt = tasks.FormatSpec(name="direct", markers=())
+    verify = _verify_fn(bundle)
     out = []
     for name, calls in bundle.negative_controls.items():
         limit = name == "turn_limit"
@@ -212,7 +264,7 @@ def wrong_answers(bundle: Any) -> list[tuple[str, str, str, bool]]:
                       for call in calls)
         if not limit:
             turns += (tasks.Turn(content="Done.", calls=(), finish_reason="stop"),)
-        verdict = tasks.verify(bundle, turns, not limit, limit, fmt)
+        verdict = verify(bundle, turns, not limit, limit, fmt)
         expected = name.split("_clause")[0]
         out.append((name, verdict.label, outcomes.describe(verdict), verdict.label == expected))
     return out
@@ -225,7 +277,7 @@ def reference_verdict(bundle: Any) -> Any:
     turns = tuple(tasks.Turn(content="", calls=(call,), finish_reason="tool_calls")
                   for call in bundle.reference_calls)
     turns += (tasks.Turn(content="Done.", calls=(), finish_reason="stop"),)
-    return tasks.verify(bundle, turns, True, False, fmt)
+    return _verify_fn(bundle)(bundle, turns, True, False, fmt)
 
 
 def _show(ctx: Context, plan: Any, turn_cap: int) -> Result:

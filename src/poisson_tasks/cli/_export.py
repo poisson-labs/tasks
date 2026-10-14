@@ -22,6 +22,7 @@ from poisson_tasks.cli._common import (
     plan_words,
     refuse_overwrite,
     resolve,
+    settings_root,
     shown,
 )
 from poisson_tasks.cli._result import Part, Refusal, Result, Row, Usage
@@ -59,7 +60,7 @@ def export(ctx: Context) -> Result:
         providers.refuse_plain_http_key(settings.model)
     except config.ConfigError as refused:
         raise Refusal(str(refused)) from None
-    plan = resolve(settings)
+    plan = resolve(settings, settings_root(ctx))
     folder = Path(args.out) if args.out is not None else Path(ctx.config_path).parent / "export"
     from poisson_tasks import runs
 

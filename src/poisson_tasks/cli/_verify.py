@@ -44,6 +44,12 @@ def _bundle(ctx: Context) -> tuple[Any, str]:
 
         rows = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
         try:
+            first_row = json.loads(rows[0]) if rows else {}
+            if isinstance(first_row, dict) and {"set_name", "file_digest"} <= set(first_row):
+                raise Refusal(
+                    f"{args.tasks} holds tasks on your own tools, which verify does not judge "
+                    "on its own yet: a run's card judges every episode on them, by replay"
+                )
             bundles = [bundle_from_data(ExportTaskData.model_validate(json.loads(row)))
                        for row in rows]
         except ValueError as refused:

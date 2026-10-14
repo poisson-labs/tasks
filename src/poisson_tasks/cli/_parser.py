@@ -108,7 +108,22 @@ _SETTING_HELP: dict[str, str] = {
     "--concurrency": "how many episodes run at once",
     "--runs-dir": "where runs are kept",
     "--tasks-dir": "where generate writes its files",
+    "--own-file": "question 6, your own tools: the tool file, an OpenAI tools file, an MCP tool "
+                  "list or an OpenAPI document, beside tasks.toml",
+    "--own-format": "with --own-file: auto, openai, mcp or openapi",
+    "--own-name": "with --own-file: the set's name, shown on the card",
+    "--own-read": "with --own-file: a tool whose effect the file does not say is a read; "
+                  "repeatable",
+    "--own-write": "with --own-file: a tool whose effect the file does not say is a write; "
+                   "repeatable",
+    "--own-intent": "with --own-file: TOOL=TEXT, what a request says instead of the tool's "
+                    "name; repeatable",
+    "--own-flow": "with --own-file: FROM.FIELD:TO.PARAM, a value from one tool's output into "
+                  "another's input, which depth and shape need; repeatable",
 }
+_OWN_METAVARS = {"--own-file": "PATH", "--own-format": "NAME", "--own-name": "NAME",
+                 "--own-read": "TOOL", "--own-write": "TOOL", "--own-intent": "TOOL=TEXT",
+                 "--own-flow": "FROM.FIELD:TO.PARAM"}
 
 
 def _default_words(flag: Any) -> str:
@@ -116,6 +131,10 @@ def _default_words(flag: Any) -> str:
         return ""
     if flag.type == "switch":
         return ""
+    if flag.flag == "--own-name":
+        return " (default: the file's name)"
+    if flag.flag.startswith("--own-"):
+        return " (default: none)" if flag.default is None else f" (default: {flag.default})"
     if flag.default is None:
         if flag.flag in ("--model", "--base-url", "--api-key-env"):
             return " (default: the preset's; no default for openai-compatible)"
@@ -142,6 +161,15 @@ def _add_setting_flags(parser: Parser) -> None:
             if flag.flag == "--base-url":
                 metavar = "URL"
             parser.add_argument(flag.flag, action=_Setting, metavar=metavar, help=help_text)
+    for flag in config.OWN_INIT_FLAGS:
+        help_text = _SETTING_HELP.get(flag.flag, flag.key) + _default_words(flag)
+        parser.add_argument(flag.flag, action=_Setting, metavar=_OWN_METAVARS[flag.flag],
+                            help=help_text)
+    parser.add_argument("--mcp-command", metavar="CMD", default=None,
+                        help="your own tools from an MCP server: the command that starts it over "
+                             "stdio; it is started once, with your consent (--yes is consent), to "
+                             "list its tools into tools.mcp.json beside tasks.toml, and stopped; "
+                             "the command itself is kept nowhere (default: none)")
 
 
 def _common(parser: Parser, *, top: bool) -> None:
@@ -211,7 +239,9 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
         "then writes tasks.toml and prints the same setup as one command. It fetches the "
         "tokenizer file first if it is missing. It spends nothing.",
         ["init", "init --yes --provider openai --spend-cap 1.00", "init --force",
-         "init --yes --recipe custom --knob depth --levels 1,3 --no-check-key"],
+         "init --yes --recipe custom --knob depth --levels 1,3 --no-check-key",
+         "init --own-file tools.json --own-flow get_order.order_id:refund_order.order_id",
+         "init --yes --mcp-command 'python my_server.py'"],
     )
     p.add_argument("--yes", action="store_true",
                    help="no questions: every answer from a flag or its default (default: ask)")
@@ -242,7 +272,8 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
                    help="an arm to generate, as depth:d3; repeatable (default: the settings "
                         "file's plan)")
     p.add_argument("--knob", metavar="NAME", default=None,
-                   help="instead of --arm: the knob, depth or distractor (default: none)")
+                   help="instead of --arm: the knob, depth or distractor; on your own tools, "
+                        "any knob the set reaches (default: none)")
     p.add_argument("--levels", metavar="L,L,…", default=None,
                    help="with --knob: the levels, comma-separated (default: every level)")
     p.add_argument("--controls", dest="controls", action="store_true", default=None,

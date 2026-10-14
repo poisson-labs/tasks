@@ -29,8 +29,10 @@ from poisson_tasks.cli._common import (
     load_settings,
     model_words,
     need_tokenizer,
+    own_plan_words,
     plan_words,
     resolve,
+    settings_root,
     shown,
 )
 from poisson_tasks.cli._result import Refusal, Result, Row, Stopped, Usage
@@ -108,7 +110,7 @@ def run(ctx: Context) -> Result:
         raise Usage("--offline skips the key check, and is taken only with --dry-run; a run "
                     "that would send something checks the key first")
     settings = load_settings(ctx)
-    plan = resolve(settings)
+    plan = resolve(settings, settings_root(ctx))
     caps = _caps(ctx, settings)
     if caps["spend_usd"] is None and caps["tokens"] is None:
         raise Refusal("the plan has no cap: set spend_usd or tokens under [limits], or pass "
@@ -152,10 +154,17 @@ def run(ctx: Context) -> Result:
         else:
             key_words = f"none needed; {check.detail}"
 
-    # the tasks and their contrast (spec §8.1 step 5)
+    # the tasks and their contrast (spec §8.1 step 5); on the user's own tools every task is
+    # made, and a tool file that no longer has the plan's digest is refused here
     from poisson_tasks import arms, knobs, tasks
 
-    for seed in plan.seeds:
+    if plan.own is not None:
+        try:
+            for spec in plan.arms:
+                runs.own_bundles(plan, spec, plan.seeds)
+        except ValueError as refused:
+            raise Refusal(str(refused)) from None
+    for seed in plan.seeds if plan.own is None else ():
         bundles = {spec: tasks.generate(spec, seed) for spec in plan.arms}
         for knob in dict.fromkeys(spec.knob for spec in plan.arms):
             group: dict[str, Any] = {knobs.arm_id(spec): bundle for spec, bundle in
@@ -194,6 +203,8 @@ def run(ctx: Context) -> Result:
                     f"{about + ', ' if about else ''}and the run stops at {cap_words}")
     rows: list[Any] = [Row("tasks", plan_words(plan) + " · " + (
         "leaky" if any(spec.strictness == "leaky" for spec in plan.arms) else "strict"))]
+    if plan.own is not None:
+        rows.append(Row("your tools", own_plan_words(plan)))
     if folder.status == "resume":
         spent_words = (f"{_format.dollars(spent_dollars)} spent" if spent_dollars is not None
                        else f"{_format.count(spent_tokens)} tokens used")

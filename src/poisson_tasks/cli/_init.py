@@ -7,6 +7,18 @@ setup as one command that asks nothing.  The dialogue goes to stderr and is read
 time from stdin.  Every answer becomes one of the library's own flags, so the file is the one
 `config.config_from_init_args` writes for them, and a flag the library refuses is refused in
 its words, exit 2.
+
+**Your own tools** (own-tools spec §8.1): question 6 lists the recipes offered on the built-in
+tasks, then "Tasks on my own tools", then choosing the knob yourself; there is one question 6.
+Choosing own tools asks for the tool file (or starts the MCP server `--mcp-command` names, with
+consent, to list its tools into `tools.mcp.json` beside the settings file, the command itself
+kept nowhere), reads it, says one summary line and each refusal, asks whether each tool of
+unknown effect reads or writes, one question per tool in the file's order (`r`, `w`, or Enter to
+leave it unknown and treated as write), then offers the recipes that apply to this set with
+`tool-choice` as the default, and after them choosing the knob yourself, which offers every knob
+the set reaches, the shipped ones first, each with the knob probe's status in words.  Under
+`--yes`, `--own-file` or `--mcp-command` says it all; without `--recipe` the set's default is
+taken, and when no recipe applies `init` refuses in one line and writes nothing.
 """
 
 from __future__ import annotations
@@ -17,10 +29,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from poisson_tasks import config, providers
+from poisson_tasks import arms, config, providers
 from poisson_tasks.cli import _format
 from poisson_tasks.cli._common import (
     Context,
+    _arms_words,
     config_words,
     host_of,
     tokenizer_present,
@@ -44,11 +57,36 @@ MEASURES = (
      "comparable with the published cards; 4,200 episodes, about $2.50 on gpt-5-nano"),
     ("custom", "Choose the knob and levels myself", ""),
 )
+OWN = "own"
+OWN_LABEL = "Tasks on my own tools: an OpenAI tools file, an MCP tool list, or an OpenAPI spec"
+CUSTOM_LABEL = "Choose the knob and levels myself"
+FILE_QUESTION = ("Your tool file: an OpenAI tools file, an MCP tool list, or an OpenAPI "
+                 "document, beside the settings file")
 KNOBS = (
     ("depth", "depth: how many chained steps away the goal is", ""),
     ("distractor", "distractor (experimental): how many of the sixteen tools are irrelevant",
      "it does not make tasks harder for either calibrated model"),
 )
+
+
+def _measures() -> list[tuple[str, str, str]]:
+    """Question 6's entries: the recipes offered on the built-in tasks in `arms.RECIPES`' order,
+    then own tools, then choosing the knob yourself (own-tools spec §8.1, knobs spec §17.4)."""
+    fixed = {name: (label, note) for name, label, note in MEASURES}
+    out: list[tuple[str, str, str]] = []
+    for name, recipe in arms.RECIPES.items():
+        if not recipe.offered:
+            continue
+        if name in fixed:
+            label, note = fixed[name]
+        else:
+            asks = recipe.asks
+            label = f"{name}: {asks[0].upper()}{asks[1:]}"
+            note = _arms_words([arms.arm_from_id(arm_id) for arm_id in recipe.arms])
+        out.append((name, label, note))
+    out.append((OWN, OWN_LABEL, ""))
+    out.append(("custom", CUSTOM_LABEL, ""))
+    return out
 
 
 def _words(settings: list[tuple[str, str | None]]) -> list[str]:
@@ -68,6 +106,15 @@ def _given(settings: list[tuple[str, str | None]], flag: str) -> str | None:
         if config.INIT_FLAG_ALIASES.get(name, name) == flag:
             found = value if value is not None else "true"
     return found
+
+
+def _every(settings: list[tuple[str, str | None]], flag: str) -> list[str]:
+    """Every value given for a repeatable flag, in order."""
+    return [value for name, value in settings if name == flag and value is not None]
+
+
+def _without(settings: list[tuple[str, str | None]], *flags: str) -> list[tuple[str, str | None]]:
+    return [(name, value) for name, value in settings if name not in flags]
 
 
 def _stopped(ctx: Context, fetched: bool) -> Stopped:
@@ -102,6 +149,7 @@ def init(ctx: Context) -> Result:
     if not args.yes:
         ui.intro(f"Poisson Tasks setup. This writes {ctx.config_path} here and spends nothing. "
                  "Ctrl-C stops without writing.")
+    own_setup: _OwnSetup | None = None
     try:
         if not present and args.fetch is not False:
             wanted = args.yes or args.fetch is True or ui.confirm(TOKENIZER_QUESTION, True)
@@ -124,7 +172,16 @@ def init(ctx: Context) -> Result:
         check: bool | None = args.check_key
         found: Any = None
         if not args.yes:
-            settings, found, check = _dialogue(ctx, settings, present)
+            settings, found, check, own_setup = _dialogue(ctx, settings, present)
+        elif args.mcp_command is not None or _given(settings, "--own-file") is not None:
+            # --yes on your own tools: the file (or the listed server) read and summarised,
+            # the set's default recipe when none is given (own-tools spec §8.1 as ruled)
+            if args.mcp_command is not None:
+                settings = _list_server(ctx, settings, consent=True)
+            own_setup = _read_own(ctx, settings)
+            _say_summary(ctx, own_setup)
+            if _given(settings, "--recipe") is None:
+                settings.append(("--recipe", _default_recipe(own_setup)))
     except KeyboardInterrupt:
         raise _stopped(ctx, fetched) from None
 
@@ -133,9 +190,15 @@ def init(ctx: Context) -> Result:
         made = config.config_from_init_args(flags)
     except config.ConfigError as refused:
         raise Usage(str(refused)) from None
+    if made.own is not None and present:
+        # the recipe, or the knob and its levels, on this set: the library's refusal, exit 2
+        try:
+            config.resolve_plan(made, root=path.parent)
+        except config.ConfigError as refused:
+            raise Usage(str(refused)) from None
     estimate = None
     if made.model.price is not None and _given(settings, "--spend-cap") is None and present:
-        estimate = _estimate(made)
+        estimate = _estimate(made, path.parent)
         if estimate is not None and estimate.dollars_expected is not None:
             made = config.config_from_init_args(flags, expected_dollars=estimate.dollars_expected)
 
@@ -169,6 +232,10 @@ def init(ctx: Context) -> Result:
                                      f"{ctx.command('doctor', '--fix', settings=False)} "
                                      "fetches it"))
     rows.append(Row("key", _key_words(made, found, check)))
+    data: dict[str, Any] = {}
+    if own_setup is not None:
+        rows.append(Row("your tools", _tools_row(own_setup)))
+        data["tools"] = _tools_data(own_setup)
     rows.append(Command("the same setup, without questions:", command))
     sentence = f"wrote {ctx.config_path}: {config_words(made)}, against {made.model.name}"
     return Result(
@@ -180,6 +247,7 @@ def init(ctx: Context) -> Result:
                     "status": found.status if found is not None else
                     ("not checked" if made.model.api_key_env else "none needed")},
             "command": command,
+            **data,
         },
     )
 
@@ -191,9 +259,9 @@ def _fetch_problem(reason: BaseException) -> str:
     return f"the tokenizer file could not be fetched ({reason})"
 
 
-def _estimate(made: Any) -> Any:
+def _estimate(made: Any, root: Path | None = None) -> Any:
     try:
-        plan = config.resolve_plan(made)
+        plan = config.resolve_plan(made, root=root)
         from poisson_tasks import runs
 
         return runs.estimate(plan)
@@ -220,11 +288,13 @@ def _key_words(made: Any, found: Any, check: bool | None) -> str:
 
 def _dialogue(
     ctx: Context, settings: list[tuple[str, str | None]], present: bool
-) -> tuple[list[tuple[str, str | None]], Any, bool | None]:
+) -> tuple[list[tuple[str, str | None]], Any, bool | None, _OwnSetup | None]:
     """Ask the questions, each defaulting to the flag given, and return the flags the answers
-    make, the key check made (or `None`) and whether a check was declined."""
+    make, the key check made (or `None`), whether a check was declined, and the tool file read
+    when own tools were chosen."""
     ui = ctx.ui
     answers: list[tuple[str, str | None]] = list(settings)
+    own_setup: _OwnSetup | None = None
 
     def set_flag(flag: str, value: str | None) -> None:
         answers.append((flag, value))
@@ -328,13 +398,25 @@ def _dialogue(
         set_flag("--no-price", None)
 
     # 6. what to measure
+    measures = _measures()
     recipe_given = _given(settings, "--recipe")
-    recipe_names = [name for name, _, _ in MEASURES]
-    default = recipe_names.index(recipe_given) if recipe_given in recipe_names else 0
+    recipe_names = [name for name, _, _ in measures]
+    if _given(settings, "--own-file") is not None or ctx.args.mcp_command is not None:
+        default = recipe_names.index(OWN)
+    elif recipe_given in recipe_names:
+        default = recipe_names.index(recipe_given)
+    else:
+        default = 0
     recipe = recipe_names[ui.choice(6, "What do you want to measure?",
-                                    [(label, note) for _, label, note in MEASURES], default)]
-    set_flag("--recipe", recipe)
-    if recipe == "custom":
+                                    [(label, note) for _, label, note in measures], default)]
+    if recipe == OWN:
+        answers, own_setup = _own_dialogue(ctx, answers)
+        recipe = _given(answers, "--recipe") or ""
+    else:
+        set_flag("--recipe", recipe)
+    if recipe == "custom" and own_setup is not None:
+        pass  # asked in the own-tools dialogue
+    elif recipe == "custom":
         knob_given = _given(settings, "--knob")
         knob_names = [name for name, _, _ in KNOBS]
         default = knob_names.index(knob_given) if knob_given in knob_names else 0
@@ -391,7 +473,7 @@ def _dialogue(
     except config.ConfigError as refused:
         raise Usage(str(refused)) from None
     if so_far.model.price is not None:
-        estimate = _estimate(so_far) if present else None
+        estimate = _estimate(so_far, Path(ctx.config_path).parent) if present else None
         expected = estimate.dollars_expected if estimate is not None else None
         cap_default = config.default_spend_cap(expected)
         if estimate is not None and expected is not None:
@@ -414,7 +496,283 @@ def _dialogue(
                         shown=given_cap or "2,000,000", validate=_whole)
         if given_cap is not None or answer.replace(",", "").strip() != "2000000":
             set_flag("--token-cap", answer.replace(",", "").strip())
-    return answers, found, check
+    return answers, found, check, own_setup
+
+
+# ---------------------------------------------------------------------------
+# your own tools (own-tools spec §8.1)
+# ---------------------------------------------------------------------------
+
+
+class _OwnSetup:
+    """The tool file as `init` read it: the reading, the set with the declared effects, the
+    declared flows and the file's words."""
+
+    def __init__(self, reading: Any, toolset: Any, flows: tuple[Any, ...], file: str) -> None:
+        self.reading = reading
+        self.toolset = toolset
+        self.flows = flows
+        self.file = file
+
+    @property
+    def unknown(self) -> list[str]:
+        return [tool.name for tool in self.toolset.tools if tool.effect == "unknown"]
+
+
+def _provisional_own(settings: list[tuple[str, str | None]]) -> Any:
+    """The `[own]` table the flags given so far make, through the library, or a usage error."""
+    try:
+        made = config.config_from_init_args(_words(settings))
+    except config.ConfigError as refused:
+        raise Usage(str(refused)) from None
+    return made.own
+
+
+def _read_own(ctx: Context, settings: list[tuple[str, str | None]]) -> _OwnSetup:
+    """Read the tool file the flags name, with the declared effects and flows; a file that
+    cannot be read, or that the readers refuse as a whole, is a refusal in one line."""
+    from poisson_tasks import own
+    from poisson_tasks.own.generator import Flow, check_flows
+
+    table = _provisional_own(settings)
+    if table is None:
+        raise Refusal("no tool file: pass --own-file PATH, or --mcp-command CMD to list a "
+                      "server's tools")
+    path = config.own_file_path(table, Path(ctx.config_path).parent)
+    try:
+        data = Path(path).read_bytes()
+    except OSError as error:
+        raise Refusal(f"the tool file {table.file} cannot be read ({error.strerror})") from None
+    name = table.name if table.name is not None else Path(table.file).stem
+    try:
+        reading = own.read_tools(data, format=table.format, name=name)
+        toolset = own.apply_effects(reading.toolset, read=table.read, write=table.write)
+    except own.OwnToolsError as refused:
+        lines = [str(refused)] + [each.line for each in getattr(refused, "refused", ()) or ()]
+        raise Refusal(f"{table.file}: " + "; ".join(lines)) from None
+    flows = tuple(Flow(*flow) for flow in table.flows)
+    try:
+        check_flows(toolset, flows)
+    except ValueError as refused:
+        raise Usage(f"--own-flow: {refused}") from None
+    return _OwnSetup(reading, toolset, flows, table.file)
+
+
+def _say_summary(ctx: Context, setup: _OwnSetup) -> None:
+    """One summary line, then each refusal (own-tools spec §8.1), and the sentence on depth
+    and shape when no flow is declared (§6.2)."""
+    from poisson_tasks import own
+    from poisson_tasks.own.generator import UNAVAILABLE_WITHOUT_FLOWS
+
+    ui = ctx.ui
+    lines = own.summary(setup.reading).splitlines()
+    refused = len(setup.reading.refused)
+    ui.say(lines[0])
+    for line in lines[1:1 + refused]:
+        ui.say(line)
+    for line in lines[1 + refused:]:
+        ui.say(line)
+    if not setup.flows:
+        ui.say(f"depth and shape are unavailable without flows: {UNAVAILABLE_WITHOUT_FLOWS}",
+               status="warn")
+
+
+def _list_server(
+    ctx: Context, settings: list[tuple[str, str | None]], *, consent: bool
+) -> list[tuple[str, str | None]]:
+    """Start the MCP server `--mcp-command` names, once, to list its tools into
+    `tools.mcp.json` beside the settings file, and point `--own-file` at that file; the
+    command is kept nowhere (ruled 2026-10-13, yes/nos 25 and 26)."""
+    from poisson_tasks import own
+
+    command = str(ctx.args.mcp_command)
+    if not consent:
+        raise Refusal(f"not started: {command} would be started only with your consent")
+    try:
+        with ctx.ui.status("listing the server's tools"):
+            listed = own.list_mcp_tools(command, consent=True)
+    except own.OwnToolsError as refused:
+        raise Refusal(str(refused)) from None
+    target = Path(ctx.config_path).parent / config.OWN_LIST_FILE
+    if target.exists() and target.read_bytes() != listed and not ctx.args.force:
+        raise Refusal(
+            f"{target} is already there and holds another list; pass --force to write it again",
+            [ctx.command("init", "--force")],
+        )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(target.name + ".part")
+    temporary.write_bytes(listed)
+    temporary.replace(target)
+    if not ctx.args.yes:
+        ctx.ui.say(f"listed {len(json_tools(listed))} tools into {target.name}", status="ok")
+    return [*_without(settings, "--own-file"), ("--own-file", config.OWN_LIST_FILE)]
+
+
+def json_tools(listed: bytes) -> list[Any]:
+    import json
+
+    tools = json.loads(listed).get("tools")
+    return list(tools) if isinstance(tools, list) else []
+
+
+def _default_recipe(setup: _OwnSetup) -> str:
+    """The set's default recipe, or a refusal in one line naming what is missing (ruled
+    2026-10-13, yes/nos 20 and 21, narrowed 2026-10-13 23:26)."""
+    from poisson_tasks.own import recipes
+
+    found = recipes.default_recipe(setup.toolset, flows=setup.flows)
+    if found is not None:
+        return str(found)
+    raise Refusal(_no_recipe_words(setup))
+
+
+def _no_recipe_words(setup: _OwnSetup) -> str:
+    from poisson_tasks.own import recipes
+
+    shipped = list(arms.SHIPPED_KNOBS)
+    reached = recipes.offered_knobs(setup.toolset, flows=setup.flows)
+    missing = []
+    if not setup.flows:
+        missing.append("a flow ([[own.flow]], --own-flow) for depth")
+    if shipped:
+        missing.append(f"a level of {_format.words(shipped, 'or')}, the knobs that shipped, "
+                       "which this set does not reach")
+    else:
+        missing.append("a knob that shipped from the knob probe, of which there is none yet")
+    knobs = (f"; the knobs this set reaches are {_format.words(reached)}, which --recipe custom "
+             "--knob takes") if reached else ""
+    return (f"no recipe applies to {setup.toolset.name} ({setup.file}): it needs "
+            f"{_format.words(missing)}{knobs}")
+
+
+def _tools_row(setup: _OwnSetup) -> str:
+    from poisson_tasks import own
+
+    lines = own.summary(setup.reading).splitlines()
+    return (f"{setup.toolset.name}: {lines[0]}; {lines[1 + len(setup.reading.refused)]}; the "
+            "responses are simulated from your schemas, and your backend is never called")
+
+
+def _tools_data(setup: _OwnSetup) -> dict[str, Any]:
+    toolset = setup.toolset
+    return {
+        "name": toolset.name, "file": setup.file, "tools": len(toolset.tools),
+        "source_format": toolset.source_format, "file_digest": toolset.file_digest,
+        "refused": [each.line for each in setup.reading.refused],
+        "unknown": setup.unknown, "flows": len(setup.flows),
+    }
+
+
+def _own_dialogue(
+    ctx: Context, answers: list[tuple[str, str | None]]
+) -> tuple[list[tuple[str, str | None]], _OwnSetup]:
+    """Own tools chosen at question 6: the file, its summary, the unknowns, the recipes that
+    apply to this set and, after them, the knob menu of every knob the set reaches."""
+    from poisson_tasks.own import card as own_card
+    from poisson_tasks.own import recipes
+    from poisson_tasks.own.generator import knob_levels
+
+    ui = ctx.ui
+    if ctx.args.mcp_command is not None:
+        command = str(ctx.args.mcp_command)
+        wanted = ui.confirm(
+            f"Start {command} to list its tools? It is stopped once the list is read, and no "
+            "tool of it is called.", True, indent="   ")
+        answers = _list_server(ctx, answers, consent=wanted)
+    else:
+        given = _given(answers, "--own-file")
+        root = Path(ctx.config_path).parent
+
+        def readable(text: str) -> str | None:
+            if not text.strip():
+                return "A path is needed."
+            if not (root / text.strip()).is_file():
+                return f"There is no file at {text.strip()}."
+            return None
+
+        file = ui.ask(None, FILE_QUESTION, given, validate=readable)
+        answers = [*_without(answers, "--own-file"), ("--own-file", file.strip())]
+    setup = _read_own(ctx, answers)
+    _say_summary(ctx, setup)
+
+    # the tools of unknown effect, one question each, in the file's order (yes/no 24)
+    declared = set(_every(answers, "--own-read")) | set(_every(answers, "--own-write"))
+    for tool in setup.unknown:
+        if tool in declared:
+            continue
+        answer = ui.ask(
+            None, f"{tool}: does it read, or write? r, w, or Enter to leave it unknown "
+                  "(treated as write)", None,
+            validate=lambda text: None if text.strip().lower() in ("", "r", "w", "read", "write")
+            else "r, w, or Enter.",
+        ).strip().lower()
+        if answer in ("r", "read"):
+            answers.append(("--own-read", tool))
+        elif answer in ("w", "write"):
+            answers.append(("--own-write", tool))
+    if any(flag in ("--own-read", "--own-write") for flag, _ in answers):
+        setup = _read_own(ctx, answers)
+
+    # the recipes that apply to this set, then choosing the knob yourself
+    table = recipes.recipes_for(setup.toolset, flows=setup.flows)
+    offered = [(name, recipe) for name, recipe in table.items() if recipe.offered]
+    options: list[tuple[str, str]] = []
+    names: list[str] = []
+    for name, recipe in offered:
+        asks = recipe.asks
+        used = [arms.arm_from_id(arm, generator_version="own-1") for arm in recipe.arms]
+        options.append((f"{name}: {asks[0].upper()}{asks[1:]}", _arms_words(used)))
+        names.append(name)
+    options.append((CUSTOM_LABEL, "every knob this set reaches"))
+    names.append("custom")
+    if not offered:
+        ui.say(_no_recipe_words(setup), status="warn")
+    recipe_given = _given(answers, "--recipe")
+    default_name = recipes.default_recipe(setup.toolset, flows=setup.flows) or "custom"
+    default = names.index(recipe_given) if recipe_given in names else names.index(default_name)
+    chosen = names[ui.choice(6, f"What do you want to measure on {own_words_of(setup)}?",
+                             options, default)]
+    answers.append(("--recipe", chosen))
+    if chosen != "custom":
+        return answers, setup
+
+    # the knob menu: every knob the set reaches, the shipped ones first, with the probe's status
+    reached = recipes.offered_knobs(setup.toolset, flows=setup.flows)
+    shipped = recipes.shipped_knobs(setup.toolset, flows=setup.flows)
+    ordered = [*shipped, *(knob for knob in reached if knob not in shipped)]
+    statuses = own_card.probe_statuses(ordered)
+    knob_options = []
+    for knob in ordered:
+        if knob in statuses:
+            said = "; ".join(f"{status} on {model}" for model, status in statuses[knob].items())
+            note = f"the knob probe on the built-in tasks: {said}"
+        else:
+            note = "measured on the published cards, not by the knob probe"
+        if knob in shipped:
+            note += "; shipped"
+        knob_options.append((knob, note))
+    knob_given = _given(answers, "--knob")
+    knob_default = ordered.index(knob_given) if knob_given in ordered else 0
+    knob = ordered[ui.choice(None, "The knob", knob_options, knob_default)]
+    answers.append(("--knob", knob))
+    candidates = knob_levels(setup.toolset, knob, flows=setup.flows)
+    levels_default = _given(answers, "--levels") or ",".join(str(x) for x in candidates)
+    chosen_levels = ui.ask(None, f"The levels, from {_format.words(candidates)}, comma-separated",
+                           levels_default)
+    answers.append(("--levels", chosen_levels.replace(" ", "")))
+    strictness = ui.ask(
+        None, "Which strictness counts as passing on the progress line and in verify's exit "
+              "code?",
+        _given(answers, "--strictness") or "strict",
+        hint="Both are always measured and both are on the card. strict: stop exactly at the "
+             "goal and touch nothing else; leaky: reaching the goal is enough.",
+    )
+    answers.append(("--strictness", strictness.strip()))
+    return answers, setup
+
+
+def own_words_of(setup: _OwnSetup) -> str:
+    return f"your tools ({setup.toolset.name})"
 
 
 def _valid_price(text: str) -> str | None:

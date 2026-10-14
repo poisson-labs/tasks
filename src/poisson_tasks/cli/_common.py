@@ -112,11 +112,18 @@ def load_settings(ctx: Context) -> Any:
         raise Refusal(str(refused)) from None
 
 
-def resolve(settings: Any) -> Any:
+def resolve(settings: Any, root: str | os.PathLike[str] | None = None) -> Any:
+    """The settings file's plan; `root` is the settings file's folder, where a tool file named
+    by `[own]` is read from."""
     try:
-        return config.resolve_plan(settings)
+        return config.resolve_plan(settings, root=root)
     except config.ConfigError as refused:
         raise Refusal(str(refused)) from None
+
+
+def settings_root(ctx: Context) -> Path:
+    """The settings file's folder: where `[own] file`, the runs and the tasks are relative to."""
+    return Path(ctx.config_path).parent
 
 
 # ---------------------------------------------------------------------------
@@ -158,11 +165,28 @@ def plan_words(plan: Any) -> str:
     return text
 
 
+def own_words(settings: Any) -> str:
+    """`your tools (acme-support)`, or `your tools (tools.json)` when the set is unnamed, from
+    the settings file alone."""
+    own = settings.own
+    name = own.name if own.name is not None else own.file
+    return f"your tools ({name})"
+
+
 def config_words(settings: Any) -> str:
     """The same words from the settings file alone, with no tokenizer: the recipe's arms, or the
-    custom knob and levels, the tasks and the attempts."""
+    custom knob and levels, the tasks and the attempts; on the user's own tools the recipe or the
+    knob by name, since which arms the set reaches needs the tool file."""
     measure = settings.measure
-    if measure.preset == "custom":
+    if settings.own is not None:
+        if measure.preset == "custom":
+            levels = list(measure.levels or ())
+            text = f"{measure.knob or 'depth'} at " + (
+                _format.words(levels) if levels else "every level your tools reach")
+        else:
+            text = f"the {measure.preset} recipe"
+        text += f" on {own_words(settings)}"
+    elif measure.preset == "custom":
         knob = measure.knob or "depth"
         levels = list(measure.levels or ())
         text = _knob_words(knob, levels, bool(measure.controls))
@@ -182,6 +206,14 @@ def config_words(settings: Any) -> str:
     if measure.preset == "custom" and measure.strictness == "leaky":
         text += ", leaky"
     return text
+
+
+def own_plan_words(plan: Any) -> str:
+    """`acme-support, 5 tools from tools.json; ...` for a resolved plan on the user's own tools."""
+    own = plan.own
+    return (f"{own['name']}, {_format.plural(int(own['tools']), 'tool')} from "
+            f"{shown(str(own['file']))}; the responses are simulated from your schemas, and your "
+            "backend is never called")
 
 
 def model_words(model: Any) -> str:
