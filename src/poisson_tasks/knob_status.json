@@ -6,9 +6,9 @@
     "tasks": 60,
     "attempts": 2,
     "measure": "strict pass@1",
-    "contrast": "the base arm's strict pass@1 minus the other arm's, paired over the tasks",
+    "contrast": "a contrast's delta is arm a's strict pass@1 minus arm b's, paired over the tasks",
     "interval": "95%, task-clustered bootstrap, 2,000 resamples, seed 20260922",
-    "bites": "the interval excludes zero and the drop is at least 0.15 (for shape, either way, and the length control differs from the base by less than that); a knob with a control arm needs both contrasts",
+    "bites": "the base against the top: the interval excludes zero and the drop is at least 0.15; for faults, block and arguments the control arm against the top meets the same rule; for shape the drop counts either way, and the length control differs from the base by less than 0.15",
     "cannot_tell": "the base arm's strict pass@1 is below 0.15 or above 0.85, so a change of 0.15 could not show in both directions; a knob is called neither a non-biter nor easier at the top there",
     "floor": 0.15,
     "ceiling": 0.85
