@@ -7,8 +7,8 @@ published card covers gets the one note saying so; the census takes them.  Sprea
 without tasks: once it has them no knob is left for the generator or `eval` to refuse for want of
 tasks, which the frozen `tests/test_k2_eval.py` held for every knob in turn (its list of arms loses
 its last arm, `spread:p2`, in this session's retrofit commit, a ruling).  `tasks.toml` and `init`
-do not offer information spread before its probe (spec K-P3), nothing is offered before a probe,
-and the shipped-knobs list the recipes read stays empty.
+do not offer information spread (spec K-P3); the knob probe did not ship it (ruled 2026-10-14), so
+the shipped-knobs list the recipes read leaves it out.
 
 Shapes decided here
 -------------------
@@ -33,10 +33,11 @@ it, and a build of spread changes the list of knobs it names.  This passes on `m
 holds the one-line rule over that list's rewording; the list's words are not pinned.  (The generator's own refusal of a knob without tasks can no
 longer be reached: `ArmSpec` refuses a name that is no knob before the generator sees it.)
 
-**4. Nothing is offered before its probe**: the project file and `init`'s flags refuse `spread` by
-the key that names it; the file `init` writes names none of the seven knobs without a probe; the
-package's list of shipped knobs is empty, so the recipe that measures spread
-(`reading-and-filling`) is not offered and waits on it.
+**4. Spread is not offered**: the project file and `init`'s flags refuse `spread` by the key that
+names it; the file `init` writes names none of the seven probe knobs; the knob probe did not ship
+spread (ruled 2026-10-14, a recorded retrofit of this file), so the package's list of shipped knobs
+leaves it out and the recipe that measures spread (`reading-and-filling`) is not offered and waits
+on it.
 """
 
 from __future__ import annotations
@@ -153,7 +154,7 @@ def custom_file(knob: str) -> str:
     return text.replace(line, f'knob = "{knob}"')
 
 
-def test_tasks_toml_and_init_do_not_offer_spread_and_nothing_has_shipped() -> None:
+def test_tasks_toml_and_init_do_not_offer_spread_and_it_has_not_shipped() -> None:
     """Shape 4."""
     written = custom_file("depth")
     config_module.loads_config(written)
@@ -166,6 +167,6 @@ def test_tasks_toml_and_init_do_not_offer_spread_and_nothing_has_shipped() -> No
     with pytest.raises(config_module.ConfigError) as flagged:
         config_module.config_from_init_args(["--measure", "custom", "--knob", "spread"])
     assert flagged.value.key == "measure.knob"
-    assert tuple(arms_module.SHIPPED_KNOBS) == ()
+    assert "spread" not in arms_module.SHIPPED_KNOBS
     recipe = arms_module.RECIPES["reading-and-filling"]
     assert not recipe.offered and "spread" in recipe.waiting
