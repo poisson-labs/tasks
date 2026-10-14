@@ -644,7 +644,8 @@ def test_the_outcome_carries_the_disclosure_line_with_the_counts(
     assert len(lines) == 1, lines
     line = lines[0]
     for part in (MODEL, "base arms: 1 of 21 episodes made no tool call", "2026-10-13",
-                 "1 of 21", "10%", "3 or more", REASON, "No episode was run again"):
+                 "1 of 21 made no tool call, so it passed", "10%", "3 or more", REASON,
+                 "No episode was run again"):
         assert part in line, part
     facts = json.loads((folder / "records" / "facts.json").read_text())["phase1_regate"]
     assert (facts["no_call"], facts["episodes"], facts["passed"]) == (1, 21, True)
@@ -684,6 +685,8 @@ def test_a_reason_over_several_lines_stays_on_the_one_disclosure_line() -> None:
     line = probe.phase1_disclosure(MODEL, regated)
     assert "\n" not in line and "\t" not in line
     assert line.endswith("first line second line third")
+    seventy = probe.phase1_disclosure(MODEL, {**regated, "episodes": 70, "no_call": 7})
+    assert "(8 or more)" in seventy and "7 of 70 made no tool call, so it passed" in seventy
 
 
 # ---------------------------------------------------------------------------
