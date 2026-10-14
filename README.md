@@ -86,7 +86,7 @@ using the tools it is given and nothing else.
 | a locally served model's card | **built and run** -- a Colab notebook that serves `Qwen3-8B` with vLLM on an L4 and runs the same card, resumable after a dropped runtime |
 | your own tools | **built, the library** -- an OpenAI tools file, an MCP tool list or an OpenAPI document is read into one form, with a plain one-line refusal for each tool it cannot handle, and deterministic, checkable tasks are made on those tools, answered by a simulator shaped by your schemas, with every knob (each carrying the knob probe's status on the two models it ran), a verdict by replay, an export under the taskset `poisson-tasks-own` and a card that says first that your backend was never called; `init` asking for the file and `run` on an own plan arrive with the next part |
 
-"Built" means covered by the test suite: **4051 tests**, and `python -m pytest -q` is the check (62 of them, the settings file, the run and the command on your own tools, wait for the next part and fail until it lands).
+"Built" means covered by the test suite: **4093 tests**, and `python -m pytest -q` is the check (62 of them, the settings file, the run and the command on your own tools, wait for the next part and fail until it lands).
 
 ---
 
@@ -137,7 +137,7 @@ Sanity check:
 Run it from the repository root. A bare `pytest` collects the same tests: `pyproject.toml`
 puts the root on the import path, which the tests that import one another need.
 
-**4051 tests, 3628 passed, 62 waiting for the next part of own tools and 361 skipped.** The skipped ones need Proofload -- the
+**4093 tests, 3670 passed, 62 waiting for the next part of own tools and 361 skipped.** The skipped ones need Proofload -- the
 adapter's tests and the bridge between the two scorers -- and they say so.
 
 ### 2. Generate One Task, and Judge Every Answer It Ships With
@@ -273,7 +273,7 @@ outcomes, and runs a `proofload diff` of the two depth arms. Every episode comes
 seconds and writes about 80 KB under `examples/proofload_sweep/example-store`, which is
 git-ignored.
 
-With Proofload installed, `python -m pytest -q` is **3989 passed, 0 skipped**, the 62 that wait for the next part apart.
+With Proofload installed, `python -m pytest -q` is **4031 passed, 0 skipped**, the 62 that wait for the next part apart.
 
 Without it, `import poisson_tasks` and every module under it work as they do with it.
 Only `poisson_tasks.adapter` needs Proofload, and importing it without Proofload raises
