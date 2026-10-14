@@ -5,6 +5,21 @@ unreleased and sits at version `0.0.1`.
 
 ## Unreleased
 
+### Tasks on your own tools
+
+- **Tasks on your own tools.** Bring an OpenAI tools file, an MCP tool list or an OpenAPI 3.0 or
+  3.1 document, and Tasks makes deterministic, checkable tasks on those tools, answered by a
+  simulator shaped by your schemas; your backend is never called. The knobs that shipped apply to
+  your tools (depth and shape when you declare flows); every arm but block offers your whole set,
+  and the card says first that it measured your tools with simulated responses, is read level
+  against first level within itself, and is never pooled with a published card. The export serves
+  an own-tools task under the taskset `poisson-tasks-own`. This is the library: `init` asking for
+  the file, `tasks.toml`'s `[own]` table and `run` on an own plan arrive with the next part.
+- **Library names added:** `poisson_tasks.own.simulator`, `.generator`, `.verdict`, `.recipes`,
+  `.export` and `.card`, the top-level module `poisson_tasks_own`, `Provenance.tools` (the
+  own-tools provenance kind, absent from every published block), and the wider list of JSON Schema
+  keywords the readers refuse (`own._schema.UNCHECKABLE`, nineteen more than spec §3's five).
+
 ### The command
 
 - **The command.** `poisson-tasks` (and `python -m poisson_tasks`) puts the library behind seven
