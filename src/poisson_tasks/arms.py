@@ -1,5 +1,5 @@
-"""Arms by their readable id, the one generator-version constant, the pin ledger in words, and
-the recipes.
+"""Arms by their readable id, the one generator-version constant, the pin ledger in words, the
+recipes, and each probe knob's measured status.
 
 The names cannot go in `knobs.py`, whose public surface frozen tests pin exactly;
 `tests/test_fd1_arms.py` and `tests/test_r0_recipes.py` say what each one does.  Importing this
@@ -15,9 +15,12 @@ environment, and `export` is imported by `calibration`.  The tests hold this cop
 from __future__ import annotations
 
 import dataclasses as _dataclasses
+import json as _json
+import pathlib as _pathlib
 import types as _types
 from collections.abc import Iterable as _Iterable
 from collections.abc import Mapping as _Mapping
+from typing import Any as _Any
 
 from poisson_tasks.knobs import ArmSpec as _ArmSpec
 from poisson_tasks.knobs import PinReport as _PinReport
@@ -29,6 +32,7 @@ __all__ = [
     "arm_from_id",
     "DEFAULT_GENERATOR_VERSION",
     "describe_pins",
+    "knob_status",
     "Recipe",
     "RECIPES",
     "SHIPPED_KNOBS",
@@ -137,10 +141,12 @@ def describe_pins(report: _PinReport) -> str:
 # recipes
 # ---------------------------------------------------------------------------
 
-# The knobs a probe has shipped (Tasks spec K-P3): none yet.  Depth and the distractor dial are on
-# the published cards and need no probe; each of the other seven reaches a recipe only once the
-# probe's rulings name it here.
-SHIPPED_KNOBS: tuple[str, ...] = ()
+# The knobs the knob probe shipped (Tasks spec K-P3): each made tasks harder on at least one of the
+# two models it ran on, and easier at the top on neither.  Depth and the distractor dial are on the
+# published cards and need no probe.  The other four probe knobs did not ship: they stay in the
+# generator and their arms work, and they reach no recipe.  `knob_status()` says what each knob did
+# on each model.
+SHIPPED_KNOBS: tuple[str, ...] = ("faults", "history", "shape")
 
 _PROBE_KNOBS = ("similarity", "faults", "history", "block", "arguments", "shape", "spread")
 
@@ -283,3 +289,26 @@ def recipe_table(shipped: _Iterable[str]) -> _Mapping[str, Recipe]:
 
 
 RECIPES: _Mapping[str, Recipe] = recipe_table(SHIPPED_KNOBS)
+
+
+# ---------------------------------------------------------------------------
+# what the knob probe measured
+# ---------------------------------------------------------------------------
+
+_STATUS_PATH = _pathlib.Path(__file__).resolve().parent / "knob_status.json"
+
+
+def knob_status() -> dict[str, _Any]:
+    """Each probe knob's measured status on each model the knob probe ran, and whether it shipped.
+
+    Read from the package's `knob_status.json`, a fresh copy on every call.  `models` names each
+    model the probe ran.  `knobs` maps the seven probe knobs, in the probe's order, to whether the
+    knob `shipped`, its `outcome`, a line that `says` it in words, and per model its `status` (one
+    of bites, does not bite, top easier and cannot tell), its `base` arm with that arm's strict
+    pass@1, and each contrast's `delta` with its 95% `interval`.  `probe` says how it was
+    measured; "cannot tell" is a base arm that passed below `floor` or above `ceiling` on that
+    model, where a change of the rule's size could not show in both directions, so the knob is
+    called neither a non-biter nor easier at the top there.
+    """
+    table: dict[str, _Any] = _json.loads(_STATUS_PATH.read_text(encoding="utf-8"))
+    return table

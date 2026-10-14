@@ -1,0 +1,453 @@
+{
+  "about": "Each probe knob's measured status on each model the knob probe ran, and whether it shipped. A status is one of: bites, does not bite, top easier, cannot tell.",
+  "probe": {
+    "generator": "b460964dc153fab4535af3b39abd41d50198f3dcc644ae3e43ddee85544b57f9",
+    "seed_list": "e004cd1d8bfc3fccb945f67fe393ad86868221bf6e12e06f5df7977c4cff5923",
+    "tasks": 60,
+    "attempts": 2,
+    "measure": "strict pass@1",
+    "contrast": "the base arm's strict pass@1 minus the other arm's, paired over the tasks",
+    "interval": "95%, task-clustered bootstrap, 2,000 resamples, seed 20260922",
+    "bites": "the interval excludes zero and the drop is at least 0.15 (for shape, either way, and the length control differs from the base by less than that); a knob with a control arm needs both contrasts",
+    "cannot_tell": "the base arm's strict pass@1 is below 0.15 or above 0.85, so a change of 0.15 could not show in both directions; a knob is called neither a non-biter nor easier at the top there",
+    "floor": 0.15,
+    "ceiling": 0.85
+  },
+  "models": {
+    "gpt-5-nano-2025-08-07": "gpt-5-nano",
+    "Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218": "Qwen3-8B"
+  },
+  "knobs": {
+    "similarity": {
+      "shipped": false,
+      "outcome": "does not ship",
+      "says": "does not ship: does not bite on gpt-5-nano; cannot tell on Qwen3-8B (its base passed 1.000)",
+      "models": {
+        "gpt-5-nano-2025-08-07": {
+          "status": "does not bite",
+          "base": {
+            "arm": "similarity:s0",
+            "strict": 0.4083
+          },
+          "contrasts": [
+            {
+              "a": "similarity:s0",
+              "b": "similarity:s3",
+              "delta": -0.05,
+              "interval": [
+                -0.15,
+                0.0417
+              ],
+              "meets": false,
+              "the_other_way": false
+            }
+          ],
+          "harder": null
+        },
+        "Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218": {
+          "status": "cannot tell",
+          "base": {
+            "arm": "similarity:s0",
+            "strict": 1.0
+          },
+          "contrasts": [
+            {
+              "a": "similarity:s0",
+              "b": "similarity:s3",
+              "delta": 0.0,
+              "interval": [
+                0.0,
+                0.0
+              ],
+              "meets": false,
+              "the_other_way": false
+            }
+          ],
+          "harder": null
+        }
+      }
+    },
+    "faults": {
+      "shipped": true,
+      "outcome": "ships",
+      "says": "ships: cannot tell on gpt-5-nano (its base passed 0.975); bites on Qwen3-8B",
+      "models": {
+        "gpt-5-nano-2025-08-07": {
+          "status": "cannot tell",
+          "base": {
+            "arm": "faults:f0",
+            "strict": 0.975
+          },
+          "contrasts": [
+            {
+              "a": "faults:f0",
+              "b": "faults:f4",
+              "delta": 0.4,
+              "interval": [
+                0.3,
+                0.5
+              ],
+              "meets": true,
+              "the_other_way": false
+            },
+            {
+              "a": "faults:f0+len(f4)",
+              "b": "faults:f4",
+              "delta": 0.1417,
+              "interval": [
+                0.0333,
+                0.25
+              ],
+              "meets": false,
+              "the_other_way": false
+            }
+          ],
+          "harder": null
+        },
+        "Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218": {
+          "status": "bites",
+          "base": {
+            "arm": "faults:f0",
+            "strict": 0.9917
+          },
+          "contrasts": [
+            {
+              "a": "faults:f0",
+              "b": "faults:f4",
+              "delta": 0.825,
+              "interval": [
+                0.7417,
+                0.9
+              ],
+              "meets": true,
+              "the_other_way": false
+            },
+            {
+              "a": "faults:f0+len(f4)",
+              "b": "faults:f4",
+              "delta": 0.3083,
+              "interval": [
+                0.15,
+                0.4583
+              ],
+              "meets": true,
+              "the_other_way": false
+            }
+          ],
+          "harder": null
+        }
+      }
+    },
+    "history": {
+      "shipped": true,
+      "outcome": "ships",
+      "says": "ships: bites on gpt-5-nano; bites on Qwen3-8B",
+      "models": {
+        "gpt-5-nano-2025-08-07": {
+          "status": "bites",
+          "base": {
+            "arm": "history:t0",
+            "strict": 0.9083
+          },
+          "contrasts": [
+            {
+              "a": "history:t0",
+              "b": "history:t2400",
+              "delta": 0.6833,
+              "interval": [
+                0.6083,
+                0.75
+              ],
+              "meets": true,
+              "the_other_way": false
+            }
+          ],
+          "harder": null
+        },
+        "Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218": {
+          "status": "bites",
+          "base": {
+            "arm": "history:t0",
+            "strict": 1.0
+          },
+          "contrasts": [
+            {
+              "a": "history:t0",
+              "b": "history:t2400",
+              "delta": 0.3083,
+              "interval": [
+                0.2167,
+                0.4167
+              ],
+              "meets": true,
+              "the_other_way": false
+            }
+          ],
+          "harder": null
+        }
+      }
+    },
+    "block": {
+      "shipped": false,
+      "outcome": "does not ship",
+      "says": "does not ship: cannot tell on gpt-5-nano (its base passed 0.883); cannot tell on Qwen3-8B (its base passed 1.000)",
+      "models": {
+        "gpt-5-nano-2025-08-07": {
+          "status": "cannot tell",
+          "base": {
+            "arm": "block:k8",
+            "strict": 0.8833
+          },
+          "contrasts": [
+            {
+              "a": "block:k8",
+              "b": "block:k64",
+              "delta": -0.0667,
+              "interval": [
+                -0.1417,
+                0.0
+              ],
+              "meets": false,
+              "the_other_way": false
+            },
+            {
+              "a": "block:k8+len(k64)",
+              "b": "block:k64",
+              "delta": -0.0083,
+              "interval": [
+                -0.0583,
+                0.0417
+              ],
+              "meets": false,
+              "the_other_way": false
+            }
+          ],
+          "harder": null
+        },
+        "Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218": {
+          "status": "cannot tell",
+          "base": {
+            "arm": "block:k8",
+            "strict": 1.0
+          },
+          "contrasts": [
+            {
+              "a": "block:k8",
+              "b": "block:k64",
+              "delta": 0.0,
+              "interval": [
+                0.0,
+                0.0
+              ],
+              "meets": false,
+              "the_other_way": false
+            },
+            {
+              "a": "block:k8+len(k64)",
+              "b": "block:k64",
+              "delta": 0.0,
+              "interval": [
+                0.0,
+                0.0
+              ],
+              "meets": false,
+              "the_other_way": false
+            }
+          ],
+          "harder": null
+        }
+      }
+    },
+    "arguments": {
+      "shipped": false,
+      "outcome": "does not ship",
+      "says": "does not ship: does not bite on gpt-5-nano; cannot tell on Qwen3-8B (its base passed 0.983)",
+      "models": {
+        "gpt-5-nano-2025-08-07": {
+          "status": "does not bite",
+          "base": {
+            "arm": "arguments:a2",
+            "strict": 0.8083
+          },
+          "contrasts": [
+            {
+              "a": "arguments:a2",
+              "b": "arguments:a8",
+              "delta": 0.0917,
+              "interval": [
+                0.0,
+                0.1833
+              ],
+              "meets": false,
+              "the_other_way": false
+            },
+            {
+              "a": "arguments:a2+len(a8)",
+              "b": "arguments:a8",
+              "delta": 0.0,
+              "interval": [
+                -0.1083,
+                0.1
+              ],
+              "meets": false,
+              "the_other_way": false
+            }
+          ],
+          "harder": null
+        },
+        "Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218": {
+          "status": "cannot tell",
+          "base": {
+            "arm": "arguments:a2",
+            "strict": 0.9833
+          },
+          "contrasts": [
+            {
+              "a": "arguments:a2",
+              "b": "arguments:a8",
+              "delta": 0.15,
+              "interval": [
+                0.0667,
+                0.2417
+              ],
+              "meets": true,
+              "the_other_way": false
+            },
+            {
+              "a": "arguments:a2+len(a8)",
+              "b": "arguments:a8",
+              "delta": 0.1,
+              "interval": [
+                0.0167,
+                0.1833
+              ],
+              "meets": false,
+              "the_other_way": false
+            }
+          ],
+          "harder": null
+        }
+      }
+    },
+    "shape": {
+      "shipped": true,
+      "outcome": "ships",
+      "says": "ships: does not bite on gpt-5-nano; bites on Qwen3-8B (shape:w4 the harder width)",
+      "models": {
+        "gpt-5-nano-2025-08-07": {
+          "status": "does not bite",
+          "base": {
+            "arm": "shape:w1",
+            "strict": 0.325
+          },
+          "contrasts": [
+            {
+              "a": "shape:w1",
+              "b": "shape:w4",
+              "delta": -0.3,
+              "interval": [
+                -0.425,
+                -0.175
+              ],
+              "meets": false,
+              "the_other_way": true
+            },
+            {
+              "a": "shape:w1",
+              "b": "shape:w1+len(w4)",
+              "delta": 0.1583,
+              "interval": [
+                0.0583,
+                0.2583
+              ],
+              "meets": true,
+              "the_other_way": false
+            }
+          ],
+          "harder": "shape:w1"
+        },
+        "Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218": {
+          "status": "bites",
+          "base": {
+            "arm": "shape:w1",
+            "strict": 0.9667
+          },
+          "contrasts": [
+            {
+              "a": "shape:w1",
+              "b": "shape:w4",
+              "delta": 0.3583,
+              "interval": [
+                0.2333,
+                0.4833
+              ],
+              "meets": true,
+              "the_other_way": false
+            },
+            {
+              "a": "shape:w1",
+              "b": "shape:w1+len(w4)",
+              "delta": 0.0,
+              "interval": [
+                -0.0333,
+                0.0333
+              ],
+              "meets": false,
+              "the_other_way": false
+            }
+          ],
+          "harder": "shape:w4"
+        }
+      }
+    },
+    "spread": {
+      "shipped": false,
+      "outcome": "does not ship",
+      "says": "does not ship: cannot tell on gpt-5-nano (its base passed 0.067); cannot tell on Qwen3-8B (its base passed 0.008)",
+      "models": {
+        "gpt-5-nano-2025-08-07": {
+          "status": "cannot tell",
+          "base": {
+            "arm": "spread:p1",
+            "strict": 0.0667
+          },
+          "contrasts": [
+            {
+              "a": "spread:p1",
+              "b": "spread:p4",
+              "delta": -0.25,
+              "interval": [
+                -0.3583,
+                -0.1417
+              ],
+              "meets": false,
+              "the_other_way": true
+            }
+          ],
+          "harder": null
+        },
+        "Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218": {
+          "status": "cannot tell",
+          "base": {
+            "arm": "spread:p1",
+            "strict": 0.0083
+          },
+          "contrasts": [
+            {
+              "a": "spread:p1",
+              "b": "spread:p4",
+              "delta": 0.0083,
+              "interval": [
+                0.0,
+                0.0333
+              ],
+              "meets": false,
+              "the_other_way": false
+            }
+          ],
+          "harder": null
+        }
+      }
+    }
+  }
+}
