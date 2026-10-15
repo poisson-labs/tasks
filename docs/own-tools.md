@@ -62,7 +62,7 @@ poisson-tasks init --yes --no-check-key --own-file tools.json --own-name acme --
 ok  wrote tasks.toml: the first-look recipe on your tools (acme), 10 tasks each, against gpt-5-nano-2025-08-07
   tokenizer   …
   key         …
-  your tools  acme: 5 tools: 0 read, 0 write, 5 not known (treated as write), 0 refused; file: an OpenAI tools file, sha256 bf34e029e3fa609162c90e8709251c32db608d8aa0afd1f23432d500bd007ece; the responses are simulated from your schemas, and your backend is never called
+  your tools  acme: 5 tools: 3 read, 0 write, 2 not known (treated as write), 0 refused; file: an OpenAI tools file, sha256 bf34e029e3fa609162c90e8709251c32db608d8aa0afd1f23432d500bd007ece; the responses are simulated from your schemas, and your backend is never called
   the same setup, without questions:
     poisson-tasks init --yes --provider openai --model gpt-5-nano-2025-08-07 \
       --base-url https://api.openai.com/v1 --api-key-env OPENAI_API_KEY \
@@ -75,7 +75,7 @@ ok  wrote tasks.toml: the first-look recipe on your tools (acme), 10 tasks each,
 next: poisson-tasks run
 ```
 
-The first lines are the summary of your file: how many tools, how many read and write, how many Tasks could not use, and the file's digest. A tool Tasks cannot use is refused in one line, and the rest of the set still runs. The digest goes into every task's id, so a task is a pure function of your file's bytes, the arm and the seed.
+The first lines are the summary of your file: how many tools, how many read and write, how many Tasks could not use, and the file's digest. The read and write counts are of your set as you declared it: the three tools named with `--own-read` count as reads, and the two that nothing has said anything about stay "not known (treated as write)". A tool Tasks cannot use is refused in one line, and the rest of the set still runs. The digest goes into every task's id, so a task is a pure function of your file's bytes, the arm and the seed.
 
 `doctor` reads the file again and reports the same summary, each refusal, which dials your set reaches, and what the knob probe found for each on the built-in tasks:
 
@@ -91,7 +91,7 @@ ok  this environment is ready to run tasks.toml
   tokenizer   ok      …
   config      ok      tasks.toml: the first-look recipe on your tools (acme), 10 tasks each, against gpt-5-nano-2025-08-07
   key         ok      OPENAI_API_KEY is set (not checked: --offline)
-  tools       ok      5 tools: 0 read, 0 write, 5 not known (treated as write), 0 refused in tools.json
+  tools       ok      5 tools: 3 read, 0 write, 2 not known (treated as write), 0 refused in tools.json
   file        ok      file: an OpenAI tools file, sha256 bf34e029e3fa609162c90e8709251c32db608d8aa0afd1f23432d500bd007ece
   knobs       ok      faults, history, depth, shape, similarity, arguments and spread reach a level on this set; faults, history, depth and shape shipped and lead the recipes
   faults      ok      the knob probe's status on the built-in tasks: does not bite on gpt-5-nano; bites on Qwen3-8B
@@ -155,7 +155,7 @@ A set is refused as a whole when fewer than 2 usable tools remain, more than 256
 
 ## Which tools read and which write
 
-A stray write is a side effect, and a stray read is not, so Tasks has to know. MCP and OpenAPI say it; an OpenAI tools file does not. A tool whose effect is unknown is treated as a write (an extra call to it counts against the model) until you say otherwise: `read = ["get_order"]` and `write = [...]` in `tasks.toml`, or `--own-read` and `--own-write` to `init`, which asks once when it is run with questions.
+A stray write is a side effect, and a stray read is not, so Tasks has to know. MCP and OpenAPI say it; an OpenAI tools file does not. A tool whose effect is unknown is treated as a write (an extra call to it counts against the model) until you say otherwise: `read = ["get_order"]` and `write = [...]` in `tasks.toml`, or `--own-read` and `--own-write` to `init`, which asks once when it is run with questions. The summary `init` and `doctor` print counts what you declared, and what you answered to that question, as well as what the file says: three tools declared as reads read `3 read`, and what is left is `not known`.
 
 ## How the responses are made
 
