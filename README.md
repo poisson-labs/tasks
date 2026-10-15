@@ -64,6 +64,8 @@ The verdict on an episode is one of ten labels, the first that matches (`passed`
 - one `/tmp/vf-port-<hex>` file per episode, which verifiers leaves behind;
 - one empty `uv-<16 hex>.lock` file in the temporary folder, which uv writes for the harness's script environment and keeps.
 
+**Your limit on open files.** For its own length, `run` raises its process's limit on open files as far as your hard limit allows (macOS starts a shell at 256, and a run of 128 episodes at once needs up to 704), changes nothing outside that process, and when the hard limit is too low refuses before it starts, in one line saying how to raise it.
+
 Installing the package also installs verifiers, and verifiers installs commands beside `poisson-tasks`: `eval`, `init`, `debug`, `replay`, `validate`, `gepa` and `vf-*`. A bare `init` is verifiers' command, not this package's; this package's is `poisson-tasks init`.
 
 A run sends your key to your model's endpoint and nowhere else, and pushes nothing to verifiers' hub. Generating tasks, `generate`, `verify`, `export`, `card` and `doctor --offline` open no connection to a model.
