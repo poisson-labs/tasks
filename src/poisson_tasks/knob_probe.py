@@ -1396,6 +1396,15 @@ def run_probe(
 
     if cap <= 0:
         return _refuse(f"the cap is ${cap}; give a cap above zero, in dollars")
+    from poisson_tasks import _open_files
+
+    try:
+        # before the key is read or anything is written; the run engine makes the room
+        _open_files.check(
+            min(max(1, concurrency), max(design.episodes_per_arm, design.phase1_episodes_per_arm))
+        )
+    except _open_files.OpenFilesRefused as error:
+        return _refuse(str(error))
     try:
         generator = check_generator(design.arms, design.probe_seeds[0])
     except GeneratorMoved as error:
