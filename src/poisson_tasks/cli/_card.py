@@ -256,10 +256,11 @@ def _run_card(ctx: Context) -> Result:
     # The comparison is named only where it works.  The published cards were measured by an earlier
     # build of the generator, so a card on the built-in tasks is refused beside them in this
     # release (FD5 Session B's item 6); a card on your own tools stands beside the published card
-    # of its model.
+    # of its model, and is refused in one line when no published card measured that model.
     comparison = ([ctx.command("card", *([str(folder)] if args.run else []), "--compare",
                                "published")]
-                  if side_by_side is None and made.artifact.provenance.tools is not None else [])
+                  if side_by_side is None and made.artifact.provenance.tools is not None
+                  and _published_measured(made.artifact) else [])
     return Result(
         schema=SCHEMA, verdict="ok", sentence=sentence, rows=rows, document=document,
         next=comparison,
@@ -267,6 +268,22 @@ def _run_card(ctx: Context) -> Result:
               "owed": verdict.owed, "levels": cells, "meaning": made.claims.meaning,
               "not_claimed": list(made.claims.not_claimed), "wrote": [str(p) for p in paths]},
     )
+
+
+def _published_measured(artifact: Any) -> bool:
+    """Whether a published card measured the model this card measured: what
+    `own.card.beside_published` asks before it puts the two side by side, a model's id compared
+    without its `@revision`.  Read from each published card's stored artifact, so no card is
+    rebuilt for a line of advice."""
+    def models(cells: Any) -> set[str]:
+        return {str(cell["model"]).split("@", 1)[0] for cell in cells}
+
+    mine = models(artifact.cells)
+    for published in cards.published():
+        stored = json.loads((Path(published.folder) / "artifact.json").read_text(encoding="utf-8"))
+        if models(stored["cells"]) == mine:
+            return True
+    return False
 
 
 def _own_beside_published(artifact: Any) -> str:
