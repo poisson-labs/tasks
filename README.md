@@ -157,7 +157,7 @@ Everything the command does is a library: [python.md](https://github.com/poisson
 
 ## What is built, and what is not claimed
 
-Built, and covered by the test suite (**4,237 tests, 3,876 passed and 361 skipped**; `python -m pytest -q` is the check): the mock domain and its tools; the reference tokenizer; nine knobs with their control arms and thirty pin-ledger rows; task and verifier generation with a closed ten-label vocabulary; the verifiers export and the taskset id `poisson-tasks`; the command above; the two published cards inside the package; tasks on your own tools; and a Colab notebook that serves `Qwen3-8B` with vLLM and rebuilds its card. The tests that are skipped need [Proofload](https://github.com/poisson-labs/tasks/blob/main/docs/proofload.md), an optional route that is not public yet.
+Built, and covered by the test suite (**4,248 tests, 3,887 passed and 361 skipped**; `python -m pytest -q` is the check): the mock domain and its tools; the reference tokenizer; nine knobs with their control arms and thirty pin-ledger rows; task and verifier generation with a closed ten-label vocabulary; the verifiers export and the taskset id `poisson-tasks`; the command above; the two published cards inside the package; tasks on your own tools; and a Colab notebook that serves `Qwen3-8B` with vLLM and rebuilds its card. The tests that are skipped need [Proofload](https://github.com/poisson-labs/tasks/blob/main/docs/proofload.md), an optional route that is not public yet.
 
 Not claimed:
 
