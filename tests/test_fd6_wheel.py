@@ -277,6 +277,25 @@ def test_the_estimate_finds_a_card_by_its_model_whatever_its_folder_is_called(
     assert "\n" not in refusal
 
 
+def test_the_estimate_falls_back_to_the_first_card_when_no_card_measured_the_first_models_model(
+    with_tokenizer: Path, tmp_path: Path
+) -> None:
+    """A plan whose model no card measured is estimated from the card of the model the settings
+    default to (`gpt-5-nano`); with that card gone from the install, from the first card there is."""
+    kept = tmp_path / "only-the-second"
+    shutil.copytree(with_tokenizer, kept)
+    cards = kept / "poisson_tasks" / "cards"
+    for folder in cards.iterdir():
+        if folder.name.startswith("gpt-5-nano"):
+            shutil.rmtree(folder)
+    assert sorted(p.name for p in cards.iterdir()) == ["qwen3-8b-b968826d"]
+    work = tmp_path / "work"
+    assert run_from(kept, INIT, work=work).returncode == 0
+    planned = run_from(kept, DRY_RUN, work=work)
+    assert planned.returncode == 0, planned.stderr[-2000:]
+    assert "published qwen3-8b card" in planned.stdout and "gpt-5-nano card" not in planned.stdout
+
+
 @needs_uv
 def test_a_runs_card_from_a_clean_wheel_carries_its_small_sample_and_comparability_lines(
     fd4_runs, with_tokenizer: Path, tmp_path: Path

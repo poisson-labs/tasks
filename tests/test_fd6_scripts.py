@@ -245,3 +245,17 @@ def test_fd6_8_a_step_that_reads_one_folder_needs_only_that_one(tmp_path: Path) 
     stop = subprocess.run([*DRIVER, "stop-server", "--local", str(tmp_path)], capture_output=True,
                           text=True, timeout=300, check=False)
     assert stop.returncode == 0 and "no server was started from here" in stop.stdout
+
+
+def test_fd6_8_a_step_that_does_not_read_a_folder_is_given_a_path_nothing_can_be_written_under(
+    tmp_path: Path
+) -> None:
+    from poisson_tasks._driver_args import unread
+
+    given = tmp_path / "x"
+    assert unread(given) is given
+    placeholder = unread(None)
+    with pytest.raises(OSError):
+        placeholder.mkdir(parents=True)
+    with pytest.raises(OSError):
+        (placeholder / "f").write_text("x")

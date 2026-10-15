@@ -8,7 +8,7 @@ version = "0.0.1"
 description = "Tool-use tasks with a known right answer, generated on your machine, and a card that says what each level of difficulty was worth to the model you ran."
 readme = "README.md"
 license = { file = "LICENSE" }
-# The upper bound is verifiers 0.3.1's own, which this package pins (ruled 2026-10-02).
+# The upper bound is verifiers 0.3.1's own, which this package pins.
 requires-python = ">=3.11,<3.14"
 authors = [{ name = "Poisson Labs", email = "work@poissonlabs.ai" }]
 maintainers = [{ name = "Poisson Labs", email = "work@poissonlabs.ai" }]
@@ -108,8 +108,8 @@ packages = ["src/poisson_tasks", "src/poisson_tasks_own"]
 exclude = ["data/*.tiktoken"]
 
 # The published cards ship as package data, `poisson_tasks/cards/<model folder>/`, built from the
-# repository's `calibration/` folder, so the repository layout and its tests stay as they are
-# (spec 9.7).  `poisson_tasks/cards.py` is a module of the same name: the data folder holds no
+# repository's `calibration/` folder, so the repository layout and its tests stay as they are.
+# `poisson_tasks/cards.py` is a module of the same name: the data folder holds no
 # Python file and no `__init__.py`, so the module wins the import, and a test holds it so
 # (tests/test_fd6_wheel.py).
 [tool.hatch.build.targets.wheel.force-include]

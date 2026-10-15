@@ -553,3 +553,23 @@ def test_config_md_shows_the_file_init_writes() -> None:
     written = config.dump_config(config.config_from_init_args(["--provider", "openai", "--recipe", "first-look"]))
     shown = next(b.body for b in blocks_of((DOCS / "config.md").read_text("utf-8")) if b.language == "toml")
     assert shown.strip() == written.strip()
+
+
+def test_the_knob_probes_three_disclosures_are_beside_its_results_table() -> None:
+    text = " ".join((DOCS / "knobs-and-arms.md").read_text("utf-8").split())
+    assert text.index("What the knob probe measured") < text.index("Three things about how the probe ran")
+    assert text.index("Three things about how the probe ran") < text.index("## Arms")
+    for sentence in (
+        "Phase 1's check changed after its first result (gpt-5-nano).",
+        "stopped the probe if any base-arm episode made no tool call",
+        "on 1 of 21",
+        "3 or more",
+        "A crash at the start, and one arm run again (gpt-5-nano).",
+        "`similarity:s0`",
+        "instrument rate 0.104",
+        "$1.5981 of the $4.00 cap",
+        "More time for Qwen3-8B.",
+        "14 of its 18 arms",
+        "2.56 hours in all",
+    ):
+        assert sentence in text, sentence
