@@ -28,6 +28,7 @@ from poisson_tasks.cli._common import (
     config_words,
     host_of,
     load_settings,
+    own_summary,
     settings_exist,
     settings_root,
     shown,
@@ -243,7 +244,7 @@ def _own_rows(ctx: Context, settings: Any) -> tuple[list[Row], dict[str, Any]]:
     except own.OwnToolsError as refused:
         rows.append(Row("tools", f"{where}: {refused}", "bad"))
         return rows, {"file": path, "readable": True, "refused": str(refused)}
-    summary = own.summary(reading).splitlines()
+    summary = own_summary(reading, toolset)
     rows.append(Row("tools", f"{summary[0]} in {where}", "ok"))
     for line in reading.refused:
         rows.append(Row("refused", line.line, "ok"))

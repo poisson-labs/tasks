@@ -253,10 +253,16 @@ def _run_card(ctx: Context) -> Result:
         # An own card's side-by-side is two whole documents: printed as written, never indented.
         kind = "document" if made.artifact.provenance.tools is not None else "text"
         document.append(Part("beside the published cards", kind, side_by_side))
+    # The comparison is named only where it works.  The published cards were measured by an earlier
+    # build of the generator, so a card on the built-in tasks is refused beside them in this
+    # release (FD5 Session B's item 6); a card on your own tools stands beside the published card
+    # of its model.
+    comparison = ([ctx.command("card", *([str(folder)] if args.run else []), "--compare",
+                               "published")]
+                  if side_by_side is None and made.artifact.provenance.tools is not None else [])
     return Result(
         schema=SCHEMA, verdict="ok", sentence=sentence, rows=rows, document=document,
-        next=[ctx.command("card", *([str(folder)] if args.run else []), "--compare",
-                          "published")] if side_by_side is None else [],
+        next=comparison,
         data={"folder": str(folder), "model": model_name, "partial": verdict.partial,
               "owed": verdict.owed, "levels": cells, "meaning": made.claims.meaning,
               "not_claimed": list(made.claims.not_claimed), "wrote": [str(p) for p in paths]},

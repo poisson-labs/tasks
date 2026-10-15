@@ -208,6 +208,16 @@ def config_words(settings: Any) -> str:
     return text
 
 
+def own_summary(reading: Any, toolset: Any) -> list[str]:
+    """The lines of `own.summary` for a tool file read as `reading`, counted on `toolset`: the
+    same tools with the effects you declared applied (`[own] read` and `write`, `--own-read`,
+    `--own-write`, and the answers to `init`'s question about each tool), not the file's alone.
+    `init` and `doctor` print these, and the set a run's plan makes counts the same."""
+    from poisson_tasks import own
+
+    return str(own.summary(dataclasses.replace(reading, toolset=toolset))).splitlines()
+
+
 def own_plan_words(plan: Any) -> str:
     """`acme-support, 5 tools from tools.json; ...` for a resolved plan on the user's own tools."""
     own = plan.own
