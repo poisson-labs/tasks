@@ -4,7 +4,7 @@ A knob is a thing you vary on purpose. An arm is one setting of it. The whole po
 the generator is that two arms of one knob differ in the knob and in nothing else, and
 the pin ledger is what makes that a measurement rather than a hope.
 
-`examples/a_contrast.py` prints all of this. Read that beside this page.
+`poisson-tasks generate` runs the pin ledger over the arms of your plan and says what it found; [python.md](python.md) shows the same check from Python.
 
 ## The knobs
 
@@ -62,8 +62,10 @@ it came out. It also replaces "top easier" where the top arm passed above 0.85. 
 when it bites on at least one model and is easier at the top on neither.
 
 `faults`, `history` and `shape` shipped (`arms.SHIPPED_KNOBS`), and the recipes that measure
-them are offered. The other four did not ship. Every knob stays in the generator, and its arms
-work whether or not it shipped; these are two models, measured once. The table, with every
+them are offered. The other four did not ship, and are labelled *Available · retested in v2*:
+every knob stays in the generator and on the command line, and its arms work whether or not it
+shipped. These are two models, measured once, and the four are retested in v2, on current
+models. The table, with every
 contrast, is `poisson_tasks.arms.knob_status()`. In each cell Δ is the base arm's strict pass@1
 minus the top arm's, with its interval; "control" is the control arm's minus the top arm's; for
 `shape`, "length control" is the base's minus the length control's.
@@ -78,8 +80,32 @@ minus the top arm's, with its interval; "control" is the control arm's minus the
 | `shape` | yes | does not bite: Δ −0.300 [−0.425, −0.175], length control 0.158 [0.058, 0.258] | bites: Δ 0.358 [0.233, 0.483], length control 0.000 [−0.033, 0.033]; `shape:w4` harder |
 | `spread` | no | top easier: Δ −0.250 [−0.358, −0.142] | cannot tell: base passed 0.008; Δ 0.008 [0.000, 0.033] |
 
+### Three things about how the probe ran
+
+Three things about how the probe ran are disclosed wherever its outcome is published. Each is short; the numbers are the records' own.
+
+**1. Phase 1's check changed after its first result (gpt-5-nano).** As registered, phase 1
+stopped the probe if any base-arm episode made no tool call, and gpt-5-nano's first phase 1 stopped
+on 1 of 21 (the model asked for the record id in plain text; nothing on our side failed). After
+seeing that, on 2026-10-13, the check was changed to the published cards' own rule: stop when more
+than 10% of the 21 base episodes make no tool call (3 or more). The recorded phase 1 was read
+again once under it, with no episode run again: 1 of 21, so it passed, and the probe went on in
+the same folder within the same $4.00 cap. Qwen3-8B's phase 1 passed under the first rule.
+
+**2. A crash at the start, and one arm run again (gpt-5-nano).** The run crashed at its start
+on macOS's limit on open files, with its first arm, `similarity:s0`, in flight. The limit was
+raised and the run resumed. Episodes in flight at the crash failed on our side, so that arm was
+void (instrument rate 0.104; every other arm 0.000) and was run once more, as the
+pre-registration allows once for a cause on our side. The void attempt is kept. In all, gpt-5-nano
+cost $1.5981 of the $4.00 cap.
+
+**3. More time for Qwen3-8B.** The Qwen3-8B run on Colab reached its two-hour allowance with 14
+of its 18 arms done and stopped cleanly. It was given more time and resumed, the 14 finished arms
+kept and the last four run with the same settings; it used 2.56 hours in all.
+
 ## Arms
 
+<!-- docs-check: skip reason="shows the names of an arm's six fields, and is not a program" -->
 ```python
 ArmSpec(knob, level, control, strictness, split, generator_version)
 ```
@@ -113,7 +139,7 @@ spec that cannot be rendered cannot be built, and the constructor raises.
 `spec.reference_turns` is the minimum: the calls the arm needs, plus the reply turn.
 Depth *d* needs *d* + 1; faults level *f* needs 3 + *f*, one more call per failure; shape
 needs 5 at every width and spread 7 at every level; every other arm needs 3.
-`spec.max_turns(slack)` adds the slack constant the study chose -- 4 in the pilot.
+`spec.max_turns(slack)` adds the slack constant a study chooses.
 
 A registration's **horizon** is the largest `max_turns` over its arms, and it is checked
 rather than declared: `validate_preregistration` recomputes it and refuses a document
@@ -172,17 +198,14 @@ growth beside whatever they refuse. The distinction matters and is why a report 
 move with the distractor level or the block size, so it is a number to record, not a
 failure.
 
-## A gap that was here, and is closed
+## A gap that is closed
 
-No record-id word is a substring of any tool name. Both 256-word lists are checked
-against all 112 names, and `tests/test_record_id_fix.py` is where that check lives.
-
-It was not always so. Vocabulary v1 carried six words some tool name contains, and four
-of them -- `city`, `disc`, `grad`, `port` -- made N7 refuse a distractor contrast that
-held the `r14` arm, the one level whose block keeps no read tool at all. N7 is measured
-by substring over the user instruction's tokens, the record id is in the instruction,
-and G14 makes that id an injective function of the task seed: a seed whose first word
-was one of the four had no way out, because generation's three degrees of freedom -- the
-prose, the designated slots and the entry-code draw -- do not reach the id. Knob `depth`
-was unaffected at every level throughout. Vocabulary v2 draws the lists disjoint from
-every tool name, and closes it outright.
+No record-id word is a substring of any tool name: both 256-word lists are checked against all
+112 names. It was not always so. An earlier vocabulary carried six words that some tool name
+contains, and four of them -- `city`, `disc`, `grad`, `port` -- made row N7, which compares
+the prompt's words with the tool names, refuse a decoy-tools contrast that held the `r14` arm,
+the one level whose block keeps no read tool at all. The row is measured by substring over the
+user instruction's tokens, the record id is in the instruction, and the id is an injective
+function of the task seed, so a seed whose first word was one of the four had no way out.
+Depth was unaffected at every level throughout. The current vocabulary draws the lists
+disjoint from every tool name, which closes it outright, and a test holds it.

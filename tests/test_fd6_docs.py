@@ -38,7 +38,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 
 from tests.helpers import INTERNAL
 
@@ -122,13 +121,20 @@ def unmarked(blocks: list[Block]) -> list[Block]:
 
 def malformed(text: str, path: Path | None = None) -> list[str]:
     """What is wrong with the markers of `text`: one with a body no mode names, one that is not
-    on the line before a fence, an `output` block that does not follow a `run` block."""
+    on the line before a fence, an `output` block that does not follow a `run` block.  A line
+    inside a fenced block is the block's own, so a page can show what a marker looks like."""
     problems: list[str] = []
     lines = text.splitlines()
+    parsed = blocks_of(text, path)
+    inside: set[int] = set()
+    for block in parsed:
+        inside.update(range(block.line + 1, block.line + 2 + block.body.count("\n") + (1 if block.body else 0)))
     for number, line in enumerate(lines, 1):
+        if number in inside:
+            continue
         marker = MARKER.match(line.strip())
         if marker is None:
-            if "docs-check" in line:
+            if line.lstrip().startswith("<!--") and "docs-check" in line:
                 problems.append(f"{number}: not a marker the check reads: {line.strip()}")
             continue
         body = marker.group("body")
@@ -138,7 +144,7 @@ def malformed(text: str, path: Path | None = None) -> list[str]:
         if OPEN.match(after) is None:
             problems.append(f"{number}: the marker is not on the line before a fenced block")
     last_run = False
-    for block in blocks_of(text, path):
+    for block in parsed:
         if block.marker == "output" and not last_run:
             problems.append(f"{block.line}: an output block with no run block before it")
         last_run = block.marker is not None and RUN.match(block.marker) is not None
@@ -177,6 +183,9 @@ def test_fd6_5_the_check_catches_what_it_is_for_and_lets_a_marked_block_through(
     # a fence inside a longer fence is a line of the outer block, not a block of its own
     nested = "````markdown\n```bash\nx\n```\n````\n"
     assert unmarked(blocks_of(nested)) == []
+    # a page can show a marker inside a fence
+    shown = "```text\n<!-- docs-check: run -->\n<!-- docs-check: nonsense -->\n```\n"
+    assert malformed(shown) == []
 
 
 # ---------------------------------------------------------------------------
@@ -393,7 +402,9 @@ OWN_REFUSAL = "which verify does not judge on its own yet"
 
 
 def test_the_refusal_the_docs_quote_is_the_one_the_command_prints() -> None:
-    assert OWN_REFUSAL in (REPO / "src" / "poisson_tasks" / "cli" / "_verify.py").read_text("utf-8")
+    source = (REPO / "src" / "poisson_tasks" / "cli" / "_verify.py").read_text("utf-8")
+    joined = re.sub(r'"\s*\n\s*f?"', "", source)  # adjacent string literals are one string
+    assert f"holds tasks on your own tools, {OWN_REFUSAL}: a run's card judges every episode" in joined
 
 
 def test_everywhere_verify_is_documented_the_docs_say_it_refuses_an_own_tasks_file() -> None:
@@ -500,10 +511,45 @@ def test_fd6_9_no_entry_of_the_unreleased_section_is_repeated() -> None:
 
 def test_fd6_10_cli_look_is_the_look_in_words_that_fit_each_tool() -> None:
     text = (DOCS / "cli-look.md").read_text("utf-8")
-    for needle in ("exit code", "stderr", "next:", "--json", "NO_COLOR", "Ctrl-C", "130"):
+    for needle in ("exit code", "standard error", "next:", "--json", "NO_COLOR", "Ctrl-C", "130",
+                   "<tool>"):
         assert needle in text, needle
     for rule in range(1, 17):
-        assert re.search(rf"\bL{rule}\b", text), f"L{rule}"
-    assert not re.search(r"\b(?:poisson-tasks|poisson-trace|poisson-prove|proofload)\b", text.replace(
-        "`<tool>`", ""), re.I) or "<tool>" in text
-    assert text.count("\n| ") >= 7
+        assert re.search(rf"\*\*L{rule}\.", text), f"L{rule}"
+    for code in ("0", "1", "2", "3", "4", "130"):
+        assert re.search(rf"^\| {code} \|", text, re.M), code
+    assert not re.search(r"poisson-(?:tasks|trace|prove)|proofload|Tasks|Trace|Prove\b", text)
+
+
+# ---------------------------------------------------------------------------
+# what the README and the pages show is what the code gives
+# ---------------------------------------------------------------------------
+
+RAW = "https://raw.githubusercontent.com/poisson-labs/tasks/main/"
+
+
+def test_the_readmes_image_is_a_png_in_the_repo_linked_from_an_absolute_https_address() -> None:
+    images = re.findall(r"!\[[^\]]*\]\(([^)\s]+)\)", README.read_text("utf-8"))
+    assert len(images) == 1 and images[0].startswith(RAW) and images[0].endswith(".png"), images
+    path = REPO / images[0].removeprefix(RAW)
+    assert path.is_file() and path.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+    assert path.stat().st_size < 600_000
+
+
+def test_the_readme_lists_each_published_cards_levels_as_the_code_renders_them() -> None:
+    from poisson_tasks import calibration, cards
+
+    text = README.read_text("utf-8")
+    for card in cards.published():
+        lines = calibration.render_readme_lines(cards.recompute(card).artifact).strip().splitlines()
+        assert len(lines) >= 10
+        for line in lines:
+            assert line in text, line
+
+
+def test_config_md_shows_the_file_init_writes() -> None:
+    from poisson_tasks import config
+
+    written = config.dump_config(config.config_from_init_args(["--provider", "openai", "--recipe", "first-look"]))
+    shown = next(b.body for b in blocks_of((DOCS / "config.md").read_text("utf-8")) if b.language == "toml")
+    assert shown.strip() == written.strip()

@@ -15,14 +15,21 @@ whoever asks for them by name) pays for the import.
 One command. Set `MODEL`, `MODEL_BASE_URL` and `MODEL_API_KEY` for an OpenAI-compatible
 endpoint serving a model that calls tools, then:
 
-```
+<!-- docs-check: run fixture env="MODEL,MODEL_BASE_URL,MODEL_API_KEY" -->
+```bash
 uv run eval poisson-tasks --model "$MODEL" --client.base-url "$MODEL_BASE_URL" --client.api-key-var MODEL_API_KEY --env.taskset.arm '{"knob": "depth", "level": 3, "control": null, "strictness": "strict", "split": "eval", "generator_version": "1"}' --env.taskset.seeds 404 55 2121 --no-push
 ```
 
-The arm is one JSON value and the seeds are a list; `--env.taskset.arm.<field>` also parses
-but types `control` and `generator_version` as strings, so pass the arm whole. With no
-harness named, the run uses the measured harness (below) in a local subprocess; both are
-this taskset's own defaults and both show in the run's saved config.
+Give the arm by its id, as in `--env.taskset.arm depth:d3`, or, for a leaky arm, as its six
+fields in one JSON object, as above with `"strictness": "leaky"`. An arm given by id is always
+strict, on the eval split, at the generator version the package uses; a leaky arm is given as
+its six fields. The dotted form, `--env.taskset.arm.<field>`, is not a way to give an arm: its
+values reach the taskset as text and are refused (`level "3" is not a whole number`), and beside
+an id `eval`'s own parser drops them before the taskset sees them, so the arm stays strict. The
+seeds are a list. `generator_version` is the label that goes into every task's id; `"1"` is the
+one the package uses, and [python.md](python.md) says what the label is. With no harness named,
+the run uses the measured harness (below) in a local subprocess; both are this taskset's own
+defaults and both show in the run's saved config.
 
 That command, run against OpenAI on 2026-09-22 with `MODEL=gpt-5-nano` on a machine with no
 environment prepared, printed this:
@@ -56,7 +63,7 @@ half a cent. **`reward 0.67` is the model's score, not a fault in the run**: all
 episodes completed (`err 0.00`, every rollout `agent_completed`), and one of the three ended
 without the model calling a single tool, which scores 0 under `strict` as it should. Two of
 three at `depth:d3` is a measurement of `gpt-5-nano`, and what a level is worth is the
-calibration card's subject, not this page's: see [the calibration guide](calibration-guide.md).
+calibration card's subject, not this page's: see [the calibration guide](reading-a-card.md).
 
 Paths are elided above; nothing else is. That run predates the turn limit described below,
 which is why its limits line reads "no turn cap"; a run today shows the 32-call cap there.
@@ -69,10 +76,48 @@ that has produced no trace after a minute or two is worth interrupting; the reas
 run's own `logs/attempt_1/eval.log`, under the env server's traceback. This is the wheel's
 behaviour, not this taskset's, and it is reported upstream.
 
-`examples/` has no verifiers example yet; the shortest thing that works in Python is below.
+## With the `poisson-tasks` command
+
+You do not have to type that command. `poisson-tasks export --to verifiers` writes one eval config for every arm of your settings file, `eval-<arm>.json`, each the config `poisson-tasks run` uses for that arm, and prints the command that runs it:
+
+<!-- docs-check: run -->
+```bash
+poisson-tasks init --yes --no-check-key --provider openai --recipe first-look > /dev/null
+```
+<!-- docs-check: run -->
+```bash
+poisson-tasks export --to verifiers | head -n 4
+```
+<!-- docs-check: output -->
+```
+ok  wrote 3 verifiers configs, one per arm: depth at 1, 3 and 8, 10 tasks each
+  note  run that way, eval leaves out what run adds (the plan, the spend cap, the instrument tally, the out-of-credit stop, the failure-streak stop and the watchdog), and it exits 0 when every episode errored
+
+run each with
+```
+
+Each printed command is `eval` by its absolute path in the environment `poisson-tasks` is installed in, such as `/home/you/.venvs/tasks/bin/eval @ export/eval-depth-d1.json`.
+
+**`eval` is also a shell builtin.** In bash and zsh the bare word `eval` runs the shell's own `eval`, which takes its arguments for a command and runs that, so `eval poisson-tasks ...` does not reach verifiers at all. That is why the command above is `uv run eval ...`, and why the commands `export` prints name the program by its path.
+
+<!-- docs-check: run -->
+```bash
+type eval
+```
+<!-- docs-check: output -->
+```
+eval is a shell builtin
+```
+
+Run that way, `eval` runs the arm but leaves out what `run` adds: the plan and its estimate, the spend cap, the tally of failures that are not the model's, the stop when the account is out of credit, the stop for a streak of failures, and the watchdog. It also exits 0 when every episode errored. For a run with a cap on what it can spend, use `poisson-tasks run`.
+
+For tasks on your own tools, the config names the taskset `poisson-tasks-own` (a second top-level module of the same package, because verifiers finds a taskset by a top-level module) and carries your tool set whole.
 
 ## The ten names
 
+The shortest thing that works in Python:
+
+<!-- docs-check: run -->
 ```python
 import dataclasses
 from poisson_tasks.knobs import ArmSpec
@@ -82,7 +127,13 @@ arm = ArmSpec(knob="depth", level=3, control=None, strictness="strict",
               split="eval", generator_version="1")
 taskset = ExportTaskset(ExportTasksetConfig(arm=dataclasses.asdict(arm), seeds=[404, 55, 2121]))
 for task in taskset.load():
-    print(task.key, task.data.seq_start, len(task.data.tools))
+    print(task.key[:12], task.data.seq_start, len(task.data.tools))
+```
+<!-- docs-check: output -->
+```
+… 1 16
+… 1 16
+… 1 16
 ```
 
 `load()` yields one task per declared seed, in the order you declared them, and nothing in
@@ -93,7 +144,7 @@ the module shuffles. A seed that appears twice is refused: two tasks would carry
 | `ExportTasksetConfig(arm=..., seeds=[...])` | the arm as a mapping, plus the seed list |
 | `ExportTaskConfig` | the arm's `strictness` and `arm_id`, derived from the arm |
 | `ExportTaskData` | the whole bundle, as the wire carries it |
-| `ExportTask` | `key == task_id`; one reward, four metrics; `validate()` is G4 |
+| `ExportTask` | `key == task_id`; one reward, four metrics; `validate()` checks that the reference solution passes |
 | `ExportTaskset` | `INFINITE = False`; one task per declared seed |
 | `DomainToolsetConfig`, `DomainToolset` | the task's tool block, served over MCP |
 | `task_from_bundle(bundle)` | one `generate(arm, seed)` bundle as one task |
@@ -118,8 +169,8 @@ stored trace can be rescored with no environment at all.
   prompt-supplied assistant messages are not counted: a control arm's seeded history is not
   the model's work.
 
-`ExportTask.validate(None)` re-checks G4 -- the reference solution passes under *both*
-strictnesses -- and returns `False` for a bundle whose reference falls short. Generation
+`ExportTask.validate(None)` re-checks that the reference solution passes under *both*
+strictnesses, and returns `False` for a bundle whose reference falls short. Generation
 already refuses such a bundle; this is where the export says so.
 
 ## The harness the numbers were measured under
