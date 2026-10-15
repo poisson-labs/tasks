@@ -4,7 +4,11 @@ One line per check, each with its own status word: Python, the package and where
 imported from, the tokenizer file, the settings file, the key, the harness and the platform.
 Exit 0 when ready, 4 when not, each failing line ending with what to run.  `--fix` fetches the
 tokenizer file when it is missing, the one thing `doctor` changes; `--offline` opens no socket;
-`--show-command` prints the `init --yes` command that writes the settings file.
+`--show-command` prints the `init --yes` command that writes the settings file.  With `[own]`
+in the settings file, the tool file is read again and its summary reported (own-tools spec §8.2):
+the counts, each refusal, the file's digest, and one line per knob the set reaches, the shipped
+ones first, with the knob probe's status on each model (ruled 2026-10-13 23:26); when the newest
+run of the same tool file carries another digest, one line says so, naming both (yes/no 27).
 """
 
 from __future__ import annotations
@@ -16,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from poisson_tasks import config, providers
+from poisson_tasks.cli import _format
 from poisson_tasks.cli._common import (
     HARNESS_LINE,
     WINDOWS_LINE,
@@ -24,10 +29,14 @@ from poisson_tasks.cli._common import (
     host_of,
     load_settings,
     settings_exist,
+    settings_root,
+    shown,
 )
 from poisson_tasks.cli._result import Command, Refusal, Result, Row
 
 SCHEMA = "poisson-tasks.doctor/1"
+DIGEST_SHOWN = 12
+"""How many characters of a digest a line shows."""
 
 
 def _version() -> str:
@@ -160,6 +169,12 @@ def doctor(ctx: Context) -> Result:
                     key_status = "bad"
         rows.append(Row("key", key_text, key_status))
 
+    # your own tools: the file read again, its summary, the knobs, the last run's digest
+    own_data: dict[str, Any] = {}
+    if settings is not None and settings.own is not None:
+        own_rows, own_data = _own_rows(ctx, settings)
+        rows += own_rows
+
     # the harness and the platform
     harness = HARNESS_LINE.replace("the first episode", "each run's first episode", 1)
     if report.uv:
@@ -188,5 +203,119 @@ def doctor(ctx: Context) -> Result:
             "ready": ready,
             "checks": {row.label: {"status": row.status, "text": row.value} for row in rows},
             "key": key_data,
+            **({"tools": own_data} if own_data else {}),
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# your own tools
+# ---------------------------------------------------------------------------
+
+
+def _own_rows(ctx: Context, settings: Any) -> tuple[list[Row], dict[str, Any]]:
+    """The lines for a settings file with `[own]`: the tool file read again and its summary
+    (the counts, each refusal, the digest), the knobs offered on this set with the probe's status
+    on each model, and the last run's digest when it differs."""
+    from poisson_tasks import own
+    from poisson_tasks.own import card as own_card
+    from poisson_tasks.own import recipes as own_recipes
+    from poisson_tasks.own.generator import Flow
+
+    rows: list[Row] = []
+    path = config.own_file_path(settings.own, settings_root(ctx))
+    where = shown(path)
+    try:
+        data = Path(path).read_bytes()
+    except OSError as error:
+        rows.append(Row("tools", f"the tool file {where} cannot be read ({error.strerror}); "
+                                 f"[own] file names it in {ctx.config_path}", "bad"))
+        return rows, {"file": path, "readable": False}
+    name = settings.own.name if settings.own.name is not None else Path(settings.own.file).stem
+    try:
+        reading = own.read_tools(data, format=settings.own.format, name=name)
+    except own.OwnToolsError as refused:
+        rows.append(Row("tools", f"{where} is refused: {refused}", "bad"))
+        return rows, {"file": path, "readable": True, "refused": str(refused)}
+    try:
+        toolset = own.apply_effects(reading.toolset, read=settings.own.read,
+                                    write=settings.own.write)
+    except own.OwnToolsError as refused:
+        rows.append(Row("tools", f"{where}: {refused}", "bad"))
+        return rows, {"file": path, "readable": True, "refused": str(refused)}
+    summary = own.summary(reading).splitlines()
+    rows.append(Row("tools", f"{summary[0]} in {where}", "ok"))
+    for line in reading.refused:
+        rows.append(Row("refused", line.line, "ok"))
+    rows.append(Row("file", f"{summary[len(reading.refused) + 1]}", "ok"))
+    flows = tuple(Flow(*flow) for flow in settings.own.flows)
+    try:
+        offered = own_recipes.offered_knobs(toolset, flows=flows)
+        shipped = own_recipes.shipped_knobs(toolset, flows=flows)
+    except ValueError as refused:
+        rows.append(Row("knobs", f"a flow is refused: {refused}", "bad"))
+        return rows, {"file": path, "readable": True, "digest": toolset.file_digest}
+    ordered = [*shipped, *(knob for knob in offered if knob not in shipped)]
+    statuses = own_card.probe_statuses(ordered)
+    if ordered:
+        rows.append(Row("knobs", f"{_format.words(ordered)} reach a level on this set"
+                                 + (f"; {_format.words(shipped)} shipped and lead the recipes"
+                                    if shipped else ""), "ok"))
+    else:
+        rows.append(Row("knobs", "no knob reaches a level on this set", "ok"))
+    for knob in ordered:
+        if knob in statuses:
+            said = "; ".join(f"{status} on {model}" for model, status in statuses[knob].items())
+            words = f"the knob probe's status on the built-in tasks: {said}"
+        else:
+            words = "measured on the published cards, not by the knob probe"
+        rows.append(Row(knob, words, "ok"))
+    if not flows:
+        from poisson_tasks.own.generator import UNAVAILABLE_WITHOUT_FLOWS
+
+        rows.append(Row("flows", f"none declared, so depth and shape are unavailable: "
+                                 f"{UNAVAILABLE_WITHOUT_FLOWS}", "ok"))
+    held: dict[str, Any] = {"file": path, "readable": True, "digest": toolset.file_digest,
+                            "knobs": list(ordered), "statuses": statuses}
+    last = _last_run(settings_root(ctx) / settings.output.runs, path, name)
+    if last is not None:
+        folder, digest = last
+        if digest != toolset.file_digest:
+            rows.append(Row("run", f"{shown(folder)} ran on another version of this tool "
+                                        f"file (sha256 {digest[:DIGEST_SHOWN]} then, "
+                                        f"{toolset.file_digest[:DIGEST_SHOWN]} now): its tasks "
+                                        "changed, so the next run starts a new folder", "ok"))
+            held["last_run"] = {"folder": str(folder), "digest": digest, "changed": True}
+        else:
+            rows.append(Row("run", f"{shown(folder)}, the newest run on this tool file", "ok"))
+            held["last_run"] = {"folder": str(folder), "digest": digest, "changed": False}
+    return rows, held
+
+
+def _last_run(runs_dir: Path, path: str, name: str) -> tuple[Path, str] | None:
+    """The newest run folder whose `plan.json` names the same tool file (its set's name and the
+    file's name), and the digest it was made with (ruled 2026-10-13, yes/no 27)."""
+    import json
+
+    if not runs_dir.is_dir():
+        return None
+    found: list[tuple[int, str, Path, str]] = []
+    for child in sorted(runs_dir.iterdir()):
+        plan_file = child / "plan.json"
+        if not child.is_dir() or not plan_file.is_file():
+            continue
+        try:
+            held = json.loads(plan_file.read_text(encoding="utf-8"))["plan"]
+            own_held = held.get("own")
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        if not isinstance(own_held, dict):
+            continue
+        same_name = str(own_held.get("name")) == name
+        same_file = Path(str(own_held.get("file", ""))).name == Path(path).name
+        if same_name and same_file and isinstance(own_held.get("file_digest"), str):
+            found.append((plan_file.stat().st_mtime_ns, child.name, child, own_held["file_digest"]))
+    if not found:
+        return None
+    _, _, folder, digest = max(found)
+    return folder, digest

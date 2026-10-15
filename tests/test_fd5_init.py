@@ -143,7 +143,18 @@ def test_fd5_8_an_existing_file_is_refused_unchanged_and_replaced_with_force(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("measure", ["1", "2", "3"], ids=["first-look", "card", "custom"])
+def _entries() -> dict[str, str]:
+    """Question 6's entries, numbered from 1: the offered recipes in `arms.RECIPES`' order, then
+    "Tasks on my own tools" (own-tools spec §8.1), then choosing the knob yourself.  Retrofitted
+    2026-10-14 (O2 Session A's yes/no 32): the first-look, card and custom answers were "1", "2"
+    and "3", the three entries of the menu before own tools took the place after the recipes and
+    the knob probe shipped faults, history and shape."""
+    offered = [name for name, recipe in arms().RECIPES.items() if recipe.offered]
+    return {"first-look": str(offered.index("first-look") + 1),
+            "card": str(offered.index("card") + 1), "custom": str(len(offered) + 2)}
+
+
+@pytest.mark.parametrize("measure", list(_entries().values()), ids=list(_entries()))
 def test_fd5_8_ctrl_c_at_any_question_writes_nothing(
     measure: str, prog: str, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -172,7 +183,7 @@ def test_fd5_8_the_published_design_asks_two_fewer_questions_and_custom_four_mor
     """Spec §6.1: question 6's second answer skips the tasks and the attempts; its third asks
     the knob, the levels, the control arms and the strictness."""
     counts = {}
-    for measure in ("1", "2", "3"):
+    for measure in _entries().values():
         stdin = Answers(["", "", "", "", measure])
         ran = invoke(["init", "--no-check-key"], prog=prog, monkeypatch=monkeypatch,
                      stdin=stdin)

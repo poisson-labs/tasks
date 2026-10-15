@@ -94,7 +94,9 @@ Repository = "https://github.com/poisson-labs/tasks"
 Issues = "https://github.com/poisson-labs/tasks/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/poisson_tasks"]
+# `poisson_tasks_own` is the own-tools taskset's top-level module: verifiers 0.3.1 finds a
+# taskset by a top-level module only (ruled 2026-10-13, O2 Session A's yes/no 1).
+packages = ["src/poisson_tasks", "src/poisson_tasks_own"]
 # The encoding file is fetched after installation, never shipped: see NOTICE.
 exclude = ["data/*.tiktoken"]
 
@@ -135,7 +137,7 @@ ignore_missing_imports = true
 # config and its env subclass two more of the wheel's Any names. It declares no rewards, so
 # it needs no decorator exemption.
 [[tool.mypy.overrides]]
-module = ["poisson_tasks.export", "poisson_tasks.taskset"]
+module = ["poisson_tasks.export", "poisson_tasks.taskset", "poisson_tasks.own.export"]
 disallow_subclassing_any = false
 disallow_untyped_decorators = false
 

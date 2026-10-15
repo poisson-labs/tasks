@@ -126,6 +126,7 @@ from poisson_tasks.engine import EngineSpec as _EngineSpec
 from poisson_tasks.engine import engine_hash as _engine_hash
 from poisson_tasks.export import MEASURED_HARNESS as _MEASURED_HARNESS
 from poisson_tasks.knobs import ArmSpec as _ArmSpec
+from poisson_tasks.knobs import _render_arm_id
 from poisson_tasks.knobs import arm_id as _arm_id
 from poisson_tasks.knobs import levels as _levels
 from poisson_tasks.tasks import generate as _generate
@@ -313,6 +314,11 @@ _KNOBS = (_DEPTH, _DISTRACTOR)
 # otherwise never show.
 _REPLAY_CHECKED = ("similarity", "faults", "history", "block", "arguments", "shape", "spread")
 _REPLAY_MISMATCH = "replay_mismatch"
+# The own-tools provenance kind, and the keys its block carries (own-tools spec §9).
+_OWN_KIND = "own"
+_OWN_TOOLS_KEYS = (
+    "kind", "name", "tools", "source_format", "file_digest", "intents", "flows", "generator",
+)
 # The status a planned failure answers with, as the faults knob's system prompt names it.
 _UNAVAILABLE = "unavailable"
 
@@ -781,8 +787,22 @@ class Provenance:
     resumed: bool | None = None
     """True when some of the run's attempts were made by a later run of its folder than others;
     absent otherwise, so a block for the published design keeps its bytes."""
+    tools: _Mapping[str, _Any] | None = None
+    """The own-tools provenance kind (own-tools spec §9): `kind` `own`, the set's `name`, its
+    usable `tools` count, its `source_format`, the file's `file_digest`, the tools that have an
+    intent (`intents`, sorted names), the number of declared `flows` and the own-tools
+    `generator` label.  A block for the built-in tasks has none, and `as_dict` leaves it out,
+    so every published block keeps its bytes."""
 
     def __post_init__(self) -> None:
+        if self.tools is not None:
+            if not isinstance(self.tools, _Mapping) or self.tools.get("kind") != _OWN_KIND:
+                found = dict(self.tools).get("kind") if isinstance(self.tools, _Mapping) else None
+                raise ValueError(
+                    f"tools.kind must be {_OWN_KIND!r}, the own-tools provenance kind; got "
+                    f"{found!r}"
+                )
+            _require_keys(self.tools, _OWN_TOOLS_KEYS, "tools")
         for name in ("package_version", "engine_hash", "generator_hash", "vocabulary_hash",
                      "verifiers_version", "seed_list_hash"):
             if not isinstance(getattr(self, name), str) or not getattr(self, name):
@@ -883,6 +903,9 @@ class Provenance:
         if out.get("concurrency") is None:
             # Nor does a run that recorded no concurrency: a published block keeps its bytes.
             out.pop("concurrency", None)
+        if out.get("tools") is None:
+            # A block for the built-in tasks has no own-tools kind: its bytes stay.
+            out.pop("tools", None)
         return out
 
     def rates_for(self, model: str) -> _Mapping[str, _Any] | None:
@@ -973,7 +996,25 @@ class Provenance:
             raise ValueError("a plan with no seed or no arm has no design to measure under")
         n = int(plan.attempts)
         spec = plan.arms[0]
-        bundle = _generate(spec, seeds[0])
+        own = getattr(plan, "own", None)
+        tools: dict[str, _Any] | None = None
+        if own is not None:
+            # A plan on a user's own tools: the own-tools generator's hash, and the kind.
+            from poisson_tasks.own import generator as _own_generator
+
+            generator_hash = _own_generator.generator_hash()
+            tools = {
+                "kind": _OWN_KIND,
+                "name": str(own["name"]),
+                "tools": int(own["tools"]),
+                "source_format": str(own["source_format"]),
+                "file_digest": str(own["file_digest"]),
+                "intents": sorted(str(name) for name in dict(own["intents"])),
+                "flows": len(list(own["flows"])),
+                "generator": _own_generator.GENERATOR_VERSION,
+            }
+        else:
+            generator_hash = _generate(spec, seeds[0]).generator_hash
         entry: dict[str, _Any] = {
             "id": plan.model.name,
             "revision": plan.model.name,
@@ -991,7 +1032,7 @@ class Provenance:
         return cls(
             package_version=_metadata.version("poisson-tasks"),
             engine_hash=_engine_hash(_EngineSpec.load()),
-            generator_hash=bundle.generator_hash,
+            generator_hash=generator_hash,
             vocabulary_hash=_vocabulary_hash(),
             verifiers_version=_metadata.version("verifiers"),
             harness_id=_MEASURED_HARNESS,
@@ -1018,6 +1059,7 @@ class Provenance:
             arms=[_arm_id(arm) for arm in plan.arms],
             strictness=None if strict == {"strict"} else ",".join(sorted(strict)),
             split=None if splits == {SPLIT} else ",".join(sorted(splits)),
+            tools=tools,
         )
 
 
@@ -1246,7 +1288,9 @@ def _cell_figures(
             pass_k_interval[str(k)] = [low, high]
     labelled = len(cell) - len(kept)
     failures = max(labelled, sum(tally.values())) if tally else labelled
-    minimum = _minimum_calls(arm)
+    # A task on a user's own tools has its own structural minimum, which the built-in arm's
+    # reference turns do not give; the figure is not recorded there.
+    minimum = None if provenance.tools is not None else _minimum_calls(arm)
     no_call = sum(1 for row in kept if _made_no_call(row))
     short = sum(1 for row in kept if _stopped_short(row, minimum))
     # Reached the goal and carried the record past it: a stop-at-the-goal failure.
@@ -1327,9 +1371,27 @@ def _pair_rows(
     provenance: Provenance,
 ) -> list[dict[str, _Any]]:
     """One row per model, knob and adjacent pair of plain levels (CAL10 to CAL12), over the
-    whole axis and never a chosen pair."""
+    whole axis and never a chosen pair.  On a user's own tools, each level against the knob's
+    first (own-tools spec §6.3), through `own.card.against_first`."""
     rows: list[dict[str, _Any]] = []
     models = sorted({model for _, model in cells})
+    if provenance.tools is not None:
+        from poisson_tasks.own import card as _own_card
+
+        by_model = {model: {key: cell for key, cell in cells.items() if key[1] == model}
+                    for model in models}
+        for model in models:
+            for against in _own_card.against_first(by_model[model], provenance):
+                excluded = against.verdict == _own_card.EXCLUDED
+                rows.append({
+                    "model": model, "knob": against.knob, "level_a": against.level,
+                    "level_b": against.first, "arm_a": _level_arm(against.knob, against.level),
+                    "arm_b": _level_arm(against.knob, against.first),
+                    "predicate": against.predicate, "delta": against.delta,
+                    "low": against.low, "high": against.high, "verdict": against.verdict,
+                    "reason": "saturated on the same side" if excluded else None,
+                })
+        return rows
     for model in models:
         for knob in _KNOBS:
             axis = _levels(knob)
@@ -1378,6 +1440,9 @@ def _reach_pair_rows(
     rate.  The distractor knob has none: every level needs the same calls, and its question
     is choosing the tool, not stopping."""
     rows: list[dict[str, _Any]] = []
+    if provenance.tools is not None:
+        # On a user's own tools depth is read on strict, as every knob there: no overshoot.
+        return rows
     axis = _levels(_DEPTH)
     for model in sorted({model for _, model in cells}):
         for a, b in zip(axis, axis[1:], strict=False):
@@ -1414,16 +1479,31 @@ def _reach_pair_rows(
     return rows
 
 
-def _ordering_rows(cells: _Mapping[CellKey, Cell]) -> list[dict[str, _Any]]:
+def _own_axes(cells: _Mapping[CellKey, Cell]) -> dict[str, tuple[int, ...]]:
+    """On a user's own tools, each knob's axis is the levels its cells hold, in order; a knob
+    with one level has no ordering to read."""
+    from poisson_tasks.own.generator import KNOBS as _OWN_KNOBS
+
+    found: dict[str, set[int]] = {}
+    for arm, _model in cells:
+        spec = _spec_for(arm)
+        if spec is not None and spec.control is None and spec.knob in _OWN_KNOBS:
+            found.setdefault(spec.knob, set()).add(spec.level)
+    return {knob: tuple(sorted(found[knob])) for knob in _OWN_KNOBS
+            if knob in found and len(found[knob]) > 1}
+
+
+def _ordering_rows(cells: _Mapping[CellKey, Cell], own: bool = False) -> list[dict[str, _Any]]:
     """CAL13 per model and knob, and the family agreement count where two models share a
     complete axis.  Each ordering row carries leaky pass@1 across the axis beside the strict
-    rates; the agreement count stays on the strict headline."""
+    rates; the agreement count stays on the strict headline.  On a user's own tools the axis
+    of a knob is the levels the card holds."""
     rows: list[dict[str, _Any]] = []
     reports: dict[tuple[str, str], OrderingReport] = {}
+    axes = _own_axes(cells) if own else {knob: _levels(knob) for knob in _KNOBS}
     for model in sorted({model for _, model in cells}):
-        for knob in _KNOBS:
-            axis = _levels(knob)
-            keyed = {level: (_arm_id(_plain(knob, level)), model) for level in axis}
+        for knob, axis in axes.items():
+            keyed = {level: (_level_arm(knob, level), model) for level in axis}
             if not all(key in cells for key in keyed.values()):
                 continue
             report = ordering({level: scored(cells[key]) for level, key in keyed.items()}, axis)
@@ -1439,14 +1519,14 @@ def _ordering_rows(cells: _Mapping[CellKey, Cell]) -> list[dict[str, _Any]]:
                     leaky[i] >= leaky[i + 1] for i in range(len(leaky) - 1)
                 ),
             })
-    for knob in _KNOBS:
+    for knob, axis in axes.items():
         families = sorted(model for model, k in reports if k == knob)
         for i, first in enumerate(families):
             for second in families[i + 1:]:
                 rows.append({
                     "kind": "agreement", "knob": knob, "models": [first, second],
                     "agreeing_pairs": reports[(first, knob)].agreement(reports[(second, knob)]),
-                    "of": len(_levels(knob)) - 1,
+                    "of": len(axis) - 1,
                 })
     return rows
 
@@ -1477,7 +1557,7 @@ def build_artifact(
     return Artifact(
         cells=list(figures.values()),
         pairs=_pair_rows(cells, figures, provenance),
-        orderings=_ordering_rows(cells),
+        orderings=_ordering_rows(cells, own=provenance.tools is not None),
         provenance=provenance,
         reach_pairs=_reach_pair_rows(cells, figures, provenance),
     )
@@ -1572,6 +1652,11 @@ def _level_row(cell: _Mapping[str, _Any], k_values: _Sequence[int]) -> str:
     return "| " + " | ".join(values) + " |"
 
 
+def _level_arm(knob: str, level: int) -> str:
+    """The plain arm id of a knob's level, as an own-tools card names its arms."""
+    return _render_arm_id(knob, level, None)
+
+
 def _plain(knob: str, level: int) -> _ArmSpec:
     return _ArmSpec(knob=knob, level=level, control=None, strictness="strict",
                     split=SPLIT, generator_version=GENERATOR_VERSION)
@@ -1603,11 +1688,16 @@ def render_document(artifact: Artifact, *, claims: bool = False) -> str:
     provenance.  A run's card is rendered that way; the published page is not, and every line
     of this rendering is in the other, in order."""
     prov = artifact.provenance
+    own = prov.tools is not None
     k_values = list(prov.k_values)
     header, rule = _level_header(k_values)
-    lines: list[str] = [
-        "# What each difficulty level is worth",
-        "",
+    lines: list[str] = ["# What each difficulty level is worth", ""]
+    if own:
+        from poisson_tasks.own import card as _own_card
+
+        # Own-tools spec §9: the first lines, before anything else the card says.
+        lines += [_own_card.first_lines(prov.tools or {}), ""]
+    lines += [
         f"Rendered from the calibration artifact for poisson-tasks {prov.package_version} "
         f"(domain `{prov.engine_hash}`, generator `{prov.generator_hash}`, vocabulary "
         f"`{prov.vocabulary_hash}`), run through the `{prov.harness_id}` harness at verifiers "
@@ -1643,12 +1733,19 @@ def render_document(artifact: Artifact, *, claims: bool = False) -> str:
         "short is a difficulty result and is printed, not gated. A saturated level is one "
         "this model cannot see past and it appears in no claim below.",
         "",
-        "*overshoot* is the share of scored episodes that reached the goal and carried the "
-        "record past it, and the *leaky 95% interval* is the same task-clustered bootstrap on "
-        "the leaky rate. **Depth is read on leaky pass@1, reaching the goal.** Every depth "
-        "level offers the whole stage ladder, so below the top level the strict rate also asks "
-        "the model to stop at the goal; the overshoot column shows how often it did not. The "
-        "strict rate is published beside it and is first in each table.",
+        (
+            "*overshoot* is never reached on your tools: a tool of yours has no stage past its "
+            "goal, so what the leaky rate accepts beyond the strict one is a side effect. **Every "
+            "knob here, depth included, is read on strict pass@1 against its first level.** The "
+            "*leaky 95% interval* is the same task-clustered bootstrap on the leaky rate."
+        ) if own else (
+            "*overshoot* is the share of scored episodes that reached the goal and carried the "
+            "record past it, and the *leaky 95% interval* is the same task-clustered bootstrap on "
+            "the leaky rate. **Depth is read on leaky pass@1, reaching the goal.** Every depth "
+            "level offers the whole stage ladder, so below the top level the strict rate also asks "
+            "the model to stop at the goal; the overshoot column shows how often it did not. The "
+            "strict rate is published beside it and is first in each table."
+        ),
         "",
         "Beside the rates is what the level cost: *median model calls*, *median tokens* "
         "(prompt, cached input and completion) and *median episode seconds* over the scored "
@@ -1661,26 +1758,33 @@ def render_document(artifact: Artifact, *, claims: bool = False) -> str:
     ]
     level_cells = [cell for cell in artifact.cells if not cell["control"]]
     control_cells = [cell for cell in artifact.cells if cell["control"]]
-    for knob in _KNOBS:
+    knob_order: tuple[str, ...] = _KNOBS
+    if own:
+        from poisson_tasks.own.generator import KNOBS as _OWN_KNOBS
+
+        knob_order = _OWN_KNOBS
+    for knob in knob_order:
         rows = [cell for cell in level_cells if _spec_for(cell["arm_id"]) is not None
                 and _spec_for(cell["arm_id"]).knob == knob]  # type: ignore[union-attr]
         if not rows:
             continue
         lines += ["", f"### {knob}", "", header, rule]
         lines += [_level_row(cell, k_values) for cell in rows]
-    lines += [
-        "",
-        INSTRUMENT_TABLE_HEADING,
-        "",
-        "These are instrument arms. A control such as `depth:d1+h8` exists to separate "
-        "depth from history, not to be a difficulty level, and it must not be read as one.",
-        "",
-        f"Concurrency of this run: {_concurrency(prov)}.",
-        "",
-        header,
-        rule,
-    ]
-    lines += [_level_row(cell, k_values) for cell in control_cells]
+    if not own:
+        # Own tools have no control arms (ruled 2026-10-13, yes/no 8).
+        lines += [
+            "",
+            INSTRUMENT_TABLE_HEADING,
+            "",
+            "These are instrument arms. A control such as `depth:d1+h8` exists to separate "
+            "depth from history, not to be a difficulty level, and it must not be read as one.",
+            "",
+            f"Concurrency of this run: {_concurrency(prov)}.",
+            "",
+            header,
+            rule,
+        ]
+        lines += [_level_row(cell, k_values) for cell in control_cells]
     lines += [
         "",
         "## Cost per episode",
@@ -1756,15 +1860,59 @@ def render_document(artifact: Artifact, *, claims: bool = False) -> str:
             f"{_fmt(cell['reasoning_share'])} | {_fmt(cell['dollars'])} | "
             f"{_fmt(cell['reported_cost'])} |"
         )
-    lines += [
-        "",
-        "## Adjacent levels",
-        "",
-        "A difference is paired over the shared seeds inside each resample. A pair is "
-        f"*{DISTINGUISHABLE}* only when its paired 95% interval excludes zero **and** the "
-        f"difference is at least delta* = {prov.delta_star:.2f} pass-rate points; otherwise "
-        f"it reads *{TOO_SMALL}*, with its difference and interval shown.",
-    ]
+    if own:
+        from poisson_tasks.own import card as _own_card
+
+        rows_against_first = _own_card.rows_from_artifact(artifact)
+        lines += [
+            "",
+            "## Each level against the first",
+            "",
+            "On your tools each knob is read against its own first level: "
+            "the difference is paired over the shared seeds inside each resample, on strict "
+            f"pass@1. A level is *{DISTINGUISHABLE}* from the first only when its paired 95% "
+            "interval excludes zero **and** the difference is at least delta* = "
+            f"{prov.delta_star:.2f} pass-rate points; otherwise it reads *{TOO_SMALL}*, with its "
+            "difference and interval shown; a pair saturated on the same side is "
+            f"*{_own_card.EXCLUDED}*.",
+            "",
+            "| model | knob | level vs first | delta strict pass@1 | 95% paired interval | "
+            "verdict |",
+            "|---|---|---|---|---|---|",
+        ]
+        for pair in artifact.pairs:
+            verdict = pair["verdict"]
+            if pair["reason"] is not None:
+                verdict = f"{verdict}: {pair['reason']}"
+            interval = None if pair["low"] is None else (pair["low"], pair["high"])
+            lines.append(
+                f"| {pair['model']} | {pair['knob']} | {pair['level_a']} vs {pair['level_b']} | "
+                f"{_fmt(pair['delta'])} | {_interval(interval)} | {verdict} |"
+            )
+        lines += ["", "### What each knob did, in words", ""]
+        said = _own_card.bite(rows_against_first)
+        lines += [f"- {line}" for line in said.values()] or [
+            "- No knob has two levels on this card, so none is read against its first."]
+        # Every knob stays available on own tools (ruled 2026-10-13 23:26); each carries the
+        # knob probe's status on each probe model, said apart from the per-set table above.
+        knobs_here = list(dict.fromkeys(
+            spec.knob for cell in artifact.cells
+            if (spec := _spec_for(cell["arm_id"])) is not None and spec.control is None
+        ))
+        lines += ["", "### What the knob probe measured on the built-in tasks", "",
+                  _own_card.PROBE_SENTENCE, ""]
+        lines += _own_card.probe_lines(knobs_here) or [
+            "- No knob of the probe's is on this card."]
+    else:
+        lines += [
+            "",
+            "## Adjacent levels",
+            "",
+            "A difference is paired over the shared seeds inside each resample. A pair is "
+            f"*{DISTINGUISHABLE}* only when its paired 95% interval excludes zero **and** the "
+            f"difference is at least delta* = {prov.delta_star:.2f} pass-rate points; otherwise "
+            f"it reads *{TOO_SMALL}*, with its difference and interval shown.",
+        ]
     if artifact.reach_pairs:
         lines += [
             "",
@@ -1786,20 +1934,21 @@ def render_document(artifact: Artifact, *, claims: bool = False) -> str:
                 f"{_fmt(pair['delta'])} | {_interval(interval)} | {verdict} |"
             )
         lines += ["", "### every knob, strict pass@1"]
-    lines += [
-        "",
-        "| model | knob | levels | delta strict pass@1 | 95% paired interval | verdict |",
-        "|---|---|---|---|---|---|",
-    ]
-    for pair in artifact.pairs:
-        verdict = pair["verdict"]
-        if pair["reason"] is not None:
-            verdict = f"{verdict}: {pair['reason']}"
-        interval = None if pair["low"] is None else (pair["low"], pair["high"])
-        lines.append(
-            f"| {pair['model']} | {pair['knob']} | {pair['level_a']} vs {pair['level_b']} | "
-            f"{_fmt(pair['delta'])} | {_interval(interval)} | {verdict} |"
-        )
+    if not own:
+        lines += [
+            "",
+            "| model | knob | levels | delta strict pass@1 | 95% paired interval | verdict |",
+            "|---|---|---|---|---|---|",
+        ]
+        for pair in artifact.pairs:
+            verdict = pair["verdict"]
+            if pair["reason"] is not None:
+                verdict = f"{verdict}: {pair['reason']}"
+            interval = None if pair["low"] is None else (pair["low"], pair["high"])
+            lines.append(
+                f"| {pair['model']} | {pair['knob']} | {pair['level_a']} vs {pair['level_b']} | "
+                f"{_fmt(pair['delta'])} | {_interval(interval)} | {verdict} |"
+            )
     lines += ["", "## Ordering", ""]
     for row in artifact.orderings:
         if row["kind"] == "ordering":
@@ -1813,7 +1962,7 @@ def render_document(artifact: Artifact, *, claims: bool = False) -> str:
                 f"{', '.join(_fmt(rate) for rate in row['leaky_at_1'])}; "
                 f"non-increasing: {_fmt(row['leaky_non_increasing'])}."
             )
-            if row["knob"] == _DEPTH:
+            if row["knob"] == _DEPTH and not own:
                 lines.append("  - " + _depth_stop_note(row["levels"]))
         else:
             lines.append(
@@ -2697,6 +2846,79 @@ def _gave_up_after_fault(data: _Any, trace: _Any) -> bool | None:
     return False
 
 
+def _is_own_task(dumped: _Mapping[str, _Any]) -> bool:
+    """Whether an episode's task data is an own-tools task's: it names the tool file's digest
+    and the set, which no built-in task data carries."""
+    return "file_digest" in dumped and "set_name" in dumped and "steps" in dumped
+
+
+def _own_record(
+    episode: _Any, dumped: _Mapping[str, _Any], attempts: dict[str, int], model: str
+) -> EpisodeRecord:
+    """One own-tools episode's record: the own verdict re-read through the own export, the
+    replay check on every arm (the simulator's answers to the calls that reached the server must
+    be the tool messages byte for byte), and the faults figure read from the simulator's own
+    answers."""
+    from poisson_tasks.export import _sampled_exchanges
+    from poisson_tasks.own import simulator as _own_sim
+    from poisson_tasks.own.export import OwnTaskData, _verdict, bundle_from_data
+
+    data = OwnTaskData.model_validate(dict(dumped))
+    attempt = attempts.get(episode.task.hash, 0)
+    attempts[episode.task.hash] = attempt + 1
+    trace = episode.traces[0] if episode.traces else None
+    instrument = label_from_signals(_episode_signals(episode))
+    usage = trace.usage if trace is not None else None
+    gave_up: bool | None = None
+    if instrument is not None or trace is None:
+        strict, leaky, label = False, False, instrument or "api_error"
+    else:
+        reward = trace.rewards.get("strict")
+        leaky_metric = trace.metrics.get("leaky_pass")
+        if reward is None or leaky_metric is None:
+            strict, leaky, label = False, False, "verifier_error"
+        else:
+            verdict = _verdict(data, trace)
+            strict = float(reward.value) == 1.0
+            leaky = float(leaky_metric) == 1.0
+            label = verdict.strict_label
+            bundle = bundle_from_data(data)
+            block = {str(tool["name"]): tool for tool in bundle.tools}
+            exchanges = _sampled_exchanges(trace)
+            reached = [(content, call) for content, call in exchanges
+                       if _own_sim.reaches_the_server(call[0], call[1], block)]
+            _state, answers = _own_sim.replay(bundle, [call for _c, call in reached])
+            if [answer.text for answer in answers] != [content for content, _c in reached]:
+                strict, leaky, label = False, False, _REPLAY_MISMATCH
+            elif strict != (label == _PASSED) or leaky != verdict.leaky_pass:
+                raise ValueError(
+                    f"episode {episode.id}: the recorded reward and the re-read verdict "
+                    f"disagree (strict={strict}, leaky={leaky}, label={label!r})"
+                )
+            if bundle.fault_plan:
+                gave_up = False
+                for index, answer in enumerate(answers):
+                    if answer.code == _UNAVAILABLE:
+                        name = reached[index][1][0]
+                        later = [call[0] for _c, call in exchanges][
+                            exchanges.index(reached[index]) + 1:]
+                        if name not in later:
+                            gave_up = True
+    return EpisodeRecord(
+        task_id=str(data.task_id), arm_id=str(data.arm_id), model=model,
+        seed=int(data.seed), attempt=attempt, strict=strict, leaky=leaky, label=label,
+        turns=int(trace.num_turns) if trace is not None else 0,
+        sampled_calls=int(trace.metrics.get("sampled_calls") or 0) if trace is not None else 0,
+        prompt_tokens=int(usage.prompt_tokens) if usage else 0,
+        cached_input_tokens=int(usage.cached_input_tokens or 0) if usage else 0,
+        completion_tokens=int(usage.completion_tokens) if usage else 0,
+        reasoning_tokens=int(usage.reasoning_tokens or 0) if usage else 0,
+        cost=float(usage.cost) if usage and usage.cost is not None else None,
+        **(_time_from_trace(trace) if trace is not None else {}),
+        gave_up_after_fault=gave_up,
+    )
+
+
 def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecord]:
     """The per-episode records of a finished run, from its `traces.jsonl`.
 
@@ -2717,7 +2939,11 @@ def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecor
     attempts: dict[str, int] = {}
     out: list[EpisodeRecord] = []
     for episode in episodes:
-        data = ExportTaskData.model_validate(episode.task.data.model_dump(mode="json"))
+        dumped = episode.task.data.model_dump(mode="json")
+        if _is_own_task(dumped):
+            out.append(_own_record(episode, dumped, attempts, model))
+            continue
+        data = ExportTaskData.model_validate(dumped)
         attempt = attempts.get(episode.task.hash, 0)
         attempts[episode.task.hash] = attempt + 1
         trace = episode.traces[0] if episode.traces else None
@@ -2770,7 +2996,7 @@ def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecor
 _COMPARABLE = (
     "generator_hash", "engine_hash", "vocabulary_hash", "seed_list_hash", "S", "n",
     "decoding", "harness_id", "delta_star", "saturation_high", "saturation_low",
-    "bootstrap_resamples", "bootstrap_seed", "strictness", "split",
+    "bootstrap_resamples", "bootstrap_seed", "strictness", "split", "tools",
 )
 """What two cards must share to be read side by side: the same tasks, the same attempts and
 decoding, the same rule for calling a difference, and the same strictness and split (an arm's
@@ -3000,6 +3226,10 @@ def _plan_of(folder: _pathlib.Path) -> _Any:
         model = dict(held["model"])
         if model.get("price") is not None:
             model["price"] = _config.PriceConfig(**model["price"])
+        extra: dict[str, _Any] = {}
+        if held.get("own") is not None:
+            # A plan on a user's own tools carries its `own` table; `config.Plan` takes it.
+            extra["own"] = dict(held["own"])
         return _config.Plan(
             preset=str(held["preset"]),
             arms=tuple(_ArmSpec(**arm) for arm in held["arms"]),
@@ -3008,6 +3238,7 @@ def _plan_of(folder: _pathlib.Path) -> _Any:
             model=_config.ModelConfig(**model),
             decoding=_types.MappingProxyType(dict(held["decoding"])),
             max_model_calls=int(held["max_model_calls"]),
+            **extra,
         )
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise ValueError(f"{folder} is not a run folder: it holds no plan") from error
@@ -3310,6 +3541,8 @@ def card_claims(artifact: Artifact) -> Claims:
     models = sorted({str(cell["model"]) for cell in artifact.cells})
     model = models[0] if models else str(prov.models[0]["id"])
     arms = {str(cell["arm_id"]) for cell in artifact.cells}
+    if prov.tools is not None:
+        return _own_claims(artifact, model)
     published = _published_blocks()
     flags: set[str] = set()
     if published and prov.S < min(other.S for other, _ in published):
@@ -3352,6 +3585,64 @@ def card_claims(artifact: Artifact) -> Claims:
         ("self_served", _LINE_SELF_SERVED), ("distractor", _LINE_DISTRACTOR),
         ("stale", _LINE_STALE), ("resumed", _LINE_RESUMED),
     ):
+        if flag in flags:
+            lines.append(line)
+    return Claims(meaning=meaning, not_claimed=tuple(lines), flags=frozenset(flags))
+
+
+_OWN_LINES = (
+    ("own_backend", (
+        "It says nothing about your real tools' outputs, errors or latency, or about your app: "
+        "every response in these episodes was simulated from your schemas."
+    )),
+    ("own_not_comparable", (
+        "It is not comparable with the published cards or with built-in runs: the tasks differ, "
+        "so none of its figures reads against theirs."
+    )),
+    ("own_levels", (
+        "Within this card, levels compare with each other; across two cards, only when the tool "
+        "file, the settings and the seeds are the same."
+    )),
+    ("own_word_match", (
+        "Without an intent for every tool, choosing a tool was partly a word match with its "
+        "description."
+    )),
+    ("own_no_effect", (
+        "A knob that shows no effect here may still matter in your app, and the reverse."
+    )),
+)
+
+
+def _own_claims(artifact: Artifact, model: str) -> Claims:
+    """What an own-tools card means and does not claim (own-tools spec §9): its lines are
+    `_OWN_LINES`, every one that applies, `stale` against the own-tools generator, and the
+    self-served and resumed lines as on any card; none of the published cards' comparisons."""
+    from poisson_tasks.own import generator as _own_generator
+
+    prov = artifact.provenance
+    tools = dict(prov.tools or {})
+    flags: set[str] = {"own_backend", "own_not_comparable", "own_levels", "own_no_effect"}
+    if len(list(tools.get("intents") or [])) < int(tools.get("tools") or 0):
+        flags.add("own_word_match")
+    if any(dict(entry).get("kind") == "self_served" for entry in prov.serving.values()):
+        flags.add("self_served")
+    if prov.generator_hash != _own_generator.generator_hash():
+        flags.add("stale")
+    if prov.resumed:
+        flags.add("resumed")
+    meaning = (
+        f"This card is {model}, {_where(prov, model)}, on your tools ({tools.get('name')}, "
+        f"{tools.get('tools')} tool{'' if tools.get('tools') == 1 else 's'}) with responses "
+        f"simulated from your schemas, over {prov.S} task{'' if prov.S == 1 else 's'} per level "
+        f"with {prov.n} attempt{'' if prov.n == 1 else 's'} at each. A rate is the share of this "
+        "model's attempts on these tasks that reached the goal with no other change and ended "
+        "with a reply (strict) or reached it at all (leaky). Each interval resamples tasks. A "
+        "level is called different from its knob's first level only when the paired interval "
+        f"excludes zero and the gap is at least {prov.delta_star:.2f}."
+    )
+    lines = [line for flag, line in _OWN_LINES if flag in flags]
+    for flag, line in (("self_served", _LINE_SELF_SERVED), ("stale", _LINE_STALE),
+                       ("resumed", _LINE_RESUMED)):
         if flag in flags:
             lines.append(line)
     return Claims(meaning=meaning, not_claimed=tuple(lines), flags=frozenset(flags))
@@ -3407,6 +3698,8 @@ _RULE_FIELDS = {
 
 def _differs(field: str, a: Provenance, b: Provenance) -> str:
     """One line saying what the first differing field means."""
+    if field == "tools":
+        return "the tasks differ: a card on a user's own tools is read on its own"
     if field == "generator_hash":
         return "the generators differ: the cards' tasks were made by different generator versions"
     if field == "engine_hash":

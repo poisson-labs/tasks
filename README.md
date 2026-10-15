@@ -84,9 +84,9 @@ using the tools it is given and nothing else.
 | the model path, standalone | **built** -- the taskset id `poisson-tasks` resolves, and `eval` runs the measured harness against an OpenAI-compatible endpoint with no flag |
 | difficulty calibration | **built** -- pass@k per level with task-clustered intervals, paired level-to-level comparisons, cost, and the refusals that keep a card honest; **run for two models**, `gpt-5-nano` and `Qwen3-8B` |
 | a locally served model's card | **built and run** -- a Colab notebook that serves `Qwen3-8B` with vLLM on an L4 and runs the same card, resumable after a dropped runtime |
-| your own tools, the readers | **built** -- an OpenAI tools file, an MCP tool list or an OpenAPI document is read into one form, with a plain one-line refusal for each tool it cannot handle; generating tasks on those tools arrives with the next part |
+| your own tools | **built** -- an OpenAI tools file, an MCP tool list or an OpenAPI document is read into one form, with a plain one-line refusal for each tool it cannot handle, and deterministic, checkable tasks are made on those tools, answered by a simulator shaped by your schemas, with every knob (each carrying the knob probe's status on the two models it ran), a verdict by replay, an export under the taskset `poisson-tasks-own` and a card that says first that your backend was never called; `init` asks for the file (or lists an MCP server's tools with your consent), `tasks.toml` keeps it under `[own]`, and `generate`, `run`, `card` and `doctor` work on it |
 
-"Built" means covered by the test suite: **2300 tests**, and `python -m pytest -q` is the check.
+"Built" means covered by the test suite: **4151 tests**, and `python -m pytest -q` is the check.
 
 ---
 
@@ -137,7 +137,7 @@ Sanity check:
 Run it from the repository root. A bare `pytest` collects the same tests: `pyproject.toml`
 puts the root on the import path, which the tests that import one another need.
 
-**2300 tests, 1939 passed and 361 skipped.** The skipped ones need Proofload -- the
+**4151 tests, 3790 passed and 361 skipped.** The skipped ones need Proofload -- the
 adapter's tests and the bridge between the two scorers -- and they say so.
 
 ### 2. Generate One Task, and Judge Every Answer It Ships With
@@ -273,7 +273,7 @@ outcomes, and runs a `proofload diff` of the two depth arms. Every episode comes
 seconds and writes about 80 KB under `examples/proofload_sweep/example-store`, which is
 git-ignored.
 
-With Proofload installed, `python -m pytest -q` is **2300 passed, 0 skipped**.
+With Proofload installed, `python -m pytest -q` is **4031 passed, 0 skipped**, the 62 that wait for the next part apart.
 
 Without it, `import poisson_tasks` and every module under it work as they do with it.
 Only `poisson_tasks.adapter` needs Proofload, and importing it without Proofload raises

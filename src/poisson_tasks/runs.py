@@ -55,6 +55,11 @@ that holds one anywhere else is masked there too, string by string, and stays JS
 
 **The machine** (spec §8.6): the harness's environment carries `PIP_REQUIRE_VIRTUALENV=1` and
 `UV_NO_MODIFY_PATH=1`, set in this process for the run's length.
+
+**A plan on the user's own tools** (own-tools spec §8, §11) runs the same way: its eval config
+names the taskset `poisson-tasks-own` and carries the plan's `own` whole, its `plan.json` holds
+`own`, its task hashes are the own export's, and its estimate scales the published card's
+per-call figures by each task's block over the built-in block (ruled 2026-10-13, yes/no 28).
 """
 
 from __future__ import annotations
@@ -89,6 +94,7 @@ __all__ = [
     "run_plan",
     "SpendLedger",
     "verifiers_config",
+    "own_bundles",
 ]
 
 _logger = logging.getLogger(__name__)
@@ -232,6 +238,8 @@ def estimate(plan: Plan, *, reference: str | None = None) -> Estimate:
     rates = _rates(plan.model.price)
     per_task = len(plan.seeds) * plan.attempts
     episodes = len(plan.arms) * per_task
+    if plan.own is not None:
+        return _own_estimate(plan, name, records, rates, episodes)
     calls_min = (
         sum(_reference_turns(spec, seed) for spec in plan.arms for seed in plan.seeds)
         * plan.attempts
@@ -256,6 +264,57 @@ def estimate(plan: Plan, *, reference: str | None = None) -> Estimate:
     )
 
 
+def _own_estimate(
+    plan: Plan, name: str, records: Sequence[Any], rates: Mapping[str, float] | None, episodes: int
+) -> Estimate:
+    """The estimate of a plan on the user's own tools (own-tools spec §8.1; ruled 2026-10-13,
+    yes/no 28): per model call, the published card's mean figures over all its records (prompt,
+    cached input and completion tokens, each summed and divided by the card's model calls); per
+    task, its reference turns (the reference calls and the reply) times those figures, the prompt
+    and the cached input scaled by the task's block tokens over the built-in block's (the tools of
+    `depth:d1` at the first published seed, both as JSON in the reference tokenizer), the output
+    not scaled; the dollars at the plan's prices; summed over the plan's tasks and attempts."""
+    from poisson_tasks.arms import arm_from_id
+    from poisson_tasks.tasks import generate
+    from poisson_tasks.tokenizer import count_tokens
+
+    fields = ("prompt_tokens", "cached_input_tokens", "completion_tokens")
+    card_calls = sum(int(row.turns) for row in records)
+    per_call = {
+        field: (sum(float(getattr(row, field)) for row in records) / card_calls if card_calls
+                else 0.0)
+        for field in fields
+    }
+    built_in = count_tokens(
+        json.dumps(list(generate(arm_from_id("depth:d1"), calibration.seed_list()[0]).tools))
+    )
+    calls = tokens = dollars = 0.0
+    calls_min = 0
+    for spec in plan.arms:
+        for bundle in own_bundles(plan, spec, plan.seeds):
+            turns = len(bundle.reference_calls) + 1
+            scale = count_tokens(json.dumps(list(bundle.tools))) / built_in
+            figures = {
+                field: per_call[field] * turns * (scale if field in fields[:2] else 1.0)
+                for field in fields
+            }
+            calls_min += turns * plan.attempts
+            calls += turns * plan.attempts
+            tokens += sum(figures.values()) * plan.attempts
+            if rates is not None:
+                dollars += (calibration.dollars(figures, rates) or 0.0) * plan.attempts
+    return Estimate(
+        episodes=episodes,
+        calls_min=calls_min,
+        calls_expected=calls,
+        calls_at_cap=episodes * plan.max_model_calls,
+        tokens_expected=tokens,
+        dollars_expected=dollars if rates is not None else None,
+        source=name,
+        same_model=_card_model(records) == plan.model.name,
+    )
+
+
 def _reservation(plan: Plan, spec: ArmSpec) -> tuple[float, int]:
     """What one episode of `spec` is reserved before any episode of the folder has been seen:
     the published card's 95th percentile of the arm's episodes, in dollars at the plan's prices
@@ -264,7 +323,10 @@ def _reservation(plan: Plan, spec: ArmSpec) -> tuple[float, int]:
     still holds, call by call."""
     try:
         card = _card_for(plan.model.name)
-        rows = _arm_records(_card_records(card), spec, card)
+        # An arm on the user's own tools has no published records of its own: every record of
+        # the card stands in for it.
+        rows = (list(_card_records(card)) if plan.own is not None
+                else _arm_records(_card_records(card), spec, card))
     except (OSError, ValueError) as reason:
         _logger.warning("no reservation before the first episode of %s: %s", arm_id(spec), reason)
         return 0.0, 0
@@ -313,20 +375,21 @@ def _base_name(plan: Plan) -> str:
 
 
 def _plan_document(plan: Plan) -> dict[str, Any]:
-    """`plan.json`: the resolved plan as JSON, and its hash."""
+    """`plan.json`: the resolved plan as JSON, and its hash; `own` when the plan is on the user's
+    own tools."""
     model = dataclasses.asdict(plan.model)
-    return {
-        "plan": {
-            "preset": plan.preset,
-            "arms": [dataclasses.asdict(spec) for spec in plan.arms],
-            "seeds": list(plan.seeds),
-            "attempts": plan.attempts,
-            "model": model,
-            "decoding": dict(plan.decoding),
-            "max_model_calls": plan.max_model_calls,
-        },
-        "plan_hash": plan_hash(plan),
+    held: dict[str, Any] = {
+        "preset": plan.preset,
+        "arms": [dataclasses.asdict(spec) for spec in plan.arms],
+        "seeds": list(plan.seeds),
+        "attempts": plan.attempts,
+        "model": model,
+        "decoding": dict(plan.decoding),
+        "max_model_calls": plan.max_model_calls,
     }
+    if plan.own is not None:
+        held["own"] = dict(plan.own)
+    return {"plan": held, "plan_hash": plan_hash(plan)}
 
 
 def _read_plan(folder: Path) -> dict[str, Any] | None:
@@ -385,12 +448,30 @@ def _changes(old: Mapping[str, Any], new: Mapping[str, Any]) -> tuple[str, ...]:
     return tuple(out)
 
 
-def _task_hashes(spec: ArmSpec, seeds: Sequence[int]) -> list[str]:
-    """Each task's wire hash, the key the wheel's trace rows and its resume use."""
+def _task_hashes(spec: ArmSpec, seeds: Sequence[int], plan: Plan | None = None) -> list[str]:
+    """Each task's wire hash, the key the wheel's trace rows and its resume use; on a plan on the
+    user's own tools, the own export's."""
+    if plan is not None and plan.own is not None:
+        from poisson_tasks.own.export import task_from_bundle as own_task_from_bundle
+
+        bundles = own_bundles(plan, spec, seeds)
+        return [str(own_task_from_bundle(bundle).hash) for bundle in bundles]
     from poisson_tasks.export import task_from_bundle
     from poisson_tasks.tasks import generate
 
     return [str(task_from_bundle(generate(spec, seed)).hash) for seed in seeds]
+
+
+def own_bundles(plan: Plan, spec: ArmSpec, seeds: Sequence[int]) -> list[Any]:
+    """The tasks of an arm of a plan on the user's own tools, one per seed."""
+    from poisson_tasks.config import plan_flows, plan_toolset
+    from poisson_tasks.own import generator
+
+    assert plan.own is not None
+    toolset = plan_toolset(plan)
+    flows = plan_flows(plan)
+    intents = {str(k): str(v) for k, v in dict(plan.own["intents"]).items()}
+    return [generator.generate(toolset, spec, seed, intents=intents, flows=flows) for seed in seeds]
 
 
 def _kept_rows(arm_folder: Path) -> Counter[str]:
@@ -420,7 +501,7 @@ def _kept(plan: Plan, folder: Path) -> int:
     kept = 0
     for spec in plan.arms:
         rows = _kept_rows(folder / calibration._run_dir_name(spec))
-        for key in _task_hashes(spec, plan.seeds):
+        for key in _task_hashes(spec, plan.seeds, plan):
             kept += min(rows[key], plan.attempts)
     return kept
 
@@ -583,14 +664,25 @@ def verifiers_config(plan: Plan, arm: ArmSpec) -> dict[str, Any]:
     id, the arm as its six-field mapping, the seeds, the attempts, the model, the endpoint and
     the key's variable's name, the declared decoding without its "not sent" fields, the turn cap
     and `push = false`.  `run_plan` runs each arm with this config, apart from `run.*`,
-    `output_dir` and `max_concurrent`."""
+    `output_dir` and `max_concurrent`.  On a plan on the user's own tools the taskset is
+    `poisson-tasks-own` and its config carries the plan's `own` whole (own-tools spec §11)."""
+    taskset: dict[str, Any] = {
+        "id": calibration.TASKSET_ID,
+        "arm": dataclasses.asdict(arm),
+        "seeds": list(plan.seeds),
+    }
+    if plan.own is not None:
+        from poisson_tasks.own.export import OWN_TASKSET_ID
+
+        taskset = {
+            "id": OWN_TASKSET_ID,
+            "arm": dataclasses.asdict(arm),
+            "seeds": list(plan.seeds),
+            "own": dict(plan.own),
+        }
     return {
         "env": {
-            "taskset": {
-                "id": calibration.TASKSET_ID,
-                "arm": dataclasses.asdict(arm),
-                "seeds": list(plan.seeds),
-            },
+            "taskset": taskset,
             "agent": {"max_turns": plan.max_model_calls},
         },
         "model": plan.model.name,

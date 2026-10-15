@@ -11,9 +11,26 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import unquote
 
-# JSON Schema keywords the simulator cannot check exactly (spec §3, third bullet), beside a
-# schema-valued `additionalProperties`, a `$ref` cycle and the depth, which are tested apart.
-UNCHECKABLE = ("anyOf", "oneOf", "allOf", "not", "patternProperties")
+# JSON Schema keywords the simulator cannot check exactly, beside a schema-valued
+# `additionalProperties`, a `$ref` cycle and the depth, which are tested apart: spec §3's five,
+# and the wider list ruled 2026-10-07 and written by O2 (the conditionals, the dependencies in
+# their 2020-12 and draft-7 forms, `propertyNames`, the containment family, `uniqueItems`,
+# `multipleOf`, the unevaluated pair, the property-count bounds, the dynamic references and
+# `contentSchema`), each coupling an argument's validity to another argument's, to a count of
+# arguments, or to a value the simulator cannot draw exactly.  The one tuple that holds them all.
+UNCHECKABLE = (
+    "anyOf", "oneOf", "allOf", "not", "patternProperties",
+    "if", "then", "else",
+    "dependentSchemas", "dependentRequired", "dependencies",
+    "propertyNames",
+    "contains", "minContains", "maxContains",
+    "uniqueItems",
+    "multipleOf",
+    "unevaluatedProperties", "unevaluatedItems",
+    "minProperties", "maxProperties",
+    "$dynamicRef", "$recursiveRef",
+    "contentSchema",
+)
 # The argument object is level 0; a schema at this level is one too deep (spec §3, "nesting
 # deeper than three levels"; the frozen test counts an array's items as a level).
 TOO_DEEP = 4

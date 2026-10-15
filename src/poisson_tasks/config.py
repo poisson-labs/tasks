@@ -19,6 +19,15 @@ tokenizer.  Resolving a plan needs the published design (`calibration`), and so 
 **The design's literals.**  Because `calibration` cannot be imported here, this module carries its
 own copy of the declared decoding, of model A's name and rates, and of the design's sixty tasks
 and five attempts.  The tests hold each equal to the published card's.
+
+**Your own tools** (own-tools spec §8): a settings file with an `[own]` table makes its tasks on
+the user's tools.  `[own]` holds `file`, `format`, `name`, `read`, `write`, `[own.intents]` and
+`[[own.flow]]`, read into `OwnConfig`, and every one of its settings has an `init` flag of its own
+(`OWN_INIT_FLAGS`, beside `INIT_FLAGS`).  Reading the file stays pure: what needs the tool file
+(a tool name in `read`, `write`, the intents or a flow; the recipe, or the custom knob and its
+levels, on this set) is checked when the plan is resolved, which reads the tool file from `root`.
+Beside `[own]`, `[measure] preset` may name any recipe, and `custom` any knob on own tools; the
+set decides which are offered, when the plan is resolved.  `tests/test_o2_config.py` pins this.
 """
 
 from __future__ import annotations
@@ -51,6 +60,7 @@ __all__ = [
     "DecodingConfig",
     "LimitsConfig",
     "OutputConfig",
+    "OwnConfig",
     "ConfigError",
     "TokenizerMissing",
     "load_config",
@@ -58,12 +68,17 @@ __all__ = [
     "dump_config",
     "InitFlag",
     "INIT_FLAGS",
+    "OWN_INIT_FLAGS",
     "INIT_FLAG_ALIASES",
     "config_from_init_args",
     "default_spend_cap",
     "Plan",
     "resolve_plan",
     "plan_hash",
+    "plan_toolset",
+    "plan_flows",
+    "own_file_path",
+    "OWN_LIST_FILE",
     "equivalent_init_command",
     "Preset",
     "PRESETS",
@@ -77,7 +92,16 @@ _NOT_SENT = "not sent"
 # `[measure] preset` takes each recipe offered, then `custom`; a recipe whose knobs have not
 # shipped is refused by name.
 _PRESETS = (*(name for name, recipe in RECIPES.items() if recipe.offered), "custom")
+# Beside `[own]` the preset may name any recipe, and the set decides when the plan is resolved.
+_OWN_PRESETS = (*RECIPES, "custom")
 _KNOBS = tuple(_CONTROL_PAIRS)
+# The knobs on a user's own tools, in the own generator's order (`own.generator.KNOBS`, which
+# cannot be imported here: it loads the tokenizer).  The tests hold this copy equal to it.
+_OWN_KNOBS = ("similarity", "faults", "history", "block", "arguments", "spread", "depth", "shape")
+_OWN_FORMATS = ("auto", "openai", "mcp", "openapi")
+_OWN_GENERATOR_VERSION = "own-1"
+OWN_LIST_FILE = "tools.mcp.json"
+"""Where `init --mcp-command` saves the listed tools, beside the settings file (spec §8.2)."""
 _STRICTNESSES = ("strict", "leaky")
 _FIRST_LOOK_LEVELS = (1, 3, 8)
 _SEED_SPACE = 2**32
@@ -268,6 +292,22 @@ class OutputConfig:
 
 
 @dataclasses.dataclass(frozen=True)
+class OwnConfig:
+    """The `[own]` table (own-tools spec §8.2): the tool file (relative to the settings file),
+    its format (`auto` decides by shape), the set's name (`None`: the file's stem), the tools
+    declared read and write, the intents as `(tool, text)` pairs in the file's order, and the
+    flows as `(from, field, to, param)`."""
+
+    file: str
+    format: str = "auto"
+    name: str | None = None
+    read: tuple[str, ...] = ()
+    write: tuple[str, ...] = ()
+    intents: tuple[tuple[str, str], ...] = ()
+    flows: tuple[tuple[str, str, str, str], ...] = ()
+
+
+@dataclasses.dataclass(frozen=True)
 class ProjectConfig:
     version: int
     model: ModelConfig
@@ -276,11 +316,12 @@ class ProjectConfig:
     decoding: DecodingConfig
     limits: LimitsConfig
     output: OutputConfig
+    own: OwnConfig | None = None
 
 
 # The file's tables and the keys each may hold, in the order the file is written in.
 _KEYS: dict[str, tuple[str, ...]] = {
-    "": ("version", "model", "measure", "tasks", "decoding", "limits", "output"),
+    "": ("version", "model", "measure", "tasks", "decoding", "limits", "output", "own"),
     "model": ("provider", "name", "base_url", "api_key_env", "allow_plain_http_key", "price"),
     "model.price": ("input", "cached_input", "output", "read_on"),
     "measure": ("preset", "knob", "levels", "controls", "strictness"),
@@ -288,7 +329,9 @@ _KEYS: dict[str, tuple[str, ...]] = {
     "decoding": ("temperature", "top_p", "reasoning_effort", "max_tokens"),
     "limits": ("spend_usd", "tokens", "max_model_calls", "concurrency"),
     "output": ("runs", "tasks"),
+    "own": ("file", "format", "name", "read", "write", "intents", "flow"),
 }
+_FLOW_KEYS = ("from", "field", "to", "param")
 
 
 # ---------------------------------------------------------------------------
@@ -596,6 +639,7 @@ class _Reader:
         decoding = self.decoding()
         limits = self.limits(model)
         output = self.output()
+        own = self.own()
         return ProjectConfig(
             version=version,
             model=model,
@@ -604,7 +648,13 @@ class _Reader:
             decoding=decoding,
             limits=limits,
             output=output,
+            own=own,
         )
+
+    @property
+    def on_own_tools(self) -> bool:
+        """Whether the document has an `[own]` table: its tasks are on the user's tools."""
+        return self.get("own") is not _MISSING
 
     def version(self) -> int:
         key = "version"
@@ -703,14 +753,21 @@ class _Reader:
         self.table("measure")
         key = "measure.preset"
         value = self.need(key)
+        own = self.on_own_tools
         recipe = RECIPES.get(value) if isinstance(value, str) else None
-        if recipe is not None and not recipe.offered:
+        if recipe is not None and not recipe.offered and not own:
             raise self.refusal(
                 key,
                 f"{self.name(key)}: {_show(value)} is a recipe not offered yet, because "
                 f"{_not_shipped(recipe.waiting)}",
             )
-        preset = self.choice(key, value, _PRESETS, "a recipe")
+        preset = self.choice(key, value, _OWN_PRESETS if own else _PRESETS, "a recipe")
+        if own and preset == "card":
+            raise self.refusal(
+                key,
+                f'{self.name(key)}: "card" is the published cards\' design, on the built-in tasks, '
+                "and is never run on your tools; choose another recipe",
+            )
         custom_keys = ("knob", "levels", "controls", "strictness")
         if preset != "custom":
             for field in custom_keys:
@@ -724,6 +781,8 @@ class _Reader:
             return MeasureConfig(preset=preset)
 
         given = {field: self.get(f"measure.{field}") for field in custom_keys}
+        if own:
+            return self.own_measure(preset, given)
         knob = "depth"
         if given["knob"] is not _MISSING:
             key = "measure.knob"
@@ -767,6 +826,42 @@ class _Reader:
             )
         return MeasureConfig(
             preset=preset, knob=knob, levels=chosen, controls=controls, strictness=strictness
+        )
+
+    def own_measure(self, preset: str, given: Mapping[str, Any]) -> MeasureConfig:
+        """`custom` beside `[own]` (ruled 2026-10-13, yes/no 22, and 2026-10-13 23:26: every knob):
+        the knob is one of own tools' eight, its levels whole numbers, and there are no control
+        arms; whether this set reaches the knob and its levels is the plan's to say."""
+        knob = "depth"
+        if given["knob"] is not _MISSING:
+            key = "measure.knob"
+            if isinstance(given["knob"], str) and given["knob"] not in _OWN_KNOBS and _is_knob(
+                given["knob"]
+            ):
+                raise self.refusal(
+                    key,
+                    f"{self.name(key)}: {_show(given['knob'])} is not a knob on your tools; the "
+                    f"knobs there are {_listed(_OWN_KNOBS)}",
+                )
+            knob = self.choice(key, given["knob"], _OWN_KNOBS, "a knob")
+        chosen: tuple[int, ...] | None = None
+        if given["levels"] is not _MISSING:
+            chosen = self.whole_list("measure.levels", given["levels"], "level")
+        if given["controls"] is not _MISSING:
+            key = "measure.controls"
+            if self.switch(key, given["controls"]):
+                raise self.refusal(
+                    key,
+                    f"{self.name(key)} is true, and there are no control arms on your tools: a "
+                    "control's length is made of the built-in table's own tools",
+                )
+        strictness = "strict"
+        if given["strictness"] is not _MISSING:
+            strictness = self.choice(
+                "measure.strictness", given["strictness"], _STRICTNESSES, "a strictness"
+            )
+        return MeasureConfig(
+            preset=preset, knob=knob, levels=chosen, controls=False, strictness=strictness
         )
 
     def tasks(self, measure: MeasureConfig) -> TasksConfig:
@@ -897,6 +992,98 @@ class _Reader:
             tasks=self.text("output.tasks", self.need("output.tasks"), "a folder's name"),
         )
 
+    # -- your own tools (own-tools spec §8.2) ----------------------------------
+
+    def tool_names(self, key: str) -> tuple[str, ...]:
+        """A list of tool names, none empty and none repeated; `[]` when the key is not set."""
+        value = self.get(key)
+        if value is _MISSING:
+            return ()
+        if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
+            raise self.refusal(
+                key, f"{self.name(key)} is {_show(value)}; it must be a list of tool names"
+            )
+        repeated = sorted({item for item in value if value.count(item) > 1})
+        if repeated:
+            raise self.refusal(
+                key,
+                f"{self.name(key)} holds {_listed(repeated)} more than once; name each tool once",
+            )
+        return tuple(value)
+
+    def own(self) -> OwnConfig | None:
+        if not self.table("own", required=False):
+            return None
+        file = self.text("own.file", self.need("own.file"), "the tool file's path")
+        fmt = "auto"
+        if self.get("own.format") is not _MISSING:
+            fmt = self.choice(
+                "own.format", self.get("own.format"), _OWN_FORMATS, "a format Tasks reads"
+            )
+        name: str | None = None
+        if self.get("own.name") is not _MISSING:
+            name = self.text("own.name", self.get("own.name"), "the set's name, shown on the card")
+        read = self.tool_names("own.read")
+        write = self.tool_names("own.write")
+        both = [tool for tool in write if tool in read]
+        if both:
+            raise self.refusal(
+                "own.write",
+                f"{self.name('own.write')} and {self.name('own.read')} both hold "
+                f"{_show(both[0])}; a tool is one or the other",
+            )
+        intents: list[tuple[str, str]] = []
+        if self.get("own.intents") is not _MISSING:
+            key = "own.intents"
+            table = self.get(key)
+            if not isinstance(table, Mapping):
+                raise self.refusal(
+                    key, f"intents is {_show(table)}; it must be a table, [own.intents]"
+                )
+            for tool, text in table.items():
+                if not isinstance(text, str) or not text.strip():
+                    raise self.refusal(
+                        key,
+                        f"{self.name(key)}: {tool} is {_show(text)}; an intent is one line of "
+                        "text, what the request says instead of the tool's name",
+                    )
+                intents.append((str(tool), text))
+        flows: list[tuple[str, str, str, str]] = []
+        if self.get("own.flow") is not _MISSING:
+            key = "own.flow"
+            rows = self.get(key)
+            if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+                raise self.refusal(
+                    key,
+                    f"flow is {_show(rows)}; each flow is a table, [[own.flow]], with from, "
+                    "field, to and param",
+                )
+            for row in rows:
+                for field in _FLOW_KEYS:
+                    if field not in row:
+                        raise self.refusal(
+                            key,
+                            f"{self.name(key)}: a flow is missing {field}; each flow needs "
+                            f"{_listed(_FLOW_KEYS)}",
+                        )
+                    if not isinstance(row[field], str) or not row[field]:
+                        raise self.refusal(
+                            key,
+                            f"{self.name(key)}: {field} is {_show(row[field])}; it must be text",
+                        )
+                extra = [field for field in row if field not in _FLOW_KEYS]
+                if extra:
+                    raise self.refusal(
+                        key,
+                        f'{self.name(key)}: "{extra[0]}" is not a setting of a flow; a flow has '
+                        f"{_listed(_FLOW_KEYS)}",
+                    )
+                flows.append(tuple(str(row[field]) for field in _FLOW_KEYS))  # type: ignore[arg-type]
+        return OwnConfig(
+            file=file, format=fmt, name=name, read=read, write=write,
+            intents=tuple(intents), flows=tuple(flows),
+        )
+
 
 def _package_version() -> str:
     from importlib import metadata
@@ -975,6 +1162,7 @@ def dump_config(config: ProjectConfig) -> str:
     """The `tasks.toml` that holds `config`: the same bytes in every process."""
     model, measure, tasks = config.model, config.measure, config.tasks
     decoding, limits, output = config.decoding, config.limits, config.output
+    own = config.own
     custom = measure.preset == "custom"
     hint = "" if custom else "# "
     custom_values = (
@@ -983,6 +1171,10 @@ def dump_config(config: ProjectConfig) -> str:
         else ("depth", _FIRST_LOOK_LEVELS, False, "strict")
     )
     knob, chosen, controls, strictness = custom_values
+    presets = _OWN_PRESETS if own is not None else _PRESETS
+    knob_words = (
+        _listed(_OWN_KNOBS, "or") if own is not None else "depth | distractor (experimental)"
+    )
 
     out = [
         "# Poisson Tasks: what to run, against which model, and when to stop.",
@@ -1029,14 +1221,18 @@ def dump_config(config: ProjectConfig) -> str:
         ]
     out += [
         "[measure]",
-        _line(f"preset = {_toml(measure.preset)}", " | ".join(_PRESETS)),
+        _line(f"preset = {_toml(measure.preset)}", " | ".join(presets)),
     ]
     if not custom:
         out.append('# With preset = "custom":')
+    out.append(_line(f"{hint}knob = {_toml(knob)}", knob_words))
+    if chosen is None:
+        out.append(_line("# levels = [1, 2]", "every level your tools reach, when unset"))
+    else:
+        out.append(f"{hint}levels = {_toml(chosen)}")
+    if own is None:
+        out.append(f"{hint}controls = {_toml(controls)}")
     out += [
-        _line(f"{hint}knob = {_toml(knob)}", "depth | distractor (experimental)"),
-        f"{hint}levels = {_toml(chosen)}",
-        f"{hint}controls = {_toml(controls)}",
         _line(f"{hint}strictness = {_toml(strictness)}", " | ".join(_STRICTNESSES)),
         "",
         "[tasks]",
@@ -1096,6 +1292,56 @@ def dump_config(config: ProjectConfig) -> str:
         _line(f"runs = {_toml(output.runs)}", "run folders go here, beside this file"),
         f"tasks = {_toml(output.tasks)}",
     ]
+    if own is not None:
+        out += [
+            "",
+            _line("[own]", "your tools: the tasks are made on them, with simulated responses"),
+            _line(
+                f"file = {_toml(own.file)}",
+                "an OpenAI tools file, an MCP tool list, or an OpenAPI document",
+            ),
+            _line(f"format = {_toml(own.format)}", " | ".join(_OWN_FORMATS)),
+            _line(
+                f"name = {_toml(own.name)}" if own.name is not None else '# name = "my-tools"',
+                "shown on the card"
+                + ("" if own.name is not None else "; the file's stem when unset"),
+            ),
+            _line(f"read = {_toml(own.read)}", "effects Tasks could not read from the file"),
+            f"write = {_toml(own.write)}",
+            "",
+        ]
+        if own.intents:
+            out.append(
+                _line("[own.intents]", "one line per tool: what a request says instead of its name")
+            )
+            out += [f"{_toml_text(tool)} = {_toml(text)}" for tool, text in own.intents]
+        else:
+            out += [
+                "# One line per tool, what a request says instead of the tool's name:",
+                "# [own.intents]",
+                '# refund_order = "refund a customer\'s order"',
+            ]
+        if own.flows:
+            for source, field, sink, param in own.flows:
+                out += [
+                    "",
+                    _line("[[own.flow]]", "a value from one tool's output into another's input"),
+                    f"from = {_toml(source)}",
+                    f"field = {_toml(field)}",
+                    f"to = {_toml(sink)}",
+                    f"param = {_toml(param)}",
+                ]
+        else:
+            out += [
+                "",
+                "# Depth and shape need flows, a value from one tool's output into another's",
+                "# input:",
+                "# [[own.flow]]",
+                '# from = "search_orders"',
+                '# field = "orders[].order_id"',
+                '# to = "refund_order"',
+                '# param = "order_id"',
+            ]
     return "\n".join(line.rstrip() for line in out) + "\n"
 
 
@@ -1153,7 +1399,23 @@ INIT_FLAGS: tuple[InitFlag, ...] = (
     InitFlag("--tasks-dir", "output.tasks", "text", "tasks"),
 )
 
+OWN_INIT_FLAGS: tuple[InitFlag, ...] = (
+    InitFlag("--own-file", "own.file", "text", None),
+    InitFlag("--own-format", "own.format", "choice", "auto"),
+    InitFlag("--own-name", "own.name", "text", None),
+    InitFlag("--own-read", "own.read", "names", None),
+    InitFlag("--own-write", "own.write", "names", None),
+    InitFlag("--own-intent", "own.intents", "pairs", None),
+    InitFlag("--own-flow", "own.flow", "flows", None),
+)
+"""The own-tools flags (own-tools spec §8.1), a table of their own beside `INIT_FLAGS` (ruled
+2026-10-13, yes/no 23): `--own-read`, `--own-write`, `--own-intent TOOL=TEXT` and `--own-flow
+FROM.FIELD:TO.PARAM` repeat, each occurrence one entry.  `--mcp-command CMD` is `init`'s own: it
+lists the server's tools into `tools.mcp.json` and sets `--own-file` to that."""
+
 _FLAGS = {flag.flag: flag for flag in INIT_FLAGS}
+_OWN_FLAGS = {flag.flag: flag for flag in OWN_INIT_FLAGS}
+_REPEATED = ("names", "pairs", "flows")
 # Init's flags that set no key of the file; they are init's own to act on.
 _FLAGS_OF_INIT_ALONE = ("--yes", "--fetch", "--no-fetch", "--check-key", "--no-check-key")
 _SWITCHED_OFF = ("--no-controls",)
@@ -1166,7 +1428,7 @@ twice.  Read-only: the one table the reader and `init`'s help read."""
 def _name_as_flag(key: str) -> str:
     """The flag that sets `key`, or the table around it."""
     while key:
-        for flag in INIT_FLAGS:
+        for flag in (*INIT_FLAGS, *OWN_INIT_FLAGS):
             if flag.key == key:
                 return flag.flag
         key = key.rpartition(".")[0]
@@ -1201,11 +1463,22 @@ def _given_flags(argv: Sequence[str]) -> dict[str, Any]:
         name, equals, attached = word.partition("=")
         if name in _FLAGS_OF_INIT_ALONE and not equals:
             continue
-        flag = _FLAGS.get(INIT_FLAG_ALIASES.get(name, name))
+        flag = _FLAGS.get(INIT_FLAG_ALIASES.get(name, name)) or _OWN_FLAGS.get(name)
         if flag is None:
-            near = _nearest(name, tuple(_FLAGS)) if name.startswith("--") else None
+            known = (*_FLAGS, *_OWN_FLAGS)
+            near = _nearest(name, known) if name.startswith("--") else None
             hint = "" if near is None else f"; did you mean {near}?"
             raise ConfigError(f"{word} is not one of init's settings{hint}", suggestion=near)
+        if flag.type in _REPEATED:
+            if equals:
+                text = attached
+            elif index < len(words):
+                text = words[index]
+                index += 1
+            else:
+                raise ConfigError(f"{name} needs a value", key=flag.key)
+            given.setdefault(flag.flag, []).append(text)
+            continue
         if flag.type == "switch":
             if equals:
                 raise ConfigError(f"{name} takes no value", key=flag.key)
@@ -1320,6 +1593,8 @@ def config_from_init_args(
     if price is not None:
         model["price"] = price
 
+    own = _own_from_flags(given, fail)
+
     measure: dict[str, Any] = {"preset": given.get("--recipe", "first-look")}
     custom = {
         "knob": given.get("--knob", _MISSING),
@@ -1330,9 +1605,9 @@ def config_from_init_args(
     if measure["preset"] == "custom":
         if custom["knob"] is _MISSING:
             custom["knob"] = "depth"
-        if custom["levels"] is _MISSING and custom["knob"] in _KNOBS:
+        if custom["levels"] is _MISSING and custom["knob"] in _KNOBS and own is None:
             custom["levels"] = list(levels(custom["knob"]))
-        if custom["controls"] is _MISSING:
+        if custom["controls"] is _MISSING and own is None:
             custom["controls"] = False
         if custom["strictness"] is _MISSING:
             custom["strictness"] = "strict"
@@ -1380,7 +1655,61 @@ def config_from_init_args(
         "limits": {**limits, **{k: v for k, v in of("limits").items() if k not in limits}},
         "output": of("output"),
     }
+    if own is not None:
+        document["own"] = own
     return _Reader(document, name=_name_as_flag).config()
+
+
+def _own_from_flags(
+    given: Mapping[str, Any], fail: Callable[..., ConfigError]
+) -> dict[str, Any] | None:
+    """The `[own]` table the own-tools flags make, or `None` when none was given.  An own flag
+    without `--own-file` is refused under `own.file`; an intent or a flow of the wrong shape under
+    its key.  The reader then checks each value as it checks the file's."""
+    if not any(flag in given for flag in _OWN_FLAGS):
+        return None
+    if "--own-file" not in given:
+        raise fail(
+            "own.file",
+            "--own-file is not given, and the other --own flags need it: the tool file is what "
+            "the tasks are made from",
+        )
+    own: dict[str, Any] = {"file": given["--own-file"]}
+    if "--own-format" in given:
+        own["format"] = given["--own-format"]
+    if "--own-name" in given:
+        own["name"] = given["--own-name"]
+    if "--own-read" in given:
+        own["read"] = list(given["--own-read"])
+    if "--own-write" in given:
+        own["write"] = list(given["--own-write"])
+    if "--own-intent" in given:
+        intents: dict[str, Any] = {}
+        for text in given["--own-intent"]:
+            tool, equals, words = text.partition("=")
+            if not equals or not tool.strip():
+                raise fail(
+                    "own.intents",
+                    f"--own-intent is {_show(text)}; it takes TOOL=TEXT, the tool's name and what "
+                    "a request says instead of it",
+                )
+            intents[tool.strip()] = words
+        own["intents"] = intents
+    if "--own-flow" in given:
+        flows: list[dict[str, Any]] = []
+        for text in given["--own-flow"]:
+            left, colon, right = text.partition(":")
+            source, dot_from, field = left.partition(".")
+            sink, dot_to, param = right.partition(".")
+            if not (colon and dot_from and dot_to and source and field and sink and param):
+                raise fail(
+                    "own.flow",
+                    f"--own-flow is {_show(text)}; it takes FROM.FIELD:TO.PARAM, as "
+                    "search_orders.orders[].order_id:refund_order.order_id",
+                )
+            flows.append({"from": source, "field": field, "to": sink, "param": param})
+        own["flow"] = flows
+    return own
 
 
 def equivalent_init_command(config: ProjectConfig, *, prog: str) -> list[str]:
@@ -1417,8 +1746,11 @@ def equivalent_init_command(config: ProjectConfig, *, prog: str) -> list[str]:
             )
     command += ["--recipe", measure.preset]
     if measure.preset == "custom":
-        command += ["--knob", str(measure.knob), "--levels", joined(measure.levels or ())]
-        command.append("--controls" if measure.controls else "--no-controls")
+        command += ["--knob", str(measure.knob)]
+        if measure.levels is not None:
+            command += ["--levels", joined(measure.levels)]
+        if config.own is None:
+            command.append("--controls" if measure.controls else "--no-controls")
         command += ["--strictness", str(measure.strictness)]
     if tasks.seeds is not None:
         command += ["--seeds", joined(tasks.seeds)]
@@ -1441,6 +1773,21 @@ def equivalent_init_command(config: ProjectConfig, *, prog: str) -> list[str]:
     command += ["--max-model-calls", str(limits.max_model_calls)]
     command += ["--concurrency", str(limits.concurrency)]
     command += ["--runs-dir", output.runs, "--tasks-dir", output.tasks]
+    own = config.own
+    if own is not None:
+        # The listed tools are kept, never the command that listed them (yes/no 26): with
+        # `--mcp-command` the file is the saved list, and the command says `--own-file`.
+        command += ["--own-file", own.file, "--own-format", own.format]
+        if own.name is not None:
+            command += ["--own-name", own.name]
+        for tool in own.read:
+            command += ["--own-read", tool]
+        for tool in own.write:
+            command += ["--own-write", tool]
+        for tool, text in own.intents:
+            command += ["--own-intent", f"{tool}={text}"]
+        for source, field, sink, param in own.flows:
+            command += ["--own-flow", f"{source}.{field}:{sink}.{param}"]
     return command
 
 
@@ -1463,13 +1810,138 @@ class Plan:
     model: ModelConfig
     decoding: Mapping[str, Any]
     max_model_calls: int
+    own: Mapping[str, Any] | None = None
+    """On a user's own tools (own-tools spec §8): `file` (absolute), `format`, `name`, `read`,
+    `write`, `intents` (tool to text, the file's order), `flows` (`from`, `field`, `to`, `param`
+    mappings), `file_digest`, `source_format` and `tools` (the usable count); `None` otherwise."""
 
 
-def resolve_plan(config: ProjectConfig) -> Plan:
+def own_file_path(own: OwnConfig, root: str | os.PathLike[str] | None = None) -> str:
+    """Where the tool file is: `[own] file` beside the settings file (`root`, the working folder
+    when not given), absolute."""
+    base = os.path.abspath(os.fspath(root)) if root is not None else os.getcwd()
+    return os.path.abspath(os.path.join(base, own.file))
+
+
+def _own_plan(config: ProjectConfig, root: str | os.PathLike[str] | None) -> tuple[Any, Any, Any]:
+    """The tool set `[own]` names, read from its file with the declared effects, the declared
+    flows and the intents; each refusal under the key of the setting it refuses."""
+    assert config.own is not None
+    own = config.own
+    fail = _Reader({}, name=_name_in_file).refusal
+    path = own_file_path(own, root)
+    try:
+        with open(path, "rb") as file:
+            data = file.read()
+    except OSError as error:
+        raise fail(
+            "own.file", f"[own] file: {own.file} cannot be read ({error.strerror})"
+        ) from None
+    tools = importlib.import_module("poisson_tasks.own")
+    name = own.name if own.name is not None else os.path.splitext(os.path.basename(own.file))[0]
+    try:
+        reading = tools.read_tools(data, format=own.format, name=name)
+    except tools.OwnToolsError as refused:
+        key = "own.format" if refused.kind == "format" else "own.file"
+        raise fail(key, f"{_name_in_file(key)}: {own.file}: {refused}") from None
+    toolset = reading.toolset
+    names = {tool.name: tool for tool in toolset.tools}
+    for key, declared in (("own.read", own.read), ("own.write", own.write)):
+        for tool in declared:
+            if tool not in names:
+                raise fail(
+                    key,
+                    f"{_name_in_file(key)}: {_show(tool)} is not a tool of {own.file}; the names "
+                    f"are {_listed(sorted(names))}",
+                )
+    toolset = tools.apply_effects(toolset, read=own.read, write=own.write)
+    for tool, _text in own.intents:
+        if tool not in names:
+            raise fail(
+                "own.intents",
+                f"[own.intents]: {_show(tool)} is not a tool of {own.file}; the names are "
+                f"{_listed(sorted(names))}",
+            )
+    generator = importlib.import_module("poisson_tasks.own.generator")
+    flows = tuple(generator.Flow(*flow) for flow in own.flows)
+    try:
+        generator.check_flows(toolset, flows)
+    except ValueError as refused:
+        raise fail("own.flow", f"[[own.flow]]: {refused}") from None
+    return toolset, flows, reading
+
+
+def _own_arms(config: ProjectConfig, toolset: Any, flows: Any) -> tuple[ArmSpec, ...]:
+    """The arms of the recipe, or of the custom knob, on this set (own-tools spec §8.1 as ruled:
+    a recipe is offered when the set reaches one of its shipped knobs; `card` never; `custom`
+    takes any knob the set reaches, at levels it reaches, in the knob's order of levels)."""
+    measure = config.measure
+    fail = _Reader({}, name=_name_in_file).refusal
+    recipes = importlib.import_module("poisson_tasks.own.recipes")
+    generator = importlib.import_module("poisson_tasks.own.generator")
+    if measure.preset != "custom":
+        table = recipes.recipes_for(toolset, flows=flows)
+        recipe = table[measure.preset]
+        if not recipe.offered:
+            if measure.preset == "card":
+                why = "it is the published cards' design, on the built-in tasks, and never on yours"
+            else:
+                shipped = recipes.shipped_knobs(toolset, flows=flows)
+                lead = [knob for knob in recipe.knobs if knob in shipped]
+                why = (
+                    f"it leads with {_listed(recipe.knobs, 'or')}, and this set reaches none of "
+                    "those that shipped"
+                    if not lead else "none of its arms can be made on this set"
+                )
+            offered = [name for name, each in table.items() if each.offered]
+            hint = (
+                f"; the recipes offered on this set are {_listed(offered, 'or')}"
+                if offered else "; no recipe is offered on this set"
+            )
+            raise fail(
+                "measure.preset",
+                f'[measure] preset: "{measure.preset}" is not offered on your tools: {why}{hint}',
+            )
+        return tuple(
+            arm_from_id(arm, generator_version=_OWN_GENERATOR_VERSION) for arm in recipe.arms
+        )
+    knob = measure.knob or "depth"
+    offered = recipes.offered_knobs(toolset, flows=flows)
+    if knob not in offered:
+        why = (
+            " (depth and shape need a flow, [[own.flow]])" if knob in ("depth", "shape") else ""
+        )
+        raise fail(
+            "measure.knob",
+            f'[measure] knob: "{knob}" reaches no level on this set{why}; the knobs offered '
+            f"here are {_listed(offered, 'or') if offered else 'none'}",
+        )
+    reached = generator.knob_levels(toolset, knob, flows=flows)
+    chosen = reached if measure.levels is None else measure.levels
+    for level in chosen:
+        if level not in reached:
+            raise fail(
+                "measure.levels",
+                f"[measure] levels: level {level} is not a {knob} level on this set; the levels "
+                f"it reaches are {_listed(reached)}",
+            )
+    return tuple(
+        ArmSpec(
+            knob=knob, level=level, control=None, strictness=measure.strictness or "strict",
+            split="eval", generator_version=_OWN_GENERATOR_VERSION,
+        )
+        for level in reached
+        if level in chosen
+    )
+
+
+def resolve_plan(config: ProjectConfig, *, root: str | os.PathLike[str] | None = None) -> Plan:
     """The plan `config` asks for.
 
     The published design is `calibration`'s, which loads the tokenizer file when it is imported;
     so the file is looked for first, and `TokenizerMissing` is raised before anything is imported.
+    With `[own]`, the tool file is read from `root` (the settings file's folder; the working
+    folder when not given), and the plan's `own` carries what the taskset needs.
     """
     if not _ENCODING_PATH.exists():
         raise TokenizerMissing(
@@ -1480,8 +1952,30 @@ def resolve_plan(config: ProjectConfig) -> Plan:
     measure, tasks = config.measure, config.tasks
     version = tasks.generator_version or DEFAULT_GENERATOR_VERSION
     card_arms: tuple[ArmSpec, ...] = calibration.arm_specs()
+    own: dict[str, Any] | None = None
 
-    if measure.preset == "card":
+    if config.own is not None:
+        if tasks.generator_version not in (None, _OWN_GENERATOR_VERSION):
+            raise ConfigError(
+                f"[tasks] generator_version is {_show(tasks.generator_version)}; tasks on your "
+                f'tools are made by the generator "{_OWN_GENERATOR_VERSION}", so leave it unset',
+                key="tasks.generator_version",
+            )
+        toolset, flows, _reading = _own_plan(config, root)
+        arms = _own_arms(config, toolset, flows)
+        own = {
+            "file": own_file_path(config.own, root),
+            "format": config.own.format,
+            "name": toolset.name,
+            "read": list(config.own.read),
+            "write": list(config.own.write),
+            "intents": dict(config.own.intents),
+            "flows": [dict(zip(_FLOW_KEYS, flow, strict=True)) for flow in config.own.flows],
+            "file_digest": toolset.file_digest,
+            "source_format": toolset.source_format,
+            "tools": len(toolset.tools),
+        }
+    elif measure.preset == "card":
         arms = card_arms
     elif measure.preset in RECIPES:
         arms = tuple(
@@ -1513,6 +2007,7 @@ def resolve_plan(config: ProjectConfig) -> Plan:
         model=config.model,
         decoding=types.MappingProxyType(dataclasses.asdict(config.decoding)),
         max_model_calls=config.limits.max_model_calls,
+        own=own,
     )
 
 
@@ -1521,9 +2016,11 @@ def plan_hash(plan: Plan) -> str:
 
     It moves with what runs (the arms, the seeds and their order, the attempts, the model's name,
     the endpoint, the decoding and the turn cap) and with nothing else: not the caps, the
-    concurrency, the prices or the folders, and not which preset or key variable was named.
+    concurrency, the prices or the folders, and not which preset or key variable was named.  On a
+    user's own tools it moves with what the tasks are made from too (the tool file's bytes and
+    every `[own]` setting), and not with where the project sits: the file's path is left out.
     """
-    identity = {
+    identity: dict[str, Any] = {
         "plan": 1,
         "arms": [dataclasses.asdict(spec) for spec in plan.arms],
         "seeds": list(plan.seeds),
@@ -1533,5 +2030,42 @@ def plan_hash(plan: Plan) -> str:
         "decoding": dict(plan.decoding),
         "max_model_calls": plan.max_model_calls,
     }
+    if plan.own is not None:
+        identity["own"] = {key: value for key, value in dict(plan.own).items() if key != "file"}
     canonical = json.dumps(identity, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(canonical.encode("ascii")).hexdigest()
+
+
+def plan_toolset(plan: Plan) -> Any:
+    """The tool set a plan on own tools was made from (`own.OwnToolSet`): the file read again,
+    refused (`ValueError`) when its bytes no longer have the digest the plan carries, with the
+    declared effects applied.  A plan with no `own` is a `ValueError`."""
+    own = plan.own
+    if own is None:
+        raise ValueError("this plan is on the built-in tasks, not on your tools")
+    tools = importlib.import_module("poisson_tasks.own")
+    path = str(own["file"])
+    try:
+        with open(path, "rb") as file:
+            data = file.read()
+    except OSError as error:
+        raise ValueError(f"the tool file {path} cannot be read ({error.strerror})") from None
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != str(own["file_digest"]):
+        raise ValueError(
+            f"the tool file {path} has changed since the plan was made (sha256 {digest[:12]}, "
+            f"the plan's {str(own['file_digest'])[:12]}): its tasks changed, so make the plan again"
+        )
+    reading = tools.read_tools(data, format=str(own["format"]), name=str(own["name"]))
+    return tools.apply_effects(reading.toolset, read=list(own["read"]), write=list(own["write"]))
+
+
+def plan_flows(plan: Plan) -> tuple[Any, ...]:
+    """The flows a plan on own tools declares, as the own generator's `Flow`s."""
+    if plan.own is None:
+        return ()
+    generator = importlib.import_module("poisson_tasks.own.generator")
+    return tuple(
+        generator.Flow(str(f["from"]), str(f["field"]), str(f["to"]), str(f["param"]))
+        for f in plan.own["flows"]
+    )

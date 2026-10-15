@@ -6,7 +6,10 @@ so `card --check` recomputes it as it recomputes a published one.  The verdict c
 the card's own statement of what it means and what it does not claim is printed, never typed
 here.  `--published` recomputes the cards shipped with the package, named by their model;
 `--compare published` puts a run's card beside them, or says in one line why it cannot be;
-`--page` writes the one page for every published card.
+`--page` writes the one page for every published card.  A card on the user's own tools (its
+provenance carries the own-tools kind) is put beside the published card of the same model through
+`own.card.beside_published`, the two documents whole under the line that says the tasks differ,
+and nothing is pooled (own-tools spec §9).
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ from poisson_tasks.cli._common import (
     need_tokenizer,
     refuse_overwrite,
     resolve,
+    settings_root,
     shown,
 )
 from poisson_tasks.cli._result import Bullets, Levels, Part, Refusal, Result, Row, Usage
@@ -68,7 +72,7 @@ def _folder(ctx: Context) -> Path:
     if args.run is not None:
         return Path(args.run)
     settings = load_settings(ctx)
-    plan = resolve(settings)
+    plan = resolve(settings, settings_root(ctx))
     from poisson_tasks import runs
 
     runs_dir = Path(ctx.config_path).parent / settings.output.runs
@@ -178,13 +182,16 @@ def _run_card(ctx: Context) -> Result:
             raise Usage(f'--compare takes "published", not "{args.compare}"')
         if made.artifact is None:
             raise Refusal(f"the card of {shown(folder)} is refused, so it cannot be compared")
-        mapping = {folder.name: made.artifact}
-        for published in cards.published():
-            mapping[published.name] = cards.recompute(published).artifact
-        try:
-            side_by_side = calibration.render_side_by_side(mapping)
-        except ValueError as refused:
-            raise Refusal(str(refused)) from None
+        if made.artifact.provenance.tools is not None:
+            side_by_side = _own_beside_published(made.artifact)
+        else:
+            mapping = {folder.name: made.artifact}
+            for published in cards.published():
+                mapping[published.name] = cards.recompute(published).artifact
+            try:
+                side_by_side = calibration.render_side_by_side(mapping)
+            except ValueError as refused:
+                raise Refusal(str(refused)) from None
     else:
         side_by_side = None
     verdict = made.verdict
@@ -243,7 +250,9 @@ def _run_card(ctx: Context) -> Result:
     if args.print:
         document.append(Part("", "document", made.document))
     if side_by_side is not None:
-        document.append(Part("beside the published cards", "text", side_by_side))
+        # An own card's side-by-side is two whole documents: printed as written, never indented.
+        kind = "document" if made.artifact.provenance.tools is not None else "text"
+        document.append(Part("beside the published cards", kind, side_by_side))
     return Result(
         schema=SCHEMA, verdict="ok", sentence=sentence, rows=rows, document=document,
         next=[ctx.command("card", *([str(folder)] if args.run else []), "--compare",
@@ -251,6 +260,25 @@ def _run_card(ctx: Context) -> Result:
         data={"folder": str(folder), "model": model_name, "partial": verdict.partial,
               "owed": verdict.owed, "levels": cells, "meaning": made.claims.meaning,
               "not_claimed": list(made.claims.not_claimed), "wrote": [str(p) for p in paths]},
+    )
+
+
+def _own_beside_published(artifact: Any) -> str:
+    """An own-tools card beside the published card of its model, each whole, nothing pooled
+    (own-tools spec §9); a refusal in one line when no published card measured that model."""
+    from poisson_tasks.own import card as own_card
+
+    reasons = []
+    for published in cards.published():
+        try:
+            return str(own_card.beside_published(artifact, cards.recompute(published).artifact))
+        except ValueError as refused:
+            reasons.append(f"{published.name}: {refused}")
+    models = sorted({str(cell["model"]) for cell in artifact.cells})
+    raise Refusal(
+        f"no published card measured {_format.words(models)}, so this card on your tools has "
+        "no published card to stand beside; it is read on its own"
+        + (f" ({'; '.join(reasons)})" if reasons else "")
     )
 
 
