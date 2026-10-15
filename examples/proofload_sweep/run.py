@@ -36,7 +36,7 @@ from poisson_tasks.tasks import generate
 
 HERE = pathlib.Path(__file__).resolve().parent
 
-GENERATOR_VERSION = "tg-m3-v1"
+GENERATOR_VERSION = "0"  # the version the published cards were measured at
 SLACK = 4  # N16: the turn budget is the turns the arm needs, plus this
 SPLIT = "eval"
 STRICTNESS = "strict"

@@ -68,7 +68,6 @@ Nothing here imports Proofload or the adapter (CAL22).
 
 from __future__ import annotations
 
-import argparse as _argparse
 import contextlib as _contextlib
 import dataclasses as _dc
 import datetime as _datetime
@@ -97,11 +96,26 @@ from collections.abc import Mapping as _Mapping
 from collections.abc import Sequence as _Sequence
 from typing import Any as _Any
 
-from poisson_tasks import calibration as _cal
-from poisson_tasks.knobs import ArmSpec as _ArmSpec
-from poisson_tasks.knobs import arm_id as _arm_id
-from poisson_tasks.tasks import generate as _generate
-from poisson_tasks.taskset import MAX_MODEL_CALLS as _MAX_MODEL_CALLS
+from poisson_tasks._driver_args import DESIGNS as DESIGNS
+from poisson_tasks._driver_args import (
+    KNOB_PROBE,
+    MANIFEST,
+    bundle_refusal,
+    early,
+    unread,
+)
+from poisson_tasks._driver_args import build_parser as build_parser
+
+if __name__ == "__main__":
+    # `--help`, a mistaken command line and a bundle that is not one are answered here, before
+    # the calibration code below loads the tokenizer file (`_driver_args` says why).
+    early()
+
+from poisson_tasks import calibration as _cal  # noqa: E402
+from poisson_tasks.knobs import ArmSpec as _ArmSpec  # noqa: E402
+from poisson_tasks.knobs import arm_id as _arm_id  # noqa: E402
+from poisson_tasks.tasks import generate as _generate  # noqa: E402
+from poisson_tasks.taskset import MAX_MODEL_CALLS as _MAX_MODEL_CALLS  # noqa: E402
 
 __all__ = [
     "ServePin",
@@ -771,10 +785,9 @@ CARD_DESIGN: Design | None = None
 CARD_ARMS: tuple[str, ...] | None = None
 """The card's arms are `arm_specs()`, all fourteen (CAL2)."""
 
-KNOB_PROBE = "knob-probe"
-DESIGNS: tuple[str, ...] = ("card", KNOB_PROBE)
-"""What a run of this driver measures: model B's card, or the knob probe (`knob_probe`), which
-runs no card.  `--design` chooses, on every step that takes the run's folders."""
+# `KNOB_PROBE` and `DESIGNS` (what a run of this driver measures: the calibration card, or the knob
+# probe in `knob_probe`, which runs no card) are `_driver_args`'s: `--design` chooses, on every step
+# that takes the run's folders.
 KNOB_DESIGN: _Any = None
 """The knob probe's design: `knob_probe.DESIGN`, the pre-registered one, when `None`."""
 KNOB_RUN_DIR = "knob-probe"
@@ -1592,7 +1605,7 @@ BUNDLE_FILES = (
 BUNDLE_GLOBS = ("phase1/*/traces.jsonl", "phase1/*/instrument-tally.jsonl",
                 "probe/*/traces.jsonl", "probe/*/instrument-tally.jsonl")
 BUNDLE_ZIP = "calibration-model-b-bundle.zip"
-MANIFEST = "MANIFEST.sha256"
+# `MANIFEST` is `_driver_args`'s: the file in a bundle that names every other file.
 KNOB_BUNDLE_FILES = (
     "phase1.json", "probe.json", "phase3.json", "serving.json", MANIFEST_FILE, "status.json",
     "vllm.log", *(f"{KNOB_RESULTS_DIR}/{name}" for name in (
@@ -1705,13 +1718,11 @@ def _refuse(sentence: str) -> int:
 
 
 def cmd_verify(bundle: _pathlib.Path, into: _pathlib.Path | None) -> int:
-    what = "a bundle is the .zip `bundle` writes, or the folder it unzips to"
+    refusal = bundle_refusal(bundle)
+    if refusal is not None:
+        return _refuse(refusal)
     with _tempfile.TemporaryDirectory() as scratch:
         root = _pathlib.Path(bundle)
-        if not root.exists():
-            return _refuse(f"{bundle}: no such bundle ({what})")
-        if root.is_file() and not _zipfile.is_zipfile(root):
-            return _refuse(f"{bundle} is not a bundle: it is not a .zip archive ({what})")
         if root.is_file():
             with _zipfile.ZipFile(root) as handle:
                 for member in handle.namelist():
@@ -1721,7 +1732,8 @@ def cmd_verify(bundle: _pathlib.Path, into: _pathlib.Path | None) -> int:
                 handle.extractall(scratch)
             root = _pathlib.Path(scratch)
         if not (root / MANIFEST).is_file():
-            return _refuse(f"{bundle} is not a bundle: it holds no {MANIFEST} ({what})")
+            return _refuse(f"{bundle} is not a bundle: it holds no {MANIFEST} "
+                           "(a bundle is the .zip `bundle` writes, or the folder it unzips to)")
         result = verify_bundle(root)
         _say(f"{result['files']} files match the manifest"
              + ("; every number in artifact.json recomputes from episodes.jsonl"
@@ -2073,73 +2085,6 @@ def cmd_status(ctx: Context) -> int:
 # ---------------------------------------------------------------------------
 
 
-def build_parser() -> _argparse.ArgumentParser:
-    parser = _argparse.ArgumentParser(
-        prog="python -m poisson_tasks.calibration_run",
-        description="Model B's calibration card against a locally served model (see the "
-        "module docstring).",
-    )
-    sub = parser.add_subparsers(dest="command", required=True)
-
-    def run_args(p: _argparse.ArgumentParser) -> None:
-        p.add_argument("--local", type=_pathlib.Path, required=True,
-                       help="the runtime's local working folder")
-        p.add_argument("--durable", type=_pathlib.Path, required=True,
-                       help="the folder that survives the runtime (Google Drive)")
-        p.add_argument("--port", type=int, default=QWEN3_8B.port)
-        p.add_argument("--mirror-interval", type=float, default=30.0,
-                       help="seconds between pushes to the durable folder")
-        p.add_argument("--design", choices=DESIGNS, default="card",
-                       help="what the run measures: model B's card, or the knob probe")
-
-    p = sub.add_parser("install-vllm", help="install the pinned vLLM into its own virtualenv")
-    p.add_argument("--venv", type=_pathlib.Path, required=True)
-    p.add_argument("--dry-run", action="store_true")
-
-    p = sub.add_parser("serve", help="start the pinned server and wait until it is healthy")
-    run_args(p)
-    p.add_argument("--vllm", default="vllm", help="the vllm executable")
-    p.add_argument("--tokenizer-config", type=_pathlib.Path, default=None)
-    p.add_argument("--timeout", type=float, default=1800.0)
-
-    for name, text in (
-        ("stop-server", "stop the server this runtime started, by its PID"),
-        ("preflight", "check the GPU, the stack, thinking off and the generator"),
-        ("phase1", "the plumbing pass, gated"),
-        ("probe", "the hardest levels; stop if the model floors"),
-        ("status", "what the durable folder holds"),
-    ):
-        run_args(sub.add_parser(name, help=text))
-
-    p = sub.add_parser("phase3", help="the card: 14 arms x 60 seeds x 5 attempts, resumable")
-    run_args(p)
-    p.add_argument("--wall-clock-hours", type=float, required=True,
-                   help="the compute allowance, in hours, across every resume; the run "
-                        "stops cleanly at whichever of this, the token budget or the "
-                        "provider's credit comes first")
-
-    p = sub.add_parser("rerun-void", help="the knob probe: set an arm void by its instrument "
-                                          "rate aside for its one re-run")
-    run_args(p)
-    p.add_argument("--arm", required=True)
-    p.add_argument("--cause", required=True,
-                   help="what failed: the server, the key or the provider")
-
-    p = sub.add_parser("finalize", help="rebuild the card from a durable folder, no GPU")
-    p.add_argument("--durable", type=_pathlib.Path, required=True)
-    p.add_argument("--out", type=_pathlib.Path, required=True)
-    p.add_argument("--port", type=int, default=QWEN3_8B.port)
-
-    run_args(sub.add_parser(
-        "bundle", help="zip the card, the reports and vLLM's log with a sha256 manifest, "
-                       "for downloading and `verify`"))
-
-    p = sub.add_parser("verify", help="check a bundle's manifest and recompute its artifact")
-    p.add_argument("bundle", type=_pathlib.Path)
-    p.add_argument("--into", type=_pathlib.Path, default=None)
-    return parser
-
-
 def main(argv: _Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(list(_sys.argv[1:] if argv is None else argv))
     _drop_env()
@@ -2165,7 +2110,7 @@ def main(argv: _Sequence[str] | None = None) -> int:
             used = status.get("phase3", {}).get("elapsed_s")
             _say(f"phase 3 seconds used on the durable folder: {used}")
             return 0
-        ctx = Context(local=args.local, durable=args.durable, port=args.port,
+        ctx = Context(local=unread(args.local), durable=unread(args.durable), port=args.port,
                       mirror_interval=args.mirror_interval, design=args.design)
         if args.command == "serve":
             return cmd_serve(ctx, vllm=args.vllm, tokenizer_config=args.tokenizer_config,

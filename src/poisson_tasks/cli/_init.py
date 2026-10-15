@@ -36,6 +36,7 @@ from poisson_tasks.cli._common import (
     _arms_words,
     config_words,
     host_of,
+    own_summary,
     tokenizer_present,
 )
 from poisson_tasks.cli._result import Command, Refusal, Result, Row, Stopped, Usage
@@ -561,11 +562,10 @@ def _read_own(ctx: Context, settings: list[tuple[str, str | None]]) -> _OwnSetup
 def _say_summary(ctx: Context, setup: _OwnSetup) -> None:
     """One summary line, then each refusal (own-tools spec §8.1), and the sentence on depth
     and shape when no flow is declared (§6.2)."""
-    from poisson_tasks import own
     from poisson_tasks.own.generator import UNAVAILABLE_WITHOUT_FLOWS
 
     ui = ctx.ui
-    lines = own.summary(setup.reading).splitlines()
+    lines = own_summary(setup.reading, setup.toolset)
     refused = len(setup.reading.refused)
     ui.say(lines[0])
     for line in lines[1:1 + refused]:
@@ -646,9 +646,7 @@ def _no_recipe_words(setup: _OwnSetup) -> str:
 
 
 def _tools_row(setup: _OwnSetup) -> str:
-    from poisson_tasks import own
-
-    lines = own.summary(setup.reading).splitlines()
+    lines = own_summary(setup.reading, setup.toolset)
     return (f"{setup.toolset.name}: {lines[0]}; {lines[1 + len(setup.reading.refused)]}; the "
             "responses are simulated from your schemas, and your backend is never called")
 

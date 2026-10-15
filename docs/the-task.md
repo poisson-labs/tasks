@@ -3,10 +3,13 @@
 A task is a request to move one record of a mock ledger up a fixed ladder of stages,
 using tools that are given to the model and nothing else. It is generated together with
 its verifier, its reference solution and a set of wrong answers, from an `(arm, seed)`
-pair and the frozen vocabulary table -- no model call, no network call, and the same
-bytes on every run, process and platform.
+pair and a fixed vocabulary table -- no model call, no network call, and the same
+bytes on every run, process and platform. An **arm** is one setting of one dial (a
+*knob*), such as `depth:d3`, depth at level 3 (a *level* is one setting of a knob);
+the seed picks which task of that arm. [knobs-and-arms.md](knobs-and-arms.md) lists
+the knobs.
 
-`examples/one_task.py` prints all of this for one task. Read that beside this page.
+`poisson-tasks generate --show` prints all of this for one task. Read that beside this page.
 
 ## The domain
 

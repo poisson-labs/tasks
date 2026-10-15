@@ -15,34 +15,8 @@ from __future__ import annotations
 import argparse
 from typing import NoReturn
 
-from poisson_tasks.knobs import ArmSpec, arm_id, check_pins, levels, pin_ledger
-from poisson_tasks.tasks import generate
-
 SEED = 404
-GEN = "tg-m3-v1"
-
-
-def spec(knob: str, level: int, control: int | None = None) -> ArmSpec:
-    return ArmSpec(knob, level, control, "strict", "eval", GEN)
-
-
-def show(knob: str, arms: list[ArmSpec]) -> None:
-    bundles = {arm_id(a): generate(a, SEED) for a in arms}
-    report = check_pins(bundles)
-
-    print(f"\n=== {knob}: {', '.join(bundles)} at seed {SEED} ===")
-    print(f"  refused: {report.refused}")
-    for row_id, detail in report.violations:
-        print(f"  VIOLATION {row_id}: {detail}")
-    for row_id, detail in report.reported:
-        print(f"  reported  {row_id}: {detail}")
-
-    rows = {row.row_id: row for row in pin_ledger(knob)}
-    one = report.records[next(iter(bundles))]
-    print(f"  rows measured from a bundle: {', '.join(sorted(one.values))}")
-    for row_id, why in sorted(one.unmeasured.items()):
-        print(f"  {row_id} is not measurable here -- {rows[row_id].stage}:")
-        print(f"      {why[:96]}...")
+GEN = "0"  # the generator version the published cards were measured at
 
 
 class Parser(argparse.ArgumentParser):
@@ -55,6 +29,32 @@ class Parser(argparse.ArgumentParser):
 def main() -> None:
     # It takes no arguments; this gives it --help and refuses anything else.
     Parser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
+
+    # Imported here, after the command line is read: --help and a mistaken argument answer at
+    # once, before the generator loads (loading it needs the tokenizer file).
+    from poisson_tasks.knobs import ArmSpec, arm_id, check_pins, levels, pin_ledger
+    from poisson_tasks.tasks import generate
+
+    def spec(knob: str, level: int, control: int | None = None) -> ArmSpec:
+        return ArmSpec(knob, level, control, "strict", "eval", GEN)
+
+    def show(knob: str, arms: list[ArmSpec]) -> None:
+        bundles = {arm_id(a): generate(a, SEED) for a in arms}
+        report = check_pins(bundles)
+
+        print(f"\n=== {knob}: {', '.join(bundles)} at seed {SEED} ===")
+        print(f"  refused: {report.refused}")
+        for row_id, detail in report.violations:
+            print(f"  VIOLATION {row_id}: {detail}")
+        for row_id, detail in report.reported:
+            print(f"  reported  {row_id}: {detail}")
+
+        rows = {row.row_id: row for row in pin_ledger(knob)}
+        one = report.records[next(iter(bundles))]
+        print(f"  rows measured from a bundle: {', '.join(sorted(one.values))}")
+        for row_id, why in sorted(one.unmeasured.items()):
+            print(f"  {row_id} is not measurable here -- {rows[row_id].stage}:")
+            print(f"      {why[:96]}...")
 
     print(f"depth levels      {levels('depth')}")
     print(f"distractor levels {levels('distractor')}")

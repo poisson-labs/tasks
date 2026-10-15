@@ -3,8 +3,8 @@
     python examples/calibration_card.py [DIR]
     python examples/calibration_card.py --page > docs/calibration.md
 
-DIR is one model's folder under `calibration/`, and defaults to model A's,
-`calibration/gpt-5-nano-2025-08-07`; model B's is `calibration/qwen3-8b-b968826d`.  A folder
+DIR is one model's folder under `calibration/`, and defaults to the first,
+`calibration/gpt-5-nano-2025-08-07`; the other is `calibration/qwen3-8b-b968826d`.  A folder
 holds the per-episode records the card was computed from (`episodes.jsonl`), the
 machine-readable card (`artifact.json`) and, for a run that tallied instrument failures as they
 happened, that tally (`tallies.json`).  This rebuilds the artifact from the records alone,
@@ -25,10 +25,10 @@ import json
 import pathlib
 import sys
 import tempfile
-from typing import NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
-from poisson_tasks import calibration as cal
-from poisson_tasks.tasks import generate
+if TYPE_CHECKING:
+    from poisson_tasks import calibration as cal
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CARDS = ROOT / "calibration"
@@ -46,8 +46,8 @@ def arguments() -> argparse.Namespace:
     parser = Parser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     which = parser.add_mutually_exclusive_group()
     which.add_argument("dir", metavar="DIR", nargs="?", type=pathlib.Path,
-                       default=CARDS / cal.MODEL_A,
-                       help=f"one model's card folder (default: calibration/{cal.MODEL_A})")
+                       default=None,
+                       help=f"one model's card folder (default: {shown(committed_cards()[0])})")
     which.add_argument("--page", action="store_true",
                        help="rebuild every committed card and print the one page for all of them")
     return parser.parse_args()
@@ -66,7 +66,7 @@ def committed_cards() -> list[pathlib.Path]:
     return sorted(f for f in CARDS.iterdir() if all((f / name).is_file() for name in CARD_FILES))
 
 
-def rebuild(folder: pathlib.Path) -> tuple[cal.Artifact, int]:
+def rebuild(cal: Any, folder: pathlib.Path) -> tuple[cal.Artifact, int]:
     """A committed card rebuilt from its records under its recorded provenance, and how many
     records it has."""
     stored = json.loads((folder / "artifact.json").read_bytes())
@@ -86,20 +86,27 @@ def rebuild(folder: pathlib.Path) -> tuple[cal.Artifact, int]:
 
 def main() -> None:
     args = arguments()
-    if args.page:
-        sys.stdout.write(cal.render_combined_document([rebuild(f)[0] for f in committed_cards()]))
-        return
+    if not args.page:
+        folder = args.dir or committed_cards()[0]
+        missing = [name for name in CARD_FILES if not (folder / name).is_file()]
+        if missing:
+            cards = " and ".join(shown(card) for card in committed_cards())
+            sys.exit(f"error: {folder} is not a card folder (it has no "
+                     f"{' and no '.join(missing)}); the committed cards are {cards}")
 
-    folder = args.dir
-    missing = [name for name in CARD_FILES if not (folder / name).is_file()]
-    if missing:
-        cards = " and ".join(shown(card) for card in committed_cards())
-        sys.exit(f"error: {folder} is not a card folder (it has no {' and no '.join(missing)}); "
-                 f"the committed cards are {cards}")
+    # Imported here, after the command line is read: --help and a mistaken argument answer at
+    # once, before the generator loads (loading it needs the tokenizer file).
+    from poisson_tasks import calibration as cal
+    from poisson_tasks.tasks import generate
+
+    if args.page:
+        sys.stdout.write(
+            cal.render_combined_document([rebuild(cal, f)[0] for f in committed_cards()]))
+        return
 
     committed = (folder / "artifact.json").read_bytes()
     provenance = cal.Provenance(**json.loads(committed)["provenance"])
-    artifact, count = rebuild(folder)
+    artifact, count = rebuild(cal, folder)
     cells = {(cell["arm_id"], cell["model"]) for cell in artifact.cells}
 
     with tempfile.TemporaryDirectory() as scratch:
