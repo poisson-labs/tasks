@@ -1221,9 +1221,10 @@ def _refuse(sentence: str) -> int:
 def card_rates() -> tuple[dict[str, float], str]:
     """gpt-5-nano's rates as its published card declares them, in dollars per million tokens,
     and the date they were read: the prices the cap is counted in."""
-    from poisson_tasks import runs as _runs
+    from poisson_tasks import cards as _cards
 
-    path = _runs._cards_root() / _runs._CARDS["gpt-5-nano"] / "artifact.json"
+    folder = next(card.folder for card in _cards.published() if card.name == "gpt-5-nano")
+    path = folder / "artifact.json"
     provenance = _json.loads(path.read_text(encoding="utf-8"))["provenance"]
     entry = provenance["models"][0]
     return (

@@ -9,8 +9,9 @@ check (`providers.check_key`), then `estimate`; nothing is sent to the model bef
 
 **The estimate** (spec §8.2) is read from the published cards' records: the card whose records
 name the plan's model (matched without its `@revision`), else model A's, or the one `reference`
-names.  Until the cards ship inside the wheel, the records are read from `poisson_tasks/cards/`
-when it is there and otherwise from the checkout's `calibration/` folder beside the package.
+names.  The cards are the ones `cards.published()` lists, by their model's short name: inside
+the installed package, and in a checkout the `calibration/` folder beside its source.  This
+module keeps no table of them.
 
 **The run folder** (spec §8.5) is `runs/<preset>-<model>/`, then `-2`, `-3`, with no hash in its
 name.  It holds `plan.json` (the resolved plan and its `plan_hash`, by which the folder that holds
@@ -80,7 +81,7 @@ from collections.abc import Callable, Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from poisson_tasks import calibration
+from poisson_tasks import calibration, cards
 from poisson_tasks.config import Plan, PriceConfig, plan_hash
 from poisson_tasks.knobs import ArmSpec, arm_id
 from poisson_tasks.providers import _secret_part
@@ -116,14 +117,6 @@ _KEY_RUN = 12
 """A run of this many characters of the key's secret part is the key's, wherever it is."""
 _RESERVATION_QUANTILE = 0.95
 
-# The published cards by their short names (ruled 2026-10-03, spec §4.4) and the folders their
-# records live in.  FD4's `cards.published()` takes this over.
-_CARDS: dict[str, str] = {
-    "gpt-5-nano": "gpt-5-nano-2025-08-07",
-    "qwen3-8b": "qwen3-8b-b968826d",
-}
-_MODEL_A_CARD = "gpt-5-nano"
-
 _EPS = 1e-12
 
 
@@ -155,28 +148,30 @@ class Estimate:
     same_model: bool
 
 
-def _cards_root() -> Path:
-    """Where the published cards' records are read from: inside the package once they ship
-    there, and until then the checkout's `calibration/` folder beside the package's source."""
-    package = Path(__file__).resolve().parent
-    shipped = package / "cards"
-    if shipped.is_dir():
-        return shipped
-    return package.parents[1] / "calibration"
+def _published() -> dict[str, Path]:
+    """The published cards' folders by their short names (ruled 2026-10-03, spec §4.4), as
+    `cards.published()` lists them."""
+    return {card.name: card.folder for card in cards.published()}
 
 
 @functools.cache
 def _card_records(name: str) -> tuple[Any, ...]:
-    """Every record of the published card `name`, read once per process.  An install without
-    the records (a wheel built before the cards ship inside it) is a `FileNotFoundError` of one
-    line naming where they were looked for."""
-    if name not in _CARDS:
-        raise ValueError(f"{name!r} is not a published card; the cards are " + ", ".join(_CARDS))
-    path = _cards_root() / _CARDS[name] / calibration.RECORDS_FILE
+    """Every record of the published card `name`, read once per process.  A name that is not a
+    published card's is a `ValueError` of one line naming the cards there are; an install with
+    no published card at all, or one whose card has lost its records, is a `FileNotFoundError`
+    of one line."""
+    held = _published()
+    if name not in held:
+        if not held:
+            raise FileNotFoundError(
+                "this install holds no published card to estimate from; reinstall the package"
+            )
+        raise ValueError(f"{name!r} is not a published card; the cards are " + ", ".join(held))
+    path = held[name] / calibration.RECORDS_FILE
     if not path.is_file():
         raise FileNotFoundError(
             f"the published {name} card's records are not in this install (looked for {path}); "
-            "until the cards ship inside the package, run from a checkout of the repository"
+            "reinstall the package"
         )
     return tuple(calibration.read_records(path))
 
@@ -187,11 +182,21 @@ def _card_model(records: Sequence[Any]) -> str:
 
 
 def _card_for(model: str) -> str:
-    """The published card of `model`, or model A's card for a model no card measured."""
-    for name in _CARDS:
-        if _card_model(_card_records(name)) == model:
+    """The published card of `model`, or model A's card for a model no card measured (the first
+    card listed when none measured model A either)."""
+    names = list(_published())
+    if not names:
+        raise FileNotFoundError(
+            "this install holds no published card to estimate from; reinstall the package"
+        )
+    measured = {name: _card_model(_card_records(name)) for name in names}
+    for name in names:
+        if measured[name] == model:
             return name
-    return _MODEL_A_CARD
+    for name in names:
+        if measured[name] == calibration.MODEL_A:
+            return name
+    return names[0]
 
 
 def _figures(row: Any) -> dict[str, int]:

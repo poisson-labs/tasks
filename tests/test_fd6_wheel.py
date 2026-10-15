@@ -33,8 +33,6 @@ import sys
 import zipfile
 from pathlib import Path
 
-import pytest
-
 from tests.fd3_support import needs_uv
 from tests.fd4_support import fd4_runs
 from tests.fd6_support import (
@@ -81,16 +79,16 @@ def test_fd6_1_the_wheel_carries_the_command_the_marker_the_status_table_and_the
 ) -> None:
     for name in ("poisson_tasks/py.typed", "poisson_tasks/knob_status.json",
                  "poisson_tasks/data/vocabulary-v2.json", "poisson_tasks/__main__.py",
-                 "poisson_tasks_own/__init__.py"):
+                 "poisson_tasks_own/__init__.py", "poisson_tasks_own/py.typed"):
         assert name in wheel_names, name
     with zipfile.ZipFile(built_wheel) as archive:
         entry = next(n for n in wheel_names if n.endswith(".dist-info/entry_points.txt"))
         parsed = configparser.ConfigParser()
         parsed.optionxform = str  # type: ignore[assignment,method-assign]
         parsed.read_string(archive.read(entry).decode("utf-8"))
-        marker = archive.read("poisson_tasks/py.typed")
+        markers = [archive.read(f"{top}/py.typed") for top in ("poisson_tasks", "poisson_tasks_own")]
     assert dict(parsed["console_scripts"]) == {"poisson-tasks": "poisson_tasks.cli:main"}
-    assert marker == b""
+    assert markers == [b"", b""]
 
 
 def test_fd6_1_the_wheel_carries_both_published_cards_byte_for_byte_and_nothing_else_there(
@@ -130,7 +128,7 @@ def test_fd6_2_the_wheel_claims_python_3_11_to_3_13_on_macos_and_linux_only(
     built_wheel: Path
 ) -> None:
     head = metadata(built_wheel)
-    assert head["Requires-Python"] == ">=3.11,<3.14"
+    assert set(head["Requires-Python"].split(",")) == {">=3.11", "<3.14"}
     classifiers = set(head.get_all("Classifier") or [])
     versions = {c.rsplit(" :: ", 1)[1] for c in classifiers if c.startswith("Programming Language :: Python :: 3.")}
     assert versions == {"3.11", "3.12", "3.13"}

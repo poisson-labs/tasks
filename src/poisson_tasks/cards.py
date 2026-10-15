@@ -6,10 +6,21 @@ provenance it recorded and says whether that gives the committed artifact byte f
 whether the card is current for this install.  `tests/test_fd4_published.py` says what each name
 does.
 
-**Where the cards are.**  Inside the package, `poisson_tasks/cards/<folder>/`, once the packaging
-module ships them there; until then the checkout's `calibration/` folder beside the package's
-source, which is where the estimate reads them too.  An install with neither has no published
-card: `published()` is empty, and nothing that reads the cards refuses on its account.
+**Where the cards are.**  In an installed package, `poisson_tasks/cards/<folder>/`: the wheel
+maps the repository's `calibration/` folder there (hatch's `force-include`), so the checkout's
+layout and its tests are as they were.  In a checkout there is no `cards/` folder beside this
+module, and the cards are read from the checkout's `calibration/` folder, beside the package's
+source.  The estimate (`runs.estimate`) asks `published()` too.  An install with neither has no
+published card: `published()` is empty, and nothing that reads the cards refuses on its account.
+
+**This module and the data folder share a name, and cannot collide.**  `poisson_tasks/cards.py`
+is a module and `poisson_tasks/cards/` is a folder of data.  Python gives the name to the module
+as long as the folder holds no `__init__.py`: a folder without one is only a namespace, and a
+module of the same name beside it takes the import.  So the data folder holds no Python file at
+all, and `tests/test_fd6_wheel.py` holds that on the built wheel (no `.py` under `cards/`), runs
+the import from the unpacked wheel, and shows on a toy package that an `__init__.py` in the
+folder would take the name from the module.  A card's folder is named by its model and is never
+imported.
 
 **A card's folder** holds `episodes.jsonl` (its records), `artifact.json` (the committed
 artifact) and, when the run kept one, `tallies.json`: the instrument tally per arm id, which the
@@ -57,8 +68,8 @@ class Recomputed:
 
 
 def _root() -> Path:
-    """Where the published cards are read from: inside the package once they ship there, and
-    until then the checkout's `calibration/` folder beside the package's source."""
+    """Where the published cards are read from: `cards/` inside an installed package, else the
+    checkout's `calibration/` folder beside the package's source."""
     package = Path(__file__).resolve().parent
     shipped = package / "cards"
     if shipped.is_dir():
