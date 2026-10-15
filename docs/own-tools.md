@@ -223,7 +223,7 @@ What it does not claim, every line that applies:
 - without an intent for every tool, choosing a tool was partly a word match with its description;
 - a knob that shows no effect here may still matter in your app, and the reverse.
 
-`poisson-tasks card --compare published` prints your card beside the published card of the same model, each whole, and pools nothing; when no published card measured your model it says so in one line and your card is read on its own.
+`poisson-tasks card --compare published` prints your card beside the published card of the same model, each whole, and pools nothing; when no published card measured your model it says so in one line and your card is read on its own. `card` ends with that command only when a published card measured your model, so the command you are shown is one that works.
 
 ## `verify`, `export` and `doctor` on your tools
 
