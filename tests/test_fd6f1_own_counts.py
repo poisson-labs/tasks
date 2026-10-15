@@ -25,7 +25,9 @@ import pytest
 
 from poisson_tasks import config, runs
 from tests.o1_support import fixture
-from tests.test_o2_cli import PROG, QUIET, Answers, invoke, offered_recipes, work  # noqa: F401
+from tests.test_o2_cli import QUIET, Answers, invoke, offered_recipes, work
+
+__all__ = ["work"]
 
 MADE_UP_KEY = "sk-made-up-for-the-counts-test"
 LINE = re.compile(r"(\d+) tools: (\d+) read, (\d+) write, (\d+) not known \(treated as write\), "
@@ -108,6 +110,7 @@ def test_the_answers_to_the_per_tool_question_are_counted(
     ran = invoke(["init", "--no-check-key"], monkeypatch, stdin)
     assert ran.code == 0, ran
     written = config.load_config(work / "tasks.toml")
+    assert written.own is not None
     assert (list(written.own.read), list(written.own.write)) == (
         ["get_order", "search_orders", "list_channels"], ["refund_order"])
     row = next(line for line in ran.out.splitlines() if line.strip().startswith("your tools"))

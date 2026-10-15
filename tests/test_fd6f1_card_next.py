@@ -19,9 +19,11 @@ from typing import Any
 
 import pytest
 
-from tests.fd4_support import fd4_runs  # noqa: F401
-from tests.test_o2_cli import invoke, work  # noqa: F401
-from tests.test_o2_run import own_run  # noqa: F401
+from tests.fd4_support import fd4_runs
+from tests.test_o2_cli import invoke, work
+from tests.test_o2_run import own_run
+
+__all__ = ["fd4_runs", "own_run", "work"]
 
 COMPARE = ("--compare", "published")
 
@@ -55,3 +57,5 @@ def test_a_card_on_your_own_tools_still_names_the_comparison_and_it_works(
     assert line.endswith("--compare published"), line
     asked = invoke(["card", str(folder), *COMPARE, "--force"], monkeypatch)
     assert asked.code == 0 and "published card" in asked.out.lower(), asked
+    # asking for the comparison does not end by suggesting it again
+    assert next_lines(asked.out) == [], asked.out
