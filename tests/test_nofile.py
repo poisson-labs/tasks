@@ -38,7 +38,7 @@ from typing import Any
 import pytest
 
 from tests.fd3_support import child_env, fixture_model, needs_uv, new_mark, stub_bin
-from tests.fd5_support import fixture_flags, write_config
+from tests.fd5_support import fixture_flags, verdict_lines, write_config
 
 __all__ = ["fixture_model"]
 """The fixture model, as FD3's tests have it."""
@@ -142,8 +142,7 @@ def test_with_room_to_raise_the_limit_is_raised_for_the_run_and_the_run_goes_ahe
     assert kept(where) == EPISODES, ran
     if entry == "command":
         assert ran["code"] == 0, ran
-        assert [line.split()[0] for line in ran["stdout"].splitlines() if line.strip()
-                and not line.startswith(" ")][-1] == "done", ran
+        assert [word for word, _ in verdict_lines(ran["stdout"], "run")] == ["plan", "done"], ran
     elif entry == "library":
         assert (ran["verdict"], ran["owed"]) == ("done", 0), ran
         assert ran["soft_during"] == [how_far(ran["limits_before"][1])], ran
