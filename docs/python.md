@@ -203,6 +203,8 @@ print(own.summary(reading).splitlines()[0])
 2 tools: 0 read, 0 write, 2 not known (treated as write), 0 refused
 ```
 
+`own.summary` counts what the file says. The command's summary counts the set after what you declared in `tasks.toml`: `own.apply_effects(reading.toolset, read=[...], write=[...])` is the set it counts, and a tool you declared as a read is a read there.
+
 ## The examples, as source to read
 
 The repository's `examples` folder holds four short programs that use the library. They are not installed with the package; read them, and copy what you need. Each takes `--help`, and a mistaken argument gets one line.
