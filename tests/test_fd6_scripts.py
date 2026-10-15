@@ -32,6 +32,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -78,7 +79,7 @@ EXAMPLE = {
 }
 
 # case id: (which command, its arguments or a function of a scratch folder, the exit code)
-CASES = {
+CASES: dict[str, tuple[str, list[Any], int]] = {
     "one_task-help": ("one_task", ["--help"], 0),
     "one_task-seed-not-a-number": ("one_task", ["seven"], 2),
     "one_task-seed-out-of-range": ("one_task", ["4294967296"], 2),
@@ -94,8 +95,8 @@ CASES = {
 }
 
 
-def arguments(spec: list[object], scratch: Path) -> list[str]:
-    return [item if isinstance(item, str) else item(scratch) for item in spec]  # type: ignore[operator]
+def arguments(spec: list[Any], scratch: Path) -> list[str]:
+    return [item if isinstance(item, str) else str(item(scratch)) for item in spec]
 
 
 @pytest.mark.parametrize("case", CASES)
@@ -179,7 +180,8 @@ READS = {
 def driver_parser() -> argparse.ArgumentParser:
     import importlib
 
-    return importlib.import_module("poisson_tasks.calibration_run").build_parser()
+    parser: argparse.ArgumentParser = importlib.import_module("poisson_tasks.calibration_run").build_parser()
+    return parser
 
 
 def steps(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentParser]:

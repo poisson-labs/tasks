@@ -32,6 +32,7 @@ import subprocess
 import sys
 import zipfile
 from pathlib import Path
+from typing import Any
 
 from tests.fd3_support import needs_uv
 from tests.fd4_support import fd4_runs
@@ -298,7 +299,7 @@ def test_the_estimate_falls_back_to_the_first_card_when_no_card_measured_the_fir
 
 @needs_uv
 def test_a_runs_card_from_a_clean_wheel_carries_its_small_sample_and_comparability_lines(
-    fd4_runs, with_tokenizer: Path, tmp_path: Path
+    fd4_runs: Any, with_tokenizer: Path, tmp_path: Path
 ) -> None:
     folder = fd4_runs["first_look"].folder
     code = (
