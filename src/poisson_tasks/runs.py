@@ -55,7 +55,9 @@ the secret part is the key's: no text a run makes for itself holds one by chance
 that holds one anywhere else is masked there too, string by string, and stays JSON.
 
 **The machine** (spec §8.6): the harness's environment carries `PIP_REQUIRE_VIRTUALENV=1` and
-`UV_NO_MODIFY_PATH=1`, set in this process for the run's length.
+`UV_NO_MODIFY_PATH=1`, set in this process for the run's length.  This process's soft limit on
+open files is raised as far as the hard limit allows for the run's length too, and a run that
+needs more open files than that is refused before anything is written (`_open_files`).
 
 **A plan on the user's own tools** (own-tools spec §8, §11) runs the same way: its eval config
 names the taskset `poisson-tasks-own` and carries the plan's `own` whole, its `plan.json` holds
@@ -1158,16 +1160,23 @@ def run_plan(
     `episodes_total` and `spend`.  After the first SIGINT it returns the interrupted result;
     after a second it raises `KeyboardInterrupt`.  An exception that is not the run's own is
     written to `run.log` with its traceback and raised.  A plan with no arm or no seeds is a
-    `ValueError`, before anything is written.
+    `ValueError`, before anything is written.  A run that needs more open files than this process
+    can have is refused before anything is written too, with an `OSError` of one line naming the
+    number and how to raise the limit; otherwise the soft limit is raised for the run's length.
     """
     if not plan.arms or not plan.seeds:
         raise ValueError("a run needs at least one arm and one seed")
+    from poisson_tasks import _open_files
+
+    # never more episodes in flight than one arm's: the arms run one after another
+    at_once = min(max(1, int(concurrency)), len(plan.seeds) * plan.attempts)
+    _open_files.check(at_once)
     path = Path(folder.path)
     path.mkdir(parents=True, exist_ok=True)
     if _read_plan(path) is None:
         _write_plan(path, plan)
     scrub = _Scrub(_secrets(plan))
-    with _run_log(path, scrub) as handler:
+    with _open_files.room(at_once), _run_log(path, scrub) as handler:
         return asyncio.run(
             _run(
                 plan,

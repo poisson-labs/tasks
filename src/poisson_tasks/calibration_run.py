@@ -1034,13 +1034,19 @@ def _run_arms(
 ) -> str | None:
     """Each arm through `run_arm`, in order, resuming whatever is on disk.  Returns the stop
     reason if a limit stopped the phase."""
+    from poisson_tasks._open_files import OpenFilesRefused
+
     for arm in arms:
         started = _time.monotonic()
         _say(f"[{phase}] {arm}: starting")
-        outcome = _cal.run_arm(
-            spec_for(arm), output_dir=ctx.local / phase, model=ctx.pin.served_name,
-            client=ctx.client(), budget=budget_for(arm),
-        )
+        try:
+            outcome = _cal.run_arm(
+                spec_for(arm), output_dir=ctx.local / phase, model=ctx.pin.served_name,
+                client=ctx.client(), budget=budget_for(arm),
+            )
+        except OpenFilesRefused as refused:
+            # this runtime cannot hold the files the arm needs open: a STOP line, not a traceback
+            raise StepFailed(str(refused)) from None
         elapsed = _time.monotonic() - started
         _say(
             f"[{phase}] {arm}: {outcome.episodes_kept} kept, {outcome.episodes_run} run, "

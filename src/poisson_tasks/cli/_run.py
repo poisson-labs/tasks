@@ -115,6 +115,15 @@ def run(ctx: Context) -> Result:
     if caps["spend_usd"] is None and caps["tokens"] is None:
         raise Refusal("the plan has no cap: set spend_usd or tokens under [limits], or pass "
                       "--spend-cap or --token-cap")
+    concurrency = args.concurrency if args.concurrency is not None else settings.limits.concurrency
+    if not args.dry_run:
+        # the open files the run will hold, before anything is sent or written
+        from poisson_tasks import _open_files
+
+        try:
+            _open_files.check(min(max(1, concurrency), len(plan.seeds) * plan.attempts))
+        except _open_files.OpenFilesRefused as refused:
+            raise Refusal(str(refused)) from None
     model = settings.model
 
     # the key's presence, with no network
@@ -302,7 +311,6 @@ def run(ctx: Context) -> Result:
             kept_here = sum(1 for line in traces.read_bytes().splitlines(keepends=True)
                             if line.endswith(b"\n") and b'"ok": true' in line)
         arm_counts.append((knobs.arm_id(spec), per_arm, min(kept_here, per_arm)))
-    concurrency = args.concurrency if args.concurrency is not None else settings.limits.concurrency
     try:
         with _stdin_closed(), ui.progress(total=total, arms=arm_counts,
                                           folder=str(path)) as progress:

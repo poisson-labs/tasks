@@ -2659,7 +2659,18 @@ def run_arm(
         output_dir=output_dir,
         run_dir=_run_dir_name(spec),
     )
-    return _asyncio.run(_run_arm(config, DEFAULT_BUDGET if budget is None else budget))
+    return _run_arm_with_room(config, DEFAULT_BUDGET if budget is None else budget,
+                              episodes=len(seed_list(spec)) * N)
+
+
+def _run_arm_with_room(config: _Any, budget: _Mapping[str, _Any], *, episodes: int) -> RunOutcome:
+    """`_run_arm` with this process's soft limit on open files raised as far as the hard limit
+    allows for the run's length, or refused (`OSError`) before anything is written when that is
+    less than the run needs (`_open_files`)."""
+    from poisson_tasks import _open_files
+
+    with _open_files.room(min(config.max_concurrent or 128, episodes)):
+        return _asyncio.run(_run_arm(config, budget))
 
 
 def _cell_config(
@@ -2719,7 +2730,8 @@ def run_cell(
         model=model,
         client=client,
     )
-    return _asyncio.run(_run_arm(config, DEFAULT_BUDGET if budget is None else budget))
+    return _run_arm_with_room(config, DEFAULT_BUDGET if budget is None else budget,
+                              episodes=len(seeds) * int(attempts))
 
 
 def _span_seconds(span: _Any) -> float | None:
