@@ -500,10 +500,21 @@ def _leaky(row: EpisodeRecord) -> bool:
     return row.leaky
 
 
+def _added(values: _Iterable[float]) -> float:
+    """`values` added one at a time from the left, which is what `sum` did before Python 3.12.
+    From 3.12 `sum` of floats is a compensated sum, and the published cards were built on 3.11,
+    so a figure summed with it moves in its last digit there and a card no longer rebuilds byte
+    for byte."""
+    total: float = 0
+    for value in values:
+        total += value
+    return total
+
+
 def _mean(values: _Sequence[float]) -> float:
     if not values:
         raise ValueError("a cell with no scored task has no rate")
-    return sum(values) / len(values)
+    return _added(values) / len(values)
 
 
 def pass_at_1(cell: Cell) -> float:
@@ -1346,7 +1357,7 @@ def _cell_figures(
         "cached_input_share": cached / (prompt + cached) if prompt + cached else 0.0,
         "reasoning_share": reasoning / completion if completion else 0.0,
         "reported_cost": (
-            sum(row.cost for row in kept if row.cost is not None)
+            _added(row.cost for row in kept if row.cost is not None)
             if any(row.cost is not None for row in kept)
             else None
         ),
