@@ -197,7 +197,7 @@ def test_strings_compare_byte_for_byte_numbers_by_value_and_booleans_and_enums_e
     bundle = make(EXACT, "faults", 0, seed=5)
     _tool, args = target_call(bundle)
     stated = dict(bundle.stated)
-    assert set(stated) == {"code", "count", "amount", "urgent", "kind", "switch"}
+    assert set(stated) == {"code", "count", "amount", "urgent", "kind", "switch", "priority", "note"}
     assert judge(bundle, bundle.reference_calls).strict_label == "passed"
     as_float = with_value(bundle, "count", float(args["count"]))
     assert judge(bundle, as_float).strict_label == "passed"
@@ -214,11 +214,25 @@ def test_strings_compare_byte_for_byte_numbers_by_value_and_booleans_and_enums_e
 
 
 def test_an_argument_the_request_did_not_state_is_ignored() -> None:
-    """Free text, and on any arm but arguments (`test_o2_pending_arguments_unstated.py`) a checkable
-    argument too."""
-    bundle = make(EXACT, "faults", 0, seed=5)
-    assert "note" not in dict(bundle.stated) and "priority" not in dict(bundle.stated)
-    for name, value in (("note", "anything"), ("note", ""), ("priority", 1), ("priority", 3)):
+    """Free text is stated and never checked; and on any arm but arguments
+    (`test_o2_pending_arguments_unstated.py`) the request states every argument a value can be
+    drawn for, so the one left unstated is an argument no draw can meet (a pattern here), and it is
+    ignored.  (Retrofit of 2026-10-19, Taylor's R1: before it, the request stated only the required
+    values, and `priority` stood here as an unstated checkable argument.)"""
+    unstated = mcp_set(
+        write_tool(
+            "file_claim",
+            {"code": {"type": "string", "minLength": 4, "maxLength": 8},
+             "note": {"type": "string"},
+             "ref": {"type": "string", "pattern": "^[0-9]{3}-[A-Z]{2}$"}},
+            ["code"],
+        ),
+        read_tool("look", {"key": {"type": "string", "maxLength": 5}}, ["key"]),
+        name="claims",
+    )
+    bundle = make(unstated, "faults", 0, seed=5)
+    assert "note" in dict(bundle.stated) and "ref" not in dict(bundle.stated)
+    for name, value in (("note", "anything"), ("note", ""), ("ref", "123-AB"), ("ref", "456-CD")):
         assert judge(bundle, with_value(bundle, name, value)).strict_label == "passed", (name, value)
 
 
