@@ -29,6 +29,10 @@ proofload-runs/
 # Local working notes: a symlink. No trailing slash, or the symlink gets through.
 notes
 
+# Local working folders (scripts, run outputs). The sdist is built from this file and not from
+# .git/info/exclude, so a folder left out only there ships in it.
+.work/
+
 # Editors / OS
 .vscode/
 .idea/
