@@ -24,6 +24,7 @@ from poisson_tasks import cards
 from poisson_tasks.cli import _format
 from poisson_tasks.cli._common import (
     Context,
+    arm_folder,
     load_settings,
     need_tokenizer,
     refuse_overwrite,
@@ -151,9 +152,10 @@ def _gate_words(records: Any, tally: Any, arm: str, gate: str, prov: Any) -> str
     if gate == "no_call":
         scored = calibration.scored(rows)
         silent = sum(1 for record in scored if record.sampled_calls == 0)
-        return (f"{arm} is not published: {silent} of {len(scored)} scored attempts made no "
-                f"tool call (more than {_format.rate(prov.no_call_threshold)}), so it would "
-                "measure whether the model starts, not the level")
+        return (f"{arm} is not published: in {silent} of {len(scored)} scored attempts the model "
+                "answered in text instead of calling a tool (more than "
+                f"{_format.rate(prov.no_call_threshold)}), so it would measure whether the model "
+                "starts, not the level")
     rate = calibration.instrument_rate(rows, tally.get(arm) or None)
     return (f"{arm} is not published: {_format.rate(rate)} of its attempts failed for "
             f"instrument reasons (more than {_format.rate(prov.instrument_threshold)}), so the "
@@ -204,11 +206,20 @@ def _run_card(ctx: Context) -> Result:
         prov_like = _provenance_like(folder)
         reasons = [_gate_words(made.records, made.tally, arm, gate, prov_like)
                    for arm, gate in verdict.refused]
+        silent = [arm for arm, gate in verdict.refused if gate == "no_call"]
+        replies = [folder / arm_folder(arm) / calibration.TRACES_FILE for arm in silent]
+        said: list[Any] = []
+        if replies:
+            said.append(Row("their replies", "one line per attempt, in "
+                            + ", ".join(shown(path) for path in replies)))
+        said.append(Row("wrote", shown(records_path)))
+        # The task the model answered in text, as it was shown: the place to start reading.
+        after = [ctx.command("generate", "--show", "--arm", silent[0])] if silent else []
         return Result(
             schema=SCHEMA, verdict="refused", tone="warn", sentence="; ".join(reasons),
-            rows=[Row("wrote", shown(records_path))], exit=1,
+            rows=said, next=after, exit=1,
             data={"folder": str(folder), "refused": [list(pair) for pair in verdict.refused],
-                  "wrote": [str(records_path)]},
+                  "replies": [str(path) for path in replies], "wrote": [str(records_path)]},
         )
 
     assert made.artifact is not None and made.document is not None and made.claims is not None

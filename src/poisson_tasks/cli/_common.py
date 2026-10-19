@@ -241,10 +241,12 @@ def host_of(url: str) -> str:
 
 
 def arm_folder(spec: Any) -> str:
-    """An arm's folder-safe name (`depth:d1` to `depth-d1`), as a run folder names an arm's."""
+    """An arm's folder-safe name (`depth:d1` to `depth-d1`), as a run folder names an arm's; the
+    arm is a spec or its id."""
     from poisson_tasks.knobs import arm_id
 
-    return str(arm_id(spec)).replace("/", "-").replace(":", "-").replace("@", "-")
+    name = spec if isinstance(spec, str) else arm_id(spec)
+    return str(name).replace("/", "-").replace(":", "-").replace("@", "-")
 
 
 def shown(path: str | os.PathLike[str]) -> str:
