@@ -151,6 +151,25 @@ Across the 12 pairs of adjacent levels, the models agree on none and disagree on
 - `poisson-tasks export`: write the configs another runner reads (verifiers).
 - `poisson-tasks doctor`: say whether this environment is ready, and what to do if not.
 
+`verify` names a task by its arm and its place in the plan. With `--self-check` it checks the task's own answers, with no model: the reference solution passes, and each wrong answer the task ships with earns the outcome it is named for.
+
+<!-- docs-check: run -->
+```bash
+poisson-tasks verify --self-check --arm depth:d3 --task 1
+```
+<!-- docs-check: output -->
+```
+ok  depth:d3 task 1 (seed 13553586): the reference solution passes and each of the 7 wrong answers earns its outcome
+  reference solution       passed under both strictnesses (3 tool calls)
+  wrong_state              wrong_state · The model stopped with the record in a state that is not the goal.
+  turn_limit               turn_limit · The model used every model call it was allowed before it finished.
+  collateral_mutation      collateral_mutation · The model reached the goal but also changed something the task did not ask for.
+  overshoot                overshoot · The model reached the goal and then kept changing the record past it.
+  malformed_call_clause_2  malformed_call · The model wrote a tool call the harness could not read.
+  malformed_call_clause_3  malformed_call · The model wrote a tool call the harness could not read.
+  malformed_call_clause_4  malformed_call · The model wrote a tool call the harness could not read.
+```
+
 Every verb ends with a result line first, `error:` lines on standard error, and an exit code that means the same everywhere (0 done, 1 refused, 2 the command line is wrong, 3 stopped, 4 a check did not pass, 130 interrupted). Output is plain text in a pipe and drawn with colour on a terminal; `--plain` and `NO_COLOR` turn the colour off.
 
 ## Using it from Python, and under verifiers yourself
