@@ -573,7 +573,7 @@ examples:
 
 Writes the plan's tasks as configs another runner reads. There is one target now, `--to verifiers`: one eval config for every arm, `eval-<arm>.json`, holding the taskset, the arm, the seeds, the model, the endpoint, the name of the key's variable (never the key) and the decoding, with `push` off. It prints, for each file, the command that runs it, with verifiers' `eval` by its absolute path in this environment, so that the shell's own `eval` builtin cannot take its place ([verifiers-export.md](verifiers-export.md) says why that matters). `export` reads no key and opens no socket, and refuses to replace files that are already there unless you pass `--force`.
 
-Run that way, `eval` runs what `run` runs for the arm, without what `run` adds: the plan, the spend cap, the tally of failures that are not the model's, the stop when the account is out of credit, the stop for a streak of failures, and the watchdog. It also exits 0 when every episode errored.
+Run that way, `eval` runs what `run` runs for the arm, without what `run` adds: the plan, the spend cap, the tally of failures that are not the model's, the stop when the account is out of credit, the stop for a streak of failures, and the watchdog. It also exits 0 when every episode errored. So each printed command calls the model and spends money with no cap and no estimate, and `export` says so in the line above them.
 
 <!-- docs-check: run -->
 ```bash
@@ -584,7 +584,7 @@ poisson-tasks export --to verifiers | head -n 4
 ok  wrote 3 verifiers configs, one per arm: depth at 1, 3 and 8, 10 tasks each
   note  run that way, eval leaves out what run adds (the plan, the spend cap, the instrument tally, the out-of-credit stop, the failure-streak stop and the watchdog), and it exits 0 when every episode errored
 
-run each with
+run each with; each one calls the model and spends money, with no cap (poisson-tasks run is the way with a cap)
 ```
 
 <!-- docs-check: run -->
