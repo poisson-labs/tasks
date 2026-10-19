@@ -49,13 +49,14 @@ TOKENIZER_QUESTION = (
 PUBLISHED_MODEL = "gpt-5-nano-2025-08-07"
 PUBLISHED_PRICE_SHOWN = "0.05, 0.005, 0.40 — read 2026-09-25; check them"
 PUBLISHED_NOTE = (
-    "This one has a published card. A first look runs ten of its tasks per level, so you can "
-    "read your levels against it; only the published design is comparable in the card's sense."
+    "This one has a published card. It was measured on an earlier build of the generator, so a "
+    "card from your run cannot be read beside it in this release; the next release measures it "
+    "again on the current generator."
 )
 MEASURES = (
     ("first-look", "A first look at depth: tasks 1, 3 and 8 steps deep (recommended)", ""),
     ("card", "The published cards' design: both knobs at every level, with their control arms",
-     "comparable with the published cards; 4,200 episodes, about $2.50 on gpt-5-nano"),
+     "their sixty tasks and five attempts a level; 4,200 episodes, about $2.50 on gpt-5-nano"),
     ("custom", "Choose the knob and levels myself", ""),
 )
 OWN = "own"
