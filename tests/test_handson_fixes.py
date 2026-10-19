@@ -61,6 +61,13 @@ def test_a_preview_on_your_own_tools_is_the_task_generate_writes(
                                 monkeypatch)
             assert shown.code == 0, shown
             assert bundle.task_id in shown.out, (arm_id(spec), place, shown.out)
+    unheld = invoke_here(["generate", "--show", "--arm", "faults:f3"], monkeypatch)
+    assert unheld.code == 2 and all(arm_id(spec) in unheld.err for spec in plan.arms), unheld
+    (two,) = [spec for spec in plan.arms if spec.level == 2]
+    first = runs.own_bundles(plan, two, plan.seeds[:1])[0]
+    by_knob = invoke_here(["generate", "--show", "--knob", "faults", "--levels", "2",
+                           "--seeds", str(plan.seeds[0])], monkeypatch)
+    assert by_knob.code == 0 and first.task_id in by_knob.out, by_knob
 
 
 def test_an_own_tools_request_states_every_value_its_goal_needs() -> None:
