@@ -42,7 +42,7 @@ Python 3.11 to 3.13, on macOS or Linux. A first run against `gpt-5-nano` is 30 e
 
 **Agent teams.** Tasks built on your own tools. Bring an OpenAI tools file, an MCP tool list (or an MCP server, started with `--mcp-command`) or an OpenAPI document. Tasks simulates the responses from your schemas, never calls your backend, and the card shows where your setup breaks ([own-tools.md](https://github.com/poisson-labs/tasks/blob/main/docs/own-tools.md)).
 
-Both start with the four commands above.
+Both start with the four commands above. If you ran them first and want your own tools next, `poisson-tasks init --force` asks its questions again, and the one on what to measure offers Tasks on my own tools; `--force` replaces `tasks.toml` and keeps no copy of the old one, so copy it first if you want it, or run `poisson-tasks init` in a new folder instead.
 
 ## What a task looks like
 
