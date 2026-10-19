@@ -207,7 +207,7 @@ def _run_card(ctx: Context) -> Result:
         reasons = [_gate_words(made.records, made.tally, arm, gate, prov_like)
                    for arm, gate in verdict.refused]
         silent = [arm for arm, gate in verdict.refused if gate == "no_call"]
-        replies = [folder / arm_folder(arm) / calibration.TRACES_FILE for arm in silent]
+        replies = [folder / arm_folder(arm) / "traces.jsonl" for arm in silent]
         said: list[Any] = []
         if replies:
             said.append(Row("their replies", "one line per attempt, in "
