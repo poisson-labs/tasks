@@ -223,8 +223,10 @@ def test_doctor_lists_every_knob_the_set_reaches_shipped_first_with_its_status(
     ran = invoke(["doctor", "--offline"], monkeypatch)
     assert ran.code == 0, ran
     rows = doctor_rows(ran)
-    assert all(status == "ok" for status, _ in rows.values()), rows
     reached = recipes.offered_knobs(toolset, flows=flows)
+    # Retrofitted by ruling G14 (FD9 Session A): a knob's probe line is information, `note`.
+    assert all(status == ("note" if label in reached else "ok")
+               for label, (status, _) in rows.items()), rows
     lead = recipes.shipped_knobs(toolset, flows=flows)
     ordered = [*lead, *(knob for knob in reached if knob not in lead)]
     assert [label for label in rows if label in generator.KNOBS] == ordered
