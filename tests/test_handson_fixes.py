@@ -52,10 +52,12 @@ def test_a_preview_on_your_own_tools_is_the_task_generate_writes(
 ) -> None:
     plan = _petstore_folder(work, monkeypatch)
     assert len(plan.arms) > 1
-    refused = invoke_here(["generate", "--show"], monkeypatch)
-    assert refused.code == 2, refused
+    # Retrofitted by ruling G13 (FD9 Session A): no refusal; the first arm's task 1, and every
+    # other arm named.
+    shown_first = invoke_here(["generate", "--show"], monkeypatch)
+    assert shown_first.code == 0, shown_first
     for spec in plan.arms:
-        assert arm_id(spec) in refused.err, refused
+        assert arm_id(spec) in shown_first.out, shown_first
     for spec in plan.arms:
         written = runs.own_bundles(plan, spec, plan.seeds)
         for place, bundle in enumerate(written, start=1):
@@ -126,4 +128,7 @@ def test_verify_by_arm_in_a_folder_on_your_own_tools_refuses_in_one_line(
     for argv in (["--arm", "faults:f1", "--task", "1"], ["--arm", "faults:f1", "--seed", "7"]):
         ran = invoke_here(["verify", "--self-check", *argv], monkeypatch)
         assert ran.code == 1 and ran.out == "", ran
-        assert len(ran.err.splitlines()) == 1 and ran.err.startswith("error: "), ran
+        # Retrofitted by ruling G13 (FD9 Session A): the one line is followed by its `next:`.
+        lines = ran.err.splitlines()
+        assert lines[0].startswith("error: ") and len(lines) == 2, ran
+        assert lines[1].strip().startswith("next: "), ran
