@@ -302,7 +302,7 @@ def test_choosing_the_knob_yourself_on_own_tools_offers_every_knob_shipped_first
     ordered = [*lead, *(knob for knob in reached if knob not in lead)]
     chosen = ordered[-1]
     err = io.StringIO()
-    stdin = Answers(["", "", "", "", str(len(offered_recipes()) + 1), "tools.json",
+    stdin = Answers(["2", "", "", "", "", "tools.json",  # G7 (FD9 Session A)
                      custom_entry, str(len(ordered)), "", ""])
     saved = sys.stderr
     ran = invoke(["init", "--no-check-key", *FLOWS], monkeypatch, stdin)
@@ -331,14 +331,14 @@ def test_mcp_command_without_yes_asks_for_consent_and_no_writes_nothing(
 ) -> None:
     command = shlex.join([sys.executable, str(FAKE_MCP_SERVER), str(work / "log"),
                           str(work / "marker")])
-    own_entry = str(len(offered_recipes()) + 1)
+    # G7 (FD9 Session A): own tools is the first question's second answer, before the provider
     declined = invoke(["init", "--no-check-key", "--mcp-command", command, "--recipe",
-                       "error-recovery"], monkeypatch, Answers(["", "", "", "", own_entry, "n"]))
+                       "error-recovery"], monkeypatch, Answers(["2", "", "", "", "", "n"]))
     assert declined.code == 1, declined
     assert sorted(path.name for path in work.iterdir()) == []
     assert "not started" in declined.err
     consented = invoke(["init", "--no-check-key", "--mcp-command", command, "--recipe",
-                        "error-recovery"], monkeypatch, Answers(["", "", "", "", own_entry, "y"]))
+                        "error-recovery"], monkeypatch, Answers(["2", "", "", "", "", "y"]))
     assert consented.code == 0, consented
     assert (work / "tools.mcp.json").is_file() and not (work / "marker").exists()
     made = config.load_config(work / "tasks.toml")
@@ -549,7 +549,7 @@ def test_the_dialogue_says_the_summary_line_before_the_recipe_question(
 ) -> None:
     (work / "tools.json").write_bytes(fixture("acme-mcp-tools-list.json"))
     first = own.summary(own.read_tools(fixture("acme-mcp-tools-list.json"), name="tools")).splitlines()[0]
-    stdin = Answers(["", "", "", "", str(len(offered_recipes()) + 1), "tools.json"])
+    stdin = Answers(["2", "", "", "", "", "tools.json"])  # G7 (FD9 Session A)
     ran = invoke(["init", "--no-check-key", *FLOWS], monkeypatch, stdin)
     assert ran.code == 0, ran
     assert first in ran.err and ran.err.index(first) < ran.err.index("What do you want to measure on")
