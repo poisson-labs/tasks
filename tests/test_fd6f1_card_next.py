@@ -41,9 +41,10 @@ def test_a_card_on_the_built_in_tasks_names_no_comparison_that_refuses(
     assert ran.code == 0, ran
     assert next_lines(ran.out) == [], ran.out
     assert "--compare" not in ran.out
-    # what the line would have named: it refuses, in one line, and writes nothing
+    # Retrofitted by ruling G12, on FD9 Session A's yes/no 4: the comparison says `different`,
+    # exit 0, instead of refusing.
     asked = invoke(["card", str(folder), *COMPARE, "--force"], monkeypatch)
-    assert asked.code == 1 and "cannot be read side by side" in asked.err, asked
+    assert asked.code == 0 and asked.out.startswith("different  "), asked
 
 
 def test_a_card_on_your_own_tools_still_names_the_comparison_and_it_works(
