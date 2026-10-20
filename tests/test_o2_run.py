@@ -196,7 +196,9 @@ def test_card_compare_published_shows_an_own_card_beside_the_published_one(
     code = importlib.import_module("poisson_tasks.cli").main(
         ["card", str(own_run.folder), "--compare", "published"], prog="poisson-tasks")
     assert code == 0, err.getvalue()
-    assert expected in out.getvalue()
+    # Retrofitted by ruling G12 (FD9 Session A): neither card is printed; `compare.md` holds them.
+    assert expected not in out.getvalue()
+    assert expected in (own_run.folder / "card" / "compare.md").read_text(encoding="utf-8")
 
 
 @needs_uv
