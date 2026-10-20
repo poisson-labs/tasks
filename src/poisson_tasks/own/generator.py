@@ -13,8 +13,10 @@ What a task is made of, by knob (spec §6.1, under the rulings of 2026-10-13):
   similarity, faults, history, block and spread; on arguments the write with the most checkable
   parameters; on depth and shape the end of the declared chain;
 - the **request** uses the target's intent, else the first sentence of its description, never a
-  tool's name, and states each required checkable value as JSON (spec §7); free text is never
-  stated or checked;
+  tool's name, and states as JSON every argument a value can be drawn for, required or not, so
+  the model has nothing to guess (Taylor's ruling of 2026-10-19, after the hands-on pass: a
+  request that named no record, or no value to change, was answered with a question); free text
+  is stated and never checked;
 - **similarity** shows the target and six copies named `<name>_<number>` and described
   `... (account <number>)`, the numbers `surface`'s; **faults** plans `surface.fault_plan`'s
   failures; **history** seeds the fewest read pairs that reach T tokens; **block** offers
@@ -305,12 +307,10 @@ def _keyed_reads(toolset: _OwnToolSet) -> list[_OwnTool]:
 
 
 def _stated_names(tool: _OwnTool, carried: _Sequence[str] = ()) -> list[str]:
-    """The arguments a request states on an arm whose values are not the knob: the required
-    checkable ones, or the first checkable one when none is required, less what is carried."""
-    checkable = _checkable(tool)
-    required = [name for name in _required(tool) if name in checkable]
-    names = required or checkable[:1]
-    return [name for name in names if name not in carried]
+    """The arguments a request states on an arm whose values are not the knob: every argument a
+    value can be drawn for, required or not, free text included, less what is carried."""
+    return [name for name, schema in _properties(tool).items()
+            if _drawable(schema) and name not in carried]
 
 
 def _arguments_of(tool: _OwnTool, key: bytes, salt: str) -> dict[str, _Any]:

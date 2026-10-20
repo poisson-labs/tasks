@@ -3526,6 +3526,10 @@ _LINE_NOT_COMPARABLE = (
     "It is not comparable with the published cards: it was not measured the same way, so none "
     "of its figures reads against theirs."
 )
+_LINE_EARLIER_BUILD = (
+    "It cannot be read beside the published cards in this release: they were measured on an "
+    "earlier build of the generator, and the next release measures them again on the current one."
+)
 _LINE_NOT_COVERED = (
     "No published card covers this plan: none holds any of its levels, so nothing here can "
     "be read beside a published figure."
@@ -3603,8 +3607,13 @@ def card_claims(artifact: Artifact) -> Claims:
             "and most pairs of levels will read too small to call; that is the design's "
             "resolution, not evidence that the levels are the same."
         )
+    # Not comparable because the published cards were made by another build of the generator is
+    # the README's account, said the same way wherever comparing with them is told.
+    earlier = bool(published) and all(
+        "generator_hash" in _differing(prov, other) for other, _ in published)
     for flag, line in (
-        ("not_comparable", _LINE_NOT_COMPARABLE), ("not_covered", _LINE_NOT_COVERED),
+        ("not_comparable", _LINE_EARLIER_BUILD if earlier else _LINE_NOT_COMPARABLE),
+        ("not_covered", _LINE_NOT_COVERED),
         ("self_served", _LINE_SELF_SERVED), ("distractor", _LINE_DISTRACTOR),
         ("stale", _LINE_STALE), ("resumed", _LINE_RESUMED),
     ):

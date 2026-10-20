@@ -39,7 +39,7 @@ passed
 
 `poisson_tasks.outcomes.describe(label)` gives each label's plain sentence, the one `verify` and the cards print.
 
-`poisson-tasks verify` does the same from the command line, with a task's own answers or an attempt of yours (see [commands.md](commands.md)). In this release it refuses a tasks file made on your own tools, in one line (`error: <file> holds tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`).
+`poisson-tasks verify` does the same from the command line, with a task's own answers or an attempt of yours (see [commands.md](commands.md)). In this release it refuses a tasks file made on your own tools, in one line (`error: <file> holds tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`), and refuses `--arm` in a folder set up for your own tools the same way.
 
 ## Arms by their id
 

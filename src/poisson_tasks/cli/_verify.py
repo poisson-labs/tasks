@@ -5,7 +5,9 @@ strictnesses and each wrong answer the task ships with earns the outcome it is n
 `--transcript FILE` judges an agent's attempt, in one of three forms.  A task is named by its
 arm and its place in the plan (the settings file's seeds, or the published sixty), or by a seed
 the user chose, or counted in a file `generate` wrote.  The verdict word is the outcome label,
-its sentence the library's; exit 0 when the verdict is `passed`, 4 otherwise.
+its sentence the library's; exit 0 when the verdict is `passed`, 4 otherwise.  Tasks on the
+user's own tools are not judged here in this release: a tasks file of them, and `--arm` in a
+folder whose settings file has `[own]`, are each refused in one line (exit 1).
 """
 
 from __future__ import annotations
@@ -70,6 +72,11 @@ def _bundle(ctx: Context) -> tuple[Any, str]:
     seeds: tuple[int, ...] | None = None
     if settings_exist(ctx) or ctx.config_given:
         settings = load_settings(ctx)
+        if settings.own is not None:
+            raise Refusal(
+                f"{ctx.config_path} puts the tasks on your own tools, which verify does not judge "
+                "on its own yet: a run's card judges every episode on them, by replay"
+            )
         plan = resolve(settings)
         seeds = plan.seeds
         strictness = settings.measure.strictness or "strict"

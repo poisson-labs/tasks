@@ -80,6 +80,7 @@ def export(ctx: Context) -> Result:
         sentence=f"wrote {_format.plural(len(paths), 'verifiers config')}, one per arm: "
                  f"{plan_words(plan)}",
         rows=[Row("note", LEAVES_OUT)],
-        document=[Part("run each with", "lines", commands)],
+        document=[Part(f"run each with; each one calls the model and spends money, with no cap "
+                       f"({ctx.command('run')} is the way with a cap)", "lines", commands)],
         data={"files": [str(path) for path in paths], "commands": commands},
     )

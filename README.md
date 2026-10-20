@@ -42,7 +42,7 @@ Python 3.11 to 3.13, on macOS or Linux. A first run against `gpt-5-nano` is 30 e
 
 **Agent teams.** Tasks built on your own tools. Bring an OpenAI tools file, an MCP tool list (or an MCP server, started with `--mcp-command`) or an OpenAPI document. Tasks simulates the responses from your schemas, never calls your backend, and the card shows where your setup breaks ([own-tools.md](https://github.com/poisson-labs/tasks/blob/main/docs/own-tools.md)).
 
-Both start with the four commands above.
+Both start with the four commands above. If you ran them first and want your own tools next, `poisson-tasks init --force` asks its questions again, and the one on what to measure offers Tasks on my own tools; `--force` replaces `tasks.toml` and keeps no copy of the old one, so copy it first if you want it, or run `poisson-tasks init` in a new folder instead.
 
 ## What a task looks like
 
@@ -86,7 +86,7 @@ A **knob** is a dial you turn on purpose; an **arm** is one setting of a knob (`
 | `arguments` | how many values each call must carry, copied from the request | 2, 4, 6, 8 | Available · retested in v2 · gpt-5-nano: does not bite; Qwen3-8B: does not bite |
 | `spread` | how many tool answers the entry code is split across | 1, 2, 4 | Available · retested in v2 · gpt-5-nano: top easier; Qwen3-8B: cannot tell |
 
-Every dial stays in play: all nine have tasks, work from the command line, and are offered on your own tools. The probe's table, with every contrast and its interval, is `poisson_tasks.arms.knob_status()`, and [knobs-and-arms.md](https://github.com/poisson-labs/tasks/blob/main/docs/knobs-and-arms.md) shows it beside three things about how the probe ran that you should know. "Cannot tell" means a drop of 0.15 could not show: the dial's base level passed less than 0.15 of the time on that model. Two small models, measured once, are not the last word, so the four labelled "Available · retested in v2" are retested in v2, on current models.
+Every dial stays in play: all nine have tasks and work from the command line. On your own tools every dial but the decoy-tools dial is offered, within what your tools can support, and two of them, depth and shape, need flows. A flow is a link you declare between two of your tools: which field of one tool's answer goes into which argument of the next (`--own-flow` to `init`, or `[[own.flow]]` in `tasks.toml`). Tasks will not guess one, so without flows depth and shape are listed as unavailable ([own-tools.md](https://github.com/poisson-labs/tasks/blob/main/docs/own-tools.md)). The probe's table, with every contrast and its interval, is `poisson_tasks.arms.knob_status()`, and [knobs-and-arms.md](https://github.com/poisson-labs/tasks/blob/main/docs/knobs-and-arms.md) shows it beside three things about how the probe ran that you should know. "Cannot tell" means a drop of 0.15 could not show: the dial's base level passed less than 0.15 of the time on that model. Two small models, measured once, are not the last word, so the four labelled "Available · retested in v2" are retested in v2, on current models.
 
 ## What a card says, and what it does not
 
@@ -147,9 +147,28 @@ Across the 12 pairs of adjacent levels, the models agree on none and disagree on
 - `poisson-tasks generate`: make the plan's tasks with no model and no network, or show one task in full.
 - `poisson-tasks run`: show the plan and its cost, ask, then run the tasks against the model.
 - `poisson-tasks card`: build the card from a run, or rebuild the published cards.
-- `poisson-tasks verify`: judge an answer with the task's own verifier, with no model. In this release `verify` refuses a tasks file made on your own tools, in one line: `error: <file> holds tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`.
+- `poisson-tasks verify`: judge an answer with the task's own verifier, with no model. In this release `verify` refuses a tasks file made on your own tools, in one line: `error: <file> holds tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`. It refuses `--arm` in a folder set up for your own tools the same way: `error: tasks.toml puts the tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`.
 - `poisson-tasks export`: write the configs another runner reads (verifiers).
 - `poisson-tasks doctor`: say whether this environment is ready, and what to do if not.
+
+`verify` names a task by its arm and its place in the plan. With `--self-check` it checks the task's own answers, with no model: the reference solution passes, and each wrong answer the task ships with earns the outcome it is named for.
+
+<!-- docs-check: run -->
+```bash
+poisson-tasks verify --self-check --arm depth:d3 --task 1
+```
+<!-- docs-check: output -->
+```
+ok  depth:d3 task 1 (seed 13553586): the reference solution passes and each of the 7 wrong answers earns its outcome
+  reference solution       passed under both strictnesses (3 tool calls)
+  wrong_state              wrong_state · The model stopped with the record in a state that is not the goal.
+  turn_limit               turn_limit · The model used every model call it was allowed before it finished.
+  collateral_mutation      collateral_mutation · The model reached the goal but also changed something the task did not ask for.
+  overshoot                overshoot · The model reached the goal and then kept changing the record past it.
+  malformed_call_clause_2  malformed_call · The model wrote a tool call the harness could not read.
+  malformed_call_clause_3  malformed_call · The model wrote a tool call the harness could not read.
+  malformed_call_clause_4  malformed_call · The model wrote a tool call the harness could not read.
+```
 
 Every verb ends with a result line first, `error:` lines on standard error, and an exit code that means the same everywhere (0 done, 1 refused, 2 the command line is wrong, 3 stopped, 4 a check did not pass, 130 interrupted). Output is plain text in a pipe and drawn with colour on a terminal; `--plain` and `NO_COLOR` turn the colour off.
 

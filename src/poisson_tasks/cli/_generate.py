@@ -1,16 +1,20 @@
 """`generate`: make the plan's tasks with no model and no network, and look at one (spec §4.2).
 
 The tokenizer file is checked before anything that generates is imported.  The plan is the
-settings file's, or the flags' (`--arm`, or `--knob` with `--levels`).  Every task is made, the
-contrast is checked through the pin ledger seed by seed, and only then are the files written,
-one per arm, each line the task in the wire form other runners read; `--print` sends the same
-lines to stdout and `--show` prints one task in full and writes nothing.  On the user's own tools
-(a settings file with `[own]`) the tasks are the own generator's, written in the own export's
-wire form; there is no pin ledger there, the contrast being the generator's own.
+settings file's, or the flags' (`--arm`, or `--knob` with `--levels`); in a folder whose settings
+file has `[own]` the flags change the settings file's plan and its `[own]` table is kept, so an arm
+named by a flag is the one `generate` writes, on your tools, and never the built-in table's.
+Every task is made, the contrast is checked through the pin ledger seed by seed, and only then
+are the files written, one per arm, each line the task in the wire form other runners read;
+`--print` sends the same lines to stdout and `--show` prints one task in full and writes
+nothing.  On the user's own tools (a settings file with `[own]`) the tasks are the own
+generator's, written in the own export's wire form; there is no pin ledger there, the contrast
+being the generator's own.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import sys
 from pathlib import Path
@@ -88,12 +92,92 @@ def _plan_from_flags(ctx: Context) -> tuple[Any, Path]:
     return plan, Path("tasks")
 
 
+def _without(argv: list[str], names: tuple[str, ...]) -> list[str]:
+    """`init`'s argv without the flags `names` and their values."""
+    switches = {flag.flag for flag in (*config.INIT_FLAGS, *config.OWN_INIT_FLAGS)
+                if flag.type == "switch"}
+    out: list[str] = []
+    index = 0
+    while index < len(argv):
+        step = 1 if argv[index] in switches or argv[index] == "--yes" else 2
+        if argv[index] not in names:
+            out += argv[index:index + step]
+        index += step
+    return out
+
+
+def _own_settings(ctx: Context) -> Any | None:
+    """The settings file's config when it puts the tasks on the user's own tools, else `None`."""
+    if not settings_exist(ctx) and not ctx.config_given:
+        return None
+    settings = load_settings(ctx)
+    return settings if settings.own is not None else None
+
+
+def _own_plan_from_flags(ctx: Context, settings: Any) -> Any:
+    """On your own tools: the settings file's plan with what the flags change, its `[own]` table
+    kept, read through the command `init` would write it with, so a flag is refused as `init`
+    refuses it.  `--arm` names arms of that plan, and a name it does not hold is refused with the
+    names it holds."""
+    args = ctx.args
+    try:
+        command = config.equivalent_init_command(settings, prog="poisson-tasks")
+    except config.ConfigError as refused:
+        raise Refusal(str(refused)) from None
+    argv = command[command.index("init") + 1:]
+    if args.knob is not None:
+        argv = _without(argv, ("--recipe", "--knob", "--levels", "--controls", "--no-controls",
+                               "--strictness"))
+        argv += ["--recipe", "custom", "--knob", args.knob]
+        if args.levels is not None:
+            argv += ["--levels", args.levels]
+        if args.controls is not None:
+            argv.append("--controls" if args.controls else "--no-controls")
+        if args.strictness is not None:
+            argv += ["--strictness", args.strictness]
+    if args.seeds is not None or args.tasks_per_level is not None:
+        argv = _without(argv, ("--seeds", "--tasks-per-level"))
+        argv += (["--seeds", args.seeds] if args.seeds is not None
+                 else ["--tasks-per-level", str(args.tasks_per_level)])
+    if args.generator_version is not None:
+        argv = _without(argv, ("--generator-version",))
+        argv += ["--generator-version", args.generator_version]
+    try:
+        made = config.config_from_init_args(argv)
+    except config.ConfigError as refused:
+        raise Usage(str(refused)) from None
+    plan = resolve(made, settings_root(ctx))
+    if not args.arm:
+        return plan
+    from poisson_tasks import knobs
+
+    held = {knobs.arm_id(spec): spec for spec in plan.arms}
+    for name in args.arm:
+        if name not in held:
+            raise Usage(f"{name} is not an arm of this plan on your tools; its arms are "
+                        f"{_format.words(list(held), 'or')}")
+    try:
+        specs = tuple(
+            held[name] if args.strictness is None else arms.arm_from_id(
+                name, strictness=args.strictness, generator_version=held[name].generator_version)
+            for name in args.arm
+        )
+    except ValueError as refused:
+        raise Usage(str(refused)) from None
+    return dataclasses.replace(plan, arms=specs)
+
+
 def _plan(ctx: Context) -> tuple[Any, Path, int]:
     """The plan, where its files go, and the turn cap a run allows."""
     args = ctx.args
     if args.arm or args.knob is not None:
         if args.arm and args.knob is not None:
             raise Usage("--arm and --knob are two ways to name the arms; give one of them")
+        own_settings = _own_settings(ctx)
+        if own_settings is not None:
+            folder = Path(ctx.config_path).parent / own_settings.output.tasks
+            return (_own_plan_from_flags(ctx, own_settings), folder,
+                    own_settings.limits.max_model_calls)
         plan, folder = _plan_from_flags(ctx)
         cap = config.INIT_FLAGS[[flag.flag for flag in config.INIT_FLAGS].index(
             "--max-model-calls")].default
@@ -283,8 +367,11 @@ def reference_verdict(bundle: Any) -> Any:
 def _show(ctx: Context, plan: Any, turn_cap: int) -> Result:
     args = ctx.args
     if len(plan.arms) != 1:
+        from poisson_tasks import knobs
+
+        names = [knobs.arm_id(spec) for spec in plan.arms]
         raise Usage(f"--show prints one task, and the plan has {len(plan.arms)} arms; name one "
-                    "with --arm")
+                    f"with --arm: {_format.words(names, 'or')}")
     spec = plan.arms[0]
     bundle, name = pick_task(plan, spec, args.task, args.seed)
     calls = len(bundle.reference_calls)
