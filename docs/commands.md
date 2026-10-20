@@ -502,7 +502,7 @@ Runs the verifier a task was generated with, with no model. With `--self-check` 
 
 The verdict word is the outcome itself (`passed`, `overshoot`, `wrong_state`, ...). `verify` exits 0 when the verdict is `passed` and 4 otherwise, so a script can gate on it.
 
-In this release `verify` refuses a tasks file made on your own tools, in one line, and exits 1: `error: <file> holds tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`. A run on your own tools is judged by that replay, and its card reports it; judging a single own-tools task with `verify` comes in a later release.
+In this release `verify` refuses a tasks file made on your own tools, in one line, and exits 1: `error: <file> holds tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`. It refuses `--arm` in a folder set up for your own tools the same way, and exits 1: `error: tasks.toml puts the tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`. A run on your own tools is judged by that replay, and its card reports it; judging a single own-tools task with `verify` comes in a later release.
 
 <!-- docs-check: run -->
 ```bash

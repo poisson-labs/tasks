@@ -147,7 +147,7 @@ Across the 12 pairs of adjacent levels, the models agree on none and disagree on
 - `poisson-tasks generate`: make the plan's tasks with no model and no network, or show one task in full.
 - `poisson-tasks run`: show the plan and its cost, ask, then run the tasks against the model.
 - `poisson-tasks card`: build the card from a run, or rebuild the published cards.
-- `poisson-tasks verify`: judge an answer with the task's own verifier, with no model. In this release `verify` refuses a tasks file made on your own tools, in one line: `error: <file> holds tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`.
+- `poisson-tasks verify`: judge an answer with the task's own verifier, with no model. In this release `verify` refuses a tasks file made on your own tools, in one line: `error: <file> holds tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`. It refuses `--arm` in a folder set up for your own tools the same way: `error: tasks.toml puts the tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`.
 - `poisson-tasks export`: write the configs another runner reads (verifiers).
 - `poisson-tasks doctor`: say whether this environment is ready, and what to do if not.
 
