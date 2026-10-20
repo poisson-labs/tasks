@@ -53,9 +53,10 @@ def test_a_card_on_your_own_tools_still_names_the_comparison_and_it_works(
     shutil.copytree(own_run.folder, folder)
     ran = invoke(["card", str(folder), "--force"], monkeypatch)
     assert ran.code == 0, ran
-    (line,) = next_lines(ran.out)
-    assert line.endswith("--compare published"), line
+    # Retrofitted by ruling G12 (FD9 Session A): a card on your own tools names no comparison
+    # either; the comparison, asked for, says `different` and works.
+    assert next_lines(ran.out) == [], ran.out
     asked = invoke(["card", str(folder), *COMPARE, "--force"], monkeypatch)
-    assert asked.code == 0 and "published card" in asked.out.lower(), asked
+    assert asked.code == 0 and asked.out.startswith("different  "), asked
     # asking for the comparison does not end by suggesting it again
     assert next_lines(asked.out) == [], asked.out
