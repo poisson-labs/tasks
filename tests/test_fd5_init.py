@@ -145,24 +145,26 @@ def test_fd5_8_an_existing_file_is_refused_unchanged_and_replaced_with_force(
 
 def _entries() -> dict[str, str]:
     """Question 6's entries, numbered from 1: the offered recipes in `arms.RECIPES`' order, then
-    "Tasks on my own tools" (own-tools spec §8.1), then choosing the knob yourself.  Retrofitted
-    2026-10-14 (O2 Session A's yes/no 32): the first-look, card and custom answers were "1", "2"
-    and "3", the three entries of the menu before own tools took the place after the recipes and
-    the knob probe shipped faults, history and shape."""
+    choosing the knob yourself.  Retrofitted 2026-10-14 (O2 Session A's yes/no 32): the first-look,
+    card and custom answers were "1", "2" and "3", the three entries of the menu before own tools
+    took the place after the recipes and the knob probe shipped faults, history and shape.
+    Retrofitted 2026-10-20 by ruling G7 (FD9 Session A): your own tools is the first question's
+    second answer, so it left this menu and custom is the entry after the recipes."""
     offered = [name for name, recipe in arms().RECIPES.items() if recipe.offered]
     return {"first-look": str(offered.index("first-look") + 1),
-            "card": str(offered.index("card") + 1), "custom": str(len(offered) + 2)}
+            "card": str(offered.index("card") + 1), "custom": str(len(offered) + 1)}
 
 
 @pytest.mark.parametrize("measure", list(_entries().values()), ids=list(_entries()))
 def test_fd5_8_ctrl_c_at_any_question_writes_nothing(
     measure: str, prog: str, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Enter at every question but the sixth, which takes `measure`; Ctrl-C at the k-th, for
-    every k until the dialogue ends."""
+    """Enter at every question but the measure menu, which takes `measure`; Ctrl-C at the k-th,
+    for every k until the dialogue ends.  Retrofitted by ruling G7 (FD9 Session A): the first
+    question, built-in tasks or your own tools, is answered first, with Enter."""
     asked = None
     for k in range(40):
-        answers: list[Any] = ["", "", "", "", measure, "", "", "", "", "", "", "", ""]
+        answers: list[Any] = ["", "", "", "", "", measure, "", "", "", "", "", "", "", ""]
         answers = answers[:k] + [INTERRUPT]
         stdin = Answers(answers)
         ran = invoke(["init", "--no-check-key"], prog=prog, monkeypatch=monkeypatch, stdin=stdin)
@@ -173,7 +175,7 @@ def test_fd5_8_ctrl_c_at_any_question_writes_nothing(
         assert ran.code == 130, ran
         assert tree(world.work) == {}, f"Ctrl-C at question {k + 1} left {tree(world.work)}"
         assert ran.word == "stopped", ran
-    assert asked is not None and asked >= 6, asked
+    assert asked is not None and asked >= 7, asked
     assert (world.work / "tasks.toml").is_file()
 
 
@@ -181,10 +183,11 @@ def test_fd5_8_the_published_design_asks_two_fewer_questions_and_custom_four_mor
     prog: str, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Spec §6.1: question 6's second answer skips the tasks and the attempts; its third asks
-    the knob, the levels, the control arms and the strictness."""
+    the knob, the levels, the control arms and the strictness.  Retrofitted by ruling G7 (FD9
+    Session A): the first question is answered first, with Enter."""
     counts = {}
     for measure in _entries().values():
-        stdin = Answers(["", "", "", "", measure])
+        stdin = Answers(["", "", "", "", "", measure])
         ran = invoke(["init", "--no-check-key"], prog=prog, monkeypatch=monkeypatch,
                      stdin=stdin)
         assert ran.code == 0, ran
@@ -197,10 +200,11 @@ def test_fd5_8_the_published_design_asks_two_fewer_questions_and_custom_four_mor
 
 
 BRANCHES = {
-    # provider's answer, the answers after it, init's flags for the same file
-    "ollama": (["3"], ["--provider", "ollama"]),
-    "vllm": (["4", "served-model"], ["--provider", "vllm", "--model", "served-model"]),
-    "a-model-with-no-published-price": (["1", "gpt-other"], ["--model", "gpt-other"]),
+    # provider's answer, the answers after it, init's flags for the same file; retrofitted by
+    # ruling G7 (FD9 Session A): the first question, answered with Enter, comes before them
+    "ollama": (["", "3"], ["--provider", "ollama"]),
+    "vllm": (["", "4", "served-model"], ["--provider", "vllm", "--model", "served-model"]),
+    "a-model-with-no-published-price": (["", "1", "gpt-other"], ["--model", "gpt-other"]),
 }
 
 
@@ -370,7 +374,7 @@ def test_fd5_8_the_dialogue_asks_before_the_key_check_and_takes_no(
         invoke(["init"], prog=prog, monkeypatch=monkeypatch, stdin=unset)
         (world.work / "tasks.toml").unlink()
         monkeypatch.setenv("OPENAI_API_KEY", SENTINEL)
-        answers = ["", "", "", "n"]
+        answers = ["", "", "", "", "n"]  # G7: the first question first (FD9 Session A)
         stdin = Answers(answers)
         ran = invoke(["init"], prog=prog, monkeypatch=monkeypatch, stdin=stdin)
         assert ran.code == 0, ran
