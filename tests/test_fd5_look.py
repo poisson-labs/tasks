@@ -572,8 +572,12 @@ def test_item_27_a_table_too_wide_for_the_terminal_moves_its_units_into_the_head
 def test_item_24_the_equivalent_command_is_printed_broken_before_its_flags(
     prog: str, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    ran = invoke(["init", "--yes", "--no-fetch", "--no-check-key"], prog=prog,
-                 monkeypatch=monkeypatch)
+    made = invoke(["init", "--yes", "--no-fetch", "--no-check-key"], prog=prog,
+                  monkeypatch=monkeypatch)
+    assert made.code == 0, made
+    # Retrofitted by ruling G15 (FD9 Session A): item 24 is amended; `init`'s closing screen names
+    # `doctor --show-command`, which prints the command broken before its flags.
+    ran = invoke(["doctor", "--show-command"], prog=prog, monkeypatch=monkeypatch)
     assert ran.code == 0, ran
     lines = ran.out.splitlines()
     starts = [i for i, line in enumerate(lines) if f"{prog} init " in line and "next:" not in line]
