@@ -105,11 +105,11 @@ def test_the_comparison_line_is_there_exactly_when_following_it_works(
     assert ran.code == 0, ran
     lines = next_lines(ran.out)
     followed = invoke(["card", str(folder), *COMPARE, "--force"], monkeypatch)
-    # the line is there if and only if following it works
-    assert (lines != []) == (followed.code == 0), (lines, followed)
+    # Retrofitted by ruling G12 (FD9 Session A): no card on your own tools names the comparison;
+    # asked for, it says `different` and exits 0, and where a published card measured the model,
+    # `compare.md` holds that card beside the run's.
+    assert lines == [], lines
+    assert followed.code == 0 and followed.out.startswith("different  "), followed
     if measured:
-        (line,) = lines
-        assert line.endswith("--compare published"), line
-        assert followed.code == 0 and "The published card" in followed.out, followed
-    else:
-        assert followed.code == 1 and "no published card measured" in followed.err, followed
+        compare = (folder / "card" / "compare.md").read_text(encoding="utf-8")
+        assert "The published card" in compare, compare[:400]
