@@ -240,9 +240,10 @@ def test_question_six_offers_own_tools_after_the_recipes_and_the_knob_menu_after
     with the same answers as flags.  Whatever `arms.SHIPPED_KNOBS` holds, the flows give the set a
     recipe (depth's)."""
     (work / "tools.json").write_bytes(fixture("acme-mcp-tools-list.json"))
-    own_entry = str(len(offered_recipes()) + 1)
-    custom_entry = str(len(offered_recipes()) + 2)
-    stdin = Answers(["", "", "", "", own_entry, "tools.json"])
+    # Retrofitted by ruling G7 (FD9 Session A): own tools is the first question's second answer,
+    # and the file follows the price; custom is the entry after the recipes.
+    custom_entry = str(len(offered_recipes()) + 1)
+    stdin = Answers(["2", "", "", "", "", "tools.json"])
     ran = invoke(["init", "--no-check-key", *FLOWS], monkeypatch, stdin)
     assert ran.code == 0, ran
     from tests.o2_support import acme_flows
@@ -257,7 +258,8 @@ def test_question_six_offers_own_tools_after_the_recipes_and_the_knob_menu_after
     assert yes.code == 0, yes
     assert (work / "tasks.toml").read_text(encoding="utf-8") == written
     (work / "tasks.toml").unlink()
-    custom = invoke(["init", "--no-check-key"], monkeypatch, Answers(["", "", "", "", custom_entry]))
+    custom = invoke(["init", "--no-check-key"], monkeypatch,
+                    Answers(["", "", "", "", "", custom_entry]))
     assert custom.code == 0, custom
     made = config().load_config(work / "tasks.toml")
     assert (made.measure.preset, made.own) == ("custom", None)
