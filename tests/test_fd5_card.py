@@ -252,15 +252,16 @@ def test_fd5_18_comparing_with_the_published_cards_is_refused_for_every_run_toda
     mapping = {folder.name: card.artifact}
     for published in cards().published():
         mapping[published.name] = cards().recompute(published).artifact
-    with pytest.raises(ValueError) as refused:
+    with pytest.raises(ValueError):
         calibration().render_side_by_side(mapping)
-    before = tree(folder)
     ran = invoke(["card", str(folder), "--compare", "published"], prog=prog,
                  monkeypatch=monkeypatch)
-    assert ran.code == 1, ran
-    assert error_lines(ran) == [f"error: {refused.value}"], ran
-    assert ran.out == ""
-    assert tree(folder) == before
+    # Retrofitted by ruling G12, on FD9 Session A's yes/no 4 (2026-10-20): the library still sets
+    # no built-in card beside the published ones; the command says so as its verdict, `different`,
+    # exit 0, and writes `compare.md`.
+    assert ran.code == 0 and ran.word == "different", ran
+    assert error_lines(ran) == []
+    assert (folder / "card" / "compare.md").is_file()
 
 
 @needs_uv
