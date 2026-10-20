@@ -281,8 +281,11 @@ def test_fd5_8_the_file_is_the_librarys_and_the_equivalent_command_writes_it_aga
     if "--measure" in library:
         library[library.index("--measure")] = "--recipe"
     assert first.decode("utf-8") == library_file(library)
-    command = printed_command(ran.out, prog, "init")
-    assert command is not None, ran
+    # Retrofitted by ruling G15 (FD9 Session A): the closing screen names `doctor --show-command`,
+    # which prints the command, instead of printing it.
+    shown = invoke(["doctor", "--show-command"], prog=prog, monkeypatch=monkeypatch)
+    command = printed_command(shown.out, prog, "init")
+    assert command is not None, (ran, shown)
     assert command == config().equivalent_init_command(
         config().load_config(world.work / "tasks.toml"), prog=prog)
     elsewhere = world.work / "again"
