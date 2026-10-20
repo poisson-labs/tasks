@@ -12,6 +12,8 @@
 - **The card's no-call refusal says where the replies are and what to do next**: it names each
   refused level's traces file in the run folder, and ends with a `next:` command.
 - **`export` says its commands spend with no cap**, in the line right above them.
+- **`verify --arm` in a folder on your own tools refuses in one line**, as `verify --tasks` refuses an
+  own-tools tasks file (Taylor, 2026-10-20): it used to judge a task on the built-in table.
 """
 
 from __future__ import annotations
@@ -115,3 +117,13 @@ def test_export_says_its_commands_spend_with_no_cap_right_above_them(
     first = next(index for index, line in enumerate(ran.lines) if " @ " in line)
     above = ran.lines[first - 1].lower()
     assert "money" in above and "no cap" in above, ran.out
+
+
+def test_verify_by_arm_in_a_folder_on_your_own_tools_refuses_in_one_line(
+    work: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _petstore_folder(work, monkeypatch)
+    for argv in (["--arm", "faults:f1", "--task", "1"], ["--arm", "faults:f1", "--seed", "7"]):
+        ran = invoke_here(["verify", "--self-check", *argv], monkeypatch)
+        assert ran.code == 1 and ran.out == "", ran
+        assert len(ran.err.splitlines()) == 1 and ran.err.startswith("error: "), ran
