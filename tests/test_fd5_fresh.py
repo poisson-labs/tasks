@@ -314,6 +314,7 @@ def test_fd5_8_in_a_terminal_the_questions_come_in_spec_6_1s_order_with_its_defa
     found = defaults(transcript)
     expected: list[Callable[[str], bool]] = [
         lambda d: d.lower() == "y/n",
+        lambda d: d == "1",  # G7 (FD9 Session A): built-in tasks or your own tools
         lambda d: d == "1",
         lambda d: d == "gpt-5-nano-2025-08-07",
         lambda d: d == "OPENAI_API_KEY",
