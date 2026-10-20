@@ -25,7 +25,7 @@ import pytest
 
 from poisson_tasks import config, runs
 from tests.o1_support import fixture
-from tests.test_o2_cli import QUIET, Answers, invoke, offered_recipes, work
+from tests.test_o2_cli import QUIET, Answers, invoke, work
 
 __all__ = ["work"]
 
@@ -105,7 +105,7 @@ def test_the_answers_to_the_per_tool_question_are_counted(
     """The dialogue asks about each tool of unknown effect, in the file's order; what is answered
     is written to `tasks.toml` and is what the result line counts."""
     (work / "tools.json").write_bytes(fixture("acme-openai-chat.json"))
-    stdin = Answers(["", "", "", "", str(len(offered_recipes()) + 1), "tools.json",
+    stdin = Answers(["2", "", "", "", "", "tools.json",  # G7 (FD9 Session A)
                      "r", "r", "w", "", "r"])
     ran = invoke(["init", "--no-check-key"], monkeypatch, stdin)
     assert ran.code == 0, ran
