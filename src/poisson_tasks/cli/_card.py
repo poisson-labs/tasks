@@ -184,18 +184,8 @@ def _run_card(ctx: Context) -> Result:
             raise Usage(f'--compare takes "published", not "{args.compare}"')
         if made.artifact is None:
             raise Refusal(f"the card of {shown(folder)} is refused, so it cannot be compared")
-        if made.artifact.provenance.tools is not None:
-            side_by_side = _own_beside_published(made.artifact)
-        else:
-            mapping = {folder.name: made.artifact}
-            for published in cards.published():
-                mapping[published.name] = cards.recompute(published).artifact
-            try:
-                side_by_side = calibration.render_side_by_side(mapping)
-            except ValueError as refused:
-                raise Refusal(str(refused)) from None
-    else:
-        side_by_side = None
+        return _compare(ctx, folder, made)
+    side_by_side = None
     verdict = made.verdict
     plan_text, model_name = _plan_words_of(folder)
     model_name = model_name or verdict.model
@@ -247,7 +237,7 @@ def _run_card(ctx: Context) -> Result:
         sentence = f"partial card for {model_name}: {plan_text}; " + "; ".join(parts)
     else:
         sentence = f"card for {model_name}: {plan_text}"
-    rows: list[Any] = [Levels(cells)]
+    rows: list[Any] = [Row("run", _run_words(folder)), Levels(cells)]
     note = _depth_note(made.document, cells)
     if note is not None:
         rows.append(Row("about depth", note))
@@ -256,6 +246,9 @@ def _run_card(ctx: Context) -> Result:
     ran = _what_ran(made.document)
     if ran:
         rows.append(Bullets("what ran", ran))
+    beside = _beside_words(made.artifact)
+    if beside is not None:
+        rows.append(Row(beside[0], beside[1]))
     rows.append(Row("wrote", ", ".join(shown(path) for path in paths)))
     document = []
     if args.print:
@@ -268,17 +261,75 @@ def _run_card(ctx: Context) -> Result:
     # build of the generator, so a card on the built-in tasks is refused beside them in this
     # release (FD5 Session B's item 6); a card on your own tools stands beside the published card
     # of its model, and is refused in one line when no published card measured that model.
-    comparison = ([ctx.command("card", *([str(folder)] if args.run else []), "--compare",
-                               "published")]
-                  if side_by_side is None and made.artifact.provenance.tools is not None
-                  and _published_measured(made.artifact) else [])
     return Result(
         schema=SCHEMA, verdict="ok", sentence=sentence, rows=rows, document=document,
-        next=comparison,
         data={"folder": str(folder), "model": model_name, "partial": verdict.partial,
               "owed": verdict.owed, "levels": cells, "meaning": made.claims.meaning,
               "not_claimed": list(made.claims.not_claimed), "wrote": [str(p) for p in paths]},
     )
+
+
+OWN_BESIDE = "different tasks, so none of its figures reads against theirs"
+EARLIER_BUILD = ("measured on an earlier build of the generator, so this release does not set "
+                 "them side by side")
+
+
+def _beside_words(artifact: Any) -> tuple[str, str] | None:
+    """The one row on how the card stands beside the published cards (G17)."""
+    if artifact.provenance.tools is not None:
+        return "beside the published cards", OWN_BESIDE
+    if _published_measured(artifact):
+        return "beside the published card", EARLIER_BUILD
+    return None
+
+
+def _run_words(folder: Path) -> str:
+    """The run folder's name, the dollars it spent and the episodes kept of total (G17)."""
+    from poisson_tasks import config, runs
+    from poisson_tasks.knobs import ArmSpec
+
+    plan = json.loads((folder / "plan.json").read_text(encoding="utf-8"))["plan"]
+    per_arm = len(plan["seeds"]) * int(plan["attempts"])
+    kept = 0
+    for arm in plan["arms"]:
+        traces = folder / arm_folder(ArmSpec(**arm)) / "traces.jsonl"
+        rows = traces.read_bytes().splitlines(keepends=True) if traces.is_file() else []
+        kept += min(per_arm, sum(1 for row in rows if row.endswith(b"\n")
+                                 and json.loads(row).get("ok")))
+    price = plan["model"].get("price")
+    spent = runs.SpendLedger(folder, price=config.PriceConfig(**price) if price else None)
+    dollars = (f" · {_format.dollars(spent.total_dollars)} spent"
+               if spent.total_dollars is not None else "")
+    return f"{folder.name}{dollars} · {kept} of {len(plan['arms']) * per_arm}"
+
+
+def _compare(ctx: Context, folder: Path, made: Any) -> Result:
+    """`--compare published`: the written card read, one verdict line, `compare.md` (G12)."""
+    from poisson_tasks import calibration
+
+    artifact = made.artifact
+    if artifact.provenance.tools is not None:
+        names = [published.name for published in cards.published()]
+        sentence = (f"your card and the published {_format.words(names)} card"
+                    f"{'s' if len(names) > 1 else ''} measure different tasks, so none of its "
+                    "figures reads against theirs")
+        try:
+            body = _own_beside_published(artifact)
+        except Refusal:
+            body = sentence + "\n"
+    else:
+        sentence = f"the published cards were {EARLIER_BUILD}"
+        body = sentence + "\n"
+    out = folder / "card"
+    out.mkdir(parents=True, exist_ok=True)
+    if not (out / "artifact.json").is_file():
+        calibration.write_records(made.records, out / "episodes.jsonl")
+        calibration.write_artifact(artifact, out / "artifact.json")
+        (out / "card.md").write_text(made.document, encoding="utf-8")
+    target = out / "compare.md"
+    target.write_text(body, encoding="utf-8")
+    return Result(schema=SCHEMA, verdict="different", tone="neutral", sentence=sentence,
+                  rows=[Row("wrote", shown(target))], data={"wrote": [str(target)]})
 
 
 def _published_measured(artifact: Any) -> bool:
