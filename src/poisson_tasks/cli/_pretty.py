@@ -21,6 +21,7 @@ import contextlib
 import json
 import os
 import sys
+import textwrap
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from pathlib import Path
@@ -40,7 +41,8 @@ from poisson_tasks.cli._plain import continued_command
 from poisson_tasks.cli._result import Bullets, Command, Levels, Part, Result, Row
 
 TONE = {"good": "bold green", "neutral": "bold", "warn": "bold yellow", "bad": "bold red"}
-MARK = {"ok": ("✓", "green"), "bad": ("✗", "bold red"), "warn": ("!", "yellow")}
+MARK = {"ok": ("✓", "green"), "bad": ("✗", "bold red"), "warn": ("!", "yellow"),
+        "note": ("·", "dim"), "refused": ("!", "yellow")}
 WIDTH = 104
 """The widest the pretty style draws, so a wide terminal does not stretch its lines."""
 
@@ -74,53 +76,54 @@ class Pretty:
                   and len(row.label) <= 12]
         label_width = max((len(label) for label in labels), default=0)
         marked = any(isinstance(row, Row) and row.status for row in result.rows)
-        grid: Table | None = None
+        width = out.width
 
-        def flush() -> None:
-            nonlocal grid
-            if grid is not None:
-                out.print(Padding(grid, (0, 0, 0, 2)))
-                grid = None
-
-        def new_grid() -> Table:
-            made = Table.grid(padding=(0, 2))
-            if marked:
-                made.add_column(width=1)
-            made.add_column(width=label_width, style="dim", no_wrap=True)
-            made.add_column(overflow="fold")
-            return made
+        def emit(prefix: Text, value: str, indent: int, style: str = "") -> None:
+            # wrapped at spaces, never inside a path, a URL or a quoted value; a word longer
+            # than the line is left whole for the terminal to fold; the row's indent is kept
+            room = max(10, width - indent)
+            lines: list[str] = []
+            for part in value.split("\n"):
+                lines += textwrap.wrap(part, room, break_long_words=False,
+                                       break_on_hyphens=False) or [""]
+            first = Text.assemble(prefix, (lines[0], style))
+            out.print(first, soft_wrap=True)
+            for line in lines[1:]:
+                out.print(Text.assemble(" " * indent, (line, style)), soft_wrap=True)
 
         for row in result.rows:
             if isinstance(row, (Row, Bullets)) and len(row.label) > 12:
-                flush()
                 out.print(Text("  " + row.label, style="bold"))
                 if isinstance(row, Row):
-                    out.print(Padding(Text(row.value), (0, 0, 0, 4)))
+                    emit(Text("    "), row.value, 4)
                 else:
-                    out.print(Padding(self._items(row.items), (0, 0, 0, 4)))
+                    for item in row.items:
+                        emit(Text.assemble("    ", ("•", "dim"), " "), item, 6)
             elif isinstance(row, Row):
-                grid = grid or new_grid()
-                cells: list[Any] = [Text(row.label), self._value(row)]
+                prefix = Text("  ")
                 if marked:
                     mark, style = MARK.get(row.status or "ok", MARK["ok"])
-                    cells.insert(0, Text(mark, style=style))
-                grid.add_row(*cells)
+                    prefix.append(mark, style=style)
+                    prefix.append("  ")
+                prefix.append(row.label.ljust(label_width), style="dim")
+                prefix.append("  ")
+                value = row.value.replace(", ", "\n") if row.label == "wrote" else row.value
+                emit(prefix, value, len(prefix.plain), "bold" if row.status == "bad" else "")
             elif isinstance(row, Bullets):
-                grid = grid or new_grid()
-                cells = [Text(row.label), self._items(row.items)]
-                if marked:
-                    cells.insert(0, Text(" "))
-                grid.add_row(*cells)
+                prefix = Text("  " + ("   " if marked else ""))
+                prefix.append(row.label.ljust(label_width), style="dim")
+                prefix.append("  ")
+                indent = len(prefix.plain)
+                for index, item in enumerate(row.items):
+                    head = prefix if index == 0 else Text(" " * indent)
+                    emit(Text.assemble(head, ("•", "dim"), " "), item, indent + 2)
             elif isinstance(row, Levels):
-                flush()
                 out.print()
                 out.print(Padding(levels_table(row.cells, width=out.width - 2), (0, 0, 0, 2)))
                 out.print()
             elif isinstance(row, Command):
-                flush()
                 out.print(Text("  " + row.label, style="dim"))
                 out.print(Text("\n".join(continued_command(row.argv))), soft_wrap=True)
-        flush()
         for part in result.document:
             out.print()
             if part.kind == "document":

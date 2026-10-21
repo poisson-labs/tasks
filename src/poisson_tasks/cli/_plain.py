@@ -27,6 +27,9 @@ _ASCII = str.maketrans({
     "‘": "'", "“": '"', "”": '"', "›": ">", "❯": ">", "✓": "ok", "✗": "x", "•": "-",
     "├": "[", "┤": "]", "─": "-", "●": "*",
 })
+STATUS_WORDS = {"ok": "ok", "bad": "not ok", "note": "note", "refused": "refused"}
+"""`doctor`'s row words (G14): a check that passed, information, a tool not used, a check that
+failed."""
 COMMAND_WIDTH = 78
 """Where a command to copy is broken before a flag, in every style (the look's item 24)."""
 
@@ -151,7 +154,7 @@ class PlainUI:
         for row in result.rows:
             if isinstance(row, Row):
                 if row.status is not None:
-                    status = "ok" if row.status == "ok" else "not ok"
+                    status = STATUS_WORDS.get(row.status, "not ok")
                     self.out(f"  {row.label:<{width}}  {status:<6}  {row.value}",
                              indent=" " * (width + 12))
                 else:
