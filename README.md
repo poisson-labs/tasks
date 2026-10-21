@@ -4,28 +4,35 @@ Tool-use tasks with a known right answer, generated on your machine, and a card 
 
 Each task asks a model to move one record of a small mock ledger up a ladder of stages, using only the tools it is given. Every task is generated with its own checker, so a run is scored exactly, with no judge model.
 
-**1. Install it.**
+**1. Install it.** Needs Python 3.11 to 3.13; check with `python3 --version` (python.org has one, and so does `uv python install 3.13`).
 
 <!-- docs-check: skip reason="installs the published package from PyPI; the check installs the wheel built from the commit instead" -->
 ```bash
 pip install poisson-tasks
 ```
 
-**2. Say what to test.** `init` asks which model to test, which environment variable holds its key (it records the variable's name and never the key), and what to measure, and writes `tasks.toml`.
+**2. Open it.** `poisson-tasks` with no command opens a guided session in your terminal. In a new folder it walks the first run through: what to test (a model on the built-in tasks, or on your own tools), one task to look at, the run with its cost shown before it asks, the card, and what to do next. In a folder already set up it shows where you are and offers the next steps. Nothing calls a model until you say yes to a run's cost.
 
-<!-- docs-check: run tty fixture answers=",,,,,,,," -->
+<!-- docs-check: skip reason="opens an interactive session on a terminal; the three commands below are its steps, and the check runs those" -->
+```bash
+poisson-tasks
+```
+
+The same steps as commands, for scripts and CI. **Say what to test.** `init` asks which model to test, which environment variable holds its key (it records the variable's name and never the key), and what to measure, and writes `tasks.toml`.
+
+<!-- docs-check: run tty fixture answers=",,,,,,,,," -->
 ```bash
 poisson-tasks init
 ```
 
-**3. Run it.** `run` shows how many calls it will make and about what they will cost before it spends anything, and stops at your cap. Ctrl-C stops it; running it again picks up where it stopped.
+**Run it.** `run` shows how many calls it will make and about what they will cost before it spends anything, and stops at your cap. Ctrl-C stops it; running it again picks up where it stopped.
 
 <!-- docs-check: run tty fixture answers="y" -->
 ```bash
 poisson-tasks run
 ```
 
-**4. Read the card.** `card` writes what each level was worth to that model, and what that does not tell you.
+**Read the card.** `card` writes what each level was worth to that model, and what that does not tell you.
 
 <!-- docs-check: run -->
 ```bash
@@ -42,7 +49,7 @@ Python 3.11 to 3.13, on macOS or Linux. A first run against `gpt-5-nano` is 30 e
 
 **Agent teams.** Tasks built on your own tools. Bring an OpenAI tools file, an MCP tool list (or an MCP server, started with `--mcp-command`) or an OpenAPI document. Tasks simulates the responses from your schemas, never calls your backend, and the card shows where your setup breaks ([own-tools.md](https://github.com/poisson-labs/tasks/blob/main/docs/own-tools.md)).
 
-Both start with the four commands above. If you ran them first and want your own tools next, `poisson-tasks init --force` asks its questions again, and the one on what to measure offers Tasks on my own tools; `--force` replaces `tasks.toml` and keeps no copy of the old one, so copy it first if you want it, or run `poisson-tasks init` in a new folder instead.
+Both start the same way: `poisson-tasks` on a terminal, or the commands above. For your own tools, one command sets up a folder: `poisson-tasks init --own-file <your file>` (the file beside `tasks.toml`; the session's setup asks the same, as its first question). If you ran the built-in tasks first and want your own tools next, `poisson-tasks init --force` asks its questions again, keeping the old `tasks.toml` as `tasks.toml.bak`, or run `poisson-tasks init` in a new folder.
 
 ## What a task looks like
 
@@ -59,7 +66,7 @@ The verdict on an episode is one of ten labels, the first that matches (`passed`
 **What gets written outside your folder.** `init` and `run` write only to the folder you work in (`tasks.toml`, `runs/`, `tasks/`), apart from the following, which the first run does once or on every run:
 
 - the tokenizer file, 3.6 MB, fetched once from openaipublic.blob.core.windows.net into the installed package (it is not shipped with the package; `poisson-tasks doctor --fix` fetches it too);
-- on every run, the first episode runs the harness's setup: uv's installer from astral.sh puts `uv` and `uvx` in `~/.local/bin` (and its receipt in `~/.config/uv`), and four packages and their dependencies come from PyPI into uv's cache. `run` sets `UV_NO_MODIFY_PATH=1` so the installer does not edit your shell start-up files. The plan prints this in its `harness` line;
+- on every run, the first episode runs the harness's setup: uv's installer from astral.sh puts `uv` and `uvx` in `~/.local/bin` (and its receipt in `~/.config/uv`), replacing the uv already there when a newer one exists, and four packages and their dependencies come from PyPI into uv's cache. `run` sets `UV_NO_MODIFY_PATH=1` so the installer does not edit your shell start-up files. The plan prints this in its `harness` line;
 - verifiers' cache, in `~/.cache/verifiers`;
 - one `/tmp/vf-port-<hex>` file per episode, which verifiers leaves behind;
 - one empty `uv-<16 hex>.lock` file in the temporary folder, which uv writes for the harness's script environment and keeps.
@@ -105,7 +112,7 @@ A card does not claim:
 
 Two cards ship inside the package, for `gpt-5-nano` and `Qwen3-8B`: 14 arms of depth and the decoy-tools dial, with their control arms, at 60 tasks per level and 5 attempts each, 4,200 episodes a card. `poisson-tasks card --published` rebuilds them from their records and checks them byte for byte, and [calibration.md](https://github.com/poisson-labs/tasks/blob/main/docs/calibration.md) holds both in full and where the models agree.
 
-**Both were measured on an earlier build of the generator**, so `card --published` reads each *not current* and a card from your own run cannot be read beside them in this release (`card --compare published` refuses, in one line). The tasks regenerate with the same text and different ids. The next release measures the cards again on the current generator.
+**Both were measured on an earlier build of the generator**, so `card --published` reads each *not current* and a card from your own run is not set beside them in this release (`card --compare published` says so in one line, and the card's result carries the same row). The tasks regenerate with the same text and different ids. The next release measures the cards again on the current generator.
 
 `gpt-5-nano-2025-08-07`: 4,200 episodes on 2026-09-25, all scored, no instrument failure, about $2.52 [source: [`calibration/gpt-5-nano-2025-08-07/artifact.json`](https://github.com/poisson-labs/tasks/blob/main/calibration/gpt-5-nano-2025-08-07/artifact.json)]
 

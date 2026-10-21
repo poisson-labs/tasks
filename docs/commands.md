@@ -65,6 +65,7 @@ commands:
     doctor       say whether this environment is ready, and what to do if not
 
 examples:
+  poisson-tasks             on a terminal, with no command: a guided session
   poisson-tasks init        answer a few questions; writes tasks.toml and spends nothing
   poisson-tasks run         show the plan and its cost, ask, then run
   poisson-tasks card        what each level was worth to the model
@@ -81,11 +82,28 @@ exit codes:
 
 `--version` prints the package's version, the version of verifiers it runs on and Python's, and exits 0.
 
+## The guided session
+
+`poisson-tasks` with no command, on a terminal (standard input, output and error all terminals, `CI` unset, no `--json`), opens a guided session and stays open. It may carry `--config PATH`, `--plain` and `--debug`. Anywhere else, in a pipe, with standard input redirected, under `CI` or with `--json`, a bare command is a usage error, exit 2, whose line names the session and ends with `next: <the folder's first step>` as a command.
+
+The session opens with its banner, then one of two screens:
+
+- **with no `tasks.toml` at the config path, the run-through**, five steps in order, each a verb: set up (`init`'s dialogue, which first asks what to test, a model on the built-in tasks or on your own tools), one task (`generate --show`), the run (`run`, with its plan, cost and `Start? [y/N]`), the card (`card`), and what next. A no at the run's question, or Ctrl-C inside any step, ends the run-through on the home screen for whatever is now on disk;
+- **otherwise, the home screen**: a status block read from the folder alone (the settings in words, the key's variable and whether it is set, the environment, each run with its episodes kept of total, dollars and card, the latest card's levels), then `next`, at most five numbered steps for the folder's state.
+
+The prompt takes a step's number (Enter is step 1) or a word: `run`, `again`, `card`, `more`, `replies`, `task`, `verify`, `runs`, `settings`, `setup`, `flow`, `export`, `check`, `home`, `help` and `quit`. A word may take one argument: `card 2` is the second run listed, `task 3` the third task of the first arm, `task d3` the first task of the arm whose id ends `d3`. Tab completes a word; `help` lists them.
+
+Every action is one of the seven verbs' command lines, run through the same parser and verb as the command, so what it writes is byte for byte what that command writes from a shell; under its result the session prints `same as  <the command>`, dim. Nothing calls a model until you answer yes at `run`'s own question, and the session never passes `--yes` to `run`. The home screen, the card view, `task`, `runs`, `settings`, `replies`, `more` and `flow` open no socket; `check` runs `doctor --offline` and then offers the key check as a step.
+
+Ctrl-C at a question inside a step stops that step as the command does (nothing written) and the session returns to its prompt; during a run it is the run's own interrupt, and step 1 is then the resume; at the prompt it clears the line, and twice on an empty line it leaves. `quit` and Ctrl-D leave the same way. Leaving at the prompt exits 0. An unexpected failure inside an action is its one `error:` line, and the session stays open; one in the session itself exits 3.
+
+On a terminal with `--plain`, `NO_COLOR` or `TERM=dumb` the session opens in the plain look: numbered menus answered by typing, a plain prompt, no escape sequence, the same facts in the same order. Under `NO_COLOR` the banner is its text alone; with `--plain` and `TERM=dumb`, and below 26 columns, it is the one line `Poisson Labs  tasks <version>`.
+
 ## init
 
-Asks which model to test, which environment variable holds its key (it records the variable's name and never the key), what to measure and when to stop, writes `tasks.toml`, and prints the same setup as one command you can run again with no questions. It spends nothing. If the tokenizer file is missing it asks to fetch it first (3.6 MB, once, into the installed package). It can check your key with one free request, after asking.
+Asks what to test (a model on the built-in tasks, or on your own tools), which model, which environment variable holds its key (it records the variable's name and never the key), what to measure and when to stop, and writes `tasks.toml`; its questions are numbered as asked, and its closing screen points at `doctor --show-command`, which prints the same setup as one command you can run again with no questions. It spends nothing. If the tokenizer file is missing it asks to fetch it first (3.6 MB, once, into the installed package). It can check your key with one free request, after asking.
 
-The providers are `openai`, `anthropic` (through its OpenAI-compatible endpoint), `ollama`, `vllm` and `openai-compatible` (any endpoint that speaks the OpenAI chat API). Measuring tasks on your own tools, an OpenAI tools file, an MCP tool list or an OpenAPI document, is one of the choices of question 6; [own-tools.md](own-tools.md) describes it.
+The providers are `openai`, `anthropic` (through its OpenAI-compatible endpoint), `ollama`, `vllm` and `openai-compatible` (any endpoint that speaks the OpenAI chat API). Measuring tasks on your own tools, an OpenAI tools file, an MCP tool list or an OpenAPI document, is the first question's second answer, after which `init` asks for the file before any recipe; [own-tools.md](own-tools.md) describes it. `init --force` keeps the file it replaces as `tasks.toml.bak` and says so.
 
 `init` refuses to replace a `tasks.toml` that is already there unless you pass `--force`, and refuses to ask questions when standard input is not a terminal (pass `--yes` and the answers as options). Ctrl-C at any question writes nothing.
 
@@ -98,15 +116,9 @@ poisson-tasks init --yes --no-check-key --provider openai --recipe first-look --
 <!-- docs-check: output -->
 ```
 ok  wrote tasks.toml: depth at 1, 3 and 8, 10 tasks each, against gpt-5-nano-2025-08-07
-  tokenizer  …
-  key        …
-  the same setup, without questions:
-    poisson-tasks init --yes --provider openai --model gpt-5-nano-2025-08-07 \
-      --base-url https://api.openai.com/v1 --api-key-env OPENAI_API_KEY \
-      --price 0.05,0.005,0.4 --price-read-on 2026-09-25 --recipe first-look \
-      --tasks-per-level 10 --attempts 1 --temperature 1.0 --top-p 1.0 \
-      --reasoning-effort low --max-tokens 2048 --spend-cap 1.0 \
-      --max-model-calls 32 --concurrency 8 --runs-dir runs --tasks-dir tasks
+  tokenizer       …
+  key             …
+  as one command  poisson-tasks doctor --show-command prints it
 next: poisson-tasks run
 ```
 
@@ -135,10 +147,12 @@ usage: poisson-tasks init [-h] [--config PATH] [--json] [--plain] [--debug]
                           [--own-write TOOL] [--own-intent TOOL=TEXT]
                           [--own-flow FROM.FIELD:TO.PARAM] [--mcp-command CMD]
 
-A guided setup. It asks which model to test, which environment variable holds
-its key (it records the variable's name, never the key), what to measure and
-when to stop, then writes tasks.toml and prints the same setup as one command.
-It fetches the tokenizer file first if it is missing. It spends nothing.
+A guided setup. It asks what to test (a model on the built-in tasks, or on
+your own tools), which model, which environment variable holds its key (it
+records the variable's name, never the key), what to measure and when to stop,
+then writes tasks.toml; doctor --show-command prints the same setup as one
+command. It fetches the tokenizer file first if it is missing. It spends
+nothing.
 
 options:
   -h, --help            show this help message and exit
@@ -161,27 +175,25 @@ options:
   --check-key           check the key with one free request (default: ask,
                         then check)
   --no-check-key        make no network call
-  --provider NAME       question 1: openai, anthropic, ollama, vllm or openai-
-                        compatible (default: openai)
-  --model TEXT          question 2: the model's name, as the provider spells
-                        it (default: the preset's; no default for openai-
-                        compatible)
-  --base-url URL        question 3: the endpoint; required for openai-
-                        compatible, else the preset's (default: the preset's;
-                        no default for openai-compatible)
-  --api-key-env TEXT    question 4: the variable that holds the key; "" for
-                        none (default: the preset's; no default for openai-
-                        compatible)
+  --provider NAME       the provider: openai, anthropic, ollama, vllm or
+                        openai-compatible (default: openai)
+  --model TEXT          the model's name, as the provider spells it (default:
+                        the preset's; no default for openai-compatible)
+  --base-url URL        the endpoint; required for openai-compatible, else the
+                        preset's (default: the preset's; no default for
+                        openai-compatible)
+  --api-key-env TEXT    the variable that holds the key; "" for none (default:
+                        the preset's; no default for openai-compatible)
   --allow-plain-http-key
                         send the key over plain http to another machine
-  --price I,C,O         question 5: dollars per million tokens, input, cached
+  --price I,C,O         the price, dollars per million tokens: input, cached
                         input, output (default: the published price for
                         gpt-5-nano-2025-08-07, else none)
   --price-read-on DATE  the date the prices were read, as 2026-09-25 (default:
                         none)
   --no-price            no price: the cap is then in tokens
-  --recipe NAME         question 6: first-look, card or custom (default:
-                        first-look)
+  --recipe NAME         what to measure: first-look, card or custom, or a
+                        recipe your tools reach (default: first-look)
   --measure NAME        an alias of --recipe, kept for one release
   --knob NAME           with --recipe custom: depth or distractor (default:
                         depth)
@@ -191,11 +203,10 @@ options:
   --no-controls         with --recipe custom: no control arms
   --strictness NAME     with --recipe custom: strict or leaky (default:
                         strict)
-  --tasks-per-level N   question 7: how many tasks per level (default: 10)
+  --tasks-per-level N   how many tasks per level (default: 10)
   --seeds L,L,…         the tasks' seeds, comma-separated, instead of --tasks-
                         per-level (default: none)
-  --attempts N          question 8: how many attempts at each task (default:
-                        1)
+  --attempts N          how many attempts at each task (default: 1)
   --generator-version TEXT
                         the label that enters every task id (default: none)
   --temperature X       the decoding's temperature (default: 1.0)
@@ -205,18 +216,17 @@ options:
                         (default: low)
   --max-tokens N        the decoding's token limit per reply, or "not sent"
                         (default: 2048)
-  --spend-cap X         question 9: stop the run once it has spent this many
-                        dollars (default: the larger of $1.00 and twice the
-                        estimate)
+  --spend-cap X         stop the run once it has spent this many dollars
+                        (default: the larger of $1.00 and twice the estimate)
   --token-cap N         stop the run once it has used this many tokens
                         (default: 2,000,000 without a price)
   --max-model-calls N   the model calls allowed per episode (default: 32)
   --concurrency N       how many episodes run at once (default: 8)
   --runs-dir TEXT       where runs are kept (default: runs)
   --tasks-dir TEXT      where generate writes its files (default: tasks)
-  --own-file PATH       question 6, your own tools: the tool file, an OpenAI
-                        tools file, an MCP tool list or an OpenAPI document,
-                        beside tasks.toml (default: none)
+  --own-file PATH       your own tools: the tool file, an OpenAI tools file,
+                        an MCP tool list or an OpenAPI document, beside
+                        tasks.toml (default: none)
   --own-format NAME     with --own-file: auto, openai, mcp or openapi
                         (default: auto)
   --own-name NAME       with --own-file: the set's name, shown on the card
@@ -251,7 +261,7 @@ examples:
 
 Makes the plan's tasks with no model and no network, checks the contrast through the pin ledger (the checks that two levels of a knob differ in that knob and in nothing else; see [knobs-and-arms.md](knobs-and-arms.md)), and writes them as files, one file per level, in the form `poisson_tasks.export` reads (JSON Lines, one task per line). Without a settings file it takes `--arm depth:d3` (repeatable), or `--knob` with `--levels`. It refuses to replace files that are already there unless you pass `--force`.
 
-With `--show` it prints one task the way a model would see it: the system prompt and the request, the tools and which of them the task needs, the reference solution with what the domain returns for each call, and the verdict on every wrong answer the task ships with. `--task N` picks the task by its place in the plan, counting from 1; `--seed S` picks one by a seed you chose.
+With `--show` it prints one task the way a model would see it: the system prompt and the request, the tools and which of them the task needs, the reference solution with what the domain returns for each call, and the verdict on every wrong answer the task ships with. `--task N` picks the task by its place in the plan, counting from 1; `--seed S` picks one by a seed you chose. With no `--arm` it shows the plan's first arm's first task and names the other arms in a row of its own.
 
 <!-- docs-check: run -->
 ```bash
@@ -432,7 +442,7 @@ Builds the card from a run folder: a line for every level (strict pass@1 with it
 
 A card from a run that was stopped is built from what ran, and every level that did not finish is marked. A level where more than 10% of attempts made no tool call is not published, and neither is its card: it would measure whether the model starts, not how hard the level is. That refusal exits 1, says that those attempts answered in text instead of calling a tool, names each level's `traces.jsonl` in the run folder, where the replies are, and ends with the command that shows the task they answered.
 
-`--published` rebuilds the cards that ship with the package from their own records, checks each against its stored artifact byte for byte, and says whether it is current for this install. It is free. `--check PATH` does the same for a card folder or a calibration bundle `.zip`; exit 4 means a difference. `--page` writes the one page for every published card. `--compare published` puts a run's card beside the published ones, or says in one line why it cannot. In this release it cannot for a card on the built-in tasks, because the published cards were measured on an earlier build of the generator: it refuses with `the generators differ` (exit 1), and `card` does not end by suggesting it. A card on your own tools is put beside the published card of its model. `card` ends with the command when a published card measured your model, and leaves it out for any other model, because it would refuse in one line.
+`--published` rebuilds the cards that ship with the package from their own records, checks each against its stored artifact byte for byte, and says whether it is current for this install. It is free. `--check PATH` does the same for a card folder or a calibration bundle `.zip`; exit 4 means a difference. `--page` writes the one page for every published card. The result names its run in a `run` row (the folder, the dollars spent from its ledger, episodes kept of total) and, when there is something to say, how it stands beside the published cards in one row: on the built-in tasks under a model a published card measured, `measured on an earlier build of the generator, so this release does not set them side by side`; on your own tools, `different tasks, so none of its figures reads against theirs`. `--compare published` reads the card already written (no `--force`), prints that verdict first as one line, `different  ...`, writes `card/compare.md` (your own-tools card beside the published card of its model, each whole, pooling nothing; on the built-in tasks the earlier-build sentence alone) and prints neither card; exit 0. `card` never ends by suggesting it.
 
 <!-- docs-check: run -->
 ```bash
@@ -502,7 +512,7 @@ Runs the verifier a task was generated with, with no model. With `--self-check` 
 
 The verdict word is the outcome itself (`passed`, `overshoot`, `wrong_state`, ...). `verify` exits 0 when the verdict is `passed` and 4 otherwise, so a script can gate on it.
 
-In this release `verify` refuses a tasks file made on your own tools, in one line, and exits 1: `error: <file> holds tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`. It refuses `--arm` in a folder set up for your own tools the same way, and exits 1: `error: tasks.toml puts the tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`. A run on your own tools is judged by that replay, and its card reports it; judging a single own-tools task with `verify` comes in a later release.
+In this release `verify` refuses a tasks file made on your own tools, in one line, and exits 1: `error: <file> holds tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`. It refuses `--arm` in a folder set up for your own tools the same way, and exits 1: `error: tasks.toml puts the tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`. A run on your own tools is judged by that replay, and its card reports it; judging a single own-tools task with `verify` comes in a later release. Each of those refusals ends with a `next:` line that is a complete command: `card` when the folder holds a run, else `generate --show`. With nothing to judge, or no task named, `verify` refuses with `next: poisson-tasks verify --self-check --arm <the plan's first arm> --task 1`.
 
 <!-- docs-check: run -->
 ```bash
@@ -582,9 +592,9 @@ poisson-tasks export --to verifiers | head -n 4
 <!-- docs-check: output -->
 ```
 ok  wrote 3 verifiers configs, one per arm: depth at 1, 3 and 8, 10 tasks each
-  note  run that way, eval leaves out what run adds (the plan, the spend cap, the instrument tally, the out-of-credit stop, the failure-streak stop and the watchdog), and it exits 0 when every episode errored
+  note  run that way, eval leaves out what run adds (the plan, the instrument tally, the out-of-credit stop, the failure-streak stop and the watchdog), and it exits 0 when every episode errored
 
-run each with; each one calls the model and spends money, with no cap (poisson-tasks run is the way with a cap)
+run each with. Each of these runs calls the model and spends money with no cap; poisson-tasks run is the way with a cap.
 ```
 
 <!-- docs-check: run -->
@@ -626,7 +636,7 @@ examples:
 
 ## doctor
 
-Says whether this environment can run the settings file, line by line: Python, the package, the tokenizer file, the settings, the key, the harness and the platform. Each line carries its own status word, `ok` or `not ok`, and each failing line ends with what to run. Exit 0 when ready, 4 when not (the verdict is `not ready`). With no settings file it reports on the environment alone. It is free.
+Says whether this environment can run the settings file, line by line: Python, the package, the tokenizer file, the settings, the key, the harness and the platform. Each line carries its own status word: `ok` for a check that passed, `note` for information (the knob probe's rows, a flows row), `refused` for a tool in your file that Tasks will not use, and `not ok` for a check that failed, which ends with what to run. Exit 0 when ready, 4 when not (the verdict is `not ready`). With no settings file it reports on the environment alone. It is free.
 
 `--fix` fetches the tokenizer file when it is missing, which is the only thing `doctor` ever changes. `--offline` skips the key check, so that no socket is opened. `--show-command` prints the `init --yes` command that writes the settings file.
 

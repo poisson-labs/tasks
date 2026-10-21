@@ -60,18 +60,10 @@ poisson-tasks init --yes --no-check-key --own-file tools.json --own-name acme --
 <!-- docs-check: output -->
 ```
 ok  wrote tasks.toml: the first-look recipe on your tools (acme), 10 tasks each, against gpt-5-nano-2025-08-07
-  tokenizer   …
-  key         …
-  your tools  acme: 5 tools: 3 read, 0 write, 2 not known (treated as write), 0 refused; file: an OpenAI tools file, sha256 bf34e029e3fa609162c90e8709251c32db608d8aa0afd1f23432d500bd007ece; the responses are simulated from your schemas, and your backend is never called
-  the same setup, without questions:
-    poisson-tasks init --yes --provider openai --model gpt-5-nano-2025-08-07 \
-      --base-url https://api.openai.com/v1 --api-key-env OPENAI_API_KEY \
-      --price 0.05,0.005,0.4 --price-read-on 2026-09-25 --recipe first-look \
-      --tasks-per-level 10 --attempts 1 --temperature 1.0 --top-p 1.0 \
-      --reasoning-effort low --max-tokens 2048 --spend-cap 1.0 \
-      --max-model-calls 32 --concurrency 8 --runs-dir runs --tasks-dir tasks \
-      --own-file tools.json --own-format auto --own-name acme --own-read get_order \
-      --own-read search_orders --own-read list_channels --own-flow get_order.id:refund_order.order_id
+  tokenizer       …
+  key             …
+  your tools      acme: 5 tools: 3 read, 0 write, 2 not known (treated as write), 0 refused; file: an OpenAI tools file, sha256 bf34e029e3fa609162c90e8709251c32db608d8aa0afd1f23432d500bd007ece; the responses are simulated from your schemas, and your backend is never called
+  as one command  poisson-tasks doctor --show-command prints it
 next: poisson-tasks run
 ```
 
@@ -94,13 +86,13 @@ ok  this environment is ready to run tasks.toml
   tools       ok      5 tools: 3 read, 0 write, 2 not known (treated as write), 0 refused in tools.json
   file        ok      file: an OpenAI tools file, sha256 bf34e029e3fa609162c90e8709251c32db608d8aa0afd1f23432d500bd007ece
   knobs       ok      faults, history, depth, shape, similarity, arguments and spread reach a level on this set; faults, history, depth and shape shipped and lead the recipes
-  faults      ok      the knob probe's status on the built-in tasks: does not bite on gpt-5-nano; bites on Qwen3-8B
-  history     ok      the knob probe's status on the built-in tasks: bites on gpt-5-nano; bites on Qwen3-8B
-  depth       ok      measured on the published cards, not by the knob probe
-  shape       ok      the knob probe's status on the built-in tasks: does not bite on gpt-5-nano; bites on Qwen3-8B
-  similarity  ok      the knob probe's status on the built-in tasks: does not bite on gpt-5-nano; does not bite on Qwen3-8B
-  arguments   ok      the knob probe's status on the built-in tasks: does not bite on gpt-5-nano; does not bite on Qwen3-8B
-  spread      ok      the knob probe's status on the built-in tasks: top easier on gpt-5-nano; cannot tell on Qwen3-8B
+  faults      note    the knob probe's status on the built-in tasks: does not bite on gpt-5-nano; bites on Qwen3-8B
+  history     note    the knob probe's status on the built-in tasks: bites on gpt-5-nano; bites on Qwen3-8B
+  depth       note    measured on the published cards, not by the knob probe
+  shape       note    the knob probe's status on the built-in tasks: does not bite on gpt-5-nano; bites on Qwen3-8B
+  similarity  note    the knob probe's status on the built-in tasks: does not bite on gpt-5-nano; does not bite on Qwen3-8B
+  arguments   note    the knob probe's status on the built-in tasks: does not bite on gpt-5-nano; does not bite on Qwen3-8B
+  spread      note    the knob probe's status on the built-in tasks: top easier on gpt-5-nano; cannot tell on Qwen3-8B
   harness     ok      …
   platform    ok      …
 ```
@@ -195,7 +187,7 @@ All the dials are offered on your tools, within what each set can support, wheth
 | `depth` | the chain follows your declared output-to-input links | flows; levels up to your longest declared chain |
 | `shape` | chains of your declared links run in sequence or side by side | one declared chain whose first call takes a checkable argument |
 
-The decoy-tools dial (`distractor`) is not offered on your tools, and no dial has a control arm there. Without flows, depth and shape are listed as unavailable with the sentence that says what to declare.
+The decoy-tools dial (`distractor`) is not offered on your tools, and no dial has a control arm there. A flow is a link you declare from one tool's output field into another tool's input, such as the `id` that `get_order` returns into `refund_order`'s `order_id`: `--own-flow get_order.id:refund_order.order_id` to `init`, or `[[own.flow]]` in `tasks.toml`. Tasks will not guess one. Without flows, depth and shape are listed as unavailable, and `init` says so in a note that names both ways to declare one. In the guided session (a bare `poisson-tasks` on a terminal), the `flow` step asks which tool's output, which field, into which tool and which input, and writes the flow through `init --force` with the file's own settings, keeping the old `tasks.toml` as `tasks.toml.bak`.
 
 ## The settings for your tools
 
@@ -225,7 +217,7 @@ What it does not claim, every line that applies:
 - without an intent for every tool, choosing a tool was partly a word match with its description;
 - a knob that shows no effect here may still matter in your app, and the reverse.
 
-`poisson-tasks card --compare published` prints your card beside the published card of the same model, each whole, and pools nothing; when no published card measured your model it says so in one line and your card is read on its own. `card` ends with that command only when a published card measured your model, so the command you are shown is one that works.
+The card's result names its run (the folder, the dollars spent, episodes kept of total) and says in one row how it stands beside the published cards: `different tasks, so none of its figures reads against theirs`. `poisson-tasks card --compare published` reads the card already written (no `--force` needed), prints that verdict in one line, `different  ...`, and writes `card/compare.md`, which holds your card beside the published card of the same model when one measured it, each whole and pooling nothing; it prints neither card. `card` never suggests the comparison on your tools, since the verdict is already on the screen. In the guided session, `replies` lists the episodes of the arm where the model broke most, each with its outcome and last reply, and opens one: every call with its arguments and the simulated answer, and the model's last reply, read from the run's own traces.
 
 ## `verify`, `export` and `doctor` on your tools
 
