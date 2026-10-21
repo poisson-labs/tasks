@@ -1002,11 +1002,12 @@ def _ans_text(depth: str) -> str:
     return "".join(out)
 
 
-@pytest.mark.parametrize("columns", [40, 60, 120])
-def test_fd9_22_the_banner_is_its_two_lines_at_every_width_from_40_and_never_wraps(
+@pytest.mark.parametrize("columns", [26, 40, 60, 120])
+def test_fd9_22_the_banner_is_its_two_lines_at_every_width_it_fits_and_never_wraps(
     columns: int, states: States, world: World
 ) -> None:
-    """The ruled banner is its own narrow form, 26 cells wide.  Red before the build."""
+    """The ruled banner is its own narrow form, 26 cells wide, and shows down to its own width
+    (ruled 2026-10-20, P2, no: not one line below 40).  Red before the build."""
     work = here(states, "B", world)
     with pty_session([], env=pretty_env(world), cwd=work, columns=columns) as session:
         session.quiet(1.5)
@@ -1014,7 +1015,23 @@ def test_fd9_22_the_banner_is_its_two_lines_at_every_width_from_40_and_never_wra
         session.wait()
     lines = [line.rstrip() for line in session.plain.lstrip("\n").splitlines()]
     assert lines[:2] == banner_text(), lines[:3]
-    assert max(cell_len(line) for line in banner_text()) <= min(columns, 40)
+    assert max(cell_len(line) for line in banner_text()) <= columns
+
+
+def test_fd9_22_below_its_own_width_the_banner_is_the_one_line(
+    states: States, world: World
+) -> None:
+    """Ruled 2026-10-20 (P2): the one line shows only where the ruled banner does not fit, below
+    its own width; at 25 columns, with the colour on.  Red before the build: no session."""
+    width = max(cell_len(line) for line in banner_text())
+    work = here(states, "B", world)
+    with pty_session([], env=pretty_env(world), cwd=work, columns=width - 1) as session:
+        session.quiet(1.5)
+        session.type("quit", settle=0)
+        session.wait()
+    lines = [line for line in session.plain.splitlines() if line.strip()]
+    assert lines[0].strip() == ONE_LINE.format(version()), lines[:3]
+    assert MARK not in session.plain, session.plain
 
 
 @pytest.mark.parametrize("how", ["--plain", "TERM=dumb"])
