@@ -139,6 +139,7 @@ def run(ctx: Context) -> Result:
     except ValueError as refused:
         raise Refusal(str(refused)) from None
 
+    _refuse_held(Path(folder.path))
     spent_dollars, spent_tokens = _spent(folder, settings)
     if folder.status == "complete":
         kept, total = _kept_and_total(plan, folder)
@@ -312,8 +313,8 @@ def run(ctx: Context) -> Result:
                             if line.endswith(b"\n") and b'"ok": true' in line)
         arm_counts.append((knobs.arm_id(spec), per_arm, min(kept_here, per_arm)))
     try:
-        with _stdin_closed(), ui.progress(total=total, arms=arm_counts,
-                                          folder=str(path)) as progress:
+        with _locked(path), _stdin_closed(), ui.progress(total=total, arms=arm_counts,
+                                                         folder=str(path)) as progress:
             result = runs.run_plan(plan, folder, caps=caps, concurrency=concurrency,
                                    events=progress.advance)
     except KeyboardInterrupt:
@@ -326,6 +327,56 @@ def run(ctx: Context) -> Result:
             next=[_resume_command(ctx, folder)], exit=130,
         )) from None
     return _ended(ctx, plan, folder, result, total)
+
+
+LOCK_FILE = "run.lock"
+
+
+def _holder(path: Path) -> str:
+    try:
+        held = json.loads((path / LOCK_FILE).read_text(encoding="utf-8"))
+        return f" (pid {int(held['pid'])}, since {held['since']})"
+    except (OSError, ValueError, KeyError, TypeError):
+        return ""
+
+
+def _refuse_held(path: Path) -> None:
+    """A folder whose lock another process holds is refused before anything is sent (G9)."""
+    import fcntl
+
+    lock = path / LOCK_FILE
+    if not lock.is_file():
+        return
+    with open(lock, "rb") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise Refusal(f"{shown(path)} is being run by another process{_holder(path)}; "
+                          "nothing was spent") from None
+        fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+@contextlib.contextmanager
+def _locked(path: Path) -> Iterator[None]:
+    """The run's length holding `<run folder>/run.lock`, with the pid and start time in it."""
+    import fcntl
+    import time
+
+    handle = open(path / LOCK_FILE, "a+", encoding="utf-8")
+    try:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise Refusal(f"{shown(path)} is being run by another process{_holder(path)}; "
+                          "nothing was spent") from None
+        handle.seek(0)
+        handle.truncate()
+        handle.write(json.dumps({"pid": os.getpid(), "since": time.strftime(
+            "%H:%MZ", time.gmtime())}) + "\n")
+        handle.flush()
+        yield
+    finally:
+        handle.close()
 
 
 @contextlib.contextmanager

@@ -91,9 +91,9 @@ poisson-tasks export --to verifiers | head -n 4
 <!-- docs-check: output -->
 ```
 ok  wrote 3 verifiers configs, one per arm: depth at 1, 3 and 8, 10 tasks each
-  note  run that way, eval leaves out what run adds (the plan, the spend cap, the instrument tally, the out-of-credit stop, the failure-streak stop and the watchdog), and it exits 0 when every episode errored
+  note  run that way, eval leaves out what run adds (the plan, the instrument tally, the out-of-credit stop, the failure-streak stop and the watchdog), and it exits 0 when every episode errored
 
-run each with; each one calls the model and spends money, with no cap (poisson-tasks run is the way with a cap)
+run each with. Each of these runs calls the model and spends money with no cap; poisson-tasks run is the way with a cap.
 ```
 
 Each printed command is `eval` by its absolute path in the environment `poisson-tasks` is installed in, such as `/home/you/.venvs/tasks/bin/eval @ export/eval-depth-d1.json`.

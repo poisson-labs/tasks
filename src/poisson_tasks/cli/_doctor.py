@@ -247,7 +247,7 @@ def _own_rows(ctx: Context, settings: Any) -> tuple[list[Row], dict[str, Any]]:
     summary = own_summary(reading, toolset)
     rows.append(Row("tools", f"{summary[0]} in {where}", "ok"))
     for line in reading.refused:
-        rows.append(Row("refused", line.line, "ok"))
+        rows.append(Row("refused", line.line, "refused"))
     rows.append(Row("file", f"{summary[len(reading.refused) + 1]}", "ok"))
     flows = tuple(Flow(*flow) for flow in settings.own.flows)
     try:
@@ -270,12 +270,12 @@ def _own_rows(ctx: Context, settings: Any) -> tuple[list[Row], dict[str, Any]]:
             words = f"the knob probe's status on the built-in tasks: {said}"
         else:
             words = "measured on the published cards, not by the knob probe"
-        rows.append(Row(knob, words, "ok"))
+        rows.append(Row(knob, words, "note"))
     if not flows:
         from poisson_tasks.own.generator import UNAVAILABLE_WITHOUT_FLOWS
 
         rows.append(Row("flows", f"none declared, so depth and shape are unavailable: "
-                                 f"{UNAVAILABLE_WITHOUT_FLOWS}", "ok"))
+                                 f"{UNAVAILABLE_WITHOUT_FLOWS}", "note"))
     held: dict[str, Any] = {"file": path, "readable": True, "digest": toolset.file_digest,
                             "knobs": list(ordered), "statuses": statuses}
     last = _last_run(settings_root(ctx) / settings.output.runs, path, name)

@@ -66,7 +66,8 @@ def _bundle(ctx: Context) -> tuple[Any, str]:
         bundle = bundles[place - 1]
         return bundle, task_name(bundle.arm_id, place, bundle.seed)
     if args.arm is None:
-        raise Usage("name the task: --arm ID with --task N or --seed S, or --tasks FILE")
+        raise Refusal("name the task: --arm ID with --task N or --seed S, or --tasks FILE",
+                      _complete(ctx))
     strictness = "strict"
     version = arms.DEFAULT_GENERATOR_VERSION
     seeds: tuple[int, ...] | None = None
@@ -75,7 +76,8 @@ def _bundle(ctx: Context) -> tuple[Any, str]:
         if settings.own is not None:
             raise Refusal(
                 f"{ctx.config_path} puts the tasks on your own tools, which verify does not judge "
-                "on its own yet: a run's card judges every episode on them, by replay"
+                "on its own yet: a run's card judges every episode on them, by replay",
+                [_own_next(ctx, settings)],
             )
         plan = resolve(settings)
         seeds = plan.seeds
@@ -103,10 +105,32 @@ def _bundle(ctx: Context) -> tuple[Any, str]:
     return tasks.generate(spec, seed), task_name(arm_id, place, seed)
 
 
+def _own_next(ctx: Context, settings: Any) -> str:
+    """On your own tools: `card` when a run of the plan exists, else `generate --show` (G13)."""
+    runs_dir = Path(ctx.config_path).parent / settings.output.runs
+    ran = runs_dir.is_dir() and any((child / "plan.json").is_file()
+                                    for child in runs_dir.iterdir())
+    return ctx.command("card") if ran else ctx.command("generate", "--show")
+
+
+def _complete(ctx: Context) -> list[str]:
+    """A complete command from the plan: the first arm's first task, self-checked (G13)."""
+    if not (settings_exist(ctx) or ctx.config_given):
+        return []
+    settings = load_settings(ctx)
+    if settings.own is not None:
+        return [_own_next(ctx, settings)]
+    from poisson_tasks import knobs
+
+    plan = resolve(settings)
+    return [ctx.command("verify", "--self-check", "--arm", knobs.arm_id(plan.arms[0]),
+                        "--task", "1")]
+
+
 def verify(ctx: Context) -> Result:
     args = ctx.args
     if not args.self_check and args.transcript is None:
-        raise Usage("say what to judge: --self-check, or --transcript FILE")
+        raise Refusal("say what to judge: --self-check, or --transcript FILE", _complete(ctx))
     if args.self_check and args.transcript is not None:
         raise Usage("--self-check judges the task's own answers and --transcript an attempt; "
                     "give one")

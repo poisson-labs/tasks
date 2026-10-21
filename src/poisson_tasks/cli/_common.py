@@ -40,6 +40,11 @@ class Context:
     config_given: bool
     json: bool
     shown: list[Any] = dataclasses.field(default_factory=list)
+    typed: list[str] = dataclasses.field(default_factory=list)
+    """The verb and its words as typed, without `--config` (rule N3: a refusal's `next:` is the
+    command as typed, plus what was missing)."""
+    outcome: Any = None
+    refused: Any = None
 
     def show(self, result: Any) -> None:
         """Print an intermediate result (`run`'s plan): as text now, or remembered for the
@@ -262,9 +267,10 @@ def refuse_overwrite(paths: Sequence[Path], force: bool, ctx: Context, *argv: st
     """Rule L12: a verb that writes files refuses to overwrite one without `--force`."""
     if force:
         return
+    typed = list(ctx.typed) if ctx.typed else list(argv)
     for path in paths:
         if path.exists():
             raise Refusal(
                 f"{shown(path)} is already there; pass --force to write it again",
-                [ctx.command(*argv, "--force")],
+                [ctx.command(*typed, "--force")],
             )

@@ -276,9 +276,11 @@ def test_fd5_15_show_takes_one_arm(
 ) -> None:
     ran = invoke(["generate", "--arm", "depth:d1", "--arm", "depth:d3", "--show"], prog=prog,
                  monkeypatch=monkeypatch)
-    assert ran.code == 2, ran
-    assert len(error_lines(ran)) == 1
-    assert tree(world.work) == {}
+    # Retrofitted by ruling G13 (FD9 Session A): no refusal; the first arm's task 1, and the other
+    # arm named.
+    assert ran.code == 0, ran
+    assert "depth:d1" in ran.first and "depth:d3" in ran.out, ran
+    assert error_lines(ran) == []
 
 
 # ---------------------------------------------------------------------------

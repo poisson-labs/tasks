@@ -8,8 +8,10 @@ time from stdin.  Every answer becomes one of the library's own flags, so the fi
 `config.config_from_init_args` writes for them, and a flag the library refuses is refused in
 its words, exit 2.
 
-**Your own tools** (own-tools spec §8.1): question 6 lists the recipes offered on the built-in
-tasks, then "Tasks on my own tools", then choosing the knob yourself; there is one question 6.
+**Your own tools** (own-tools spec §8.1, amended by spec §16.11's G7): the first question asks
+what to test, a model on the built-in tasks or on your own tools; your own tools then asks for
+the file before any recipe, and the built-in recipes' menu has no own-tools entry.  Questions
+are numbered as asked, 1 to n.
 Choosing own tools asks for the tool file (or starts the MCP server `--mcp-command` names, with
 consent, to list its tools into `tools.mcp.json` beside the settings file, the command itself
 kept nowhere), reads it, says one summary line and each refusal, asks whether each tool of
@@ -39,7 +41,7 @@ from poisson_tasks.cli._common import (
     own_summary,
     tokenizer_present,
 )
-from poisson_tasks.cli._result import Command, Refusal, Result, Row, Stopped, Usage
+from poisson_tasks.cli._result import Refusal, Result, Row, Stopped, Usage
 
 SCHEMA = "poisson-tasks.init/1"
 TOKENIZER_QUESTION = (
@@ -212,9 +214,13 @@ def init(ctx: Context) -> Result:
             found = providers.check_key(made.model) if not providers.key_is_set(
                 made.model.api_key_env) else None
 
-    # the file, once, atomically
+    # the file, once, atomically; a file it replaces is kept as `<name>.bak` (G10)
     text = config.dump_config(made)
     path.parent.mkdir(parents=True, exist_ok=True)
+    kept: Path | None = None
+    if path.exists():
+        kept = path.with_name(path.name + ".bak")
+        kept.write_bytes(path.read_bytes())
     temporary = path.with_name(path.name + ".part")
     temporary.write_text(text, encoding="utf-8")
     temporary.replace(path)
@@ -238,7 +244,9 @@ def init(ctx: Context) -> Result:
     if own_setup is not None:
         rows.append(Row("your tools", _tools_row(own_setup)))
         data["tools"] = _tools_data(own_setup)
-    rows.append(Command("the same setup, without questions:", command))
+    if kept is not None:
+        rows.append(Row("kept", f"the old {path.name} as {kept.name}"))
+    rows.append(Row("as one command", f"{ctx.command('doctor', '--show-command')} prints it"))
     sentence = f"wrote {ctx.config_path}: {config_words(made)}, against {made.model.name}"
     return Result(
         schema=SCHEMA, verdict="ok", sentence=sentence, rows=rows,
@@ -297,23 +305,28 @@ def _dialogue(
     ui = ctx.ui
     answers: list[tuple[str, str | None]] = list(settings)
     own_setup: _OwnSetup | None = None
+    asked = _Numbers()
 
     def set_flag(flag: str, value: str | None) -> None:
         answers.append((flag, value))
 
-    # 1. the provider
+    # what to test: the built-in tasks or your own tools (G7)
+    wants_own = _given(settings, "--own-file") is not None or ctx.args.mcp_command is not None
+    kind = ui.choice(asked(), "What do you want to test?", KINDS, 1 if wants_own else 0)
+
+    # the provider
     names = list(config.PRESET_NAMES)
     given = _given(settings, "--provider")
     default = names.index(given) if given in names else 0
     options = [(config.PRESETS[name].label, "") for name in names]
-    provider = names[ui.choice(1, "Which model do you want to test?", options, default)]
+    provider = names[ui.choice(asked(), "Which provider serves the model?", options, default)]
     preset = config.PRESETS[provider]
     set_flag("--provider", provider)
 
     # 2. the model
     model_default = _given(settings, "--model") or preset.default_model
     hint = PUBLISHED_NOTE if provider == "openai" and model_default == PUBLISHED_MODEL else None
-    model = ui.ask(2, "The model's name, as the provider spells it", model_default, hint=hint,
+    model = ui.ask(asked(), "The model's name, as the provider spells it", model_default, hint=hint,
                    validate=lambda text: None if text.strip() else "A name is needed.")
     set_flag("--model", model)
 
@@ -325,7 +338,7 @@ def _dialogue(
         endpoint = os.environ["OPENAI_BASE_URL"]
         ui.say(f"endpoint: {endpoint}, from OPENAI_BASE_URL in this shell")
     if preset.asks_endpoint:
-        endpoint = ui.ask(3, "The endpoint", endpoint,
+        endpoint = ui.ask(asked(), "The endpoint", endpoint,
                           validate=lambda text: None if text.strip() else "A URL is needed.")
     if endpoint is not None:
         set_flag("--base-url", endpoint)
@@ -335,7 +348,7 @@ def _dialogue(
     if key_default is None:
         key_default = preset.api_key_env
     variable = ui.ask(
-        4, "Which environment variable holds your API key?",
+        asked(), "Which environment variable holds your API key?",
         key_default if key_default is not None else None,
         hint="Tasks reads the key from it when it runs and never stores or prints it.\n"
              "Answer none for a model that needs no key.",
@@ -380,7 +393,7 @@ def _dialogue(
         else:
             price_default = None
         answer = ui.ask(
-            5, "Its price, in dollars per million tokens, from your provider's price page.",
+            asked(), "Its price, in dollars per million tokens, from your provider's price page.",
             price_default,
             hint="It is used for the cost estimate and the spend cap. Input, cached input, output"
                  + ("" if price_default is not None else "; leave it blank for no price, and "
@@ -399,22 +412,18 @@ def _dialogue(
     elif _given(settings, "--price") is None:
         set_flag("--no-price", None)
 
-    # 6. what to measure
-    measures = _measures()
-    recipe_given = _given(settings, "--recipe")
-    recipe_names = [name for name, _, _ in measures]
-    if _given(settings, "--own-file") is not None or ctx.args.mcp_command is not None:
-        default = recipe_names.index(OWN)
-    elif recipe_given in recipe_names:
-        default = recipe_names.index(recipe_given)
-    else:
-        default = 0
-    recipe = recipe_names[ui.choice(6, "What do you want to measure?",
-                                    [(label, note) for _, label, note in measures], default)]
-    if recipe == OWN:
-        answers, own_setup = _own_dialogue(ctx, answers)
+    # what to measure: on your own tools, the file first, then its recipes
+    if kind == 1:
+        answers, own_setup = _own_dialogue(ctx, answers, asked)
         recipe = _given(answers, "--recipe") or ""
     else:
+        measures = [entry for entry in _measures() if entry[0] != OWN]
+        recipe_given = _given(settings, "--recipe")
+        recipe_names = [name for name, _, _ in measures]
+        default = recipe_names.index(recipe_given) if recipe_given in recipe_names else 0
+        recipe = recipe_names[ui.choice(asked(), "What do you want to measure?",
+                                        [(label, note) for _, label, note in measures],
+                                        default)]
         set_flag("--recipe", recipe)
     if recipe == "custom" and own_setup is not None:
         pass  # asked in the own-tools dialogue
@@ -422,14 +431,14 @@ def _dialogue(
         knob_given = _given(settings, "--knob")
         knob_names = [name for name, _, _ in KNOBS]
         default = knob_names.index(knob_given) if knob_given in knob_names else 0
-        knob = knob_names[ui.choice(None, "The knob", [(label, note) for _, label, note in KNOBS],
-                                    default)]
+        knob = knob_names[ui.choice(asked(), "The knob",
+                                    [(label, note) for _, label, note in KNOBS], default)]
         set_flag("--knob", knob)
         from poisson_tasks.knobs import levels
 
         candidates = levels(knob)
         levels_default = _given(settings, "--levels") or ",".join(str(x) for x in candidates)
-        chosen = ui.ask(None, f"The levels, from {_format.words(candidates)}, comma-separated",
+        chosen = ui.ask(asked(), f"The levels, from {_format.words(candidates)}, comma-separated",
                         levels_default)
         set_flag("--levels", chosen.replace(" ", ""))
         controls_given = _given(settings, "--controls")
@@ -441,8 +450,8 @@ def _dialogue(
         )
         set_flag("--controls" if wants else "--no-controls", None)
         strictness = ui.ask(
-            None, "Which strictness counts as passing on the progress line and in verify's "
-                  "exit code?",
+            asked(), "Which strictness counts as passing on the progress line and in verify's "
+                     "exit code?",
             _given(settings, "--strictness") or "strict",
             hint="Both are always measured and both are on the card. strict: stop exactly at "
                  "the goal and touch nothing else (what the published cards use); leaky: "
@@ -456,13 +465,13 @@ def _dialogue(
 
     # 7 and 8. the tasks and the attempts
     if recipe != "card":
-        tasks = ui.ask(7, "How many tasks per level?", _given(settings, "--tasks-per-level")
+        tasks = ui.ask(asked(), "How many tasks per level?", _given(settings, "--tasks-per-level")
                        or "10",
                        hint="Each task is a different record and a different chain; more tasks "
                             "give tighter numbers.",
                        validate=_whole)
         set_flag("--tasks-per-level", tasks.strip())
-        attempts = ui.ask(8, "How many attempts at each task?",
+        attempts = ui.ask(asked(), "How many attempts at each task?",
                           _given(settings, "--attempts") or "1",
                           hint="More than one shows pass@k, the chance that one of k attempts "
                                "passes. The published cards use 5.",
@@ -486,14 +495,15 @@ def _dialogue(
             hint = ("This plan's estimate cannot be shown without the tokenizer file. The cap "
                     "is what holds.")
         given_cap = _given(settings, "--spend-cap")
-        answer = ui.ask(9, "Stop the run once it has spent", given_cap or f"${cap_default:.2f}",
+        answer = ui.ask(asked(), "Stop the run once it has spent",
+                        given_cap or f"${cap_default:.2f}",
                         hint=hint, shown=given_cap or f"${cap_default:.2f}",
                         validate=_dollars)
         if given_cap is not None or answer.strip().lstrip("$") != f"{cap_default:.2f}":
             set_flag("--spend-cap", answer.strip().lstrip("$"))
     else:
         given_cap = _given(settings, "--token-cap")
-        answer = ui.ask(9, "Stop the run once it has used this many tokens",
+        answer = ui.ask(asked(), "Stop the run once it has used this many tokens",
                         given_cap or "2000000", hint="There is no price, so the cap is in tokens.",
                         shown=given_cap or "2,000,000", validate=_whole)
         if given_cap is not None or answer.replace(",", "").strip() != "2000000":
@@ -574,8 +584,11 @@ def _say_summary(ctx: Context, setup: _OwnSetup) -> None:
     for line in lines[1 + refused:]:
         ui.say(line)
     if not setup.flows:
-        ui.say(f"depth and shape are unavailable without flows: {UNAVAILABLE_WITHOUT_FLOWS}",
-               status="warn")
+        ui.say("depth and shape are not offered without a flow, a link you declare from one "
+               "tool's output field into another tool's input (--own-flow "
+               "get_order.id:refund_order.order_id, or [[own.flow]] in tasks.toml; the guided "
+               f"session's flow step writes one; docs/own-tools.md explains them). "
+               f"{UNAVAILABLE_WITHOUT_FLOWS}", status="warn")
 
 
 def _list_server(
@@ -648,7 +661,11 @@ def _no_recipe_words(setup: _OwnSetup) -> str:
 
 def _tools_row(setup: _OwnSetup) -> str:
     lines = own_summary(setup.reading, setup.toolset)
-    return (f"{setup.toolset.name}: {lines[0]}; {lines[1 + len(setup.reading.refused)]}; the "
+    first = lines[0]
+    names = [each.line.split(":", 1)[0] for each in setup.reading.refused]
+    if names:
+        first = first.replace(" (one line each below)", f" ({', '.join(names)})")
+    return (f"{setup.toolset.name}: {first}; {lines[1 + len(setup.reading.refused)]}; the "
             "responses are simulated from your schemas, and your backend is never called")
 
 
@@ -663,7 +680,7 @@ def _tools_data(setup: _OwnSetup) -> dict[str, Any]:
 
 
 def _own_dialogue(
-    ctx: Context, answers: list[tuple[str, str | None]]
+    ctx: Context, answers: list[tuple[str, str | None]], asked: _Numbers
 ) -> tuple[list[tuple[str, str | None]], _OwnSetup]:
     """Own tools chosen at question 6: the file, its summary, the unknowns, the recipes that
     apply to this set and, after them, the knob menu of every knob the set reaches."""
@@ -689,7 +706,7 @@ def _own_dialogue(
                 return f"There is no file at {text.strip()}."
             return None
 
-        file = ui.ask(None, FILE_QUESTION, given, validate=readable)
+        file = ui.ask(asked(), FILE_QUESTION, given, validate=readable)
         answers = [*_without(answers, "--own-file"), ("--own-file", file.strip())]
     setup = _read_own(ctx, answers)
     _say_summary(ctx, setup)
@@ -700,7 +717,7 @@ def _own_dialogue(
         if tool in declared:
             continue
         answer = ui.ask(
-            None, f"{tool}: does it read, or write? r, w, or Enter to leave it unknown "
+            asked(), f"{tool}: does it read, or write? r, w, or Enter to leave it unknown "
                   "(treated as write)", None,
             validate=lambda text: None if text.strip().lower() in ("", "r", "w", "read", "write")
             else "r, w, or Enter.",
@@ -729,7 +746,7 @@ def _own_dialogue(
     recipe_given = _given(answers, "--recipe")
     default_name = recipes.default_recipe(setup.toolset, flows=setup.flows) or "custom"
     default = names.index(recipe_given) if recipe_given in names else names.index(default_name)
-    chosen = names[ui.choice(6, f"What do you want to measure on {own_words_of(setup)}?",
+    chosen = names[ui.choice(asked(), f"What do you want to measure on {own_words_of(setup)}?",
                              options, default)]
     answers.append(("--recipe", chosen))
     if chosen != "custom":
@@ -752,22 +769,43 @@ def _own_dialogue(
         knob_options.append((knob, note))
     knob_given = _given(answers, "--knob")
     knob_default = ordered.index(knob_given) if knob_given in ordered else 0
-    knob = ordered[ui.choice(None, "The knob", knob_options, knob_default)]
+    knob = ordered[ui.choice(asked(), "The knob", knob_options, knob_default)]
     answers.append(("--knob", knob))
     candidates = knob_levels(setup.toolset, knob, flows=setup.flows)
     levels_default = _given(answers, "--levels") or ",".join(str(x) for x in candidates)
-    chosen_levels = ui.ask(None, f"The levels, from {_format.words(candidates)}, comma-separated",
+    chosen_levels = ui.ask(asked(),
+                           f"The levels, from {_format.words(candidates)}, comma-separated",
                            levels_default)
     answers.append(("--levels", chosen_levels.replace(" ", "")))
     strictness = ui.ask(
-        None, "Which strictness counts as passing on the progress line and in verify's exit "
-              "code?",
+        asked(), "Which strictness counts as passing on the progress line and in verify's exit "
+                 "code?",
         _given(answers, "--strictness") or "strict",
         hint="Both are always measured and both are on the card. strict: stop exactly at the "
              "goal and touch nothing else; leaky: reaching the goal is enough.",
     )
     answers.append(("--strictness", strictness.strip()))
     return answers, setup
+
+
+class _Numbers:
+    """The questions' numbers, as asked: 1 to n, no gap, none twice."""
+
+    def __init__(self) -> None:
+        self.n = 0
+
+    def __call__(self) -> int:
+        self.n += 1
+        return self.n
+
+
+KINDS = [
+    ("A model on the built-in tasks",
+     "Tasks with a known right answer, at a difficulty you choose; export hands them to "
+     "verifiers."),
+    ("A model on your own tools",
+     "Your tools file or MCP server; responses are simulated from your schemas."),
+]
 
 
 def own_words_of(setup: _OwnSetup) -> str:

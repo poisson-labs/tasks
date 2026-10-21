@@ -366,12 +366,9 @@ def reference_verdict(bundle: Any) -> Any:
 
 def _show(ctx: Context, plan: Any, turn_cap: int) -> Result:
     args = ctx.args
-    if len(plan.arms) != 1:
-        from poisson_tasks import knobs
+    from poisson_tasks import knobs
 
-        names = [knobs.arm_id(spec) for spec in plan.arms]
-        raise Usage(f"--show prints one task, and the plan has {len(plan.arms)} arms; name one "
-                    f"with --arm: {_format.words(names, 'or')}")
+    others = [knobs.arm_id(spec) for spec in plan.arms[1:]]
     spec = plan.arms[0]
     bundle, name = pick_task(plan, spec, args.task, args.seed)
     calls = len(bundle.reference_calls)
@@ -396,7 +393,9 @@ def _show(ctx: Context, plan: Any, turn_cap: int) -> Result:
     answers = [(name_, label, sentence) for name_, label, sentence, _ in wrong_answers(bundle)]
     return Result(
         schema=SCHEMA, verdict="ok", sentence=f"{name}: {header}",
-        rows=[Row("task id", bundle.task_id)],
+        rows=[Row("task id", bundle.task_id)] + (
+            [Row("the plan's other arms", f"{_format.words(others)} (--arm names one)")]
+            if others else []),
         document=[
             Part("what the model is shown", "quote", f"{bundle.system_prompt}\n\n{prompt}"),
             Part("the tools it may call", "tools", tools),

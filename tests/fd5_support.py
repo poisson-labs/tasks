@@ -87,12 +87,14 @@ VERDICTS: dict[str, frozenset[str]] = {
     "init": frozenset({"ok"}),
     "generate": frozenset({"ok"}),
     "run": frozenset({"plan", "done", "stopped"}),
-    "card": frozenset({"ok", "refused"}),
+    "card": frozenset({"ok", "refused", "different"}),
     "verify": frozenset({*TASK_OUTCOMES, "ok"}),
     "export": frozenset({"ok"}),
     "doctor": frozenset({"ok", "not ready"}),
 }
-"""FD5.5's table: the words a verb's first line may carry on success."""
+"""FD5.5's table: the words a verb's first line may carry on success.  `different` joined `card`'s
+words by ruling G12 (2026-10-20): `card --compare published` opens with it (FD9 Session A's
+retrofit)."""
 
 VERDICT_LINE = re.compile(r"^([a-z][a-z_ ]*)  (\S.*)$")
 """FD5.5's pattern, with the word and the sentence as groups, and with `_` in the word: the plan's
