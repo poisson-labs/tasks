@@ -313,7 +313,8 @@ class Session:
                 key_bindings=keys,
                 style=Style([("mark", f"bold {COBALT}"), ("placeholder", "fg:ansibrightblack")]),
             )
-        placeholder = hint if hint != PLAIN_PROMPT else "a step's number, a word, help or quit"
+        placeholder = hint if hint != PLAIN_PROMPT else (
+            "a step's number, a word, help or quit" if self.width() >= 50 else "a number or a word")
         answer: str = self._prompt.prompt([("class:mark", "› ")],
                                           placeholder=[("class:placeholder", placeholder)])
         return answer.strip()
@@ -588,11 +589,13 @@ class Session:
         if not self._between("Enter for step 3, the run, or quit: "):
             return
         self.heading(f"Step 3 of 5 · {STEPS[2][0]}")
-        if self.act(["run"], then=False) != 0:
+        code = self.act(["run"], then=False)
+        if code != 0:
             self.write()
-            self.write("The run did not finish. From here you can finish it, or build a card "
-                       "from what ran so far.")
-            self.write()
+            if code in (3, 130):
+                self.write("The run did not finish. From here you can finish it, or build a card "
+                           "from what ran so far.")
+                self.write()
             self.home()
             return
         self.heading(f"Step 4 of 5 · {STEPS[3][0]}")
