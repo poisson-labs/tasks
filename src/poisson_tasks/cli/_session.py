@@ -844,6 +844,9 @@ class Session:
         episodes = self._episodes(run.path / arm_folder(arm), plan["model"]["name"])
         self.write(f"{arm}, {len(episodes)} episode{'s' if len(episodes) != 1 else ''} of "
                    f"{run.name}")
+        if plan.get("own"):
+            self.write("  The tool responses are simulated from your tools' schemas, so a reply "
+                       "can look wrong while the episode passes: it is scored on the calls.", "dim")
         if not episodes:
             self.write("  no episode of this arm ended; run finishes it", "yellow")
             return
