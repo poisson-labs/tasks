@@ -71,6 +71,8 @@ VERB_OF = {"run": "run", "again": "run", "card": "card", "task": "generate", "ve
 """The verb each action word runs (spec §16.2)."""
 
 RUNTHROUGH_STEPS = ("Set up", "One task", "The run", "The card", "What next")
+ONE_LINE = "Poisson Labs  tasks {}"
+"""The banner's one line, ruled 2026-10-20 (P1): the ruled pick's own words."""
 RAW = re.compile(r"^\s*(\||#|---)")
 """A line of raw Markdown: a table row, a heading or a rule (FD9.14)."""
 
@@ -1019,7 +1021,8 @@ def test_fd9_22_the_banner_is_its_two_lines_at_every_width_from_40_and_never_wra
 def test_fd9_22_with_plain_or_a_dumb_terminal_the_banner_is_one_line_with_no_art(
     how: str, states: States, world: World
 ) -> None:
-    """B3.  Red before the build: there is no session."""
+    """B3, and the one line's words as ruled on 2026-10-20 (P1, no): `Poisson Labs  tasks
+    <version>`, the ruled banner's own words.  Red before the build: there is no session."""
     work = here(states, "B", world)
     extra = {"TERM": "dumb"} if how == "TERM=dumb" else {}
     argv = ["--plain"] if how == "--plain" else []
@@ -1028,7 +1031,7 @@ def test_fd9_22_with_plain_or_a_dumb_terminal_the_banner_is_one_line_with_no_art
         session.type("quit", settle=0)
         assert session.wait() == 0
     lines = [line for line in session.plain.splitlines() if line.strip()]
-    assert version() in lines[0] and not set(lines[0]) & BLOCKS, lines[:2]
+    assert lines[0].strip() == ONE_LINE.format(version()), lines[:2]
     assert not set(session.plain) & BLOCKS, session.plain
 
 
