@@ -500,8 +500,8 @@ class Session:
                    if settings.limits.spend_usd is not None else
                    f"{settings.limits.tokens:,} tokens" if settings.limits.tokens is not None
                    else "no cap")
-            key = (f"key in {folder.key_variable} ({'set' if folder.key_set else 'not set'}, "
-                   "not checked yet)" if folder.key_variable else "no key needed")
+            key = (f"key in {folder.key_variable} ({'set' if folder.key_set else 'not set'})"
+                   if folder.key_variable else "no key needed")
             rows.append(("", f"cap {cap} · {key}", "dim"))
         if folder.tools is not None:
             tools = folder.tools

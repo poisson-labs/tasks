@@ -279,11 +279,13 @@ class PlainUI:
                 return False
             self.err(f"{indent}Answer y or n.")
 
-    def choice(self, number: int, question: str, options: Sequence[tuple[str, str]],
+    def choice(self, number: int | None, question: str, options: Sequence[tuple[str, str]],
                default: int) -> int:
-        """A numbered menu; returns the index chosen."""
+        """A numbered menu; returns the index chosen.  A menu of the session's own views has no
+        question number."""
         self.err()
-        self.err(f"{number}. {question}", indent="   ")
+        self.err(f"{number}. {question}" if number is not None else f"   {question}",
+                 indent="   ")
         for index, (label, note) in enumerate(options, 1):
             self.err(f"   {index}) {label}", indent="      ")
             for line in note.split("\n") if note else []:

@@ -318,7 +318,7 @@ class Pretty:
                 return False
             self.stderr.print(Text(f"{indent}Answer y or n.", style="yellow"))
 
-    def choice(self, number: int, question: str, options: Sequence[tuple[str, str]],
+    def choice(self, number: int | None, question: str, options: Sequence[tuple[str, str]],
                default: int) -> int:
         """A menu answered with the arrow keys; up to nine options each also take its number,
         as a single key.  questionary refuses a tenth single-key shortcut, so a longer menu (a
@@ -334,8 +334,9 @@ class Pretty:
                                               description=note.replace("\n", " ") or None))
         self._prompt_session()
         answer: int = questionary.select(
-            question, choices=choices, default=choices[default], qmark=f"{number}.",
-            pointer="❯", use_shortcuts=keyed, style=_question_style(),
+            question, choices=choices, default=choices[default],
+            qmark=f"{number}." if number is not None else "", pointer="❯", use_shortcuts=keyed,
+            style=_question_style(),
             instruction=(f"(arrow keys or 1-{len(options)}, then Enter)" if keyed
                          else "(arrow keys, then Enter)"),
             output=self._output,

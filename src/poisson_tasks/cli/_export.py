@@ -83,7 +83,6 @@ def export(ctx: Context) -> Result:
         sentence=f"wrote {_format.plural(len(paths), 'verifiers config')}, one per arm: "
                  f"{plan_words(plan)}",
         rows=[Row("note", LEAVES_OUT)],
-        document=[Part(f"run each with. {SPENDS.format(run=ctx.command('run'))}", "lines",
-                       commands)],
+        document=[Part(SPENDS.format(run=ctx.command('run')), "lines", commands)],
         data={"files": [str(path) for path in paths], "commands": commands},
     )
