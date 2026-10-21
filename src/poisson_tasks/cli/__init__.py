@@ -181,14 +181,56 @@ def main(argv: Sequence[str] | None = None, *, prog: str | None = None) -> int:
         ui.raw(_version_line())
         return 0
     if args.verb is None:
-        ui.error(f"a command is needed: one of {', '.join(_parser.VERBS)}; "
-                 f"{prog} --help lists them")
-        return 2
+        return _bare(prog, args, words, ui)
     ctx = Context(
         prog=prog, args=args, ui=ui,
         config_path=args.config or DEFAULT_SETTINGS, config_given=args.config is not None,
-        json=bool(args.json),
+        json=bool(args.json), typed=_typed(words),
     )
+    return dispatch(ctx)
+
+
+def _typed(words: Sequence[str]) -> list[str]:
+    """The words as typed, without `--config` and its value, which `ctx.command` adds back."""
+    out: list[str] = []
+    skip = False
+    for word in words:
+        if skip:
+            skip = False
+            continue
+        if word == "--config":
+            skip = True
+            continue
+        if word.startswith("--config="):
+            continue
+        out.append(word)
+    return out
+
+
+def session_allowed(words: Sequence[str]) -> bool:
+    """Spec §16.1: stdin, stdout and stderr all terminals, `CI` unset, `--json` not given."""
+    if "--json" in words or "CI" in os.environ:
+        return False
+    return all(_is_terminal(stream) for stream in (sys.stdin, sys.stdout, sys.stderr))
+
+
+def _bare(prog: str, args: Any, words: Sequence[str], ui: Any) -> int:
+    from poisson_tasks.cli import _session
+
+    if session_allowed(words):
+        return _session.run_session(prog, args, list(words))
+    step = _session.first_step_command(prog, args)
+    ui.error(f"a command is needed: one of {', '.join(_parser.VERBS)}; on a terminal, {prog} "
+             "with no command opens a guided session", [step] if step else [])
+    return 2
+
+
+def dispatch(ctx: Context) -> int:
+    """Run one verb on `ctx` and show its outcome: a result, a stop, a refusal, a usage error or
+    an unexpected failure; return the exit code.  `main` and the session both call it."""
+    ui = ctx.ui
+    args = ctx.args
+    prog = ctx.prog
     handler = quiet_logging()
     try:
         try:
@@ -198,6 +240,7 @@ def main(argv: Sequence[str] | None = None, *, prog: str | None = None) -> int:
         ctx.show(result)
         if ctx.json and not result.silent:
             ui.json(result)
+        ctx.outcome = result
         return int(result.exit)
     except Usage as wrong:
         ui.error(wrong.message)
@@ -206,6 +249,7 @@ def main(argv: Sequence[str] | None = None, *, prog: str | None = None) -> int:
         if ctx.json and ctx.shown:
             ui.json(ctx.shown[0])
         ui.error(refused.message, refused.next)
+        ctx.refused = refused
         return 1
     except KeyboardInterrupt:
         try:
