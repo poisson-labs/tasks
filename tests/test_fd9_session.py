@@ -499,8 +499,8 @@ def test_fd9_8_every_offered_step_runs_as_a_command_without_a_refusal(
     `same as` command run from a shell in another copy (a run answered yes): no exit 1 or 2.  A
     step with no command (`home`, `replies`) is a view.  In state D with a refused card, step 1 is
     the replies view (ruled 2026-10-20) and `card` is offered below it; that `card` step shows the
-    refusal and exits 1 by FD5's codes, so it is left out here, pending
-    `test_fd9_pending_refused_card_below.py` (yes/no 5).  Red before the build: no session."""
+    refusal and exits 1 by FD5's codes, the one exception to FD9.8 (ruled 2026-10-21, FD9 Session
+    A's yes/no 5, yes), pinned by the test below.  Red before the build: no session."""
     keyed(monkeypatch, states)
     work = here(states, state, world)
     held = hold_lock(run_folder(work)) if state == "C2" else None
@@ -543,6 +543,27 @@ def test_fd9_8_every_offered_step_runs_as_a_command_without_a_refusal(
 def monkeypatch_for(work: Path, monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
     monkeypatch.chdir(work)
     return monkeypatch
+
+
+def test_fd9_8_the_card_step_below_a_refused_cards_replies_exits_1_with_the_refusal(
+    states: States, world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ruled 2026-10-21 (FD9 Session A's yes/no 5, yes): when the card is refused, `card` stays
+    offered below the replies view, and its command shows the refusal and exits 1, the one
+    exception to FD9.8; step 1, which the session leads with, never fails.  Folded in from its
+    pending file unchanged.  Red before the build: there is no session."""
+    states.copy("D-refused", world.work)
+    shown = in_session(Keys(["quit"]), monkeypatch)
+    blocks = home_blocks(shown.out)
+    assert blocks, shown
+    steps = steps_of(blocks[0])
+    number = steps.index("card") + 1
+    assert number > 1, steps
+    session = in_session(Keys([str(number), "quit"]), monkeypatch)
+    commands = session.same_as()
+    assert commands and commands[0][1] == "card", session
+    shell = invoke(commands[0][1:], prog=PROG, monkeypatch=monkeypatch, check=False)
+    assert shell.code == 1 and shell.word == "refused", shell
 
 
 # ---------------------------------------------------------------------------
