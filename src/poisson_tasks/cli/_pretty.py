@@ -72,11 +72,21 @@ class Pretty:
         # the verdict line is never hard-wrapped: the first line carries the whole sentence
         out.print(Text.assemble((result.verdict, TONE.get(result.tone, "bold")),
                                 "  " + result.sentence), soft_wrap=True)
-        labels = [row.label for row in result.rows if isinstance(row, (Row, Bullets))
-                  and len(row.label) <= 12]
-        label_width = max((len(label) for label in labels), default=0)
         marked = any(isinstance(row, Row) and row.status for row in result.rows)
         width = out.width
+
+        def one_line(row: Any) -> bool:
+            # a label longer than 12 heads its own line, unless its value is short enough to
+            # sit beside it: `as one command  <prog> doctor --show-command prints it`
+            if len(row.label) <= 12:
+                return True
+            if isinstance(row, Bullets) or "\n" in row.value:
+                return False
+            return len(row.label) + 4 + (3 if marked else 0) + len(row.value) <= width
+
+        labels = [row.label for row in result.rows if isinstance(row, (Row, Bullets))
+                  and one_line(row)]
+        label_width = max((len(label) for label in labels), default=0)
 
         def emit(prefix: Text, value: str, indent: int, style: str = "") -> None:
             # wrapped at spaces, never inside a path, a URL or a quoted value; a word longer
@@ -92,7 +102,7 @@ class Pretty:
                 out.print(Text.assemble(" " * indent, (line, style)), soft_wrap=True)
 
         for row in result.rows:
-            if isinstance(row, (Row, Bullets)) and len(row.label) > 12:
+            if isinstance(row, (Row, Bullets)) and not one_line(row):
                 out.print(Text("  " + row.label, style="bold"))
                 if isinstance(row, Row):
                     emit(Text("    "), row.value, 4)
