@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,7 @@ from tests.fd3_support import harness_env, needs_uv
 from tests.fd5_support import World, fixture_flags, world, write_config
 from tests.fd9_support import (
     INTERRUPT,
+    PETSTORE,
     PUBLISHED_MODEL,
     Asked,
     Keys,
@@ -71,8 +73,6 @@ def test_g1_replies_opens_the_tenth_episode_in_both_looks_on_setups_defaults(
 ) -> None:
     """Red on main: in the pretty look the episode menu never shows, and the session ends with
     `an unexpected failure inside poisson-tasks (ValueError)`."""
-    import shutil
-
     from poisson_tasks import transcripts
     from poisson_tasks.cli._common import arm_folder
 
@@ -162,3 +162,38 @@ def test_g4_one_y_or_yes_at_the_run_throughs_first_prompt_starts_step_one(
     assert any(asked.module == "_init" for asked in session.keys.asked), session
     assert re.search(r"^Step 1 of 5", stripped(session.out), re.MULTILINE), session
     assert not (world.work / "tasks.toml").exists()
+
+
+@pytest.mark.parametrize("plan", ["planning", "own-depth"])
+def test_g2_the_latest_card_row_stays_on_strict_where_the_card_reads_strict(
+    plan: str, states: States, world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A plan that mixes depth with another knob (the planning recipe: depth and shape), and depth
+    on your own tools (a write has no stage past its goal, so that card reads every knob on
+    strict): the row reads strict pass@1 and says so."""
+    from poisson_tasks import config, runs
+
+    work = world.work
+    with harness(work.parent):
+        if plan == "planning":
+            flags = fixture_flags(states.model.base_url, model=PUBLISHED_MODEL,
+                                  recipe="planning", tasks_per_level=1)
+        else:
+            shutil.copy(PETSTORE, work / "petstore.json")
+            flags = fixture_flags(states.reference.base_url, model=PUBLISHED_MODEL, levels="1,2",
+                                  extra=["--own-file", "petstore.json",
+                                         "--own-flow", "addPet.id:updatePetWithForm.petId"])
+        write_config(work / "tasks.toml", flags)
+        if plan == "own-depth":
+            made = config.resolve_plan(config.load_config(work / "tasks.toml"), root=work)
+            for spec in made.arms:
+                for bundle in runs.own_bundles(made, spec, made.seeds):
+                    states.reference.register(bundle)
+        assert _quiet_main(["run", "--yes"], work) == 0
+        assert _quiet_main(["card"], work) == 0
+    cells = json.loads((run_folder(work) / "card" / "artifact.json")
+                       .read_text(encoding="utf-8"))["cells"]
+    assert any(str(cell["arm_id"]).startswith("depth:") for cell in cells), cells
+    session = in_session(Keys(["quit"]), monkeypatch)
+    row = next(line for line in home_blocks(session.out)[0] if line.startswith("latest card"))
+    assert "strict pass@1" in row and "leaky" not in row, row
