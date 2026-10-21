@@ -97,6 +97,19 @@ def _lowest(levels: Sequence[tuple[str, float]]) -> str | None:
     return min(levels, key=lambda pair: pair[1])[0] if levels else None
 
 
+def card_reading(folder: Any) -> tuple[Sequence[tuple[str, float]], str]:
+    """The newest card's levels on the rate the card reads them on, and that rate's name.  On a
+    depth plan of the built-in tasks it is leaky pass@1, as the card says: below the top level
+    strict also asks the model to stop at the goal, which the top level cannot ask.  On anything
+    else, and on your own tools (a write has no stage past its goal), it is strict pass@1."""
+    levels = folder.levels
+    built_in = folder.settings is None or folder.settings.own is None
+    if (built_in and levels and all(arm.startswith("depth:") for arm, _ in levels)
+            and len(folder.leaky_levels) == len(levels)):
+        return folder.leaky_levels, "leaky pass@1"
+    return levels, "strict pass@1"
+
+
 # ---------------------------------------------------------------------------
 # the action table's `next` (spec §16.3)
 # ---------------------------------------------------------------------------
@@ -525,8 +538,9 @@ class Session:
             if len(folder.runs) > 5:
                 rows.append(("", f"and {len(folder.runs) - 5} more (runs lists them all)", "dim"))
         if folder.levels:
-            levels = " · ".join(f"{arm} {_format.rate(rate)}" for arm, rate in folder.levels)
-            rows.append(("latest card", f"{levels}  strict pass@1", None))
+            read, measure = card_reading(folder)
+            levels = " · ".join(f"{arm} {_format.rate(rate)}" for arm, rate in read)
+            rows.append(("latest card", f"{levels}  {measure}", None))
         width = max(len(label) for label, _, _ in rows)
         for label, value, style in rows:
             self.row(label, value, width, style)
@@ -606,13 +620,15 @@ class Session:
             from poisson_tasks.cli import _format
             from poisson_tasks.cli._common import config_words
 
-            low = min(folder.levels, key=lambda pair: pair[1])
-            high = max(folder.levels, key=lambda pair: pair[1])
+            read, measure = card_reading(folder)
+            low = min(read, key=lambda pair: pair[1])
+            high = max(read, key=lambda pair: pair[1])
             model = folder.settings.model.name if folder.settings is not None else "the model"
             plan = config_words(folder.settings) if folder.settings is not None else "the plan"
-            self.write(f"You have a card for {model} on {plan}: strict pass@1 from "
-                       f"{_format.rate(low[1])} at {low[0]} to {_format.rate(high[1])} at "
-                       f"{high[0]}. From here:")
+            span = (f"{_format.rate(low[1])} at every level" if low[1] == high[1] else
+                    f"from {_format.rate(low[1])} at {low[0]} to {_format.rate(high[1])} at "
+                    f"{high[0]}")
+            self.write(f"You have a card for {model} on {plan}: {measure} {span}. From here:")
             self.write()
         self.home()
 

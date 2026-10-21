@@ -55,7 +55,8 @@ class Folder:
     """The facts of one folder.  `settings` is the settings file's config, or `None` when there
     is none or the reader refuses it (`problem` then holds the reader's words); `environment` is
     `providers.environment_report()`; `runs` is newest first; `levels` is the newest card's
-    (arm id, strict pass@1) per level, empty when no card is built."""
+    (arm id, strict pass@1) per level, empty when no card is built, and `leaky_levels` the same
+    card's (arm id, leaky pass@1), the rate the built-in card reads depth on."""
 
     config_path: Path
     settings: Any | None
@@ -66,6 +67,7 @@ class Folder:
     tools: ToolsFacts | None
     runs: tuple[RunFacts, ...]
     levels: tuple[tuple[str, float], ...]
+    leaky_levels: tuple[tuple[str, float], ...] = ()
 
 
 def _lock_held(path: Path) -> bool:
@@ -259,15 +261,18 @@ def read_folder(config_path: str | os.PathLike[str]) -> Folder:
             found.append(((plan_file.stat().st_mtime_ns, child.name), facts))
     ordered = tuple(facts for _, facts in sorted(found, key=lambda item: item[0], reverse=True))
     levels: tuple[tuple[str, float], ...] = ()
+    leaky: tuple[tuple[str, float], ...] = ()
     for facts in ordered:
         if facts.card == "built":
             try:
                 cells = json.loads((facts.path / "card" / "artifact.json").read_text(
                     encoding="utf-8"))["cells"]
                 levels = tuple((str(cell["arm_id"]), float(cell["pass_at_1"])) for cell in cells)
+                leaky = tuple((str(cell["arm_id"]), float(cell["leaky_at_1"])) for cell in cells
+                              if cell.get("leaky_at_1") is not None)
             except (OSError, ValueError, KeyError, TypeError):
-                levels = ()
+                levels = leaky = ()
             break
     return Folder(config_path=path, settings=settings, problem=problem, environment=environment,
                   key_variable=variable, key_set=key_set, tools=tools, runs=ordered,
-                  levels=levels)
+                  levels=levels, leaky_levels=leaky)
