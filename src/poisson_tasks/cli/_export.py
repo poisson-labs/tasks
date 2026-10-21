@@ -29,10 +29,13 @@ from poisson_tasks.cli._result import Part, Refusal, Result, Row, Usage
 
 SCHEMA = "poisson-tasks.export/1"
 LEAVES_OUT = (
-    "run that way, eval leaves out what run adds (the plan, the spend cap, the instrument "
-    "tally, the out-of-credit stop, the failure-streak stop and the watchdog), and it exits 0 "
-    "when every episode errored"
+    "run that way, eval leaves out what run adds (the plan, the instrument tally, the "
+    "out-of-credit stop, the failure-streak stop and the watchdog), and it exits 0 when every "
+    "episode errored"
 )
+SPENDS = ("Each of these runs calls the model and spends money with no cap; {run} is the way "
+          "with a cap.")
+"""The warning printed right above the commands (pass two's N6), in plain English."""
 
 
 def _eval_path() -> Path:
@@ -80,7 +83,7 @@ def export(ctx: Context) -> Result:
         sentence=f"wrote {_format.plural(len(paths), 'verifiers config')}, one per arm: "
                  f"{plan_words(plan)}",
         rows=[Row("note", LEAVES_OUT)],
-        document=[Part(f"run each with; each one calls the model and spends money, with no cap "
-                       f"({ctx.command('run')} is the way with a cap)", "lines", commands)],
+        document=[Part(f"run each with. {SPENDS.format(run=ctx.command('run'))}", "lines",
+                       commands)],
         data={"files": [str(path) for path in paths], "commands": commands},
     )
