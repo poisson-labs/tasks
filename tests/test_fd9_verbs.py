@@ -201,6 +201,20 @@ def test_fd9_17_g12_card_compare_published_reads_the_written_card(
     assert not [line for line in ran.lines if re.match(r"^\s*(\||#|---)", line)], ran
 
 
+@needs_uv
+def test_fd9_17_g12_card_compare_published_on_the_built_in_tasks_says_different(
+    states: States, world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ruled 2026-10-20 (FD9 Session A's yes/no 4, yes): G12's one-line verdict covers the
+    built-in tasks: exit 0, `different`, and `compare.md` holding the earlier-build sentence.
+    Folded in from its pending file unchanged.  Red before the build: it is refused, exit 1."""
+    folder = run_folder(states.copy("D", world.work))
+    ran = invoke(["card", "--compare", "published"], prog=PROG, monkeypatch=monkeypatch)
+    assert ran.code == 0 and ran.word == "different", ran
+    compare = folder / "card" / "compare.md"
+    assert compare.is_file() and compare.read_text(encoding="utf-8").strip()
+
+
 # ---------------------------------------------------------------------------
 # G13 every next step complete (FD9.18)
 # ---------------------------------------------------------------------------
