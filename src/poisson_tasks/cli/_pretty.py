@@ -320,18 +320,25 @@ class Pretty:
 
     def choice(self, number: int, question: str, options: Sequence[tuple[str, str]],
                default: int) -> int:
+        """A menu answered with the arrow keys; up to nine options each also take its number,
+        as a single key.  questionary refuses a tenth single-key shortcut, so a longer menu (a
+        run's episodes on setup's defaults, a card's sections, a tool file's tools) has none."""
         import questionary
 
         self.stderr.print()
+        keyed = len(options) <= 9
         choices = []
         for index, (label, note) in enumerate(options):
-            choices.append(questionary.Choice(label, value=index, shortcut_key=str(index + 1),
+            choices.append(questionary.Choice(label, value=index,
+                                              shortcut_key=str(index + 1) if keyed else False,
                                               description=note.replace("\n", " ") or None))
         self._prompt_session()
         answer: int = questionary.select(
             question, choices=choices, default=choices[default], qmark=f"{number}.",
-            pointer="❯", use_shortcuts=True, style=_question_style(),
-            instruction=f"(arrow keys or 1-{len(options)}, then Enter)", output=self._output,
+            pointer="❯", use_shortcuts=keyed, style=_question_style(),
+            instruction=(f"(arrow keys or 1-{len(options)}, then Enter)" if keyed
+                         else "(arrow keys, then Enter)"),
+            output=self._output,
         ).unsafe_ask()
         return answer
 
