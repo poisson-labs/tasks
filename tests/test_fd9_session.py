@@ -387,6 +387,8 @@ def test_fd9_7_the_status_block_says_what_read_folder_reads_and_step_1_is_the_st
     block = first_home(session)
     status = "\n".join(line for line in block if not re.match(r"^next\s*$", line))
     assert steps_of(block)[0] == STEP_ONE[state], block
+    if state == "D-refused":
+        assert "card" in steps_of(block)[1:], block  # ruled 2026-10-20: offered below replies
     rows = {match.group(1) for line in block if (match := re.match(r"^(\w[\w ]*?)\s{2,}", line))}
     assert "folder" in rows and "ready" in rows, block
     if facts.settings is None:
@@ -496,8 +498,9 @@ def test_fd9_8_every_offered_step_runs_as_a_command_without_a_refusal(
     """Each step of `next`, picked by its number in a session on a copy of the state, then its
     `same as` command run from a shell in another copy (a run answered yes): no exit 1 or 2.  A
     step with no command (`home`, `replies`) is a view.  In state D with a refused card, step 1 is
-    `card`, which shows the refusal and exits 1: that step is the pending question
-    `test_fd9_pending_refused_card_step.py`.  Red before the build: there is no session."""
+    the replies view (ruled 2026-10-20) and `card` is offered below it; that `card` step shows the
+    refusal and exits 1 by FD5's codes, so it is left out here, pending
+    `test_fd9_pending_refused_card_below.py` (yes/no 5).  Red before the build: no session."""
     keyed(monkeypatch, states)
     work = here(states, state, world)
     held = hold_lock(run_folder(work)) if state == "C2" else None

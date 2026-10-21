@@ -101,9 +101,11 @@ WORDS = ("run", "again", "card", "more", "replies", "task", "verify", "runs", "s
 
 STEP_ONE = {
     "A": "setup", "B": "run", "C1": "run", "C2": "home", "D": "card", "D-nocard": "card",
-    "D-refused": "card", "E": "card",
+    "D-refused": "replies", "E": "card",
 }
-"""Step 1 of `next` for each fixture state (spec §16.3's table)."""
+"""Step 1 of `next` for each fixture state (spec §16.3's table).  A refused card's step 1 is the
+replies view, ruled 2026-10-20 (FD9 Session A's yes/no 3, no): the session never leads with a
+step that fails; `card` is offered below it."""
 
 STEP_COMMAND = {"setup": ["init"], "run": ["run"], "home": None, "card": ["card"]}
 """Step 1's verb, for the off-terminal `next:` (G5): `setup` is the run-through, whose command is
