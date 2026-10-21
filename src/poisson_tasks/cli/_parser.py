@@ -79,37 +79,37 @@ class _Setting(argparse.Action):
 
 
 _SETTING_HELP: dict[str, str] = {
-    "--provider": "question 1: openai, anthropic, ollama, vllm or openai-compatible",
-    "--model": "question 2: the model's name, as the provider spells it",
-    "--base-url": "question 3: the endpoint; required for openai-compatible, else the preset's",
-    "--api-key-env": 'question 4: the variable that holds the key; "" for none',
+    "--provider": "the provider: openai, anthropic, ollama, vllm or openai-compatible",
+    "--model": "the model's name, as the provider spells it",
+    "--base-url": "the endpoint; required for openai-compatible, else the preset's",
+    "--api-key-env": 'the variable that holds the key; "" for none',
     "--allow-plain-http-key": "send the key over plain http to another machine",
-    "--price": "question 5: dollars per million tokens, input, cached input, output",
+    "--price": "the price, dollars per million tokens: input, cached input, output",
     "--price-read-on": "the date the prices were read, as 2026-09-25",
     "--no-price": "no price: the cap is then in tokens",
-    "--recipe": "question 6: first-look, card or custom",
+    "--recipe": "what to measure: first-look, card or custom, or a recipe your tools reach",
     "--measure": "an alias of --recipe, kept for one release",
     "--knob": "with --recipe custom: depth or distractor",
     "--levels": "with --recipe custom: the levels, comma-separated",
     "--controls": "with --recipe custom: add the control arms",
     "--no-controls": "with --recipe custom: no control arms",
     "--strictness": "with --recipe custom: strict or leaky",
-    "--tasks-per-level": "question 7: how many tasks per level",
+    "--tasks-per-level": "how many tasks per level",
     "--seeds": "the tasks' seeds, comma-separated, instead of --tasks-per-level",
-    "--attempts": "question 8: how many attempts at each task",
+    "--attempts": "how many attempts at each task",
     "--generator-version": "the label that enters every task id",
     "--temperature": "the decoding's temperature",
     "--top-p": 'the decoding\'s top-p, or "not sent"',
     "--reasoning-effort": 'the decoding\'s reasoning effort, or "not sent"',
     "--max-tokens": 'the decoding\'s token limit per reply, or "not sent"',
-    "--spend-cap": "question 9: stop the run once it has spent this many dollars",
+    "--spend-cap": "stop the run once it has spent this many dollars",
     "--token-cap": "stop the run once it has used this many tokens",
     "--max-model-calls": "the model calls allowed per episode",
     "--concurrency": "how many episodes run at once",
     "--runs-dir": "where runs are kept",
     "--tasks-dir": "where generate writes its files",
-    "--own-file": "question 6, your own tools: the tool file, an OpenAI tools file, an MCP tool "
-                  "list or an OpenAPI document, beside tasks.toml",
+    "--own-file": "your own tools: the tool file, an OpenAI tools file, an MCP tool list or an "
+                  "OpenAPI document, beside tasks.toml",
     "--own-format": "with --own-file: auto, openai, mcp or openapi",
     "--own-name": "with --own-file: the set's name, shown on the card",
     "--own-read": "with --own-file: a tool whose effect the file does not say is a read; "
@@ -204,6 +204,7 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
                     "card that says what each level of difficulty was worth to the model you ran.",
         epilog=(
             "examples:\n"
+            f"  {prog}             on a terminal, with no command: a guided session\n"
             f"  {prog} init        answer a few questions; writes tasks.toml and spends nothing\n"
             f"  {prog} run         show the plan and its cost, ask, then run\n"
             f"  {prog} card        what each level was worth to the model\n"
@@ -234,10 +235,11 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
 
     p = verb(
         "init", "ask what to test and write tasks.toml; spends nothing",
-        "A guided setup. It asks which model to test, which environment variable holds its key "
-        "(it records the variable's name, never the key), what to measure and when to stop, "
-        "then writes tasks.toml and prints the same setup as one command. It fetches the "
-        "tokenizer file first if it is missing. It spends nothing.",
+        "A guided setup. It asks what to test (a model on the built-in tasks, or on your own "
+        "tools), which model, which environment variable holds its key (it records the "
+        "variable's name, never the key), what to measure and when to stop, then writes "
+        "tasks.toml; doctor --show-command prints the same setup as one command. It fetches "
+        "the tokenizer file first if it is missing. It spends nothing.",
         ["init", "init --yes --provider openai --spend-cap 1.00", "init --force",
          "init --yes --recipe custom --knob depth --levels 1,3 --no-check-key",
          "init --own-file tools.json --own-flow get_order.order_id:refund_order.order_id",
