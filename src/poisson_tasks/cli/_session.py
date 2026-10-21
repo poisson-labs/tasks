@@ -294,10 +294,11 @@ class Session:
 
     # -- reading ------------------------------------------------------------------------
 
-    def read(self, hint: str = PLAIN_PROMPT) -> str:
+    def read(self, hint: str = PLAIN_PROMPT, *, above: bool = False) -> str:
         """One line at the session's own prompt.  Ctrl-C is `KeyboardInterrupt`, Ctrl-D is
         `EOFError`.  This is never a verb's question: those go through the renderer's `ask`,
-        `choice` and `confirm`."""
+        `choice` and `confirm`.  In the pretty look the hint is the prompt's placeholder, which
+        goes at the first key, or with `above` a dim line above the prompt."""
         if not self.pretty:
             sys.stdout.write(hint)
             sys.stdout.flush()
@@ -326,8 +327,13 @@ class Session:
                 key_bindings=keys,
                 style=Style([("mark", f"bold {COBALT}"), ("placeholder", "fg:ansibrightblack")]),
             )
-        placeholder = hint if hint != PLAIN_PROMPT else (
-            "a step's number, a word, help or quit" if self.width() >= 50 else "a number or a word")
+        if above:
+            self.write(hint.rstrip(": "), "dim")
+            placeholder = ""
+        else:
+            placeholder = hint if hint != PLAIN_PROMPT else (
+                "a step's number, a word, help or quit" if self.width() >= 50
+                else "a number or a word")
         answer: str = self._prompt.prompt([("class:mark", "› ")],
                                           placeholder=[("class:placeholder", placeholder)])
         return answer.strip()
@@ -586,7 +592,7 @@ class Session:
                    "step you are in and leaves the folder as it was; you can leave at any prompt "
                    "with quit.")
         self.write()
-        if not self._between("Enter to start, or quit: "):
+        if not self._between("Enter to start, or quit: ", starts=("1", "y", "yes")):
             return
         from poisson_tasks.cli._common import tokenizer_present
 
@@ -632,11 +638,12 @@ class Session:
             self.write()
         self.home()
 
-    def _between(self, hint: str) -> bool:
-        """A prompt between the run-through's steps: Enter goes on; `quit` leaves; Ctrl-C ends
-        the run-through on the home screen; any other word ends it and is taken there."""
+    def _between(self, hint: str, starts: Sequence[str] = ()) -> bool:
+        """A prompt between the run-through's steps: Enter, or one of `starts`, goes on; `quit`
+        leaves; Ctrl-C ends the run-through on the home screen; any other word ends it and is
+        taken there.  The hint is a line of its own above the prompt, so it stays while typing."""
         try:
-            text = self.read(hint)
+            text = self.read(hint, above=True)
         except KeyboardInterrupt:
             self.write()
             self.home()
@@ -645,7 +652,7 @@ class Session:
             raise Leave from None
         if text == "quit":
             raise Leave
-        if text:
+        if text and text.lower() not in starts:
             self.home()
             self.take(text)
             return False
