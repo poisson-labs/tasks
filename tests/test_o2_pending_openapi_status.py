@@ -1,10 +1,10 @@
-"""Pending a yes/no: which 4xx an OpenAPI-shaped error carries for each code.
+"""Pending a decision: which 4xx an OpenAPI-shaped error carries for each code.
 
-**Why it is open.**  Spec §4: "an OpenAPI-shaped `{"status": 4xx or 503, "detail": "..."}`", with the
-codes `not_found`, `invalid_arguments`, `not_ready` and `unavailable`; 503 is `unavailable`'s, and the
-4xx of the other three is not said.
+**Why it is open.**  The design: "an OpenAPI-shaped `{"status": 4xx or 503, "detail": "..."}`", with
+the codes `not_found`, `invalid_arguments`, `not_ready` and `unavailable`; 503 is `unavailable`'s,
+and the 4xx of the other three is not said.
 
-**Recommendation: yes.**  404 for `not_found`, 422 for `invalid_arguments` (the request was read and
+**Recommended.**  404 for `not_found`, 422 for `invalid_arguments` (the request was read and
 its content is wrong), 409 for `not_ready` (the store is not in the state the call needs).  A no
 picks others; the `status` stays one integer per code.
 """

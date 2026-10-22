@@ -1,15 +1,15 @@
-"""Pending a yes/no: how `doctor` knows the tool file changed since the last run.
+"""Pending a decision: how `doctor` knows the tool file changed since the last run.
 
-**Why it is open.**  Spec §8.2: "`doctor` re-reads the file and reports the same summary; a file whose
-digest changed since the last run says so, because its tasks changed".  Which run is "the last run"
-is not said: a run's folder is found by its plan's hash, and the plan's hash moves with the file's
-digest, so the plan of a changed file has no folder.
+**Why it is open.**  The design: "`doctor` re-reads the file and reports the same summary; a file
+whose digest changed since the last run says so, because its tasks changed".  Which run is "the last
+run" is not said: a run's folder is found by its plan's hash, and the plan's hash moves with the
+file's digest, so the plan of a changed file has no folder.
 
-**Recommendation: yes.**  The last run is the run folder under `[output] runs` most recently written
-whose `plan.json` names the same tool file (its `own.name` and the file's name); when its
-`file_digest` is not the file's now, `doctor` says so on one line naming both digests' first twelve
-characters and that the tasks changed.  With no such folder it says nothing of it.  A no compares
-against a digest `tasks.toml` itself keeps, which a user would then see in the file.
+**Recommended.**  The last run is the run folder under `[output] runs` most recently written whose
+`plan.json` names the same tool file (its `own.name` and the file's name); when its `file_digest` is
+not the file's now, `doctor` says so on one line naming both digests' first twelve characters and
+that the tasks changed.  With no such folder it says nothing of it.  If it is declined, the build
+compares against a digest `tasks.toml` itself keeps, which a user would then see in the file.
 """
 
 from __future__ import annotations

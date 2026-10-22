@@ -1,18 +1,18 @@
-"""Pending a yes/no: an answer on a user's own tools carries no sequence number, and a run is
+"""Pending a decision: an answer on a user's own tools carries no sequence number, and a run is
 replayed in the order the harness sent the calls.
 
-**Why it is open.**  Spec §4 says "every call advances a counter, so replay orders calls exactly as
-the built-in export does".  The built-in export orders a run's calls by the `seq` each engine line
-opens with.  An own-tools answer is the user's response object (or the format's error), and a
+**Why it is open.**  The design says "every call advances a counter, so replay orders calls exactly
+as the built-in export does".  The built-in export orders a run's calls by the `seq` each engine
+line opens with.  An own-tools answer is the user's response object (or the format's error), and a
 counter written into it would change the shape the user's schemas give it: an `outputSchema` with
 `additionalProperties: false` would no longer hold.  verifiers' `null` harness makes a turn's calls
 one at a time, in the order the assistant message lists them (`harnesses/null/program.py` at 0.3.1),
 so the order the harness sent them is the order the server answered them.
 
-**Recommendation: yes.**  The answer is the object alone; the counter is the simulator's own
-(`State.calls`); the replay takes the sampled calls in the order they were made.  A no puts the
-counter in the text (a line before the object, say) and orders the replay by it, as the built-in
-export does.
+**Recommended.**  The answer is the object alone; the counter is the simulator's own
+(`State.calls`); the replay takes the sampled calls in the order they were made.  If it is declined,
+the build puts the counter in the text (a line before the object, say) and orders the replay by it,
+as the built-in export does.
 """
 
 from __future__ import annotations

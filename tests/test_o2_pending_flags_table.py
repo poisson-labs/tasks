@@ -1,13 +1,14 @@
-"""Pending a yes/no: the own-tools flags are `config.OWN_INIT_FLAGS`, beside `INIT_FLAGS`.
+"""Pending a decision: the own-tools flags are `config.OWN_INIT_FLAGS`, beside `INIT_FLAGS`.
 
-**Why it is open.**  Spec §8.1 lists the flags; where `config` keeps them is not said.  FD1's frozen
+**Why it is open.**  The design lists the flags; where `config` keeps them is not said.  The frozen
 `test_fd1_1_the_flag_table_covers_every_key_with_the_spec_flags` holds every flag of
-`config.INIT_FLAGS` to the front door spec §6.2's list and every key it sets to §5.2's, so an own-tools
-flag in `INIT_FLAGS` fails it.
+`config.INIT_FLAGS` to the front door's list and every key it sets to the settings file's, so an
+own-tools flag in `INIT_FLAGS` fails it.
 
-**Recommendation: yes.**  A table of their own, `OWN_INIT_FLAGS`, the same `InitFlag` rows, read by
-`config_from_init_args` with `INIT_FLAGS`; FD1's frozen test stays as it is.  A no puts them in
-`INIT_FLAGS` and retrofits FD1's frozen test, a recorded commit after the ruling.
+**Recommended.**  A table of their own, `OWN_INIT_FLAGS`, the same `InitFlag` rows, read by
+`config_from_init_args` with `INIT_FLAGS`; that frozen test stays as it is.  If it is declined, the
+build puts them in `INIT_FLAGS` and retrofits that frozen test, a recorded commit after the
+decision.
 """
 
 from __future__ import annotations

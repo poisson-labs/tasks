@@ -1,14 +1,14 @@
-"""Pending a yes/no: how `init` asks whether the tools of unknown effect read or write.
+"""Pending a decision: how `init` asks whether the tools of unknown effect read or write.
 
-**Why it is open.**  Spec §8.1: "It asks whether the 2 unknowns read or write"; §2.3: a tool whose
+**Why it is open.**  The design: "It asks whether the 2 unknowns read or write", and a tool whose
 effect is unknown is treated as write until the user says otherwise in `tasks.toml`
 (`read = [...]`, `write = [...]`).  One question for all of them, or one each, and what Enter means,
 are not said.
 
-**Recommendation: yes.**  One question per tool whose effect is unknown, naming it, in the file's
-order, after the summary: `r` for read, `w` for write, Enter to leave it unknown (and so treated as
-write, and in neither list).  The answers land in `[own] read` and `write`.  A no asks once, listing
-them, with one answer for all.
+**Recommended.**  One question per tool whose effect is unknown, naming it, in the file's order,
+after the summary: `r` for read, `w` for write, Enter to leave it unknown (and so treated as write,
+and in neither list).  The answers land in `[own] read` and `write`.  If it is declined, the build
+asks once, listing them, with one answer for all.
 """
 
 from __future__ import annotations

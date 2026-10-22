@@ -1,10 +1,10 @@
 """Determinism and the own-tools generator's hash, frozen as tests.
 
-The invariant is O2.1 of the knobs plan (spec §5.3, §2.2): same file bytes, arm and seed, the same
-task, byte for byte, across processes; the own-tools generator's hash covers its module's bytes
-and the shared modules it imports; no built-in task id moves, and the built-in generator hash and
-`EXPECTED_GENERATOR_HASH` are byte-identical before and after O2; O2 edits neither `surface.py`
-nor `knobs.py`.  The file's digest goes into every task id, and a user never types it.
+The invariant: same file bytes, arm and seed, the same task, byte for byte, across processes; the
+own-tools generator's hash covers its module's bytes and the shared modules it imports; no built-in
+task id moves, and the built-in generator hash and `EXPECTED_GENERATOR_HASH` are byte-identical
+before and after the own-tools tasks; their build edits neither `surface.py` nor `knobs.py`.  The
+file's digest goes into every task id, and a user never types it.
 
 Shapes decided here
 -------------------
@@ -15,10 +15,10 @@ function of a mapping from module name to bytes) and `HASHED_MODULES`, the modul
 the hash covers.  An own-tools arm is a `knobs.ArmSpec` whose `generator_version` is `"own-1"`.
 
 **2. What the hash covers**: every `poisson_tasks` module loaded by importing the generator, the
-simulator and the verdict, `surface` and `knobs` among them (with them the package's own
-`__init__` and O1's modules, which are loaded too); and none of `arms` (so a knob shipping moves no
-own task id), `config`, `calibration`, `export`, `runs` or `cards`, which those imports must not
-load.
+simulator and the verdict, `surface` and `knobs` among them (with them the package's own `__init__`
+and the tool-file readers' modules, which are loaded too); and none of `arms` (so a knob shipping
+moves no own task id), `config`, `calibration`, `export`, `runs` or `cards`, which those imports
+must not load.
 
 **3. A task's id** moves with every field of the task and so with the file's digest, the arm, the
 seed, the split and the generator's hash.  The task carries `file_digest`, `generator_hash`,

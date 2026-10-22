@@ -1,23 +1,22 @@
-"""What Tasks refuses when it reads a tool file, frozen as tests (O1.3).
+"""What Tasks refuses when it reads a tool file, frozen as tests.
 
-The invariant is O1.3 of the knobs plan, from the own-tools spec §3: every refusal of §3 that
-belongs to reading fires, per tool where it can, naming the tool and the reason in one line, and
-the set-level refusals fire.  Every refusal here is pinned against an accepted control that
-differs in the one thing under test, never by the words of its message: a refusal is a
-`Refusal` in `reading.refused` (per tool) or an `OwnToolsError` (the set), and which one fired is
-read off `Refusal.kind`, one of `REFUSAL_KINDS`.
+Every refusal of the design's that belongs to reading fires, per tool where it can, naming the tool
+and the reason in one line, and the set-level refusals fire.  Every refusal here is pinned against
+an accepted control that differs in the one thing under test, never by the words of its message: a
+refusal is a `Refusal` in `reading.refused` (per tool) or an `OwnToolsError` (the set), and which
+one fired is read off `Refusal.kind`, one of `REFUSAL_KINDS`.
 
 Shapes decided here
 -------------------
 
-**1. The renaming** (§3's first bullet).  Characters outside letters, digits, `_` and `-` become
-`_`; then a name over 64 characters is cut to its first 55 characters, `_`, and the first 8 hex
-digits of the SHA-256 of the original name's UTF-8 bytes (the one hash this package uses; "its
-digest" in §3 is the name's).  A legal name is unchanged and has no title; a renamed tool's title
-is its original name.  After the renaming only an empty name, or a name that is not text, is
+**1. The renaming** (the design's first refusal).  Characters outside letters, digits, `_` and `-`
+become `_`; then a name over 64 characters is cut to its first 55 characters, `_`, and the first 8
+hex digits of the SHA-256 of the original name's UTF-8 bytes (the one hash this package uses; "its
+digest" in the design is the name's).  A legal name is unchanged and has no title; a renamed tool's
+title is its original name.  After the renaming only an empty name, or a name that is not text, is
 illegal (kind `name`); a name that then repeats an earlier tool's, whether the file wrote it twice
-or two names renamed to one, is refused as the later one, in file order (kind `duplicate`), and
-the earlier tool is kept.
+or two names renamed to one, is refused as the later one, in file order (kind `duplicate`), and the
+earlier tool is kept.
 
 **2. "A JSON object schema"** (kind `not_object`) is a mapping whose `type` is `"object"`, or
 with no `type` and a `properties` mapping; anything else, a list type included, is not.
@@ -40,9 +39,9 @@ a parameter and a body field or from two parameters in different places.
 
 **6. A target** (`can_target`) is a tool with at least one argument that is not free text: a
 parameter whose schema is not a string, or a string with a `format`, an `enum` or `const`, or a
-`minLength` or `maxLength`.  A `pattern` is not one of §3's three (format, enum or bound) and does
-not make a target; a tool with no arguments has nothing to check and is not one either.  Only the
-tool's own (top-level) parameters count.
+`minLength` or `maxLength`.  A `pattern` is not one of the design's three (format, enum or bound)
+and does not make a target; a tool with no arguments has nothing to check and is not one either.
+Only the tool's own (top-level) parameters count.
 
 **7. The set** (`OwnToolsError`): fewer than 2 usable tools or more than 256, or no usable tool
 that can be a target.  The error carries the per-tool refusals found on the way, so `init` can

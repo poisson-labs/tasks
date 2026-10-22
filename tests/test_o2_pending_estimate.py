@@ -1,17 +1,17 @@
-"""Pending a yes/no: the estimate of a plan on a user's own tools.
+"""Pending a decision: the estimate of a plan on a user's own tools.
 
-**Why it is open.**  Spec §8.1: "the plan's estimate scales the published card's per-call figures by
-this block's token count", and the cap follows the front door's rule.  Which figures, and how the
-block's count scales them, is not said; the built-in estimate reads the published records of each arm,
-and an own-tools arm has none.
+**Why it is open.**  The design: "the plan's estimate scales the published card's per-call figures
+by this block's token count", and the cap follows the front door's rule.  Which figures, and how the
+block's count scales them, is not said; the built-in estimate reads the published records of each
+arm, and an own-tools arm has none.
 
-**Recommendation: yes.**  Per model call: the published card's mean figures per call over all its
+**Recommended.**  Per model call: the published card's mean figures per call over all its
 records (prompt, cached input and completion tokens, each summed and divided by the model calls;
 the card is the one the built-in estimate reads, the plan's model's, else model A's).  Per task: its reference turns (reference calls and the reply) times those figures,
 the prompt and cached input multiplied by the task's block tokens over the built-in block's (the
 tools of `depth:d1` at the first published seed, both rendered as JSON and counted in the reference
 tokenizer); the output not scaled.  Dollars at the plan's prices; the sum over the plan's tasks and
-attempts.  A no picks another scaling (the whole call, or the block alone).
+attempts.  If it is declined, the build picks another scaling (the whole call, or the block alone).
 """
 
 from __future__ import annotations

@@ -1,12 +1,12 @@
-"""Pending a yes/no: the default recipe on a user's own tools.
+"""Pending a decision: the default recipe on a user's own tools.
 
-**Why it is open.**  Spec §8.1 offers the recipes that apply to the set "with `tool-choice` as the
-default".  `tool-choice` needs similarity or block to have shipped (knobs spec §17.2), and Taylor ruled
+**Why it is open.**  The design offers the recipes that apply to the set "with `tool-choice` as the
+default".  `tool-choice` needs similarity or block to have shipped, and it was decided
 2026-10-13 that this must hold whatever `arms.SHIPPED_KNOBS` holds (empty today).
 
-**Recommendation: yes.**  `tool-choice` when it is offered on the set, else the first offered recipe in
-the table's order, else none (`own.recipes.default_recipe`).  A no has no default when `tool-choice` is
-not offered, so `init` asks with no answer pre-selected.
+**Recommended.**  `tool-choice` when it is offered on the set, else the first offered recipe in the
+table's order, else none (`own.recipes.default_recipe`).  If it is declined, the build has no
+default when `tool-choice` is not offered, so `init` asks with no answer pre-selected.
 """
 
 from __future__ import annotations

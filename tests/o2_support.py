@@ -1,16 +1,16 @@
-"""Helpers the O2 test files share: the fixture sets read into the normal form, the flows the
-tests declare on the acme set, arms on a user's own tools, the episode builders, and a scripted
-model that plays an own-tools task's reference calls.
+"""Helpers the `tests/test_o2_*.py` files share: the fixture sets read into the normal form, the
+flows the tests declare on the acme set, arms on a user's own tools, the episode builders, and a
+scripted model that plays an own-tools task's reference calls.
 
-Every O2 module is reached through `importlib`, so each test file collects on a tree that lacks
-one and each test fails there for that one reason.  Test files import this as
+Every own-tools module is reached through `importlib`, so each test file collects on a tree that
+lacks one and each test fails there for that one reason.  Test files import this as
 `tests.o2_support`, the way `pyproject.toml`'s `pythonpath` lets them.
 
-**The fixture sets** are O1's, unchanged: the acme-support set in its MCP, OpenAI (Chat
-Completions), OpenAPI 3.0 and OpenAPI 3.1 shapes, the Swagger Petstore document and the
-Everything reference server's `tools/list`.  The OpenAI acme file states no effects (the
-format has none), so the tests declare its three reads the way `tasks.toml`'s `read = [...]`
-would, through `own.apply_effects`.
+**The fixture sets** are the `test_o1_*` tests', unchanged: the acme-support set in its MCP, OpenAI
+(Chat Completions), OpenAPI 3.0 and OpenAPI 3.1 shapes, the Swagger Petstore document and the
+Everything reference server's `tools/list`.  The OpenAI acme file states no effects (the format has
+none), so the tests declare its three reads the way `tasks.toml`'s `read = [...]` would, through
+`own.apply_effects`.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ LETTER = {
     "similarity": "s", "faults": "f", "history": "t", "block": "k",
     "arguments": "a", "spread": "p", "depth": "d", "shape": "w",
 }
-# The knobs of spec §6.1 that have levels, in the table's order (cost and time has none).
+# The knobs that have levels, in the knobs' order (cost and time has none).
 KNOBS = ("similarity", "faults", "history", "block", "arguments", "spread", "depth", "shape")
 ACME_READS = ("get_order", "search_orders", "list_channels")
 

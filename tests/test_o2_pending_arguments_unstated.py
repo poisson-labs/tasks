@@ -1,15 +1,16 @@
-"""Pending a yes/no: on an arguments arm, a checkable argument the request did not state, given a
+"""Pending a decision: on an arguments arm, a checkable argument the request did not state, given a
 value, keeps the call from being the expected write.
 
-**Why it is open.**  Spec §5.2: "an argument the request did not state is ignored unless the knob says
-otherwise (§6)"; §6.1, arguments: the level is how many parameters "the request states and the
+**Why it is open.**  The design: "an argument the request did not state is ignored unless the knob
+says otherwise"; and, for arguments: the level is how many parameters "the request states and the
 verifier checks; the rest are left out".  Whether "left out" binds the model is not said.  The
-built-in knob rules the call carries exactly the stated values (knobs spec §14.2, ruling 48).
+built-in knob has the call carry exactly the stated values (as decided for it).
 
-**Recommendation: yes.**  As the built-in knob: on an arguments arm the target call must carry the
-stated checkable arguments and no other checkable argument; one more makes it another write (a side
-effect), so the episode is short of its goal.  Free text and every other arm are as §5.2 says.  A no
-ignores unstated arguments on an arguments arm too, so the level would only count what is checked.
+**Recommended.**  As the built-in knob: on an arguments arm the target call must carry the stated
+checkable arguments and no other checkable argument; one more makes it another write (a side
+effect), so the episode is short of its goal.  Free text and every other arm are as the design says.
+A no ignores unstated arguments on an arguments arm too, so the level would only count what is
+checked.
 """
 
 from __future__ import annotations

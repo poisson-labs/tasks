@@ -1,19 +1,19 @@
 """The own-tools tasks keep their content, and the own-tools generator's hash is recorded beside the
 frozen built-in one, frozen as a test.
 
-O2 Session A's tests pin the structure of a task on a user's own tools (the target drawn from the
-writes that can be one, the stated values as JSON in the request, four named reads, the chain's
-links, the controls' labels) and not its content: which target a seed draws, which values, which
-reads and in what order are the build's choices, and a later change that moved them would pass
+The frozen `test_o2_*` tests pin the structure of a task on a user's own tools (the target drawn
+from the writes that can be one, the stated values as JSON in the request, four named reads, the
+chain's links, the controls' labels) and not its content: which target a seed draws, which values,
+which reads and in what order are the build's choices, and a later change that moved them would pass
 every frozen test.  As the knobs' kept files did (`tests/test_k4_kept.py` to `test_k8b_kept.py`),
 this file holds a content digest per fixture set and arm, over the seeds 404, 55 and 2121 on the
-eval split, strict, of every field but `task_id` and `generator_hash`, which move with any edit to
-a hashed module.  It passes on the build by design; a change that moves any own task fails here.
+eval split, strict, of every field but `task_id` and `generator_hash`, which move with any edit to a
+hashed module.  It passes on the build by design; a change that moves any own task fails here.
 
 **The own-tools generator's hash** is the second record, beside the built-in generator's frozen
 `b460964dc153fab4535af3b39abd41d50198f3dcc644ae3e43ddee85544b57f9`
 (`tests/test_frozen_generator.py`): the hash of `own-1` over `generator.HASHED_MODULES` as this
-file was committed.  Unlike the built-in one it is not frozen: an own-tools session that edits a
+file was committed.  Unlike the built-in one it is not frozen: a change to the own-tools tasks that edits a
 hashed module updates it here and names the new hash in its record, with the digests below.  A
 built-in hash that moved would fail `test_frozen_generator`, never this file; an own hash that moved
 fails here, never there.

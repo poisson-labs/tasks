@@ -1,11 +1,11 @@
-"""Pending a yes/no: which of a set's levels a recipe runs on own tools.
+"""Pending a decision: which of a set's levels a recipe runs on own tools.
 
 **Why it is open.**  A built-in recipe takes, for each of its knobs, every level, the first and last,
-or the first, middle and last of the knob's card levels (knobs spec §17.2).  On own tools a knob's
+or the first, middle and last of the knob's card levels.  On own tools a knob's
 levels are those the set reaches (block to the set's size, arguments to the target's counts, depth to
-the longest chain), and the spec does not say how a recipe maps onto them.
+the longest chain), and the design does not say how a recipe maps onto them.
 
-**Recommendation: yes.**  The same choice made over the levels this set reaches: `first-look` on a
+**Recommended.**  The same choice made over the levels this set reaches: `first-look` on a
 chain of three runs depth 1, 2 and 3; `tool-choice` on a set of twenty runs block 8 and 16.  A no
 takes the recipe's card levels that the set reaches (first-look on a chain of three would then run
 depth 1 and 3 only).

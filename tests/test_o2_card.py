@@ -1,10 +1,9 @@
 """The card on a user's own tools, frozen as tests.
 
-The invariant is O2.7 of the knobs plan (spec §9): the own-tools provenance kind, the first lines
-and the not-claimed lines of §9, and a side-by-side with a published card that pools nothing.  And
-spec §6.3: on your tools each knob's card shows its own table against its first level (knobs spec
-§11.2) and says, in words, whether that knob made your tasks harder for this model at this sample
-size.
+The invariant: the own-tools provenance kind, the first lines and the not-claimed lines, and a
+side-by-side with a published card that pools nothing.  And on your tools each knob's card shows its
+own table against its first level and says, in words, whether that knob made your tasks harder for
+this model at this sample size.
 
 Shapes decided here
 -------------------
@@ -17,18 +16,18 @@ and its `as_dict()` holds no `tools` key, so every published block keeps its byt
 `kind` is refused.  `Provenance.for_plan` of a plan with `own` writes it, and the block's
 `generator_hash` is then the own-tools generator's.
 
-**2. The first lines** are spec §9's two sentences, the first paragraph after the document's
+**2. The first lines** are the design's two sentences, the first paragraph after the document's
 title: `Measured on your tools (<name>, <n> tool(s) from <an OpenAI tools file | an MCP tool
 list | an OpenAPI document>), with responses simulated from your schemas. Your backend was never
 called.`  `own.card.first_lines(tools)` renders them.
 
 **3. What it does not claim**: `card_claims(artifact).flags` holds `own_backend`,
-`own_not_comparable`, `own_levels` and `own_no_effect` on every own-tools card, and
-`own_word_match` unless every tool of the set has an intent; each flag is one line of
-`not_claimed`, holding a phrase of spec §9's words for it (`PHRASES`).  None of the built-in card's lines that compare with the published cards
-(`small_sample`, `not_comparable`, `not_covered`, `distractor`) is given: an own-tools card is not
-read against them at all.  `stale` reads the card's hash against the own-tools generator's.  The
-words of the lines are the build's.
+`own_not_comparable`, `own_levels` and `own_no_effect` on every own-tools card, and `own_word_match`
+unless every tool of the set has an intent; each flag is one line of `not_claimed`, holding a phrase
+of the design's words for it (`PHRASES`).  None of the built-in card's lines that compare with the
+published cards (`small_sample`, `not_comparable`, `not_covered`, `distractor`) is given: an
+own-tools card is not read against them at all.  `stale` reads the card's hash against the own-tools
+generator's.  The words of the lines are the build's.
 
 **4. Beside a published card**: `own.card.beside_published(own, published)` holds the line
 `DIFFERENT_TASKS` ("different tasks: read each card on its own"), the own card's document and the
@@ -242,8 +241,8 @@ def test_beside_a_published_card_of_another_model_is_refused() -> None:
 
 
 def test_the_comparison_of_the_built_in_cards_will_not_read_an_own_tools_card_beside_one() -> None:
-    """A guard: FD4's side-by-side, which pools levels across cards measured alike, never takes an
-    own-tools card and a published one as alike."""
+    """A guard: the card's side-by-side, which pools levels across cards measured alike, never takes
+    an own-tools card and a published one as alike."""
     own_card = artifact({"depth:d1": 0.9, "depth:d2": 0.6})
     published = published_artifact("gpt-5-nano")
     assert cal.comparable(own_card, published).field is not None

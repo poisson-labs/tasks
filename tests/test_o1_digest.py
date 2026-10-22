@@ -1,7 +1,6 @@
-"""The file digest and the summary, frozen as tests (O1.4), and the package's import footprint.
+"""The file digest and the summary, frozen as tests, and the package's import footprint.
 
-The invariant is O1.4 of the knobs plan, from the own-tools spec §2.2 and §8.1: the set's digest is
-over the file's bytes, it appears in the summary, and a user never types it.
+The set's digest is over the file's bytes, it appears in the summary, and a user never types it.
 
 Shapes decided here
 -------------------
@@ -9,15 +8,15 @@ Shapes decided here
 **1. The digest is SHA-256 of the file's bytes**, as hex: the one hash this package already takes
 its ids and its generator hash with.  Because it is over the bytes and not the parsed content, a
 file re-saved with other whitespace has another digest, which is right: `doctor` says the tasks
-changed when the file changed (§8.2), and the file is what the user keeps.
+changed when the file changed, and the file is what the user keeps.
 
-**2. The summary.**  Its first line is §8.1's, with every count always present so the line can be
-read back: `N tools: R read, W write, U not known (treated as write), X refused`, where N is the
-number of usable tools (R + W + U; the example in §8.1 adds up that way) and the suffix ` (one
-line each below)` follows only when X is not 0.  The next X lines are the refusals' lines, in
+**2. The summary.**  Its first line is the design's, with every count always present so the line can
+be read back: `N tools: R read, W write, U not known (treated as write), X refused`, where N is the
+number of usable tools (R + W + U; the design's example adds up that way) and the suffix
+` (one line each below)` follows only when X is not 0.  The next X lines are the refusals' lines, in
 file order.  The digest appears on a line of its own after them, and every renamed tool is listed
-with its original, so `init` and `doctor` show both as §3 asks.  The words of those later lines
-are not pinned.
+with its original, so `init` and `doctor` show both as the design asks.  The words of those later
+lines are not pinned.
 
 **3. "Never typed."**  No public function of the package takes a digest from its caller: the
 digest is computed by `read_tools` from the bytes it was given, and that is the only way one is
@@ -25,7 +24,8 @@ made.
 
 **4. The import footprint.**  `import poisson_tasks.own` imports no `verifiers`, no `mcp` and none
 of the generator (`poisson_tasks.tasks`): `init` and `doctor` read a tool file in a process with
-nothing else loaded, and O1 changes no generator (its hash is K1's business).  `list_mcp_tools`
+nothing else loaded, and reading a tool file changes no generator (its hash is the
+`test_k1_*` tests' business).  `list_mcp_tools`
 imports what it needs when it is called.
 """
 

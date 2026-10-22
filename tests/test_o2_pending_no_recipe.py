@@ -1,10 +1,12 @@
-"""Pending a yes/no: `init` on own tools when no recipe applies.
+"""Pending a decision: `init` on own tools when no recipe applies.
 
-**Why it is open.**  Spec §8.1 offers the recipes that apply to the set and nothing else.  With nothing
-shipped (today) a set with no flows has no recipe at all (`first-look` is depth's and needs flows).
+**Why it is open.**  The design offers the recipes that apply to the set and nothing else.  With
+nothing shipped (today) a set with no flows has no recipe at all (`first-look` is depth's and needs
+flows).
 
-**Recommendation: yes.**  `init` refuses in one line naming what is missing (a flow for depth; the probe
-for the rest), writes nothing and exits 1.  A no offers the knob menu (`custom`) there instead.
+**Recommended.**  `init` refuses in one line naming what is missing (a flow for depth; the probe for
+the rest), writes nothing and exits 1.  If it is declined, the build offers the knob menu (`custom`)
+there instead.
 """
 
 from __future__ import annotations

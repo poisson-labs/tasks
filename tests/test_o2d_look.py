@@ -1,10 +1,10 @@
 """The command's own-tools invocations under rule L16: each run both ways.
 
-FD5's look conformance (`tests/test_fd5_look.py`) holds a corpus of invocations to the one switch
-between the plain and the pretty style: piped, the pretty build equals the plain build byte for
-byte; in a terminal, the first line and the exit code are the plain style's.  The invocations
-O2 Session B2 adds to the command (own-tools spec §8) are held to the same rule here, through
-that module's own machinery, so its frozen corpus stays as it is.
+The command's look conformance (`tests/test_fd5_look.py`) holds a corpus of invocations to the one
+switch between the plain and the pretty style: piped, the pretty build equals the plain build byte
+for byte; in a terminal, the first line and the exit code are the plain style's.  The invocations
+the own-tools build adds to the command are held to the same rule here, through that module's own
+machinery, so its frozen corpus stays as it is.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from tests.o1_support import FAKE_MCP_SERVER, fixture
 from tests.test_fd5_look import first_verdict, in_terminals, piped, pretty_env, stripped
 
 FIXTURES = (world,)
-"""FD5's world, used here by name."""
+"""The command tests' world, used here by name."""
 
 FLOWS = ["--own-flow", "search_orders.orders[].order_id:get_order.order_id",
          "--own-flow", "get_order.order_id:refund_order.order_id"]

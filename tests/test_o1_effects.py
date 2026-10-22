@@ -1,6 +1,5 @@
-"""Read or write: what each format says of a tool's effect, frozen as tests (O1.2).
+"""Read or write: what each format says of a tool's effect, frozen as tests.
 
-The invariant is O1.2 of the knobs plan, from the own-tools spec §2.1's last column and §2.3.
 MCP's annotations and OpenAPI's HTTP methods say which tools change state; OpenAI schemas do not,
 so an OpenAI tool's effect is `unknown` and is treated as a write (the safe reading) until the
 user says otherwise in `tasks.toml`.
@@ -12,15 +11,15 @@ Shapes decided here
 and did not say `readOnlyHint: true` has a write (the MCP default for the hint is false), and a
 value that is not the boolean `true` is not true.  No `annotations` key at all is `unknown`.
 
-**2. Methods the spec does not list** (`options`, `trace`) are `unknown`, not guessed.
+**2. Methods the design does not list** (`options`, `trace`) are `unknown`, not guessed.
 
 **3. `is_write` is the verifier's question**: does a stray call to this tool count against the
 model?  It is true for `write` and for `unknown`, false for `read`.
 
-**4. `apply_effects` is where `tasks.toml`'s `read = [...]` and `write = [...]` land** (§2.3 and
-§8.2).  It gives a new set with the named tools' effects set, the rest untouched, and the set's
-name, format and digest unchanged (the file did not change).  It refuses a name the set does not
-hold (a typo would otherwise be silent) and a name in both lists.
+**4. `apply_effects` is where `tasks.toml`'s `read = [...]` and `write = [...]` land**.  It gives a
+new set with the named tools' effects set, the rest untouched, and the set's name, format and digest
+unchanged (the file did not change).  It refuses a name the set does not hold (a typo would
+otherwise be silent) and a name in both lists.
 """
 
 from __future__ import annotations

@@ -1,9 +1,8 @@
 """The knobs on a user's own tools, frozen as tests.
 
-The invariant is O2.4 of the knobs plan (spec §6): each knob of §6.1 applies as written, within
-the set's limits; depth and shape are offered only with flows, and refused with the spec's
-sentence without them.  And §6.3 as Taylor ruled it on 2026-10-13 23:26 (a recorded
-retrofit of this file after the freeze, O2 Session B1's second follow-up): every knob stays
+The invariant: each knob of the design applies as written, within the set's limits; depth and
+shape are offered only with flows, and refused with the design's sentence without them.  And as
+decided on 2026-10-13 23:26 (a recorded retrofit of this file after the freeze): every knob stays
 available on own tools in launch one, and the sentence that a knob which did not ship is not offered
 is withdrawn; the recipes still lead with the knobs that shipped, read from `arms.SHIPPED_KNOBS`
 whatever that list holds.
@@ -11,12 +10,12 @@ whatever that list holds.
 Shapes decided here
 -------------------
 
-**1. `generator.KNOBS`** is §6.1's knobs that have levels, in the table's order: similarity,
+**1. `generator.KNOBS`** is the design's knobs that have levels, in the table's order: similarity,
 faults, history, block, arguments, spread, depth, shape.  Every one the set reaches is offered on own
 tools (`recipes.offered_knobs`); the ones that shipped lead the recipes (`recipes.shipped_knobs`).  Cost and time is on every card and is
 no knob.  `knob_levels(toolset, knob, *, flows=())` is the levels this set reaches, empty where
 it reaches none; `generate` refuses any other level in one line (`ValueError`), and refuses depth
-and shape without flows with `UNAVAILABLE_WITHOUT_FLOWS`, §6.2's sentence, in its line.
+and shape without flows with `UNAVAILABLE_WITHOUT_FLOWS`, the design's sentence, in its line.
 
 **2. Single factor.**  For one seed, the levels of a knob share the target tool and the values
 the request states, except where the knob itself is the values (arguments) or carries the target
@@ -27,7 +26,7 @@ shows it and `OwnBundle.target_tool` its name in the set.
 
 **3. Similarity** shows the target and six copies of it, each taking its arguments and each
 carrying a four-digit number in its name or description: the numbers are `surface.target_number`
-and `surface.lookalike_numbers` (the knobs spec's ledger numbers), each copy's sharing exactly
+and `surface.lookalike_numbers` (the similarity knob's ledger numbers), each copy's sharing exactly
 `level` digits in place with the target's, and the request names the target's number and no
 copy's.  How a copy is named and described is the pending file
 `test_o2_pending_similarity_names.py`.
@@ -45,7 +44,7 @@ its levels are those of 8, 16, 32 and 64 the set reaches, and a block is the nex
 tools.  What every other arm offers is the pending file `test_o2_pending_base_block.py`.
 
 **7. Spread** splits the target value over the answers of named reads, `level` of them holding a
-part, in order; level 1 is spec §5.1's "read then call".  How many reads, what the others hold and
+part, in order; level 1 is the design's "read then call".  How many reads, what the others hold and
 which reads count are the pending file `test_o2_pending_spread_reads.py`.
 
 **8. Depth** follows the longest declared chain that ends at a write that can be a target: level d
@@ -156,8 +155,8 @@ def test_a_knob_that_is_not_on_own_tools_is_refused() -> None:
 
 
 def test_a_set_with_no_write_a_task_can_target_has_no_levels() -> None:
-    """Spec §3: a task's target is a write with an argument Tasks can check.  A set of reads and a
-    write taking only free text reaches no level of any knob; the same set with a checkable write
+    """The design: a task's target is a write with an argument Tasks can check.  A set of reads and
+    a write taking only free text reaches no level of any knob; the same set with a checkable write
     reaches some."""
     reads = (read_tool("look_case", {"code": {"type": "string", "minLength": 8, "maxLength": 8}}, ["code"]),
              read_tool("list_all", {}))
@@ -227,7 +226,7 @@ SHIPPED_CASES = [(), *[(knob,) for knob in SHIPPABLE], SHIPPABLE]
 def test_every_knob_the_set_reaches_is_offered_on_own_tools_whatever_shipped(
     label: str, shipped: tuple[str, ...]
 ) -> None:
-    """Retrofitted 2026-10-14 under Taylor's ruling of 2026-10-13 23:26: this test held the offer to
+    """Retrofitted 2026-10-14 under the decision of 2026-10-13 23:26: this test held the offer to
     depth and the shipped knobs; every knob the set reaches is offered, whatever shipped."""
     toolset = fixture_sets()[label]
     flows = flows_for(label)
@@ -240,7 +239,7 @@ def test_every_knob_the_set_reaches_is_offered_on_own_tools_whatever_shipped(
 def test_the_default_reads_arms_shipped_knobs_whatever_it_holds(
     shipped: tuple[str, ...], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A guard for the ruling of 2026-10-13: with no list given, what is offered is read from
+    """A guard for the decision of 2026-10-13: with no list given, what is offered is read from
     `arms.SHIPPED_KNOBS` when asked, whatever it holds then."""
     monkeypatch.setattr(arms_module, "SHIPPED_KNOBS", shipped)
     rec = recipes()
@@ -257,16 +256,17 @@ def test_the_default_reads_arms_shipped_knobs_whatever_it_holds(
 def test_the_recipes_on_own_tools_are_those_whose_knobs_work_on_the_set(
     label: str, shipped: tuple[str, ...]
 ) -> None:
-    """Knobs spec §17.4: on your own tools the list shows only the recipes whose knobs work on that
-    set.  As a built-in recipe that mixes a shipped and an unshipped knob drops the unshipped arms
-    (§17.2), a recipe is offered here when one of its knobs is offered on the set, and runs arms of
+    """On your own tools the list shows only the recipes whose knobs work on that
+    set.  As a built-in recipe that mixes a shipped and an unshipped knob drops the unshipped arms,
+    a recipe is offered here when one of its knobs is offered on the set, and runs arms of
     those knobs only, at levels the set reaches, every such knob with at least one.  Which levels is
     the pending file `test_o2_pending_recipe_levels.py`; the `card` recipe is
     `test_o2_pending_recipe_card.py`'s."""
     toolset, flows = fixture_sets()[label], flows_for(label)
     gen, rec = generator(), recipes()
-    # Retrofitted 2026-10-14 (the ruling of 2026-10-13 23:26): the recipes lead with the knobs that
-    # shipped and the set reaches, `shipped_knobs`, while `offered_knobs` is every knob it reaches.
+    # Retrofitted 2026-10-14 (the decision of 2026-10-13 23:26): the recipes lead with the knobs
+    # that shipped and the set reaches, `shipped_knobs`, while `offered_knobs` is every knob it
+    # reaches.
     offered = rec.shipped_knobs(toolset, flows=flows, shipped=shipped)
     table = rec.recipes_for(toolset, flows=flows, shipped=shipped)
     built_in = arms_module.recipe_table(SHIPPABLE)

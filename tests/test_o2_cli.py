@@ -1,17 +1,17 @@
 """`init`'s own-tools path and `doctor` on a settings file with `[own]`, frozen as tests.
 
-Spec §8.1: question 6 of the front door's `init` lists the recipes on the built-in tasks first,
+The design: question 6 of the front door's `init` lists the recipes on the built-in tasks first,
 then "Tasks on my own tools: an OpenAI tools file, an MCP tool list, or an OpenAPI spec", then the
 knob menu; there is one question 6.  Choosing own tools asks for the file, reads it, prints one
 summary line, then each refusal; asks whether the unknowns read or write; offers the recipes that
-apply to this set, with `tool-choice` as the default; and writes the file.  §8.2: `doctor`
-re-reads the file and reports the same summary.  Taylor's rulings of 2026-10-13: the command is
-`poisson-tasks`, and there is no umbrella command; the command line is being built now (FD5
-Session B, branch `fd5-a`), so these tests are written against the spec and the command's public
-behaviour as FD5 Session A froze it, and they fail on any tree without `poisson_tasks.cli` until
-FD5 merges.  O2 Session B builds these parts after that.
+apply to this set, with `tool-choice` as the default; and writes the file.  `doctor` re-reads the
+file and reports the same summary.  The decisions of 2026-10-13: the command is `poisson-tasks`,
+and there is no umbrella command; the command line was being built when these tests were written,
+so they are written against the design and the command's public behaviour as its frozen tests
+pinned it, and they fail on any tree without `poisson_tasks.cli`.  The own-tools build added
+these parts after the command merged.
 
-The command's public behaviour these tests rely on, every piece from FD5 Session A's frozen tests:
+The command's public behaviour these tests rely on, every piece from the command's frozen tests:
 `cli.main(argv, prog=...)` returns the exit code; under `--yes` `init` reads no stdin;
 `--no-fetch` and `--no-check-key` open no socket; the dialogue is asked on stderr and read a line
 at a time from a stdin that says it is a terminal (`isatty()`, `readline()`), Enter taking a
@@ -23,13 +23,13 @@ Shapes decided here
 -------------------
 
 **1. Question 6's own-tools entry** is the one after the offered recipes, and choosing the knob
-yourself is the one after it.  (FD5's frozen test of question 6 answers "3" for `custom`, which
-today is the third entry; with own tools in the spec's place it is the fourth.  That frozen test
-needs a retrofit, a ruling owed to Taylor.)
+yourself is the one after it.  (The command's frozen test of question 6 answered "3" for `custom`,
+then the third entry; with own tools in the design's place it is the fourth.  That frozen test
+needed a retrofit, which was decided.)
 
-**2. The file `init` writes** is the library's, `dump_config(config_from_init_args(flags))` with
-the run's estimate making the default cap when a price is set, as FD5 pins it, the own-tools
-flags among the flags and `--recipe` the set's default recipe when none is given
+**2. The file `init` writes** is the library's, `dump_config(config_from_init_args(flags))` with the
+run's estimate making the default cap when a price is set, as the command's tests pin it, the
+own-tools flags among the flags and `--recipe` the set's default recipe when none is given
 (`own.recipes.default_recipe`).
 
 **3. The summary** is `own.summary(reading)`: its first line, then each refusal's line, printed
@@ -106,8 +106,8 @@ class NoStdin(io.TextIOBase):
 
 @pytest.fixture
 def work(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A world of the test's own, as FD5's: home, working folder and temporary folder; colour off;
-    no provider or key variable."""
+    """A world of the test's own, as the command's tests have it: home, working folder and temporary
+    folder; colour off;  no provider or key variable."""
     for name in ("home", "work", "tmp"):
         (tmp_path / name).mkdir()
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
@@ -234,13 +234,13 @@ def test_init_writes_the_own_table_of_every_own_flag(work: Path, monkeypatch: py
 def test_question_six_offers_own_tools_after_the_recipes_and_the_knob_menu_after_it(
     work: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Spec §8.1 and Knobs §17.4: recipes, then own tools, then choosing the knob yourself.  With
+    """Recipes, then own tools, then choosing the knob yourself.  With
     flows given as flags and every effect in the file, choosing own tools asks for the file and
     then offers the set's recipes, Enter taking the default; the file is the one `--yes` writes
     with the same answers as flags.  Whatever `arms.SHIPPED_KNOBS` holds, the flows give the set a
     recipe (depth's)."""
     (work / "tools.json").write_bytes(fixture("acme-mcp-tools-list.json"))
-    # Retrofitted by ruling G7 (FD9 Session A): own tools is the first question's second answer,
+    # Retrofitted with the guided session: own tools is the first question's second answer,
     # and the file follows the price; custom is the entry after the recipes.
     custom_entry = str(len(offered_recipes()) + 1)
     stdin = Answers(["2", "", "", "", "", "tools.json"])
@@ -285,8 +285,8 @@ def test_doctor_reads_the_tool_file_again_and_reports_the_same_summary(
 def test_init_lists_depth_and_shape_as_unavailable_with_the_specs_sentence_without_flows(
     work: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Spec §6.2: without flows, depth and shape "are listed as unavailable with the sentence".  A set
-    with flows hears no such line."""
+    """The design: without flows, depth and shape "are listed as unavailable with the sentence".  A
+    set with flows hears no such line."""
     from tests.o2_support import generator
 
     (work / "tools.json").write_bytes(fixture("acme-mcp-tools-list.json"))

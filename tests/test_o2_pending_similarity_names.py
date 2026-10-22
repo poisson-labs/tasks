@@ -1,15 +1,15 @@
-"""Pending a yes/no: how similarity names and describes the copies of a user's tool.
+"""Pending a decision: how similarity names and describes the copies of a user's tool.
 
-**Why it is open.**  Spec §6.1: lookalikes are "copies of the target tool scoped to other accounts:
-the same name and description with a different four-digit number, as the knobs spec's ledger numbers;
+**Why it is open.**  The design: lookalikes are "copies of the target tool scoped to other accounts:
+the same name and description with a different four-digit number, as the similarity knob's ledger numbers;
 the request names the account".  Two tools of one block cannot share a name, so the number is in the
 name; where, and in what words the description carries it, is not said.
 
-**Recommendation: yes.**  The target and its six copies are named `<name>_<number>` (the name cut
-to its first 59 characters where that would pass 64) and described as the target is, then
-` (account <number>)`; the request says `for account <number>` of the target's.  The target is
-not shown under its own name on a similarity arm.  A no puts the number elsewhere (a prefix, or the
-description alone with names `<name>_1` to `<name>_7`).
+**Recommended.**  The target and its six copies are named `<name>_<number>` (the name cut to its
+first 59 characters where that would pass 64) and described as the target is, then
+` (account <number>)`; the request says `for account <number>` of the target's.  The target is not
+shown under its own name on a similarity arm.  If it is declined, the build puts the number
+elsewhere (a prefix, or the description alone with names `<name>_1` to `<name>_7`).
 """
 
 from __future__ import annotations
