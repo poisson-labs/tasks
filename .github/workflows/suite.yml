@@ -1,0 +1,111 @@
+# The whole suite, ruff and mypy, nightly and on demand, twice: once without Prove, where the
+# tests that drive Prove are skipped by name (tests/conftest.py), and once with Prove
+# installed, where they run. Each job first checks that Prove is, or is not, importable, so a
+# job's name always says what it ran against. The suite takes over an hour, so pushes and pull
+# requests run the fast lane in ci.yml instead.
+#
+# Third-party actions are pinned to a commit, with the release it is in beside it.
+name: Whole suite
+
+on:
+  # 06:17 UTC every day, and from the Actions tab or `gh workflow run suite.yml`.
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  without-prove:
+    name: suite, ruff and mypy, without Prove
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: tasks
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          path: tasks
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.11"
+      # The `null` harness launches its program through uv, and the tests that run it skip
+      # when uv is missing. This is the uv the suite is known green on.
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          version: "0.11.14"
+          enable-cache: false
+      - name: Install
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -e ".[dev]"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: Fetch the reference tokenizer's encoding file
+        run: python -m poisson_tasks.fetch_encoding
+      - name: Prove is not installed
+        run: python -c "import importlib.util, sys; sys.exit(importlib.util.find_spec('proofload') is not None)"
+      - name: Ruff
+        run: ruff check .
+      - name: Mypy
+        run: mypy
+      # `python -m pytest`, as the README gives it. A bare `pytest` collects the same tests,
+      # because pyproject.toml's pytest table puts the repository root on the import path.
+      - name: Tests
+        run: python -m pytest -q
+        # The same property-test examples on every run, so a red run is reproducible.
+        env:
+          HYPOTHESIS_PROFILE: ci
+
+  with-prove:
+    name: suite, ruff and mypy, with Prove
+    # Prove is not public, so this job checks it out with a read-only token kept in the
+    # PROVE_READ_TOKEN secret, which a fork does not have; there this job is skipped.
+    if: github.repository == 'poisson-labs/tasks'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: tasks
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          path: tasks
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: poisson-labs/prove
+          # The Prove commit the suite is known green against; moved deliberately, never floating.
+          ref: 98dc6af0e8b66f733c98d3867035e21bba5c219d
+          token: ${{ secrets.PROVE_READ_TOKEN }}
+          path: prove
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          version: "0.11.14"
+          enable-cache: false
+      # The order the README gives: Prove from its checkout, then this package.
+      - name: Install
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -e ../prove
+          .venv/bin/python -m pip install -e ".[dev]"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: Fetch the reference tokenizer's encoding file
+        run: python -m poisson_tasks.fetch_encoding
+      - name: Prove is installed
+        run: python -c "import proofload; print('proofload', proofload.__version__, proofload.__file__)"
+      - name: Ruff
+        run: ruff check .
+      - name: Mypy
+        run: mypy
+      - name: Tests
+        run: python -m pytest -q
+        # The same property-test examples on every run, so a red run is reproducible.
+        env:
+          HYPOTHESIS_PROFILE: ci

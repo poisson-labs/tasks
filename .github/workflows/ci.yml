@@ -1,7 +1,11 @@
-# The default suite, ruff and mypy on every push and pull request, twice: once without Prove,
-# where the tests that drive Prove are skipped by name (tests/conftest.py), and once with Prove
-# installed, where they run. Each job first checks that Prove is, or is not, importable, so a
-# job's name always says what it ran against.
+# The fast lane, on every push and pull request, twice: once without Prove and once with Prove
+# installed. Each job first checks that Prove is, or is not, importable, so a job's name always
+# says what it ran against. It runs ruff, mypy, the two generator hashes, the digest and
+# published-content tests, and a wheel built from the tree, installed fresh and started on a
+# terminal. The whole suite takes over an hour, so it runs in suite.yml, nightly and on demand.
+#
+# The steps both jobs share are written once, in the first job, and repeated in the second by
+# YAML alias (`*name`).
 #
 # Third-party actions are pinned to a commit, with the release it is in beside it.
 name: CI
@@ -15,9 +19,9 @@ permissions:
 
 jobs:
   without-prove:
-    name: suite, ruff and mypy, without Prove
+    name: fast lane, without Prove
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: tasks
@@ -29,8 +33,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.11"
-      # The `null` harness launches its program through uv, and the tests that run it skip
-      # when uv is missing. This is the uv the suite is known green on.
+      # The `null` harness launches its program through uv. This is the uv the suite is known
+      # green on.
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
         with:
           version: "0.11.14"
@@ -48,22 +52,183 @@ jobs:
         run: ruff check .
       - name: Mypy
         run: mypy
-      # `python -m pytest`, as the README gives it. A bare `pytest` collects the same tests,
-      # because pyproject.toml's pytest table puts the repository root on the import path.
-      - name: Tests
-        run: python -m pytest -q
-        # The same property-test examples on every run, so a red run is reproducible.
+      # The literals tests/test_frozen_generator.py and tests/test_o2b_kept.py hold. A deliberate
+      # change to either generator updates its hash there and here.
+      - &generator-hashes
+        name: The generator hashes
+        env:
+          BUILT_IN_GENERATOR_HASH: b460964dc153fab4535af3b39abd41d50198f3dcc644ae3e43ddee85544b57f9
+          OWN_TOOLS_GENERATOR_HASH: 22c8ac69045893eb4915c72d05020d10049696411b10c2bb94b5cac9d5e1b765
+        run: |
+          python - <<'EOF'
+          import os, sys
+          from poisson_tasks.arms import arm_from_id
+          from poisson_tasks.own import generator as own
+          from poisson_tasks.tasks import generate
+
+          built_in = generate(arm_from_id("distractor:r0@k16"), 404).generator_hash
+          own_tools = own.generator_hash()
+          print(f"built-in generator, version 1: {built_in}")
+          print(f"own-tools generator:           {own_tools}")
+          moved = [name for name, got in (("built-in", built_in), ("own-tools", own_tools))
+                   if got != os.environ[f"{name.upper().replace('-', '_')}_GENERATOR_HASH"]]
+          sys.exit(f"the {' and '.join(moved)} generator hash moved" if moved else 0)
+          EOF
+      # The thirteen files that hold every knob's content digests and the published tasks'. One
+      # process takes about four minutes, most of it making the history and block knobs' tasks,
+      # which each process caches for the tests after it. So three processes run side by side,
+      # each knob with its kept file: history, block, and everything else. While they run, the
+      # step checks that the three together collect exactly the tests one process would, each once.
+      - &digest-tests
+        name: Digest and published-content tests
         env:
           HYPOTHESIS_PROFILE: ci
+        run: |
+          all=(tests/test_frozen_generator.py tests/test_k1_hash.py
+               tests/test_fd4_published.py tests/test_fd4_pending_published_page.py
+               tests/test_k0_published_concurrency.py
+               tests/test_k3_kept.py tests/test_k4_kept.py tests/test_k5_kept.py tests/test_k6_kept.py
+               tests/test_k7_kept.py tests/test_k8_kept.py tests/test_k8b_kept.py
+               tests/test_o2b_kept.py)
+          history=(tests/test_frozen_generator.py tests/test_k5_kept.py
+                   -k "test_k5_kept or (test_frozen_generator and history)")
+          block=(tests/test_frozen_generator.py tests/test_k6_kept.py
+                 -k "test_k6_kept or (test_frozen_generator and block)")
+          rest=("${all[@]}"
+                -k "not test_k5_kept and not test_k6_kept and not (test_frozen_generator and (history or block))")
+          python -m pytest -q -p no:cacheprovider "${history[@]}" > "$RUNNER_TEMP/history.log" 2>&1 & history_pid=$!
+          python -m pytest -q -p no:cacheprovider "${block[@]}" > "$RUNNER_TEMP/block.log" 2>&1 & block_pid=$!
+          python -m pytest -q -p no:cacheprovider "${rest[@]}" > "$RUNNER_TEMP/rest.log" 2>&1 & rest_pid=$!
+          failed=0
+          ids() { python -m pytest -q -p no:cacheprovider --collect-only "$@" | grep '::' | sort; }
+          ids "${all[@]}" > "$RUNNER_TEMP/all.ids"
+          { ids "${history[@]}"; ids "${block[@]}"; ids "${rest[@]}"; } | sort > "$RUNNER_TEMP/split.ids"
+          diff "$RUNNER_TEMP/all.ids" "$RUNNER_TEMP/split.ids" || failed=1
+          echo "$(wc -l < "$RUNNER_TEMP/all.ids") tests, in three processes"
+          wait "$history_pid" || failed=1
+          wait "$block_pid" || failed=1
+          wait "$rest_pid" || failed=1
+          for shard in history block rest; do
+            echo "--- $shard ---"
+            cat "$RUNNER_TEMP/$shard.log"
+          done
+          exit "$failed"
+      - &build-wheel
+        name: Build the wheel
+        run: |
+          python -m pip install build==1.3.0
+          python -m build --wheel --outdir "$RUNNER_TEMP/dist"
+      - name: Install the wheel in a fresh environment
+        run: |
+          python -m venv "$RUNNER_TEMP/wheel"
+          "$RUNNER_TEMP/wheel/bin/python" -m pip install "$RUNNER_TEMP"/dist/*.whl
+      # A bare `poisson-tasks` from the wheel, in an empty folder with its own HOME: on a
+      # terminal it shows the first screen and `quit` leaves without writing anything; off a
+      # terminal it starts no session.
+      - &first-screen
+        name: The wheel's first screen
+        run: |
+          "$RUNNER_TEMP/wheel/bin/python" - "$PWD/pyproject.toml" <<'EOF'
+          import os, pty, re, select, subprocess, sys, tempfile, time, tomllib
+          from pathlib import Path
+
+          import poisson_tasks
+
+          VERSION = tomllib.loads(Path(sys.argv[1]).read_text())["project"]["version"]
+          BIN = str(Path(sys.executable).parent / "poisson-tasks")
+          ESCAPE = re.compile(r"\x1b(?:\[[0-9;?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[@-Z\\-_])")
+          failed = []
+
+          def check(ok, what):
+              print(f"{'ok  ' if ok else 'FAIL'} {what}", flush=True)
+              if not ok:
+                  failed.append(what)
+
+          def fresh():
+              home = Path(tempfile.mkdtemp())
+              folder = home / "project"
+              folder.mkdir()
+              env = {k: v for k, v in os.environ.items()
+                     if k not in ("CI", "NO_COLOR", "FORCE_COLOR", "VIRTUAL_ENV", "PYTHONPATH")}
+              env.update(HOME=str(home), TERM="xterm-256color", LANG="C.UTF-8", LC_ALL="C.UTF-8",
+                         COLUMNS="100", LINES="50")
+              return folder, env
+
+          def text(raw):
+              return ESCAPE.sub("", raw.decode("utf-8", "replace")).replace("\r", "")
+
+          check(Path(poisson_tasks.__file__).is_relative_to(Path(sys.prefix)),
+                f"poisson_tasks is imported from the wheel's environment ({poisson_tasks.__file__})")
+
+          folder, env = fresh()
+          done = subprocess.run([BIN, "--version"], cwd=folder, env=env, stdin=subprocess.DEVNULL,
+                                capture_output=True, text=True, timeout=120)
+          print(done.stdout.strip())
+          check(done.returncode == 0 and done.stdout.startswith(f"poisson-tasks {VERSION} ("),
+                f"--version prints {VERSION} and exits 0")
+
+          done = subprocess.run([BIN], cwd=folder, env=env, stdin=subprocess.DEVNULL,
+                                capture_output=True, text=True, timeout=120)
+          check(done.returncode == 2 and "Enter to start" not in done.stdout + done.stderr,
+                "off a terminal it exits 2 and starts no session")
+          check(not any(folder.iterdir()), "off a terminal it writes nothing")
+
+          for look in ("pretty", "plain"):
+              folder, env = fresh()
+              argv = [BIN] + (["--plain"] if look == "plain" else [])
+              pid, master = pty.fork()
+              if pid == 0:
+                  os.chdir(folder)
+                  os.execve(BIN, argv, env)
+              out, sent, status = b"", False, None
+              deadline = time.monotonic() + 90
+              while status is None and time.monotonic() < deadline:
+                  if select.select([master], [], [], 0.3)[0]:
+                      try:
+                          out += os.read(master, 65536)
+                      except OSError:
+                          pass
+                  if not sent and "Enter to start, or quit" in text(out):
+                      screen = text(out)
+                      time.sleep(1.0)
+                      os.write(master, b"quit\r")
+                      sent = True
+                  done_pid, st = os.waitpid(pid, os.WNOHANG)
+                  if done_pid:
+                      status = os.waitstatus_to_exitcode(st)
+              while select.select([master], [], [], 0.2)[0]:
+                  try:
+                      chunk = os.read(master, 65536)
+                  except OSError:
+                      break
+                  if not chunk:
+                      break
+                  out += chunk
+              if status is None:
+                  os.kill(pid, 9)
+                  os.waitpid(pid, 0)
+              print(f"--- {look} ---\n{text(out)}\n---", flush=True)
+              check(sent, f"{look}: the first screen asks `Enter to start, or quit`")
+              if sent:
+                  check("poisson labs" in screen.lower() and VERSION in screen,
+                        f"{look}: it names Poisson Labs and {VERSION}")
+                  check("Nothing calls a model until you say yes" in screen,
+                        f"{look}: it says nothing calls a model until you say yes")
+              check(status == 0 and "Left the session." in text(out),
+                    f"{look}: `quit` leaves the session and exits 0")
+              check(not any(folder.iterdir()), f"{look}: it writes nothing")
+
+          sys.exit(f"{len(failed)} failed: " + "; ".join(failed) if failed else 0)
+          EOF
 
   with-prove:
-    name: suite, ruff and mypy, with Prove
+    name: fast lane, with Prove
     # Prove is not public, so this job checks it out with a read-only token kept in the
     # PROVE_READ_TOKEN secret. A pull request from a fork is given no secrets; there this job
     # is skipped, and shows as skipped, rather than failing on a checkout it cannot make.
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: tasks
@@ -102,8 +267,13 @@ jobs:
         run: ruff check .
       - name: Mypy
         run: mypy
-      - name: Tests
-        run: python -m pytest -q
-        # The same property-test examples on every run, so a red run is reproducible.
-        env:
-          HYPOTHESIS_PROFILE: ci
+      - *generator-hashes
+      - *digest-tests
+      - *build-wheel
+      # Prove from its checkout first, as the README gives it, then the wheel.
+      - name: Install the wheel in a fresh environment
+        run: |
+          python -m venv "$RUNNER_TEMP/wheel"
+          "$RUNNER_TEMP/wheel/bin/python" -m pip install ../prove
+          "$RUNNER_TEMP/wheel/bin/python" -m pip install "$RUNNER_TEMP"/dist/*.whl
+      - *first-screen
