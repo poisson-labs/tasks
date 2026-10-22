@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/poisson-labs/tasks/main/docs/images/banner-on-dark.png">
+    <img src="https://raw.githubusercontent.com/poisson-labs/tasks/main/docs/images/banner-on-light.png" alt="poisson labs tasks" width="360">
+  </picture>
+</p>
+
 # Poisson Tasks
 
 Tool-use tasks with a known right answer, generated on your machine, and a card that says what each level of difficulty was worth to the model you ran.

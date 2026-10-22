@@ -212,7 +212,9 @@ def test_fd6_3_the_first_screen_has_install_init_run_card_then_the_platform_line
     platform = next(i for i, line in enumerate(lines)
                     if re.match(r"Python 3\.11 to 3\.13, on macOS or Linux\b", line))
     assert install < init < run < card < platform
-    assert lines[0] == "# Poisson Tasks"
+    # the title is first, or comes straight after the banner block the README may open with
+    top = lines[lines.index("</p>") + 2] if lines[0] == '<p align="center">' else lines[0]
+    assert top == "# Poisson Tasks"
     assert len(first_screen().splitlines()) <= 60
 
 
@@ -544,12 +546,18 @@ def test_fd6_10_cli_look_is_the_look_in_words_that_fit_each_tool() -> None:
 RAW = "https://raw.githubusercontent.com/poisson-labs/tasks/main/"
 
 
-def test_the_readmes_image_is_a_png_in_the_repo_linked_from_an_absolute_https_address() -> None:
-    images = re.findall(r"!\[[^\]]*\]\(([^)\s]+)\)", README.read_text("utf-8"))
-    assert len(images) == 1 and images[0].startswith(RAW) and images[0].endswith(".png"), images
-    path = REPO / images[0].removeprefix(RAW)
-    assert path.is_file() and path.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
-    assert path.stat().st_size < 600_000
+def test_the_readmes_images_are_pngs_in_the_repo_linked_from_absolute_https_addresses() -> None:
+    text = README.read_text("utf-8")
+    # the terminal picture is a markdown image; the banner is an HTML <picture> with a dark and a light file (GitHub
+    # switches on the colour scheme; PyPI drops <source> and shows the <img>, the light one)
+    pictures = re.findall(r"!\[[^\]]*\]\(([^)\s]+)\)", text)
+    banner = re.findall(r'<(?:img src|source [^>]*?srcset)="([^"]+)"', text)
+    assert len(pictures) == 1 and len(banner) == 2, (pictures, banner)
+    for image in pictures + banner:
+        assert image.startswith(RAW) and image.endswith(".png"), image
+        path = REPO / image.removeprefix(RAW)
+        assert path.is_file() and path.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n", image
+        assert path.stat().st_size < 600_000, image
 
 
 def test_the_readme_lists_each_published_cards_levels_as_the_code_renders_them() -> None:
