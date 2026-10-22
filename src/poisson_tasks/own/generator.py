@@ -1,4 +1,4 @@
-"""The own-tools generator: tasks on a user's own tools, the knobs applied to them (spec §5 to §7).
+"""The own-tools generator: tasks on a user's own tools, the knobs applied to them.
 
 A task is a pure function of the tool file's bytes (through the set's digest), the arm and the
 seed: every draw is a keyed hash of those and of nothing else, no set or dict built from a set is
@@ -8,13 +8,13 @@ importing the generator, the simulator and the verdict loads (`HASHED_MODULES`),
 `surface.py` and `knobs.py` among them, and none of `arms`, so a knob shipping moves no task.
 It never changes a built-in task.
 
-What a task is made of, by knob (spec §6.1, under the rulings of 2026-10-13):
-- the **target** is a write of the set that can be a task's target (spec §3), drawn per seed on
+What a task is made of, by knob (as decided 2026-10-13):
+- the **target** is a write of the set that can be a task's target, drawn per seed on
   similarity, faults, history, block and spread; on arguments the write with the most checkable
   parameters; on depth and shape the end of the declared chain;
 - the **request** uses the target's intent, else the first sentence of its description, never a
   tool's name, and states as JSON every argument a value can be drawn for, required or not, so
-  the model has nothing to guess (Taylor's ruling of 2026-10-19, after the hands-on pass: a
+  the model has nothing to guess (decided 2026-10-19, after the hands-on pass: a
   request that named no record, or no value to change, was answered with a question); free text
   is stated and never checked;
 - **similarity** shows the target and six copies named `<name>_<number>` and described
@@ -918,7 +918,7 @@ def pair_tokens(name: str, arguments: _Any, observation: str) -> int:
 
 
 def _cut(name: str) -> str:
-    """The name cut to leave room for `_<number>` within 64 characters (yes/no 9)."""
+    """The name cut to leave room for `_<number>` within 64 characters."""
     room = _MAX_NAME - _NUMBER_WIDTH - 1
     return name[:room] if len(name) > room else name
 

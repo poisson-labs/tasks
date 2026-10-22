@@ -32,7 +32,7 @@ import pytest
 from poisson_tasks.knobs import arm_id
 from tests.o2_support import every_arm, fixture_sets, flows_for, generator
 
-OWN_GENERATOR_HASH = "20bfbb6eb6b6901cca813308a1b7fdaf4ac512b3be3bd7b59b01b3c849d714f9"
+OWN_GENERATOR_HASH = "22c8ac69045893eb4915c72d05020d10049696411b10c2bb94b5cac9d5e1b765"
 SEEDS = (404, 55, 2121)
 MOVES = {"task_id", "generator_hash"}
 # 136 rows: every arm each fixture set reaches (the acme sets with their flows).

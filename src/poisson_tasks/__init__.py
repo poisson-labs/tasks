@@ -9,7 +9,7 @@ the wheel's loader).
 
 The two names are exported lazily (PEP 562): ``import poisson_tasks`` imports no
 ``verifiers``, so the generator's own users pay nothing for the export, and the loader's
-``getattr`` on each listed name is what imports ``poisson_tasks.taskset`` (MP7).
+``getattr`` on each listed name is what imports ``poisson_tasks.taskset``.
 """
 
 from __future__ import annotations

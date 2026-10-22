@@ -1,9 +1,9 @@
 """The reference tokenizer: o200k_base, built offline from one local encoding file.
 
-TG-ADR-13 makes o200k_base through tiktoken the one design-time measurement, with the
+By design, o200k_base through tiktoken is the one design-time measurement, with the
 encoding file held locally and hashed.  This module is the only place that encoding is
-built: N5-N7 and N9 in TG-M2 and G14 in TG-M3 import it, and nothing anywhere calls
-`tiktoken.get_encoding`.
+built: N5-N7 and N9 in `knobs.py` and G14 in `tasks.py` import it, and nothing anywhere
+calls `tiktoken.get_encoding`.
 
 **The file is not part of this repository or of the distribution.**  The terms under
 which the encoding file may be redistributed could not be established, so it is fetched
@@ -14,7 +14,7 @@ network, and it is never called from this module.
 
 Three routes into tiktoken 0.14.0 are closed here, all three for one reason -- a test
 has to build this encoder with the network gone and without leaving a byte behind
-(the TG-M1 build, finding 9):
+(a finding of the engine's build):
 
 * `tiktoken.get_encoding("o200k_base")` fetches the encoding over HTTPS.
 * `tiktoken.load.read_file_cached` writes a copy under `$TMPDIR/data-gym-cache`, keyed
@@ -46,7 +46,7 @@ _ENCODING_PATH = pathlib.Path(__file__).resolve().parent / "data" / "o200k_base.
 _ENCODING_SHA256 = "446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d"
 
 # Copied verbatim from tiktoken 0.14.0's `o200k_base`, only rewrapped to the line
-# length.  `_check_matches_library` in the devlog's step-2 note is how it was compared.
+# length.  A `_check_matches_library` check, kept in the lab's private notes, compared them.
 _PAT_STR = "|".join(
     [
         r"[^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]*[\p{Ll}\p{Lm}\p{Lo}\p{M}]+"
@@ -113,7 +113,7 @@ def count_tokens(text: str) -> int:
 
     `encode_ordinary`, so that a string carrying something that looks like a special
     token is counted as the text it is rather than raising.  The engine's vocabulary
-    cannot produce one; TG-M2's prompts are rendered from model output-adjacent
+    cannot produce one; the knobs' prompts are rendered from model output-adjacent
     material, and a counter that raises there would be the wrong failure.
     """
     return len(reference_encoding().encode_ordinary(text))

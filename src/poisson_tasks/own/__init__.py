@@ -11,7 +11,7 @@ What a reading does, in order, for every tool the file lists: the name is rename
 text, or already taken by an earlier usable tool is refused; what the reader itself found wrong
 (a built-in OpenAI tool type, a request body that is a file or no object, two OpenAPI names that
 would merge into one) is refused; every `$ref` in the argument schema is inlined and the schema
-must be a JSON object schema obeying spec §3's rules; the output schema is inlined and otherwise
+must be a JSON object schema obeying the reading rules; the output schema is inlined and otherwise
 kept as written.  The usable tools must then be 2 to 256 and one of them must be a possible
 target, or the file is refused as a whole with the per-tool refusals attached.  The set's digest
 is SHA-256 over the file's bytes.
@@ -71,12 +71,12 @@ __all__ = [
     "summary",
 ]
 
-# A legal tool name (the providers' rule, spec §3): 1 to 64 of these characters.
+# A legal tool name (the providers' rule): 1 to 64 of these characters.
 _ILLEGAL = re.compile(r"[^A-Za-z0-9_-]")
 _MAX_NAME = 64
 _KEPT_OF_LONG_NAME = 55
 _HEX_OF_LONG_NAME = 8
-# A set needs this many usable tools, and holds at most that many (spec §3).
+# A set needs this many usable tools, and holds at most that many.
 _FEWEST_TOOLS = 2
 _MOST_TOOLS = 256
 _FORMAT_WORDS = {
@@ -96,7 +96,7 @@ def read_tools(data: bytes, *, format: str = "auto", name: str = "own-tools") ->
 
     `format` is `auto` (decide by shape) or one of `FORMATS`, which must then match the
     file's shape; `name` is the set's name, the caller's.  A file of no shape, a format word
-    that is not one, and a set outside spec §3's limits raise `OwnToolsError`."""
+    that is not one, and a set outside the set's limits raise `OwnToolsError`."""
     if format != "auto" and format not in FORMATS:
         raise OwnToolsError(
             f"the format {format!r} is not one Tasks reads: auto, openai, mcp or openapi", "format"
@@ -144,7 +144,7 @@ def read_tools(data: bytes, *, format: str = "auto", name: str = "own-tools") ->
 
 
 def _normalise(raw: RawTool, taken: set[str]) -> OwnTool | Refusal:
-    """One raw tool through the rules of spec §3, in the order the module docstring gives."""
+    """One raw tool through the reading rules, in the order the module docstring gives."""
     if not isinstance(raw.name, str):
         return Refusal("" if raw.name is None else str(raw.name), "name", "its name is not text")
     renamed = safe_name(raw.name)
@@ -180,7 +180,7 @@ def _normalise(raw: RawTool, taken: set[str]) -> OwnTool | Refusal:
 
 
 def safe_name(original: str) -> str:
-    """The one fixed renaming of a tool's name (spec §3): characters outside letters, digits,
+    """The one fixed renaming of a tool's name: characters outside letters, digits,
     `_` and `-` become `_`; a name then over 64 characters is cut to its first 55, `_`, and
     the first 8 hex digits of the SHA-256 of the original name.  A legal name is unchanged."""
     renamed = _ILLEGAL.sub("_", original)
@@ -192,7 +192,7 @@ def safe_name(original: str) -> str:
 
 def can_target(tool: OwnTool) -> bool:
     """Whether a task may require a call to this tool with particular values: it has at least
-    one argument that is not free text (spec §3).  Only the tool's own, top-level, arguments
+    one argument that is not free text.  Only the tool's own, top-level, arguments
     count; a tool with none has nothing to check."""
     properties = tool.input_schema.get("properties")
     if not isinstance(properties, dict):
@@ -202,7 +202,7 @@ def can_target(tool: OwnTool) -> bool:
 
 def is_write(tool: OwnTool) -> bool:
     """Whether a stray call to this tool counts as a side effect: a write, or an effect that
-    is not known (spec §2.3's safe reading)."""
+    is not known (the safe reading)."""
     return tool.effect != "read"
 
 
@@ -234,7 +234,7 @@ def apply_effects(
 
 
 def summary(reading: Reading) -> str:
-    """The summary `init` and `doctor` print: spec §8.1's counts on the first line (the first
+    """The summary `init` and `doctor` print: the counts on the first line (the first
     number is the usable tools), then each refusal in one line, then the file's digest, then
     every renamed tool with its original name."""
     tools = reading.toolset.tools
