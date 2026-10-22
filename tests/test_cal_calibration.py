@@ -1958,8 +1958,8 @@ def test_cal21_1b_the_difference_is_measured_on_the_configs_not_reported_by_the_
 
 
 def test_cal21_2_the_run_resolves_the_taskset_by_its_id_and_the_null_harness() -> None:
-    """"the taskset resolved by its id `poisson-tasks`, the `null` harness by MP3's default,
-    `--no-push`" -- the documented one-liner and not a private code path."""
+    """"the taskset resolved by its id `poisson-tasks`, the `null` harness by the model path's
+    default, `--no-push`" -- the documented one-liner and not a private code path."""
     _, calibration = cal().run_config_for(spec_of("depth", 3))
     assert calibration.env.taskset.id == "poisson-tasks"
     assert calibration.env.agent_harnesses()["agent"].id == "null"
