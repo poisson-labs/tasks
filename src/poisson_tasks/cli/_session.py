@@ -606,7 +606,7 @@ class Session:
         self.heading(f"Step 2 of 5 · {STEPS[1][0]}")
         self.act(["generate", "--show"], then=False)
         self.write()
-        if not self._between("Enter for step 3, the run, or quit: "):
+        if not self._between("Enter for step 3, the run, or quit: ", starts=("3", "y", "yes")):
             return
         self.heading(f"Step 3 of 5 · {STEPS[2][0]}")
         code = self.act(["run"], then=False)
