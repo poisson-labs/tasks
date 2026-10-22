@@ -318,20 +318,31 @@ class Pretty:
                 return False
             self.stderr.print(Text(f"{indent}Answer y or n.", style="yellow"))
 
-    def choice(self, number: int, question: str, options: Sequence[tuple[str, str]],
+    def choice(self, number: int | None, question: str, options: Sequence[tuple[str, str]],
                default: int) -> int:
+        """A menu answered with the arrow keys; up to nine options each also take its number,
+        as a single key.  questionary refuses a tenth single-key shortcut, so a longer menu (a
+        run's episodes on setup's defaults, a card's sections, a tool file's tools) has none,
+        and each option carries its number in its own words instead, as the plain look's do."""
         import questionary
 
         self.stderr.print()
+        keyed = len(options) <= 9
+        width = len(str(len(options)))
         choices = []
         for index, (label, note) in enumerate(options):
-            choices.append(questionary.Choice(label, value=index, shortcut_key=str(index + 1),
+            title = label if keyed else f"{index + 1:>{width}}) {label}"
+            choices.append(questionary.Choice(title, value=index,
+                                              shortcut_key=str(index + 1) if keyed else False,
                                               description=note.replace("\n", " ") or None))
         self._prompt_session()
         answer: int = questionary.select(
-            question, choices=choices, default=choices[default], qmark=f"{number}.",
-            pointer="❯", use_shortcuts=True, style=_question_style(),
-            instruction=f"(arrow keys or 1-{len(options)}, then Enter)", output=self._output,
+            question, choices=choices, default=choices[default],
+            qmark=f"{number}." if number is not None else "", pointer="❯", use_shortcuts=keyed,
+            style=_question_style(),
+            instruction=(f"(arrow keys or 1-{len(options)}, then Enter)" if keyed
+                         else "(arrow keys, then Enter)"),
+            output=self._output,
         ).unsafe_ask()
         return answer
 

@@ -97,6 +97,19 @@ def _lowest(levels: Sequence[tuple[str, float]]) -> str | None:
     return min(levels, key=lambda pair: pair[1])[0] if levels else None
 
 
+def card_reading(folder: Any) -> tuple[Sequence[tuple[str, float]], str]:
+    """The newest card's levels on the rate the card reads them on, and that rate's name.  On a
+    depth plan of the built-in tasks it is leaky pass@1, as the card says: below the top level
+    strict also asks the model to stop at the goal, which the top level cannot ask.  On anything
+    else, and on your own tools (a write has no stage past its goal), it is strict pass@1."""
+    levels = folder.levels
+    built_in = folder.settings is None or folder.settings.own is None
+    if (built_in and levels and all(arm.startswith("depth:") for arm, _ in levels)
+            and len(folder.leaky_levels) == len(levels)):
+        return folder.leaky_levels, "leaky pass@1"
+    return levels, "strict pass@1"
+
+
 # ---------------------------------------------------------------------------
 # the action table's `next` (spec §16.3)
 # ---------------------------------------------------------------------------
@@ -281,10 +294,11 @@ class Session:
 
     # -- reading ------------------------------------------------------------------------
 
-    def read(self, hint: str = PLAIN_PROMPT) -> str:
+    def read(self, hint: str = PLAIN_PROMPT, *, above: bool = False) -> str:
         """One line at the session's own prompt.  Ctrl-C is `KeyboardInterrupt`, Ctrl-D is
         `EOFError`.  This is never a verb's question: those go through the renderer's `ask`,
-        `choice` and `confirm`."""
+        `choice` and `confirm`.  In the pretty look the hint is the prompt's placeholder, which
+        goes at the first key, or with `above` a dim line above the prompt."""
         if not self.pretty:
             sys.stdout.write(hint)
             sys.stdout.flush()
@@ -313,8 +327,13 @@ class Session:
                 key_bindings=keys,
                 style=Style([("mark", f"bold {COBALT}"), ("placeholder", "fg:ansibrightblack")]),
             )
-        placeholder = hint if hint != PLAIN_PROMPT else (
-            "a step's number, a word, help or quit" if self.width() >= 50 else "a number or a word")
+        if above:
+            self.write(hint.rstrip(": "), "dim")
+            placeholder = ""
+        else:
+            placeholder = hint if hint != PLAIN_PROMPT else (
+                "a step's number, a word, help or quit" if self.width() >= 50
+                else "a number or a word")
         answer: str = self._prompt.prompt([("class:mark", "› ")],
                                           placeholder=[("class:placeholder", placeholder)])
         return answer.strip()
@@ -481,8 +500,8 @@ class Session:
                    if settings.limits.spend_usd is not None else
                    f"{settings.limits.tokens:,} tokens" if settings.limits.tokens is not None
                    else "no cap")
-            key = (f"key in {folder.key_variable} ({'set' if folder.key_set else 'not set'}, "
-                   "not checked yet)" if folder.key_variable else "no key needed")
+            key = (f"key in {folder.key_variable} ({'set' if folder.key_set else 'not set'})"
+                   if folder.key_variable else "no key needed")
             rows.append(("", f"cap {cap} · {key}", "dim"))
         if folder.tools is not None:
             tools = folder.tools
@@ -525,8 +544,9 @@ class Session:
             if len(folder.runs) > 5:
                 rows.append(("", f"and {len(folder.runs) - 5} more (runs lists them all)", "dim"))
         if folder.levels:
-            levels = " · ".join(f"{arm} {_format.rate(rate)}" for arm, rate in folder.levels)
-            rows.append(("latest card", f"{levels}  strict pass@1", None))
+            read, measure = card_reading(folder)
+            levels = " · ".join(f"{arm} {_format.rate(rate)}" for arm, rate in read)
+            rows.append(("latest card", f"{levels}  {measure}", None))
         width = max(len(label) for label, _, _ in rows)
         for label, value, style in rows:
             self.row(label, value, width, style)
@@ -572,7 +592,7 @@ class Session:
                    "step you are in and leaves the folder as it was; you can leave at any prompt "
                    "with quit.")
         self.write()
-        if not self._between("Enter to start, or quit: "):
+        if not self._between("Enter to start, or quit: ", starts=("1", "y", "yes")):
             return
         from poisson_tasks.cli._common import tokenizer_present
 
@@ -586,7 +606,7 @@ class Session:
         self.heading(f"Step 2 of 5 · {STEPS[1][0]}")
         self.act(["generate", "--show"], then=False)
         self.write()
-        if not self._between("Enter for step 3, the run, or quit: "):
+        if not self._between("Enter for step 3, the run, or quit: ", starts=("3", "y", "yes")):
             return
         self.heading(f"Step 3 of 5 · {STEPS[2][0]}")
         code = self.act(["run"], then=False)
@@ -606,21 +626,24 @@ class Session:
             from poisson_tasks.cli import _format
             from poisson_tasks.cli._common import config_words
 
-            low = min(folder.levels, key=lambda pair: pair[1])
-            high = max(folder.levels, key=lambda pair: pair[1])
+            read, measure = card_reading(folder)
+            low = min(read, key=lambda pair: pair[1])
+            high = max(read, key=lambda pair: pair[1])
             model = folder.settings.model.name if folder.settings is not None else "the model"
             plan = config_words(folder.settings) if folder.settings is not None else "the plan"
-            self.write(f"You have a card for {model} on {plan}: strict pass@1 from "
-                       f"{_format.rate(low[1])} at {low[0]} to {_format.rate(high[1])} at "
-                       f"{high[0]}. From here:")
+            span = (f"{_format.rate(low[1])} at every level" if low[1] == high[1] else
+                    f"from {_format.rate(low[1])} at {low[0]} to {_format.rate(high[1])} at "
+                    f"{high[0]}")
+            self.write(f"You have a card for {model} on {plan}: {measure} {span}. From here:")
             self.write()
         self.home()
 
-    def _between(self, hint: str) -> bool:
-        """A prompt between the run-through's steps: Enter goes on; `quit` leaves; Ctrl-C ends
-        the run-through on the home screen; any other word ends it and is taken there."""
+    def _between(self, hint: str, starts: Sequence[str] = ()) -> bool:
+        """A prompt between the run-through's steps: Enter, or one of `starts`, goes on; `quit`
+        leaves; Ctrl-C ends the run-through on the home screen; any other word ends it and is
+        taken there.  The hint is a line of its own above the prompt, so it stays while typing."""
         try:
-            text = self.read(hint)
+            text = self.read(hint, above=True)
         except KeyboardInterrupt:
             self.write()
             self.home()
@@ -629,7 +652,7 @@ class Session:
             raise Leave from None
         if text == "quit":
             raise Leave
-        if text:
+        if text and text.lower() not in starts:
             self.home()
             self.take(text)
             return False
@@ -828,13 +851,16 @@ class Session:
         episodes = self._episodes(run.path / arm_folder(arm), plan["model"]["name"])
         self.write(f"{arm}, {len(episodes)} episode{'s' if len(episodes) != 1 else ''} of "
                    f"{run.name}")
+        if plan.get("own"):
+            self.write("  The tool responses are simulated from your tools' schemas, so a reply "
+                       "can look wrong while the episode passes: it is scored on the calls.", "dim")
         if not episodes:
             self.write("  no episode of this arm ended; run finishes it", "yellow")
             return
         options = []
-        for index, (label, calls, reply, _) in enumerate(episodes, 1):
+        for label, calls, reply, _ in episodes:
             said = f'  "{reply}"' if reply else ""
-            options.append((f"{index:>2}  {label:<14} {calls:>3} calls{said}", ""))
+            options.append((f"{label:<14} {calls:>3} calls{said}", ""))
         chosen = self.ui.choice(None, "Which episode?", options, 0)
         self._open_episode(*episodes[chosen])
 
