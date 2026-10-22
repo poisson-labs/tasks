@@ -21,8 +21,10 @@
   similarity, block, arguments and spread are "Available · retested in v2".
 - **`verify`.**  Everywhere `verify` is documented, the docs say that in this release it refuses a
   tasks file made on your own tools, in one line.
-- **The changelog.**  The changelog has one `Unreleased` section, which names the front door, own
-  tools part two and the knob probe, and no entry in it is repeated.
+- **The changelog.**  The changelog has one section for the release, headed with the version
+  `pyproject.toml` declares and its date, which names the front door, own tools part two and the
+  knob probe, and no entry in it is repeated.  (Retrofitted for the 0.1.0 release: the section
+  was `Unreleased` until then.)
 - **The look.**  `docs/cli-look.md` is the look in words that fit any of the lab's three tools.
 
 The docs set is the design's, with the own-tools page.  `docs/commands.md` holds each
@@ -479,24 +481,39 @@ def test_fd6_7_the_pinned_block_opens_the_first_run_block_and_the_new_material_f
 # ---------------------------------------------------------------------------
 
 
+RELEASE_HEADING = re.compile(r"^## (\d+\.\d+\.\d+) \((\d{4}-\d{2}-\d{2})\)$", re.M)
+
+
+def declared_version() -> str:
+    import tomllib
+
+    return str(tomllib.loads((REPO / "pyproject.toml").read_text("utf-8"))["project"]["version"])
+
+
 def unreleased() -> str:
+    """The release's section: from its heading to the next `## ` heading.  (The name is the
+    frozen one; the section was `Unreleased` until the 0.1.0 release.)"""
     text = CHANGELOG.read_text("utf-8")
-    start = text.index("## Unreleased")
-    nxt = re.search(r"^## (?!Unreleased)", text[start + 5:], re.M)
-    return text[start:start + 5 + nxt.start()] if nxt else text[start:]
+    start = RELEASE_HEADING.search(text).start()  # type: ignore[union-attr]
+    nxt = re.search(r"^## ", text[start + 3:], re.M)
+    return text[start:start + 3 + nxt.start()] if nxt else text[start:]
 
 
 def test_fd6_9_the_changelog_has_one_unreleased_section_that_covers_the_three_pieces() -> None:
     text = CHANGELOG.read_text("utf-8")
-    assert len(re.findall(r"^## Unreleased\b", text, re.M)) == 1
+    assert len(RELEASE_HEADING.findall(text)) == 1
+    assert not re.search(r"^## Unreleased\b", text, re.M)
     section = unreleased().lower()
     for needle in ("poisson-tasks", "your own tools", "knob probe", "wheel", "verify"):
         assert needle in section, needle
 
 
 def test_fd6_9_the_changelog_says_it_is_unreleased_and_names_no_version_it_has_not_got() -> None:
-    head = CHANGELOG.read_text("utf-8").split("## Unreleased", 1)[0]
-    assert "not been released" in head
+    text = CHANGELOG.read_text("utf-8")
+    (version, _date), = RELEASE_HEADING.findall(text)
+    assert version == declared_version()
+    head = text[:RELEASE_HEADING.search(text).start()]  # type: ignore[union-attr]
+    assert "not been released" not in head and "unreleased" not in head.lower()
     headings = re.findall(r"^### .*$", unreleased(), re.M)
     assert len(headings) == len(set(headings)) >= 5
 
