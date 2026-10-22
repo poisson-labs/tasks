@@ -1,6 +1,6 @@
 """Cost and time on every card: what an episode's record gains, and where it comes from.
 
-The invariants are K0.1 and K0.2 of the knobs plan.  A record gains five optional fields:
+A record gains five optional fields:
 
 - `episode_seconds`, the agent phase's `end - start`: the episode as the model and tools
   experienced it;
@@ -82,7 +82,7 @@ def _record(**over: Any) -> cal.EpisodeRecord:
 
 
 # ---------------------------------------------------------------------------
-# the record (K0.1)
+# the record
 # ---------------------------------------------------------------------------
 
 
@@ -136,7 +136,7 @@ def test_k0_1_each_new_field_refuses_a_negative_value(name: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# from the trace (K0.2)
+# from the trace
 # ---------------------------------------------------------------------------
 
 

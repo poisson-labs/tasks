@@ -1,24 +1,24 @@
 """History opened: the generator, `eval`, and what stays shut, frozen as tests.
 
-Taylor's standing rulings: once a knob has tasks, the `eval` command takes its arms, the
-published cards' table answers for the knob so that no arm raises a `KeyError`, and an arm no
-published card covers gets the one note saying so.  The four knobs still unbuilt (block,
-arguments, shape, spread) stay refused by the generator and by `eval`; that is the frozen
-`tests/test_k2_eval.py::test_the_six_knobs_without_tasks_stay_refused_beside_similarity`, whose
-list of arms loses its history arm in this session's retrofit commit (a ruling).  `tasks.toml`
-and `init` do not offer history before its probe (spec K-P3).
+The standing decisions: once a knob has tasks, the `eval` command takes its arms, the published
+cards' table answers for the knob so that no arm raises a `KeyError`, and an arm no published card
+covers gets the one note saying so.  The four knobs still unbuilt (block, arguments, shape, spread)
+stay refused by the generator and by `eval`; that is the frozen
+`tests/test_k2_eval.py::test_the_six_knobs_without_tasks_stay_refused_beside_similarity`, whose list
+of arms loses its history arm in this knob's retrofit commit (a decided retrofit).  `tasks.toml` and
+`init` do not offer history before its probe.
 
 Shapes decided here
 -------------------
 
-**1. Every history arm is on no published card**: neither card measured history.  So `eval`
-takes each card level with the one plain note (one `UserWarning`, one line, naming the arm by
-its id; `tests/test_fd1_export_arm.py`).  The note's words are not pinned.  History has no
-control arm, so the `KeyError` K1 Session B found cannot arise for it; what the table must say
-is that no history level is on a card, which the note shows.
+**1. Every history arm is on no published card**: neither card measured history.  So `eval` takes
+each card level with the one plain note (one `UserWarning`, one line, naming the arm by its id;
+`tests/test_fd1_export_arm.py`).  The note's words are not pinned.  History has no control arm, so
+the `KeyError` the shared base's build found cannot arise for it; what the table must say is that no
+history level is on a card, which the note shows.
 
 **2. Levels the card does not measure.**  `eval` takes any history level from 0 to 2400, and the
-generator can build any level from 0 up (spec §3.2: `history:t12800` is a level no card measures
+generator can build any level from 0 up (by design: `history:t12800` is a level no card measures
 and the generator can still make).  Three such levels are held to the rule the export's pinned
 knob test holds every plain arm to: an arm `eval` takes is an arm whose tasks load.  At level 1
 no pair is seeded; at level 100 two pairs cannot total less than their smallest, so the ledger's

@@ -1,14 +1,14 @@
 """What a card says it means and what it does not claim, frozen as tests: `calibration.card_claims`.
 
-The invariant is FD4.4 of the front door's plan (spec §9.4): `card_claims(a).flags` holds exactly
-the conditions that apply, and the tests check the flags, not the words.  With the ruling the
-session prompt carries, a card for a plan no published card covers says so plainly.
+The invariant: `card_claims(a).flags` holds exactly the conditions that apply, and the tests check
+the flags, not the words.  With the decision the card's build was given, a card for a plan no
+published card covers says so plainly.
 
-Shapes decided here, where the spec leaves them open
-----------------------------------------------------
+Shapes decided here, where the design leaves them open
+------------------------------------------------------
 
 **1. The flags are seven names**, one per condition a not-claimed line depends on:
-- `small_sample`: fewer tasks per level than the published cards have (spec: "fewer than the
+- `small_sample`: fewer tasks per level than the published cards have (the design: "fewer than the
   published sixty"; read off the shipped cards, so it follows them);
 - `not_comparable`: the card cannot be read beside the published cards, because it was not
   measured the same way as one of them (`comparable` names a field); the line "says whether it
@@ -20,7 +20,7 @@ Shapes decided here, where the spec leaves them open
   staleness, `tests/test_k1_calibration.py`);
 - `resumed`: some of its attempts were made by a later run of the folder than others, so a
   resumed attempt is a fresh one;
-- `not_covered`: no published card holds a cell of any of its arms (the ruling above).
+- `not_covered`: no published card holds a cell of any of its arms (the decision above).
 The lines a card always carries (one model's result on these tasks; it ranks nothing) have no
 flag.
 

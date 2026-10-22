@@ -1,7 +1,7 @@
 """The similarity knob's tasks: the draws, the lookalike distance, the block, its length and the
 prompt, frozen as tests.
 
-The invariants are K2.1 to K2.5 of the knobs plan, from spec §5.  A similarity task is the base
+A similarity task is the base
 task B (`distractor:r0@k16`, chain depth 2 on a sixteen-tool block holding no stage above the
 goal) with twelve of B's reads swapped for lookalikes: the first two stage tools of six other
 ledgers.  Every ledger is named by a four-digit number carried in its tools' names and
@@ -12,25 +12,25 @@ Shapes decided here
 -------------------
 
 **1. A shown stage tool is named `submit_<stage>_<number>`**, the engine's name with the ledger's
-class word replaced by its number, as spec §5.1 writes `submit_review_4417`; its description names
-the ledger by number and the second stage's names the first stage's shown name (spec §5.4).  Its
+class word replaced by its number, as the design writes `submit_review_4417`; its description
+names the ledger by number and the second stage's names the first stage's shown name.  Its
 parameters are the engine tool's.  The two reads keep their engine names and descriptions and
 carry no number.  The descriptions' words are not pinned: what is pinned is that the seven tools
-of one stage are identical but for their number, which is spec §5.1's "descriptions identical but
-for the number", and which leaves no class word anywhere a lookalike could differ by.
+of one stage are identical but for their number, which is the design's "descriptions identical
+but for the number", and which leaves no class word anywhere a lookalike could differ by.
 
-**2. Which reads stay, and where the lookalikes go.**  Spec §3.1 says the block "swaps twelve
-reads for lookalikes" from B's and §5.3 that the slot order is fixed across levels; it does not
-say which two reads stay or which lookalike takes which slot.  Decided: **the right tools keep
-B's slots; the two reads B holds in its first two read slots, in slot order, stay where they are;
-every later read slot takes the next lookalike, each lookalike ledger's first stage tool then its
-second, the ledgers in their drawn order.**  Why: it is the swap §3.1 describes with no draw of its
-own (the spec lists the draws, and which reads stay is not among them), the two reads still vary
-with the seed through B's slot order, and the census (`tests/test_k2_fingerprint.py`) can then be
-stated exactly.
+**2. Which reads stay, and where the lookalikes go.**  The design says the block "swaps twelve reads
+for lookalikes" from B's and that the slot order is fixed across levels; it does not say which two
+reads stay or which lookalike takes which slot.  Decided: **the right tools keep B's slots; the two
+reads B holds in its first two read slots, in slot order, stay where they are;  every later read
+slot takes the next lookalike, each lookalike ledger's first stage tool then its second, the ledgers
+in their drawn order.**  Why: it is the swap the design describes with no draw of its own (the
+design lists the draws, and which reads stay is not among them), the two reads still vary with the
+seed through B's slot order, and the census (`tests/test_k2_fingerprint.py`) can then be stated
+exactly.
 
 **3. The prompt is B's with "of the {class} ledger" replaced by "of ledger {number}"**, and its
-slots B's with `ledger_class` replaced by `ledger_number` in the same place: spec §5.4's
+slots B's with `ledger_class` replaced by `ledger_number` in the same place: the design's
 `ledger-number/v1`, "sentence for sentence", "the five slots stay".  Pinned that exactly, it also
 holds the rule `tasks._check_template_words` asserts at import (no word of the template's own
 carries a read tool's or a ledger's token): B's template passes it, and the change adds a number.
@@ -39,14 +39,14 @@ carries a read tool's or a ledger's token): B's template passes it, and the chan
 for is `surface.display_map`'s answer, called as the verifier and the tool server call it, with
 the bundle's shown names.  How generation asks the map for the shown names is left to the build.
 
-**5. The seeds.**  "Every seed of the card's seed list and the probe's" (K2.4): the card's sixty,
-and sixty-three made as spec §9.2 describes the probe's (`tests/k2_support.py`), since the probe's
-own derivation is K9's.  Beside them, one test holds the block's length for every four-digit
+**5. The seeds.**  "Every seed of the card's seed list and the probe's": the card's sixty, and
+sixty-three made as the probe's design describes them (`tests/k2_support.py`), since the probe's own
+derivation is its own module's.  Beside them, one test holds the block's length for every four-digit
 number in every place a number is shown, which is what "every seed" rests on.
 
 **6. "Through their own PRF domains" is checked by what it protects**: the scenario and B's slot
 order are unchanged (`scenario_hash` equal to B's, the right tools in B's slots, and the published
-tasks' content, K1.1, in `tests/test_k1_content.py`).  A draw taken from the structure domain's
+tasks' content, in `tests/test_k1_content.py`).  A draw taken from the structure domain's
 unused digits would be statistically independent of the scenario and is not observable; it is
 named in the mutation table.
 """
@@ -97,7 +97,7 @@ def engine_schema(engine: str) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------
-# K2.1 the draws
+# the draws
 # --------------------------------------------------------------------------
 
 
@@ -178,7 +178,7 @@ def test_the_draws_cover_their_ranges_evenly(spread_sample: dict[str, Any]) -> N
     """The target's number, the lookalike ledgers, the places kept and the digits changed are
     drawn, not fixed: every first digit 1 to 9 opens some target's number and none opens with 0;
     each other ledger is a lookalike in about six of eleven tasks; at s1 the one place kept, and
-    at s3 the one place changed, falls evenly on the four (spec §5.3: "changed places are drawn
+    at s3 the one place changed, falls evenly on the four ("changed places are drawn
     uniformly"); and at s0 every digit a place can change to is drawn there."""
     targets = spread_sample["targets"]
     assert len(set(targets)) > 0.9 * len(targets)
@@ -199,7 +199,7 @@ def test_the_draws_cover_their_ranges_evenly(spread_sample: dict[str, Any]) -> N
 
 
 # --------------------------------------------------------------------------
-# K2.2 distance
+# distance
 # --------------------------------------------------------------------------
 
 
@@ -227,7 +227,7 @@ def test_every_lookalike_ledger_shares_exactly_the_levels_digits_in_place() -> N
 
 
 # --------------------------------------------------------------------------
-# K2.3 the block
+# the block
 # --------------------------------------------------------------------------
 
 
@@ -263,7 +263,7 @@ def test_the_block_is_bs_with_twelve_reads_swapped_for_lookalikes() -> None:
 
 
 def test_the_tools_of_one_stage_are_identical_but_for_their_number() -> None:
-    """Spec §5.1: the seven first-stage tools are one tool but for the number, and so are the
+    """The seven first-stage tools are one tool but for the number, and so are the
     seven second-stage ones.  So no class word, and nothing else a lookalike could differ by,
     is in any of them.  Each description names its own ledger's number; the second stage's names
     its own ledger's first stage by its shown name; parameters are the engine tool's; and no
@@ -293,7 +293,7 @@ def test_the_tools_of_one_stage_are_identical_but_for_their_number() -> None:
 
 
 # --------------------------------------------------------------------------
-# K2.4 length
+# length
 # --------------------------------------------------------------------------
 
 
@@ -307,7 +307,7 @@ def test_the_blocks_length_is_equal_across_the_levels_at_every_seed() -> None:
 
 
 def test_any_ledger_number_shows_at_the_same_length() -> None:
-    """What "equal at every seed" rests on (spec §5.3): every four-digit number with a non-zero
+    """What "equal at every seed" rests on: every four-digit number with a non-zero
     first digit tokenizes to the same count wherever the block shows a number.  The block of one
     task, with one lookalike ledger's number, and then the target's, replaced by each of the
     9,000 in turn, renders to one count."""
@@ -326,7 +326,7 @@ def test_any_ledger_number_shows_at_the_same_length() -> None:
 
 
 # --------------------------------------------------------------------------
-# K2.5 the prompt
+# the prompt
 # --------------------------------------------------------------------------
 
 

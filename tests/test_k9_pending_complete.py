@@ -1,6 +1,6 @@
-"""Pending a yes/no: what makes an arm complete.
+"""Pending a decision: what makes an arm complete.
 
-**The question.**  "A knob is decided only on complete arms."  The spec does not define complete.
+**The question.**  "A knob is decided only on complete arms."  The design does not define complete.
 
 **Proposed: every one of the probe's sixty seeds has its two attempts recorded**, scored or
 labelled with an instrument failure: what the run engine ran to its end.  Instrument failures

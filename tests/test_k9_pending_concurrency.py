@@ -1,8 +1,8 @@
-"""Pending a yes/no: gpt-5-nano runs 128 episodes at once, and Qwen's 128 is what is recorded.
+"""Pending a decision: gpt-5-nano runs 128 episodes at once, and Qwen's 128 is what is recorded.
 
-**The question.**  The spec says only "concurrency recorded".  Both published cards ran through the
-calibration runner, whose limit is the eval config's `max_concurrent` (128, the wheel's default);
-neither card recorded it.
+**The question.**  The design says only "concurrency recorded".  Both published cards ran through
+the calibration runner, whose limit is the eval config's `max_concurrent` (128, the wheel's
+default);  neither card recorded it.
 
 **Proposed: 128 for gpt-5-nano** (the driver's default; `--concurrency` lowers it if the account's
 rate limit answers 429s, which would show as instrument failures), and Qwen's run records the

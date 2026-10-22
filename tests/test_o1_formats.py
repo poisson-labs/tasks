@@ -1,22 +1,21 @@
-"""The three input formats and the normal form they become, frozen as tests (O1.1).
+"""The three input formats and the normal form they become, frozen as tests.
 
-The invariant is O1.1 of the knobs plan, from the own-tools spec §2.1 and §2.2: fixture files in
-each format read to the same `OwnToolSet` where they describe the same tools; `format = "auto"`
-decides by shape; a file that matches none of the three shapes is refused.  The acme-support
-fixtures (`tests/fixtures/o1/acme-*`) are one set of five tools written in six shapes: OpenAI
-Chat Completions, OpenAI Responses wrapped in a `tools` object, a bare MCP `tools/list` result,
-its JSON-RPC envelope, OpenAPI 3.0 as JSON and OpenAPI 3.1 as YAML.  The MCP Everything reference
-server's `tools/list` (`mcp-everything-tools-list.json`, server version 2.0.0) and the Swagger
-Petstore document (`petstore-openapi-3.0.json`, OpenAPI 3.0.4) are the two public fixtures the
-spec's §10 names, read as recorded.
+Fixture files in each format read to the same `OwnToolSet` where they describe the same tools;
+`format = "auto"` decides by shape; a file that matches none of the three shapes is refused.  The
+acme-support fixtures (`tests/fixtures/o1/acme-*`) are one set of five tools written in six shapes:
+OpenAI Chat Completions, OpenAI Responses wrapped in a `tools` object, a bare MCP `tools/list`
+result, its JSON-RPC envelope, OpenAPI 3.0 as JSON and OpenAPI 3.1 as YAML.  The MCP Everything
+reference server's `tools/list` (`mcp-everything-tools-list.json`, server version 2.0.0) and the
+Swagger Petstore document (`petstore-openapi-3.0.json`, OpenAPI 3.0.4) are the two public fixtures
+the design names, read as recorded.
 
 Shapes decided here
 -------------------
 
 **1. "The same `OwnToolSet`" is the same tools.**  The set's `source_format` and `file_digest`
 differ by file, so the equality is over the tools: name, description, argument schema, output
-schema and effect, in file order.  OpenAI tools have no output shape and no effect in the format
-(§2.1), so for them the equality leaves out the output (`None`) and the effect (`unknown`).
+schema and effect, in file order.  OpenAI tools have no output shape and no effect in the format,
+so for them the equality leaves out the output (`None`) and the effect (`unknown`).
 
 **2. Schemas are kept as written, with every `$ref` inlined.**  The reader does not rewrite a
 schema: an MCP `inputSchema` with a `$schema` key keeps it, and an OpenAPI parameter's schema is
@@ -42,7 +41,7 @@ JSON content gives the output schema; with none, the output is `None`.  Codes ou
 
 **5. `method_path made safe`.**  An operation without an `operationId` is named
 `safe_name(f"{method}_{path}")`, the method in lower case, and the unsafe `f"{method}_{path}"` is
-its title, so the original is kept as §3 says of every renamed tool.
+its title, so the original is kept as the design says of every renamed tool.
 
 **6. Shapes, for `auto`.**  A mapping with a top-level `openapi` key whose value starts with
 `3.0.` or `3.1.` is OpenAPI.  A mapping with a `tools` list whose items have `inputSchema`, the same
@@ -113,7 +112,7 @@ def has_ref(value: Any) -> bool:
 
 
 # --------------------------------------------------------------------------
-# O1.1: the three formats to one normal form
+# the three formats to one normal form
 # --------------------------------------------------------------------------
 
 
@@ -434,7 +433,7 @@ def test_openapi_bodies_are_read_from_json_content_first() -> None:
 
 def test_the_petstore_document_reads_as_recorded() -> None:
     """Swagger Petstore (OpenAPI 3.0.4, fetched 2026-10-06 from petstore3.swagger.io, version
-    1.0.27): nineteen operations, three of them refused by §3's rules as they stand in a real
+    1.0.27): nineteen operations, three of them refused by the reading rules as they stand in a real
     document: `uploadFile` takes an `application/octet-stream` body, `createUsersWithListInput`
     takes an array, and `updateUser` puts `username` both in its path and in its `User` body."""
     data = fixture("petstore-openapi-3.0.json")

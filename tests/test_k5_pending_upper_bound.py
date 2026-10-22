@@ -1,15 +1,16 @@
-"""Pending a yes/no: the largest block the generator can build, and the refusal above it.
+"""Pending a decision: the largest block the generator can build, and the refusal above it.
 
-**This file waits on a yes/no** and is its own commit, so a "no" drops it whole.
+**This file waits on a decision** and is its own commit, so if it is declined it is dropped whole.
 
-Spec §3.2 (ruled 2026-10-04): a level the generator cannot build is refused when the arm is made,
-not noted, and for block size that is a level below eight; "the block's upper bound is left to
-K5".  Plan K5 names none.  The most a block can offer is the target ledger's two stage tools and
-every `{verb}_{facet}` the table's sixteen read verbs and sixteen facets make, its own sixteen reads
-among them: 258 tools.  Recommended: that is the bound.  `block:k258` generates, holding all 256
-read names once, and `block:k259` is refused when the arm is made, by `ArmSpec` and so by
-`arms.arm_from_id`, as `block:k7` is (the frozen `tests/test_k1_pending_level_bounds.py` takes 256).
-`eval` takes 8 to 64, the ends of the candidate levels, whichever way this is ruled.
+The design (decided 2026-10-04): a level the generator cannot build is refused when the arm is made,
+not noted, and for block size that is a level below eight; "the block's upper bound is left to" the
+block-size knob's module.  Its plan names none.  The most a block can offer is the target ledger's
+two stage tools and every `{verb}_{facet}` the table's sixteen read verbs and sixteen facets make,
+its own sixteen reads among them: 258 tools.  Recommended: that is the bound.  `block:k258`
+generates, holding all 256 read names once, and `block:k259` is refused when the arm is made, by
+`ArmSpec` and so by `arms.arm_from_id`, as `block:k7` is (the frozen
+`tests/test_k1_pending_level_bounds.py` takes 256).  `eval` takes 8 to 64, the ends of the candidate
+levels, whichever way this is decided.
 
 Not chosen: a bound at a provider's limit on tools per request (128 at OpenAI's chat completions
 API), which is a property of where a task is run and differs by provider, not of the task.  If the

@@ -1,14 +1,13 @@
 """The verdict on a user's own tools, frozen as tests.
 
-The invariant is O2.3 of the knobs plan (spec §5.2, §10): each task's reference calls verify as
-passed under strict and leaky (G4's analogue) over thousands of seeds per fixture set, and every
-outcome label is reachable by a generated negative control.  And §5.2's clauses: the built-in
-outcome vocabulary in its order; passed means the store ends exactly as expected and the episode
-ends with a reply; collateral_mutation, the goal reached and another write accepted;
-wrong_state, the goal not reached; malformed_call, a call naming a tool outside the block or
-breaking its schema; turn_limit and the instrument labels as for built-in tasks; leaky accepts
-collateral; arguments compare exactly (strings byte for byte, numbers by value, booleans and
-enums exactly), and an argument the request did not state is ignored.
+The invariant: each task's reference calls verify as passed under strict and leaky (G4's analogue)
+over thousands of seeds per fixture set, and every outcome label is reachable by a generated
+negative control.  And the design's clauses: the built-in outcome vocabulary in its order; passed
+means the store ends exactly as expected and the episode ends with a reply; collateral_mutation, the
+goal reached and another write accepted;  wrong_state, the goal not reached; malformed_call, a call
+naming a tool outside the block or breaking its schema; turn_limit and the instrument labels as for
+built-in tasks; leaky accepts collateral; arguments compare exactly (strings byte for byte, numbers
+by value, booleans and enums exactly), and an argument the request did not state is ignored.
 
 Shapes decided here
 -------------------
@@ -57,7 +56,7 @@ from tests.o2_support import (
     write_tool,
 )
 
-# Spec §10: "thousands of seeds per fixture set".
+# The design: "thousands of seeds per fixture set".
 SEEDS_PER_SET = 2000
 SETS = ("acme-mcp", "acme-openai", "acme-openapi-3.0", "acme-openapi-3.1", "petstore", "everything")
 SYSTEM_LABELS = {"passed", "collateral_mutation", "wrong_state", "malformed_call", "turn_limit"}
@@ -215,10 +214,11 @@ def test_strings_compare_byte_for_byte_numbers_by_value_and_booleans_and_enums_e
 
 def test_an_argument_the_request_did_not_state_is_ignored() -> None:
     """Free text is stated and never checked; and on any arm but arguments
-    (`test_o2_pending_arguments_unstated.py`) the request states every argument a value can be
-    drawn for, so the one left unstated is an argument no draw can meet (a pattern here), and it is
-    ignored.  (Retrofit of 2026-10-19, Taylor's R1: before it, the request stated only the required
-    values, and `priority` stood here as an unstated checkable argument.)"""
+    (`test_o2_pending_arguments_unstated.py`) the request states every argument a value can be drawn
+    for, so the one left unstated is an argument no draw can meet (a pattern here), and it is
+    ignored.  (Retrofit of 2026-10-19, decided with the hands-on fixes: before it, the request
+    stated only the required values, and `priority` stood here as an unstated checkable
+    argument.)"""
     unstated = mcp_set(
         write_tool(
             "file_claim",
@@ -237,7 +237,7 @@ def test_an_argument_the_request_did_not_state_is_ignored() -> None:
 
 
 def test_a_tool_whose_effect_is_unknown_is_treated_as_a_write() -> None:
-    """Spec §2.3: a stray accepted call to a tool of unknown effect counts against the model, until
+    """The design: a stray accepted call to a tool of unknown effect counts against the model, until
     `tasks.toml` says the tool reads."""
     from poisson_tasks import own
 
@@ -251,7 +251,7 @@ def test_a_tool_whose_effect_is_unknown_is_treated_as_a_write() -> None:
 
 
 def test_a_free_text_argument_of_a_named_read_or_a_chain_step_is_ignored() -> None:
-    """§5.2: an argument the request did not state is ignored.  A depth chain's first call here takes
+    """An argument the request did not state is ignored.  A depth chain's first call here takes
     only free text (`search_orders(query)`), and a spread read may carry an argument beyond the key the
     request names: either way the read still answers with the value the task needs."""
     for seed in range(8):

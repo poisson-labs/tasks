@@ -1,5 +1,5 @@
-"""The export arm validator's clause that FD1's build added and no frozen test pinned: a generator
-version that is not text is refused when the config is validated.
+"""The export arm validator's clause that the settings file's build added and no frozen test pinned:
+a generator version that is not text is refused when the config is validated.
 
 The arm is given as one JSON object on `eval`'s command line, where `"generator_version": 1` is
 easy to write.  Without the clause the number is taken, and the arm reads as one no published

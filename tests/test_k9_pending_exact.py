@@ -1,4 +1,4 @@
-"""Pending a yes/no: "at least 0.15" and "less than 0.15" are read exactly, not in floating point.
+"""Pending a decision: "at least 0.15" and "less than 0.15" are read exactly, not in floating point.
 
 **The question.**  Pass rates over sixty tasks at two attempts are multiples of 1/120, so a drop
 of 0.15 is 18/120 exactly, but floating point computes some such drops a hair under 0.15

@@ -1,7 +1,7 @@
 """The block-size knob's aliased read copies: their names, their words, and what answers them,
 frozen as tests.
 
-The invariant is K5.2 of the knobs plan, from spec §3.3 and §14.1.  Past the table's sixteen reads
+Past the table's sixteen reads
 a block is filled with copies: each is named `{verb}_{facet}` for a read verb and a facet of the
 table that no engine read already pairs, is described in its own words, and answers exactly as the
 engine's read of its facet, through `surface.display_map`, which the verifier, the generator and
@@ -10,7 +10,7 @@ the tool server all read.  No name repeats in a block (`tests/test_k5_block.py`)
 Shapes decided here
 -------------------
 
-**1. The copy's own words are pinned by what they must do, not by their spelling.**  Spec §14.1
+**1. The copy's own words are pinned by what they must do, not by their spelling.**  The design
 gives the description as "{Verb}s the {facet} field of the named catalogue item", which reads
 badly for some of the table's verbs (`lookup`, `match`, `search`); the words are the build's.
 Pinned: the description names its facet, is not the engine read's own, and no two tools of one

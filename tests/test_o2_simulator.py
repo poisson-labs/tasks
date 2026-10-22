@@ -1,12 +1,12 @@
 """The simulator: responses shaped by a user's schemas, errors in each format's idiom, and the
 state a task's calls move, frozen as tests.
 
-The invariants are O2.2 and O2.5 of the knobs plan (spec §4):
-- **O2.2** simulated responses conform to the tool's output schema when it has one (a
+The invariants:
+- simulated responses conform to the tool's output schema when it has one (a
   property-based sweep), respect formats, enums and bounds, and repeat for the same call in one
   episode;
-- **O2.5** each format's error idiom renders as §4 says, and a planned fault changes nothing.
-And spec §4's other clauses: a tool with no output schema answers `{"ok": true, "id": ...}`; an
+- each format's error idiom renders as the design says, and a planned fault changes nothing.
+And the design's other clauses: a tool with no output schema answers `{"ok": true, "id": ...}`; an
 MCP tool with one answers in `structuredContent` with its text form beside it; the values a task
 needs are placed in a named string field of the response; reads change nothing, the expected
 write moves its record, any other accepted write is a side effect, and every call advances a
@@ -25,11 +25,11 @@ result's `structuredContent` or `None`; `is_error` is the MCP result's `isError`
 
 **2. The draw is keyed on the call's content**: `respond` is a function of the file's digest,
 the task's seed and split, the tool's name and the arguments, and of nothing else, so the same
-call in one episode gets the same answer, and the arm does not enter it.  Spec §4 names "(file
+call in one episode gets the same answer, and the arm does not enter it.  The design names "(file
 digest, seed, tool, arguments)"; a task's seed is a seed of its split (the built-in draw keys on
 both), so the split is part of the seed here.
 
-**3. `ERROR_CODES` is spec §4's four, in its order**: `not_found`, `invalid_arguments`,
+**3. `ERROR_CODES` is the design's four, in its order**: `not_found`, `invalid_arguments`,
 `not_ready`, `unavailable`.  In the OpenAI idiom an error is Tasks' own tool result
 `{"error": {"code": ..., "message": ...}}`, not flagged; in the MCP idiom the message is the
 text and `is_error` is true; in the OpenAPI idiom it is `{"status": ..., "detail": ...}`, 503 for
@@ -84,7 +84,7 @@ def respond(output: Any, arguments: Any = None, **key: Any) -> Any:
 
 
 # --------------------------------------------------------------------------
-# O2.2: responses conform to the output schema
+# responses conform to the output schema
 # --------------------------------------------------------------------------
 
 NAMES = st.text(alphabet="abcdefghijklmnop_", min_size=1, max_size=8)
@@ -338,7 +338,7 @@ def test_an_mcp_tool_with_an_output_schema_answers_in_structured_content_with_it
 
 
 # --------------------------------------------------------------------------
-# O2.5: errors in each format's idiom
+# errors in each format's idiom
 # --------------------------------------------------------------------------
 
 
@@ -485,7 +485,7 @@ def test_openapi_3_0s_nullable_and_boolean_exclusive_bounds_are_read_as_3_0_mean
 
 
 def test_the_simulator_opens_no_socket(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A guard: spec §4's "no network", over a whole replay."""
+    """A guard: the design's "no network", over a whole replay."""
     import socket
 
     def refuse(*args: Any, **kwargs: Any) -> Any:

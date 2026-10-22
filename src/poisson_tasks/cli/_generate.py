@@ -1,4 +1,4 @@
-"""`generate`: make the plan's tasks with no model and no network, and look at one (spec §4.2).
+"""`generate`: make the plan's tasks with no model and no network, and look at one.
 
 The tokenizer file is checked before anything that generates is imported.  The plan is the
 settings file's, or the flags' (`--arm`, or `--knob` with `--levels`); in a folder whose settings
@@ -285,7 +285,7 @@ def generate(ctx: Context) -> Result:
 
 
 def task_name(arm_id: str, place: int | None, seed: int) -> str:
-    """How a task is named everywhere: by its arm and its place, and its seed (ruled
+    """How a task is named everywhere: by its arm and its place, and its seed (decided
     2026-10-03); by the arm and the seed alone for a seed the user chose."""
     if place is None:
         return f"{arm_id} seed {seed}"

@@ -1,6 +1,6 @@
 """What a run's records say about the history knob: the replay check takes it in, frozen as a test.
 
-Taylor's standing ruling for every knob that gains tasks: when a run's records are read, the
+The standing decision for every knob that gains tasks: when a run's records are read, the
 calls that reached the tool server are replayed against the engine and a disagreement with the
 tool messages is `replay_mismatch`, which scores nothing.  For history the sampled calls start
 at `seq_start`, after the seeded pairs, which the trace holds as prompt-supplied messages.

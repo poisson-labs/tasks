@@ -1,7 +1,7 @@
-"""Pending a yes/no: which of the four named reads carry the parts.
+"""Pending a decision: which of the four named reads carry the parts.
 
-Spec §14.4 and plan K8.2 say that at level P exactly P of the four answers carry a part, in order,
-joining to the entry code, and the rest answer `none`; they do not say which P.  If the answer is
+The design says that at level P exactly P of the four answers carry a part, in order,
+joining to the entry code, and the rest answer `none`; it does not say which P.  If the answer is
 yes, the parts are in the first P reads in the order the request lists them, and the rest read
 `none`: so the reads that carry a part at one level carry one at every higher level, and the order
 the four are drawn in decides which read holds what.  Dropped if the answer is no: which reads carry

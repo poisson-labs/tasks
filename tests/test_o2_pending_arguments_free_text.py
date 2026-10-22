@@ -1,11 +1,11 @@
-"""Pending a yes/no: the arguments knob counts only the target's checkable parameters.
+"""Pending a decision: the arguments knob counts only the target's checkable parameters.
 
-**Why it is open.**  Spec §6.1 counts "the target tool's own parameters"; spec §3 says no exact value
+**Why it is open.**  The design counts "the target tool's own parameters", and says no exact value
 of a free-text parameter can be checked.  Whether a free-text parameter counts towards a level, and is
 stated, is not said.
 
-**Recommendation: yes.**  Free text is never stated or checked; the level counts checkable parameters
-only.  A no states free text too and checks it byte for byte.
+**Recommended.**  Free text is never stated or checked; the level counts checkable parameters
+only.  If it is declined, the build states free text too and checks it byte for byte.
 """
 
 from __future__ import annotations

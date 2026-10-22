@@ -1,15 +1,15 @@
-"""Pending a yes/no: the card's census of the set's own near-duplicates.
+"""Pending a decision: the card's census of the set's own near-duplicates.
 
-**Why it is open.**  Spec §6.1, similarity: the copies are synthetic, "not the near-duplicates your set
-may already hold; the card reports the latter's name and description distances, descriptively".
-Which distances is not said.
+**Why it is open.**  The design, for similarity: the copies are synthetic, "not the near-duplicates
+your set may already hold; the card reports the latter's name and description distances,
+descriptively".  Which distances is not said.
 
-**Recommendation: yes.**  `own.card.near_duplicates(toolset)` gives the closest pair by name and the
-closest pair by description: the name distance is the edit distance over the longer name's length,
-the description distance is one less the share of words (lower-cased runs of letters and digits) the
-two descriptions have in common; each `(distance, first tool, second tool)`, the first pair in the
-file's order on a tie.  It is reported, and never read as a level or a claim.  A no picks other
-measures.
+**Recommended.**  `own.card.near_duplicates(toolset)` gives the closest pair by name and the closest
+pair by description: the name distance is the edit distance over the longer name's length, the
+description distance is one less the share of words (lower-cased runs of letters and digits) the two
+descriptions have in common; each `(distance, first tool, second tool)`, the first pair in the
+file's order on a tie.  It is reported, and never read as a level or a claim.  If it is declined,
+the build picks other measures.
 """
 
 from __future__ import annotations

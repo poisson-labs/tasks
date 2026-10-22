@@ -1,13 +1,14 @@
-"""Pending a yes/no: the `card` recipe is not offered on own tools.
+"""Pending a decision: the `card` recipe is not offered on own tools.
 
 **Why it is open.**  `card` is the published cards' design: depth and the distractor dial at every
 candidate level with their control arms, sixty tasks and five attempts.  On own tools the distractor
-dial is no knob and there are no control arms; depth is.  Knobs spec §17.4 shows on own tools "only
+dial is no knob and there are no control arms; depth is.  The knobs' design shows on own tools "only
 the recipes whose knobs work on that tool set" and does not name `card`.
 
-**Recommendation: yes.**  `card` is never offered on own tools, and `[measure] preset = "card"` beside
+**Recommended.**  `card` is never offered on own tools, and `[measure] preset = "card"` beside
 `[own]` is refused under `measure.preset`: its point is to be the published design, which a user's
-tools cannot be.  A no runs its depth arms alone at sixty tasks and five attempts.
+tools cannot be.  If it is declined, the build runs its depth arms alone at sixty tasks and five
+attempts.
 """
 
 from __future__ import annotations

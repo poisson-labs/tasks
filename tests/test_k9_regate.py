@@ -1,6 +1,6 @@
 """Phase 1's no-call check on the base arms, as amended on 2026-10-13, and the recorded re-gate.
 
-The ruling (2026-10-13, option B1, every part):
+The decision (2026-10-13, every part):
 
 (a) The base arms' no-call check in phase 1 becomes the cards' share rule, pooled over the 21 base
     episodes: more than 0.10 of them without a tool call stops phase 1, so 3 or more stop.  Every

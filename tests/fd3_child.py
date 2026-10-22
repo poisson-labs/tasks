@@ -1,4 +1,5 @@
-"""Run one plan in a process of its own, for FD3's tests: `python tests/fd3_child.py JOB.json`.
+"""Run one plan in a process of its own, for the `tests/test_fd3_*.py` tests:
+`python tests/fd3_child.py JOB.json`.
 
 The job names the plan (`fd3_support.plan_spec`), the runs folder, the caps, the concurrency,
 the watchdog's limit when the test sets one, and where to write the result.  The child finds the

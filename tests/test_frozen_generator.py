@@ -1,14 +1,14 @@
 """The built-in generator is frozen: its hash, and the content of every knob's tasks, held in one
 place, frozen as a test.
 
-Spec Knobs §12.2 and plan K8: K1 to K8 each edited the generator, and when K8 merges it is
-frozen.  Its hash is recorded in the vault's devlog and in the probe's record, and any later
-edit to `tasks.py`, `surface.py` or `knobs.py` before the rerun is a ruling; the one the spec
-foresees is a redesign after the probe (plan ruling 72), which refreezes the generator and
-records the new hash.  The plan gave the freeze no invariant a test holds, and
+Each knob's build edited the generator, and when the last of them, information spread, merged it
+was frozen.  Its hash is recorded in the lab's private notes and in the probe's record, and any
+later edit to `tasks.py`, `surface.py` or `knobs.py` before the rerun needs a decision; the one
+the design foresees is a redesign after the probe, which refreezes the generator and records the
+new hash.  The design gave the freeze no invariant a test holds, and
 `calibration_run.EXPECTED_GENERATOR_HASH` moves with every edit by design, so it does not hold
-the freeze.  Ruled 2026-10-09 (K8 Session A's yes/no 10): one test file, added by K8 Session B
-after the build as its own commit, holding the frozen generator hash as a literal beside every
+the freeze.  Decided 2026-10-09: one test file, added after the spread knob's build as its own
+commit, holding the frozen generator hash as a literal beside every
 knob's content digests, so any later change to the built-in generator fails here, in one named
 place, with a message saying the generator is frozen and what a deliberate change must update.
 
@@ -60,8 +60,8 @@ from tests import (
 from tests.k3_support import CARD_SEEDS, made
 from tests.k4_support import SPLITS
 
-# The frozen generator: the hash of version "1" over tasks.py, surface.py and knobs.py as K8 left
-# them, 2026-10-09.
+# The frozen generator: the hash of version "1" over tasks.py, surface.py and knobs.py as the
+# spread knob's build left them, 2026-10-09.
 FROZEN_GENERATOR_HASH = "b460964dc153fab4535af3b39abd41d50198f3dcc644ae3e43ddee85544b57f9"
 
 MOVES = {"task_id", "generator_hash", "pins"}
@@ -86,8 +86,8 @@ def frozen(what: str) -> str:
     """The one message: what moved, that the generator is frozen, and what a deliberate change
     must update."""
     return (
-        f"{what}: the built-in generator is frozen at {FROZEN_GENERATOR_HASH} (K8, 2026-10-09; "
-        "spec Knobs §12.2).  A change to tasks.py, surface.py or knobs.py is a ruling, and a "
+        f"{what}: the built-in generator is frozen at {FROZEN_GENERATOR_HASH} (since "
+        "2026-10-09).  A change to tasks.py, surface.py or knobs.py needs a decision, and a "
         "deliberate one updates FROZEN_GENERATOR_HASH in tests/test_frozen_generator.py, "
         "calibration_run.EXPECTED_GENERATOR_HASH, and the content digests of every knob whose "
         "tasks it moves, in the kept file that holds them (tests/test_k4_kept.py to "

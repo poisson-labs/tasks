@@ -1,4 +1,5 @@
-"""Run the command once in a fresh interpreter, for FD5's tests: `python -P tests/fd5_child.py JOB`.
+"""Run the command once in a fresh interpreter, for the `tests/test_fd5_*.py` tests:
+`python -P tests/fd5_child.py JOB`.
 
 The job is JSON: `argv` and `prog`, passed to `poisson_tasks.cli.main`; `record`, the file this
 writes when it ends; and, when the test sets them:

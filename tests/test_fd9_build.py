@@ -1,12 +1,12 @@
-"""Three behaviours of the guided session's build that Session A's frozen tests leave unpinned,
-each found by a mutant that survived the build's mutation pass (FD9 Session B, 2026-10-21):
+"""Three behaviours of the guided session's build that its frozen tests leave unpinned, each found
+by a mutant that survived the build's mutation pass (2026-10-21):
 
 - the word `card` in a folder whose card is built reads it again with `--force`, so the action
-  is never an overwrite refusal (spec §16.3: a step is offered only when its verb accepts it);
+  is never an overwrite refusal (a step is offered only when its verb accepts it);
 - a run folder that holds another plan is not the settings file's (`RunFacts.this_plan`), so
-  the home screen's step 1 is `run`, not that run's card (spec §16.3's table, state B);
+  the home screen's step 1 is `run`, not that run's card (the action table, state B);
 - a refused card's silent arms, the arms whose every attempt made no tool call, are read from
-  its records, and the step below `replies` and `card` names one (spec §16.3: the refusal's own
+  its records, and the step below `replies` and `card` names one (the refusal's own
   `next:`, `generate --show --arm <arm>`).
 """
 

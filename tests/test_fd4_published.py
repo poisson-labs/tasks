@@ -1,24 +1,24 @@
 """The published cards, frozen as tests: `poisson_tasks.cards`.
 
-The invariant is FD4.7 of the front door's plan (spec §4.4 and §9.7): `published()` lists the
-published cards, each named by its model's short name and never by its folder (ruled 2026-10-03),
+The invariant: `published()` lists the
+published cards, each named by its model's short name and never by its folder (decided 2026-10-03),
 and `recompute` rebuilds each from its records and says whether it is identical and current.
 
-**A defect in the plan, reported.**  The plan's FD4.7 says `recompute` gives "identical and
+**Two readings of the design, and which holds.**  One said `recompute` gives "identical and
 current" for both cards.  Both were measured at generator version `"0"`, and since the knobs'
-shared base moved the generator (K1.11, frozen in `tests/test_k1_calibration.py`), both say they
-are stale.  The spec (§4.4) asks `card --published` to "say whether it is current for this
-install"; it wins.  The test reads whether a card is current from the hashes: its recorded
+shared base moved the generator (frozen in `tests/test_k1_calibration.py`), both say they
+are stale.  The other asks `card --published` to "say whether it is current for this
+install"; that one holds.  The test reads whether a card is current from the hashes: its recorded
 generator hash against the one the package gives.  Today that is false for both; for the new
 cards it will be true.
 
-Shapes decided here, where the spec leaves them open
-----------------------------------------------------
+Shapes decided here, where the design leaves them open
+------------------------------------------------------
 
 **1. `published()` returns a tuple of `PublishedCard`** (`name`, `folder`), one per shipped card,
 read from the package's own `cards/` folder when it has one and otherwise from the checkout's
-`calibration/` (as the estimate reads them, FD3 Session A's yes/no 5).  The folder holds the
-card's `episodes.jsonl` and `artifact.json`, and `tallies.json` when the run kept one.
+`calibration/` (as the estimate reads them, decided 2026-10-05).  The folder
+holds the card's `episodes.jsonl` and `artifact.json`, and `tallies.json` when the run kept one.
 
 **2. `recompute(card)` returns a `Recomputed`**: `identical` (the artifact rebuilt from the
 folder's records, under the provenance its `artifact.json` recorded and with its tally, written
@@ -26,7 +26,7 @@ as `write_artifact` writes it, is `artifact.json` byte for byte), `current`, `re
 records it was rebuilt from) and `artifact` (the rebuilt artifact, which `card --compare
 published` reads).  A card whose files no longer rebuild is not identical; it is not an error.
 
-**Assertions the new cards will change** (listed in the session's filing): the two names.
+**Assertions the new cards will change** (listed in the lab's private notes): the two names.
 Everything else reads the shipped files.
 """
 
@@ -45,7 +45,7 @@ import pytest
 from tests.fd4_support import package_generator_hash, shipped_folders
 
 NAMES = {"gpt-5-nano", "qwen3-8b"}
-"""The two published cards' names, ruled 2026-10-03.  The new cards change this."""
+"""The two published cards' names, decided 2026-10-03.  The new cards change this."""
 
 
 def cards() -> Any:

@@ -1,7 +1,7 @@
-"""Pending a yes/no: the pools the four named reads are drawn from.
+"""Pending a decision: the pools the four named reads are drawn from.
 
-Spec §14.4 and plan K8.1 say the four reads are drawn from the block's reads, from their own PRF
-domain, and name them by item, facet and page; they do not say whether one read tool may be named
+The design says the four reads are drawn from the block's reads, from their own PRF
+domain, and name them by item, facet and page; it does not say whether one read tool may be named
 twice, nor which items and pages a read may name.  If the answer is yes, a task's four named reads
 are four different read tools, every one of B's fourteen reads may be drawn, and a read's item may
 be any of the table's sixteen catalogue items and its page any of its sixteen page keys: over the

@@ -6,7 +6,7 @@ decided.  Nothing here asserts anything.  The tool server, the trace writer and 
 are the faults knob's (`tests/k3_support.py`), unchanged.
 
 A task's targets are the records whose stage differs between its initial and its expected
-records, each with the stage it is to reach (spec §14.3, plan K1.9): read from the bundle's own
+records, each with the stage it is to reach: read from the bundle's own
 fields, as `verify` reads them.  A request's goal lines are its lines that name a record id the
 scenario holds.
 """

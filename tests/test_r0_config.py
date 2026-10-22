@@ -1,9 +1,9 @@
 """The recipes in `tasks.toml` and init's `--recipe`, frozen as tests.
 
-The invariants are R0.2 and R0.3 of the knobs plan, from spec §17.4 and rulings 52 and 53:
-`[measure] preset` keeps its name and takes every recipe name and `custom`, with FD1's frozen
-tests green; `--recipe` is the flag for init's question 6, and `--measure` stays as its alias for
-one release.  The invariant-to-test table for all of R0 is in `tests/test_r0_recipes.py`.
+The invariants:  `[measure] preset` keeps its name and takes every recipe name and `custom`, with
+the frozen `test_fd1_*` tests green; `--recipe` is the flag for init's question 6, and `--measure`
+stays as its alias for one release.  The invariant-to-test table for all of the recipes is in
+`tests/test_r0_recipes.py`.
 
 Shapes decided here
 -------------------
@@ -16,7 +16,7 @@ is no recipe gets the reader's usual refusal, with the nearest name offered.
 **2. The file says what it offers.**  The comment beside `preset` lists the recipes offered and
 then `custom`, in `RECIPES`' order, so the file never names a recipe whose knobs have not shipped.
 
-**3. A recipe sets init's tasks per level and attempts** (spec §17.4: "questions 7 and 8 are
+**3. A recipe sets init's tasks per level and attempts** ("questions 7 and 8 are
 skipped and their values shown"); `--tasks-per-level`, `--seeds` and `--attempts` still override.
 `custom` keeps init's defaults, ten tasks and one attempt.
 
@@ -31,7 +31,7 @@ a command that outlives the alias's one release still works.
 **What "after a knob ships" means here.**  The tests that need a recipe offered that is not
 offered today run in a fresh interpreter that sets `arms.SHIPPED_KNOBS` and
 `arms.RECIPES = arms.recipe_table(...)` before `poisson_tasks.config` is imported: the state the
-package is in once the probe's rulings edit `SHIPPED_KNOBS`.
+package is in once the probe's outcome edits `SHIPPED_KNOBS`.
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ from tests.r0_support import (
     tasks_and_attempts,
 )
 
-# Spec §5.2's file with its comments removed, as `tests/test_fd1_config.py` holds it.
+# The settings file with its comments removed, as `tests/test_fd1_config.py` holds it.
 FILE = textwrap.dedent("""\
     version = 1
 
@@ -153,7 +153,7 @@ def after_shipping(shipped: tuple[str, ...], body: str) -> Any:
 
 
 # --------------------------------------------------------------------------
-# R0.2: the preset key
+# the preset key
 # --------------------------------------------------------------------------
 
 
@@ -353,7 +353,7 @@ def test_custom_is_unchanged() -> None:
 
 
 # --------------------------------------------------------------------------
-# R0.3: --recipe, and --measure its alias
+# --recipe, and --measure its alias
 # --------------------------------------------------------------------------
 
 # The flags given beside each value; the card's design fixes its tasks, so it takes only its own.

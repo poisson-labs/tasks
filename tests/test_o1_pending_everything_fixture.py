@@ -1,13 +1,12 @@
-"""Pending: the MCP Everything reference server's `tools/list` reads as recorded (yes/no 2 of O1
-Session A).
+"""Pending a decision: the MCP Everything reference server's `tools/list` reads as recorded.
 
 `tests/fixtures/o1/mcp-everything-tools-list.json` is the one-page `tools/list` result of
 `@modelcontextprotocol/server-everything` (npm 2026.8.31, which names itself 2.0.0), recorded once
 on 2026-10-06 from the server started over stdio and asked only to list its tools.  It is the
-"public MCP server" fixture of the own-tools spec §10, and the one real tool list with titles,
+"public MCP server" fixture of the own-tools design, and the one real tool list with titles,
 annotations on every tool and an output schema.  Its licence is in doubt (the MCP servers
 repository is moving from MIT to Apache-2.0 and says some contributions remain MIT), so the fixture,
-this test and its `NOTICE` entry are one commit, which a "no" drops together.
+this test and its `NOTICE` entry are one commit, which are dropped together if it is declined.
 
 What it pins that the acme fixtures cannot: thirteen real tools read with their titles kept, their
 `inputSchema` kept as written (a `$schema` key and all), `outputSchema` carried for the one tool that

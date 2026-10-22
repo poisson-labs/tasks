@@ -1,7 +1,7 @@
 """The export config's arm: the readable id form, and the arms it refuses or notes, frozen as
 tests.
 
-The invariants are FD1.11 of the front door's plan and Taylor's first ruling of 2026-10-02 on it:
+The invariants are the export arm's readable id form and the first decision of 2026-10-02 on it:
 the arm validator refuses an unknown strictness (a misspelled `"leakey"` is silently scored as
 strict today) and a level below 1, and accepts a level that is legitimate but on no published
 card, such as depth 4, with a plain note that no published card covers it.
@@ -15,30 +15,31 @@ through the wheel's own loader.
 Measured, and pinned as found
 -----------------------------
 
-**`--env.taskset.arm depth:d3` on `eval`'s command line reaches the validator.**  On the tree
-FD1 started from, the wheel's parser hands the string to pydantic, which refuses it as "a valid
-dictionary" (`dry_run` below, measured 2026-10-02 against verifiers 0.3.1).  With the id turned
-into the mapping in the config's own before-validator, the same command resolves to the six-field
-mapping.  So does a hand-written `eval` TOML whose `[env.taskset]` says `arm = "depth:d1+h8"`.
+**`--env.taskset.arm depth:d3` on `eval`'s command line reaches the validator.**  On the tree the
+settings file's build started from, the wheel's parser hands the string to pydantic, which refuses
+it as "a valid dictionary" (`dry_run` below, measured 2026-10-02 against verifiers 0.3.1).  With the
+id turned into the mapping in the config's own before-validator, the same command resolves to the
+six-field mapping.  So does a hand-written `eval` TOML whose `[env.taskset]` says
+`arm = "depth:d1+h8"`.
 
-**The note is a Python `UserWarning`.**  The ruling asks for a plain note on an arm no published
+**The note is a Python `UserWarning`.**  The decision asks for a plain note on an arm no published
 card covers; through `eval` it reaches stderr as the warning line, measured.  It is pinned here
 in-process: exactly one `UserWarning`, one line, naming the arm by its id, and none for an arm a
-card covers.  How a command of Tasks' own prints it (a `note:` line) is FD5's.
+card covers.  How a command of Tasks' own prints it (a `note:` line) is for the `test_fd5_*` tests.
 
 A refusal's own words are read from pydantic's `msg` for the one error, which holds the
 validator's text and not the input pydantic quotes beside it; they must be one line and name the
 field refused (`strictness`, `level`).  Nothing else in them is pinned.
 
-Read, and recorded for Taylor
------------------------------
+Read, and recorded
+------------------
 
 **"Any level below 1" is read per knob.**  Distractor level 0 is a published level (`r0`, and the
 control `r0+len(r8)`), which `calibration.arm_specs()` and four frozen tests use, so it is
 accepted; distractor level -1 is below 1 and refused.  Depth 0 and below are refused.
 
-**FD0.4's message keeps its six-field example beside the new id one.**  The plan says the
-message switches to the id form here, but FD0's frozen
+**The no-arm message keeps its six-field example beside the new id one.**  The design says the
+message switches to the id form here, but the export's frozen
 `test_listing_a_taskset_with_no_arm_names_the_option_and_an_arm_it_accepts` reads a six-field
 JSON object out of it.  So the id form is added, and pinned here as an example the option
 accepts; the six-field one stays, pinned there.
@@ -101,7 +102,7 @@ def mapping(knob: str, level: int, control: int | None = None, *,
 
 
 # --------------------------------------------------------------------------
-# FD1.11: the id form, in Python
+# the id form, in Python
 # --------------------------------------------------------------------------
 
 
@@ -139,7 +140,7 @@ def test_fd1_11_an_id_that_does_not_parse_is_refused_when_the_config_is_validate
 
 
 # --------------------------------------------------------------------------
-# FD1.11: the id form, on eval's command line and in a hand-written TOML
+# the id form, on eval's command line and in a hand-written TOML
 # --------------------------------------------------------------------------
 
 
@@ -180,7 +181,7 @@ def test_fd1_11_a_hand_written_eval_toml_takes_the_id(tmp_path: Path) -> None:
 
 
 # --------------------------------------------------------------------------
-# FD1.11 and FD0.4: the no-arm message gives the id form
+# the no-arm message gives the id form
 # --------------------------------------------------------------------------
 
 
@@ -196,7 +197,7 @@ def test_fd1_11_a_run_with_no_arm_names_an_id_the_option_takes() -> None:
 
 
 # --------------------------------------------------------------------------
-# ruling 1: what the arm validator refuses
+# what the arm validator refuses (decided 2026-10-02)
 # --------------------------------------------------------------------------
 
 

@@ -1,5 +1,5 @@
 """The simulator: what a user's tools answer in a Tasks episode, shaped by their schemas, and the
-state a task's calls move (spec §4).
+state a task's calls move.
 
 `respond` is the object an accepted call answers with: for a tool with an output schema an object
 that conforms to it, every value drawn from the file's digest, the task's seed and split, the
@@ -65,7 +65,7 @@ OUTPUT_PASSED_OVER: tuple[str, ...] = (
     "maxProperties", "multipleOf", "uniqueItems",
 )
 
-# The OpenAPI status of each error code (ruled 2026-10-13, yes/no 4).
+# The OpenAPI status of each error code (decided 2026-10-13).
 _STATUS = {"not_found": 404, "invalid_arguments": 422, "not_ready": 409, "unavailable": 503}
 _FORMATS = ("openai", "mcp", "openapi")
 _DRAW_KEY = b"poisson-tasks/own/simulator/1"

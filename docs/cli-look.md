@@ -59,7 +59,7 @@ Help goes to standard output and exits 0. It never needs an optional dependency,
 - Hashes have 12 hex characters in text, and are in full in JSON.
 - Times are in UTC with `Z`.
 
-**L11. Plain words.** No internal identifiers, ruling numbers or session names anywhere a user reads: output, help, the README, user documents, the changelog. A product's documented names are fine.
+**L11. Plain words.** No internal identifiers, decision numbers or names of work sessions anywhere a user reads: output, help, the README, user documents, the changelog. A product's documented names are fine.
 
 **L12. A verb that writes files says what it wrote, and refuses to overwrite without `--force`.**
 

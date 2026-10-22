@@ -1,9 +1,9 @@
-"""Pending a yes/no: the stated values are told apart from one another and from the request's other
-values.
+"""Pending a decision: the stated values are told apart from one another and from the request's
+other values.
 
-**This file waits on a yes/no** and is its own commit, so a "no" drops it whole.
+**This file waits on a decision** and is its own commit, so if it is declined it is dropped whole.
 
-Plan K6.2 and the ledger's N31 hold each stated value to an opaque word no tool name carries; they
+The design and the ledger's N31 hold each stated value to an opaque word no tool name carries; they
 say nothing of two values being the same word, or of a value being the request's record id, a word
 of it, or its entry code.  Recommended: the six values a task draws are six different words, none
 of them the entry code, the record id or one of the record id's words, so a call that put a value

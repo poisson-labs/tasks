@@ -1,6 +1,6 @@
 """The history knob on the wire: the top level's bundle through the export, frozen as tests.
 
-The invariant is K4.6 of the knobs plan: a `history:t2400` bundle survives the export round trip
+A `history:t2400` bundle survives the export round trip
 (X2), and its seeded messages are well formed (G13).  The frozen X2 and G13 tests run over the
 published cards' arms, whose longest seeded prompt is the depth control's seven pairs; a history
 task at the top level carries forty-two, the longest prompt the generator makes, so the round

@@ -1,4 +1,4 @@
-"""Pending a yes/no (`evidence/front-door-fd3-a/rulings.md`, yes/no 2): a run whose every episode ran, one
+"""Pending a decision: a run whose every episode ran, one
 of them failed, is not complete.  Its folder is resumed, and the resume runs that one episode
 again and nothing else.
 

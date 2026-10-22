@@ -1,11 +1,11 @@
 """`tasks.toml`'s `[own]` table, its flags and the plan it resolves to, frozen as tests.
 
-Spec §8 (and the knobs plan's ruling 73): own-tools settings live in their own `[own]` table, never
-in `[tasks]`, whose content FD1's frozen tests pin; every own-tools setting has an `init` flag so
-the equivalent command reproduces the file.  §8.2's table: `file` (OpenAI tools, an MCP
+By design (and decided): own-tools settings live in their own `[own]` table, never in `[tasks]`,
+whose content the frozen `test_fd1_*` tests pin; every own-tools setting has an `init` flag so the
+equivalent command reproduces the file.  The table: `file` (OpenAI tools, an MCP
 `tools/list`, or OpenAPI), `format` (`auto`, `openai`, `mcp` or `openapi`), `name` (shown on the
 card), `read` and `write` (the effects Tasks could not read from the file), `[own.intents]` and
-`[[own.flow]]`.  §8.1's flags: `--own-file PATH`, `--own-format`, `--own-name NAME`, `--own-read
+`[[own.flow]]`.  The flags: `--own-file PATH`, `--own-format`, `--own-name NAME`, `--own-read
 TOOL` and `--own-write TOOL` (repeatable), `--own-intent TOOL=TEXT` (repeatable), `--own-flow
 FROM.FIELD:TO.PARAM` (repeatable), and `--mcp-command CMD`, which is `init`'s own
 (`tests/test_o2_cli.py`).
@@ -18,11 +18,11 @@ read, write, intents, flows)`: `format` defaults to `"auto"` and `name` to `None
 names the set by the file's stem); `read` and `write` are tuples of tool names; `intents` a tuple
 of `(tool, text)` pairs in the file's order; `flows` a tuple of `(from, field, to, param)`.
 
-**2. One validation**, as FD1's: a refusal is a `ConfigError` whose `.key` is the dotted path
-(`own.format`, `own.flow`), the same from the file and from the flags, pinned against an accepted
-control.  What needs the tool file (a tool name in `read`, `write`, `[own.intents]` or a flow, the
-recipe or the custom knob and levels on this set) is checked when the plan is resolved, as FD1's
-shape 3 allows; reading a settings file stays pure.
+**2. One validation**, as the settings file's: a refusal is a `ConfigError` whose `.key` is the
+dotted path (`own.format`, `own.flow`), the same from the file and from the flags, pinned against an
+accepted control.  What needs the tool file (a tool name in `read`, `write`, `[own.intents]` or a
+flow, the recipe or the custom knob and levels on this set) is checked when the plan is resolved, as
+the settings file's shape 3 allows; reading a settings file stays pure.
 
 **3. The plan.**  `resolve_plan(config, root=None)` reads the tool file from `root` (else the
 working folder).  Its arms are own-tools arms (`generator_version` `own-1`): a recipe's are
@@ -126,7 +126,8 @@ def test_the_own_table_reads_into_own_config_and_writes_back_the_same() -> None:
 
 
 def test_a_file_without_own_has_none_and_own_never_changes_the_tasks_table() -> None:
-    """A guard for ruling 73: `[own]` is a table of its own and `[tasks]` is as FD1 pins it."""
+    """A guard for that decision: `[own]` is a table of its own and `[tasks]` is as the
+    `test_fd1_*` tests pin it."""
     cfg = config()
     plain = cfg.loads_config(base_text())
     assert plain.own is None
@@ -375,8 +376,9 @@ PLAN_FIELDS = ("preset", "arms", "seeds", "attempts", "model", "decoding", "max_
                                   ["--provider", "vllm", "--model", "Qwen/Qwen3-8B", "--token-cap", "1000"]],
                          ids=["first-look", "card", "vllm"])
 def test_a_built_in_plan_keeps_its_fields_and_its_hash(argv: list[str], monkeypatch: pytest.MonkeyPatch) -> None:
-    """A run folder is found by its plan's hash, so a plan with no `[own]` hashes as it did before O2:
-    the identity `config.plan_hash` documents, with no `own` in it, and `own` is `None`."""
+    """A run folder is found by its plan's hash, so a plan with no `[own]` hashes as it did before
+    own tools:  the identity `config.plan_hash` documents, with no `own` in it, and `own` is
+    `None`."""
     import hashlib
     import json
 

@@ -1,8 +1,8 @@
-"""Shared ground for FD5's tests, the command a user types: frozen with them.
+"""Shared ground for the `tests/test_fd5_*.py` tests, the command a user types: frozen with them.
 
 **The command's name is not final.**  `PROGS` below is the one place it is written: the first is
 the console script's name and `python -m poisson_tasks`'s, the second the shared command's form.
-A rename is that one line.  Every test that drives the command runs once under each (FD5.6), and
+A rename is that one line.  Every test that drives the command runs once under each, and
 every command the output names must start with the prog under test.
 
 **How the command is driven.**  Most tests call `cli.main(argv, prog=PROG)` in this process
@@ -13,21 +13,22 @@ What a fresh interpreter must show (no `verifiers` imported by `--help`, no sock
 its own through `tests/fd5_child.py`.
 
 **Each test has its own world** (`world`): its own `HOME`, working folder and `TMPDIR`, colour off
-(`NO_COLOR=1`, `TERM=dumb`) and a fixed width (`COLUMNS=100`), and no provider variable, no
-variable whose name holds `API_KEY`, `TOKEN` or `SECRET`, and no proxy from the shell that started
-the suite.  One thing is shared on purpose: `UV_CACHE_DIR` is the cache of the user running the
-suite, so a run in a home of its own does not fetch the harness's packages again (FD3's child does
-the same); the harness writes there, outside the test's world.
+(`NO_COLOR=1`, `TERM=dumb`) and a fixed width (`COLUMNS=100`), and no provider variable, no variable
+whose name holds `API_KEY`, `TOKEN` or `SECRET`, and no proxy from the shell that started the suite.
+One thing is shared on purpose: `UV_CACHE_DIR` is the cache of the user running the suite, so a run
+in a home of its own does not fetch the harness's packages again (`tests/fd3_child.py` does the
+same); the harness writes there, outside the test's world.
 
 **How the command reads stdin** (a shape the fakes hold it to): `sys.stdin.isatty()` and
 `sys.stdin.readline()`, as `input()` does.  A fake terminal has no file descriptor, so a build that
-reads the terminal through `os.isatty(fileno)`, `termios` or `getpass` fails these tests.  Every in-process call is made inside FD2's network guard,
-so nothing leaves the machine; runs go to the fixture model on loopback.
+reads the terminal through `os.isatty(fileno)`, `termios` or `getpass` fails these tests.  Every
+in-process call is made inside the network guard of `tests/fd2_fakes.py`, so nothing leaves the
+machine; runs go to the fixture model on loopback.
 
-**The look is not ruled** (`evidence/cli-look-mockups/yes-nos.md`).  So these tests pin what is
+**The look was not settled when these tests were written.**  So they pin what is
 said and when: the verdict word and the facts on a line, the order of lines, exit codes, which
 stream, and what is written to disk.  They pin no colour, no spacing beyond the verdict line's two
-spaces (FD5.5's own pattern), no symbol and no table layout.  An equivalent command may be printed
+spaces (`VERDICT_LINE`), no symbol and no table layout.  An equivalent command may be printed
 on one line or broken before its flags with a backslash; `printed_command` reads either.
 
 **What every expectation is computed from**: the library's public functions, the plan, the files
@@ -92,14 +93,14 @@ VERDICTS: dict[str, frozenset[str]] = {
     "export": frozenset({"ok"}),
     "doctor": frozenset({"ok", "not ready"}),
 }
-"""FD5.5's table: the words a verb's first line may carry on success.  `different` joined `card`'s
-words by ruling G12 (2026-10-20): `card --compare published` opens with it (FD9 Session A's
-retrofit)."""
+"""The words a verb's first line may carry on success.  `different` joined `card`'s words on
+2026-10-20: `card --compare published` opens with it (a retrofit made with the guided session's
+tests)."""
 
 VERDICT_LINE = re.compile(r"^([a-z][a-z_ ]*)  (\S.*)$")
-"""FD5.5's pattern, with the word and the sentence as groups, and with `_` in the word: the plan's
-pattern, `^[a-z][a-z ]*  \\S`, refuses five of the outcome labels spec §4.5 makes `verify`'s
-verdict words (`wrong_state` and the rest).  The spec wins; this is reported as a plan defect."""
+"""The verdict line's pattern, with the word and the sentence as groups, and with `_` in the
+word: the pattern first written, `^[a-z][a-z ]*  \\S`, refuses five of the outcome labels that
+are `verify`'s verdict words (`wrong_state` and the rest), and the outcome labels win."""
 
 EXIT_CODES = frozenset({0, 1, 2, 3, 4, 130})
 
@@ -183,11 +184,12 @@ _SHELL_VARIABLES = (
 
 _SECRET = re.compile(r"API_KEY|TOKEN|SECRET", re.IGNORECASE)
 MADE_UP_KEYS = frozenset({KEY, SENTINEL})
-"""The tests' own keys (FD3's and FD2's), the only values a key variable may hold in a test."""
+"""The tests' own keys (from `fd3_support` and `fd2_fakes`), the only values a key variable may hold
+in a test."""
 
 SECRET_PARTS = {KEY: KEY.removeprefix("sk-"), SENTINEL: KEY_BODY}
 """Each made-up key's secret part: what follows its public prefix (`sk-`, `sk-proj-`), written
-out.  The leak rule (`tests/keymask_support.py`, ruled 2026-10-12): a key's public prefix is
+out.  The leak rule (`tests/keymask_support.py`, decided 2026-10-12): a key's public prefix is
 not secret; no text the command prints or writes holds twelve characters in a row of the secret
 part (`key_runs`); a text that can carry the key, `run.log` and the lines that quote the first
 error or `run.log`, holds no four in a row (`masked_runs`)."""
@@ -228,7 +230,7 @@ _UV_CACHE: list[str | None] = []
 
 def uv_cache() -> str | None:
     """uv's cache folder for the user running the suite, so a run with a home of its own does
-    not fetch the harness's packages again (FD3's child does the same)."""
+    not fetch the harness's packages again (`tests/fd3_child.py` does the same)."""
     if not _UV_CACHE:
         uv = shutil.which("uv")
         found = None
@@ -242,7 +244,7 @@ def uv_cache() -> str | None:
 
 @pytest.fixture(params=PROGS, ids=["dashed", "spaced"])
 def prog(request: pytest.FixtureRequest) -> str:
-    """The prog under test: every test that drives the command runs under each (FD5.6)."""
+    """The prog under test: every test that drives the command runs under each."""
     value: str = request.param
     return value
 
@@ -374,12 +376,11 @@ def invoke(
     """`cli.main(argv, prog=prog)` in this process, inside the network guard, with stdout and
     stderr captured as UTF-8 streams that are not terminals.
 
-    Unless `check` is false, every call is held to the shared look (`conformance`) and searched
-    for the tests' made-up keys (the leak rule, `SECRET_PARTS`), so every test that drives the
-    command checks FD5.4 to FD5.6:
-    except that a dialogue's questions go to stderr (stdin given as a terminal's answers), `--debug`
-    prints a traceback, `--print` and `--json` make stdout data, and help and the version are not
-    verdict lines."""
+    Unless `check` is false, every call is held to the shared look (`conformance`) and searched for
+    the tests' made-up keys (the leak rule, `SECRET_PARTS`), so every test that drives the command
+    checks the shared look's rules, except that a dialogue's questions go to stderr (stdin given as
+    a terminal's answers), `--debug` prints a traceback, `--print` and `--json` make stdout data,
+    and help and the version are not verdict lines."""
     main = cli().main
     out_bytes, err_bytes = io.BytesIO(), io.BytesIO()
     out = _Out(out_bytes, encoding="utf-8", newline="\n", write_through=True)
@@ -431,7 +432,7 @@ def held_to(ran: Ran, *, asked: bool = False) -> None:
 
 def joined_lines(text: str) -> list[str]:
     """The text's lines, with a line that ends in a backslash joined to the next: an equivalent
-    command may be printed broken before its flags (the look's yes/no 24)."""
+    command may be printed broken before its flags."""
     out: list[str] = []
     pending = ""
     for line in text.splitlines():
@@ -496,7 +497,7 @@ def verdict_lines(out: str, verb: str) -> list[tuple[str, str]]:
 
 def stderr_conforms(err: str) -> list[str]:
     """The stderr lines that are none of: `error: …`, `note: …`, or a continuation or progress
-    line indented two spaces (FD5.4)."""
+    line indented two spaces."""
     bad = []
     for line in err.splitlines():
         if not line:
@@ -508,7 +509,7 @@ def stderr_conforms(err: str) -> list[str]:
 
 
 def conformance(ran: Ran, verb: str | None) -> list[str]:
-    """Every way `ran` breaks the shared look's checkable rules (FD5.4 to FD5.6), as reasons."""
+    """Every way `ran` breaks the shared look's checkable rules, as reasons."""
     problems: list[str] = []
     for line in stderr_conforms(ran.err):
         problems.append(f"stderr line of no allowed kind: {line!r}")
@@ -537,7 +538,7 @@ def conformance(ran: Ran, verb: str | None) -> list[str]:
 def assert_clean(
     ran: Any, verb: str | None, *folders: Path, quoted: Sequence[str] = ()
 ) -> None:
-    """`ran` keeps the shared look's checkable rules (FD5.4 to FD5.6), and the leak rule holds
+    """`ran` keeps the shared look's checkable rules, and the leak rule holds
     (`SECRET_PARTS`): its output and every file under `folders` hold no twelve characters in a
     row of either made-up key's secret part; every `run.log` under `folders`, and the lines of
     the output `quoted` names (the first error, or `run.log`'s tail), hold no four."""
@@ -857,7 +858,7 @@ def package_copy(root: Path, *, cards: bool = False, tokenizer: bool = False) ->
     `tokenizer`; returns `root/src`, the folder to put first on `PYTHONPATH`.  With `cards`, the
     published cards' folders are copied to `root/calibration`, where a checkout keeps them beside
     `src/`, which is where the estimate and `cards.published()` read them until they ship inside
-    the package (FD3 Session A's yes/no 5)."""
+    the package (decided 2026-10-05)."""
     source = Path(importlib.import_module("poisson_tasks").__file__ or "").resolve().parent
     shutil.copytree(source, root / "src" / "poisson_tasks",
                     ignore=shutil.ignore_patterns("__pycache__", "*.tiktoken", "*.part"))

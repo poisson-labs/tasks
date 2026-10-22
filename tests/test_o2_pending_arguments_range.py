@@ -1,13 +1,14 @@
-"""Pending a yes/no: the arguments knob's levels on own tools run within 2 to 8.
+"""Pending a decision: the arguments knob's levels on own tools run within 2 to 8.
 
-**Why it is open.**  Spec §6.1: "levels from the target's required count up to its parameter count".
-The frozen `knobs.ArmSpec` carries an arguments level from 2 to 8 only (its own design's bounds), so a
-level of 1, or of 9 and more, has no arm id; changing `knobs.py` after the freeze is a ruling of its own.
+**Why it is open.**  The design: "levels from the target's required count up to its parameter
+count".  The frozen `knobs.ArmSpec` carries an arguments level from 2 to 8 only (its own design's
+bounds), so a level of 1, or of 9 and more, has no arm id; changing `knobs.py` after the freeze is a
+decision of its own.
 
-**Recommendation: yes.**  The levels run from the larger of 2 and the target's required checkable count
-to the smaller of 8 and its checkable count; the request states the required ones first and then the
-others in a drawn order, each level's set holding the one below it.  A no gives own tools arm ids of
-their own, a `knobs.py` change.
+**Recommended.**  The levels run from the larger of 2 and the target's required checkable count to
+the smaller of 8 and its checkable count; the request states the required ones first and then the
+others in a drawn order, each level's set holding the one below it.  If it is declined, the build
+gives own tools arm ids of their own, a `knobs.py` change.
 """
 
 from __future__ import annotations

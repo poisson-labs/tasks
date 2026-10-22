@@ -1,23 +1,22 @@
 """A card for any plan, frozen as tests: `calibration.Provenance.for_plan`, the `self_served`
-serving kind, and what FD4 must leave as it is.
+serving kind, and what cards for any plan must leave as they are.
 
-The invariants are FD4.1, FD4.2 and FD4.8 of the front door's plan (spec §9.2 and §9.5), and the
-plan's §2 for this module: both published cards rebuild byte for byte, and `calibration.run_arm`
-keeps its signature and behaviour.
+The invariants, with what this module must leave as it is: both published cards rebuild byte for
+byte, and `calibration.run_arm` keeps its signature and behaviour.
 
-- **FD4.1 The card design.**  `for_plan` on the `card` preset agrees with `for_run` with the
+- **The card design.**  `for_plan` on the `card` preset agrees with `for_run` with the
   taskset's turn cap on every field two cards must share to be read side by side
   (`calibration._COMPARABLE`), and neither that nor the published cards' rebuild depends on the
   package version.
-- **FD4.2 Any design.**  For every number of tasks per level from 1 to 60 and every number of
+- **Any design.**  For every number of tasks per level from 1 to 60 and every number of
   attempts from 1 to 5, the block's `k_values` are those of 1, 2 and 5 that are at most the
   attempts, and its seed list is the plan's, in the plan's order; the gates a card is refused by
   still fire under it, each beside a control at the threshold.
-- **FD4.8 `self_served`.**  A serving entry of that kind is accepted with what the server
+- **`self_served`.**  A serving entry of that kind is accepted with what the server
   reported, and refused without an endpoint.
 
-Shapes decided here, where the spec leaves them open
-----------------------------------------------------
+Shapes decided here, where the design leaves them open
+------------------------------------------------------
 
 **1. `Provenance.for_plan(plan, *, serving, rate_read_date, budget=None, concurrency=None)`.**
 The model entry is the plan's model, its `endpoint_host` the endpoint's host and port, and its
@@ -70,7 +69,7 @@ def for_plan(plan: Any, **kwargs: Any) -> Any:
 
 
 # ---------------------------------------------------------------------------
-# FD4.1 the card design
+# the card design
 # ---------------------------------------------------------------------------
 
 
@@ -120,7 +119,7 @@ def test_fd4_1_the_card_preset_differs_from_each_published_block_only_where_that
 
 
 # ---------------------------------------------------------------------------
-# FD4.2 any design
+# any design
 # ---------------------------------------------------------------------------
 
 
@@ -183,7 +182,7 @@ def test_fd4_2_the_gates_still_fire_under_a_plans_design(gate: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# FD4.8 self_served
+# self_served
 # ---------------------------------------------------------------------------
 
 
@@ -228,12 +227,13 @@ def test_fd4_8_a_self_served_model_is_recorded_with_what_its_server_reported(
 
 
 # ---------------------------------------------------------------------------
-# what FD4 leaves as it is (the plan's §2)
+# what cards for any plan leave as it is
 # ---------------------------------------------------------------------------
 
 
 def test_fd4_run_arm_keeps_its_signature() -> None:
-    """`run_arm`'s behaviour is held by its frozen tests (CAL23, FD3.14); its signature here."""
+    """`run_arm`'s behaviour is held by its frozen tests (CAL23, and `tests/test_fd3_config.py`);
+    its signature here."""
     cal = calibration()
     parameters = inspect.signature(cal.run_arm).parameters
     assert [(name, p.kind.name) for name, p in parameters.items()] == [

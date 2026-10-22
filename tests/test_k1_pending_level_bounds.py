@@ -1,14 +1,14 @@
-"""Pending a yes/no: the levels the generator cannot build for block, arguments, shape and spread.
+"""Pending a decision: the levels the generator cannot build for block, arguments, shape and spread.
 
-The knobs spec names three levels the generator cannot build, refused when an arm is made: a
+The knobs' design names three levels the generator cannot build, refused when an arm is made: a
 similarity level outside 0 to 3, and a negative faults or history level
 (`tests/test_k1_knobs.py`).  It names none for the other four new knobs, though each design has
 them: an arguments level is how many of a stage tool's eight parameters a call carries, at least
 the two the engine needs; a shape width is how four stage calls split into equal rows, so 1, 2 or
 4; a spread level is how many of four named reads carry a part, at least one; and a block's
 right tools and six reads fill its first eight slots at every level.  These pin those bounds
-beside the spec's three, so no later knob has to edit `knobs.py` to add them.  Dropped if the
-answer is no.
+beside the design's three, so no later knob has to edit `knobs.py` to add them.  Dropped if it
+is declined.
 """
 
 from __future__ import annotations

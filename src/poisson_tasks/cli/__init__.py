@@ -1,5 +1,5 @@
 """The command a user types: `poisson-tasks` and its seven verbs, `init`, `generate`, `run`,
-`card`, `verify`, `export` and `doctor` (spec §3, §4 and §11; the plan's FD5).
+`card`, `verify`, `export` and `doctor`.
 
 `main(argv, prog=...)` parses the command line, picks the style, runs the verb and prints its
 result; every command named in any output is rendered from `prog`, never from a literal.
@@ -8,7 +8,7 @@ Problems go to stderr as one `error:` line and exit 1 (refused, nothing spent or
 whose traceback goes to a log file the line names), 4 (a check you asked for did not pass) or
 130 (interrupted).  `--json` makes stdout one JSON document with the same exit code.
 
-**Two renderings of one result** (rule L16, ruled 2026-10-13): the plain style, text only, is
+**Two renderings of one result** (rule L16, decided 2026-10-13): the plain style, text only, is
 the contract; the pretty style, drawn with Rich, runs only when stdout and stderr are both
 terminals, `NO_COLOR` is unset or empty, `CI` is unset, `TERM` is not `dumb`, stdout is UTF-8,
 and neither `--json` nor `--plain` was given, and only when Rich can be imported.
@@ -58,7 +58,7 @@ def _utf8(stream: Any) -> bool:
 
 
 def pretty_allowed(words: Sequence[str]) -> bool:
-    """The switch (the look's item 6): one of two states, decided before anything is printed."""
+    """The switch: one of two states, decided before anything is printed."""
     if "--json" in words or "--plain" in words:
         return False
     if not (_is_terminal(sys.stdout) and _is_terminal(sys.stderr)):
@@ -208,7 +208,8 @@ def _typed(words: Sequence[str]) -> list[str]:
 
 
 def session_allowed(words: Sequence[str]) -> bool:
-    """Spec §16.1: stdin, stdout and stderr all terminals, `CI` unset, `--json` not given."""
+    """The session runs when stdin, stdout and stderr are all terminals, `CI` is unset and
+    `--json` is not given."""
     if "--json" in words or "CI" in os.environ:
         return False
     return all(_is_terminal(stream) for stream in (sys.stdin, sys.stdout, sys.stderr))

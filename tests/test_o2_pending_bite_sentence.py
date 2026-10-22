@@ -1,14 +1,14 @@
-"""Pending a yes/no: when an own-tools card says a knob made the tasks harder.
+"""Pending a decision: when an own-tools card says a knob made the tasks harder.
 
-**Why it is open.**  Spec §6.3: each knob's card "says, in words, whether that knob made your tasks
+**Why it is open.**  The design: each knob's card "says, in words, whether that knob made your tasks
 harder for this model at this sample size", over its table against the first level.  The rule that
 turns the table into the words is not given.
 
-**Recommendation: yes.**  A knob made the tasks harder when at least one of its levels is called
-different from its first under the two-clause rule (`calibration.DISTINGUISHABLE`) with a lower pass
-rate than the first; otherwise the card says it did not show that, at this sample size.  A level
-called different with a higher rate makes no claim of "harder".  A no takes another rule (every level
-lower, say, or the top level against the first alone).
+**Recommended.**  A knob made the tasks harder when at least one of its levels is called different
+from its first under the two-clause rule (`calibration.DISTINGUISHABLE`) with a lower pass rate than
+the first; otherwise the card says it did not show that, at this sample size.  A level called
+different with a higher rate makes no claim of "harder".  If it is declined, the build takes another
+rule (every level lower, say, or the top level against the first alone).
 """
 
 from __future__ import annotations

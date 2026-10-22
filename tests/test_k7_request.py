@@ -1,10 +1,10 @@
 """What a task-shape request says: one line per goal, the rest the same at every width, its control
 padded to the widest request's length; and the ledger over the contrast, frozen as tests.
 
-The invariant is K7.3 of the knobs plan, from spec §14.3 and §3.6: the request (`ledger-goals/v1`)
+The request (`ledger-goals/v1`)
 lists one line per goal, so its length moves with the width; the control pads `w1`'s request to
 `w4`'s length within two tokens, at the request's end (N34); N7's overlap set is reported for
-shape and not refused, and every other ledger row holds.  K7.2's token count is reported (N33).
+shape and not refused, and every other ledger row holds.  The block's token count is reported (N33).
 
 Shapes decided here
 -------------------
@@ -16,7 +16,7 @@ width and on the control the request has exactly one goal line per target, in th
 slot (`goal_lines`, `knobs._OWN_SLOT`, the slot N6 leaves out), and each names its target's record
 id, its ledger's word and its goal stage's name, and no other ledger and no other record id.  The
 template is `ledger-goals/v1` at every width.  The request names the entry code (how it is quoted is the wording's).  How a line is
-worded is pending a yes/no (`tests/test_k7_pending_wording.py`); the order of the lines with the
+worded is pending a decision (`tests/test_k7_pending_wording.py`); the order of the lines with the
 reference's order is another (`tests/test_k7_pending_order.py`).
 
 **2. Only the goal lines move**: the requests of `w1`, `w2` and `w4` are one text once each one's

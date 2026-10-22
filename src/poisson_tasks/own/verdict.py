@@ -1,5 +1,5 @@
 """The verdict on a user's own tools: the built-in outcome vocabulary, judged by replaying an
-episode's calls through the simulator (spec §5.2).
+episode's calls through the simulator.
 
 `verify(task, turns, ended_with_reply, turn_limit_hit, fmt)` takes `tasks.Turn`s and a
 `tasks.FormatSpec` and returns a `tasks.Verdict`, as `tasks.verify` does, so the export and the

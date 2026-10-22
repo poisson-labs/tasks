@@ -1,6 +1,6 @@
-"""What the re-gate tests share: phase 1's gate as the K9 driver first built it, phase 1's records
-with no-calls where a test puts them, a fake model that answers chosen episodes in plain text, and
-a phase 1 that failed under the first gate, made by the driver itself.
+"""What the re-gate tests share: phase 1's gate as the probe's driver first built it, phase 1's
+records with no-calls where a test puts them, a fake model that answers chosen episodes in plain
+text, and a phase 1 that failed under the first gate, made by the driver itself.
 
 The tests are `tests/test_k9_regate.py`; its docstring says what they pin.  Nothing here asserts
 anything a test relies on, except that the folders it makes failed the way they were made to.

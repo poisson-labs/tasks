@@ -1,7 +1,7 @@
 """The block-size knob's length: the ledger over the contrast, the control's filler, and Qwen's room,
 frozen as tests.
 
-The invariants are K5.3 and K5.5 of the knobs plan, from spec §3.6 (N3, N29) and §14.1.  The
+It rests on the pin ledger's N3 and N29.  The
 block's reference tokens grow with the level by definition, about 56 a tool, and the ledger
 reports the growth and refuses nothing for it (N29); the control `block:k8+len(k64)` holds k8's
 block with a neutral filler in its system prompt, within two tokens of what k64's block adds, which
@@ -22,15 +22,15 @@ is the ledger's to measure and is not measured a second way here.
 followed by the filler, and each word of the filler is one that no part of the vocabulary table
 spells, with no underscore, so it neither names a tool nor reads as one.
 
-**3. Qwen's room is model B's arithmetic over the block the generator makes.**  Spec §14.1: k64's
+**3. Qwen's room is model B's arithmetic over the block the generator makes.**  The design: k64's
 first request is about 5,500 Qwen tokens, at 1.48 Qwen tokens per reference token of schema, and
 31 calls of growth bring it to about 8,900, under the gate.  B's first request is about 1,526 Qwen
-tokens and a call adds about 110 (spec §7.6, model B's measured figures); the gate is
+tokens and a call adds about 110 (model B's measured figures); the gate is
 `calibration_run.HEADROOM` of what model B's serving pin leaves for the prompt.  So at every card
 seed, 1,526 + 1.48 x (k64's block tokens less B's) + 31 x 110 must stay under the gate.  The three
 ratios are measurements the generator does not control and are not re-measured at $0; the block
 is the one figure the generator controls, and nothing else bounds it.  The notebook's probe phase
-measures the prompt itself (plan K10.3).
+measures the prompt itself.
 """
 
 from __future__ import annotations

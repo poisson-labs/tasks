@@ -1,7 +1,7 @@
 """The taskset the id ``poisson-tasks`` names, and the ``Env`` that makes ``eval`` run the
 measured harness with no flag.
 
-The model path's first layer: a hosted model over an API, no GPU (the MP1 to MP9 cases in
+The model path's first layer: a hosted model over an API, no GPU (the cases in
 `tests/test_tg_m5_standalone.py`).  A stranger installs the package, names an
 OpenAI-compatible endpoint and runs ``uv run eval poisson-tasks ...``: the wheel resolves
 the id to the package root, whose ``__all__`` points here, and finds one ``Taskset`` and one
@@ -16,16 +16,16 @@ taskset's default harness is ``bash`` unless its own ``Env`` says otherwise, and
 Pins
 ----
 Every field this module's env config sets away from the wheel's own single-agent default is
-listed here, one line each, with the reason (MP4).  Nothing else is pinned: a stranger's run
+listed here, one line each, with the reason.  Nothing else is pinned: a stranger's run
 differs from a plain ``eval`` of this taskset in exactly these, each shows in the run's saved
-config, and a flag on the command line overrides any of them (MP5).
+config, and a flag on the command line overrides any of them.
 
 - `agent.harness.id` = `null` -- the measured harness; the default is otherwise `bash` (X9).
   Every number the pin ledger carries was produced under the
   `null` harness: it adds no system prompt and no tools of its own, and a run under `bash`
   measures something the ledger cannot be compared with.
-- `agent.runtime.type` = `subprocess` -- the harness program runs on the caller's machine
-  (MP8).  ``AgentConfig.runtime`` defaults to Prime's hosted sandbox, which a stranger
+- `agent.runtime.type` = `subprocess` -- the harness program runs on the caller's machine.
+  ``AgentConfig.runtime`` defaults to Prime's hosted sandbox, which a stranger
   has no account for, and which would make the run's outbound connections something other
   than the endpoint they named.
 - `agent.max_turns` = `32` -- an episode ends after 32 model calls, four times the deepest
@@ -35,7 +35,7 @@ config, and a flag on the command line overrides any of them (MP5).
   `turn_limit`, the model's own failure.  Ordinary episodes of both calibrated models end
   within 18 calls, so the cap binds only an episode that does not stop.
 
-Nothing here imports Proofload: the standalone path needs no extra (MP6).
+Nothing here imports Proofload: the standalone path needs no extra.
 """
 
 from __future__ import annotations

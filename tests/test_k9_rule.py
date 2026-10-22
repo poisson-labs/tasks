@@ -1,13 +1,13 @@
-"""K9.5, the analysis: the decision rule, and each knob's rule, on made-up records.
+"""The knob probe's analysis: the decision rule, and each knob's rule, on made-up records.
 
-The spec: for each knob and model, Δ = strict pass@1 at the base minus at the top, paired over the
-60 seeds, with the cards' task-clustered bootstrap (`cluster_bootstrap`: 2,000 resamples, seed
-20260922, its quantile rule) and its 95% interval.  `paired_delta` is called without a provenance
-block, so the cards' saturation refusal does not apply, and the analysis applies the two clauses
-itself: the knob bites when the interval excludes zero, Δ ≥ 0.15 and Δ is positive.  The
+The probe's design: for each knob and model, Δ = strict pass@1 at the base minus at the top, paired
+over the 60 seeds, with the cards' task-clustered bootstrap (`cluster_bootstrap`: 2,000 resamples,
+seed 20260922, its quantile rule) and its 95% interval.  `paired_delta` is called without a
+provenance block, so the cards' saturation refusal does not apply, and the analysis applies the two
+clauses itself: the knob bites when the interval excludes zero, Δ ≥ 0.15 and Δ is positive.  The
 saturation exclusion is dropped on purpose.  Per knob: similarity, history and spread on one
-contrast; faults, block size and argument difficulty on two (base minus top, and control minus
-top); shape two-sided, and only when its control differs from `w1` by less than 0.15.
+contrast; faults, block size and argument difficulty on two (base minus top, and control minus top);
+shape two-sided, and only when its control differs from `w1` by less than 0.15.
 
 The records: an arm "passing on its first k seeds" passes both attempts at the first k of the
 probe's sixty and fails both elsewhere (`tests/k9_support.cell`), so two such arms differ only on

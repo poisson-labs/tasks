@@ -1,6 +1,6 @@
 """The similarity knob's verdicts, frozen as tests.
 
-The invariant is K2.6 of the knobs plan, from spec §5.5 and §3.3.  A lookalike is another
+A lookalike is another
 ledger's real stage tool under a shown name, and the scenario holds the target's record id in
 every ledger under one entry code, so a call to the first-stage lookalike with the reference's
 arguments succeeds, on the wrong ledger: a real side effect, `collateral_mutation`, which strict

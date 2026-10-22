@@ -2,6 +2,10 @@
 
 This page is for working on the package itself: cloning it, running its tests, and the few rules the repository keeps. If you only want to use it, [the README](README.md) is the page for that.
 
+## How to help
+
+Anyone can open an [issue](https://github.com/poisson-labs/tasks/issues): a bug, a question or an idea. Pull requests come from invited collaborators. To help, open an issue first.
+
 ## Set up a checkout
 
 Python 3.11 to 3.13 on macOS or Linux. From a clone:
@@ -76,7 +80,7 @@ Write a value that varies (a path, a duration, a date) as `…` in the output bl
 
 ## Words in the docs
 
-The README, `docs/` (but the two standards, `repo-hygiene.md` and `cli-look.md`) and `CHANGELOG.md` are for users. They carry no internal identifiers and no ruling or session names; "knob", "arm" and "level" are each explained where they first appear, and a number is shown with its unit. The pin ledger's row ids (`N1` to `N35`) appear only beside their names. A test reads the files with the same pattern the card text is held to.
+The README, `docs/` (but the two standards, `repo-hygiene.md` and `cli-look.md`) and `CHANGELOG.md` are for users. They carry no internal identifiers, no decision ids and no names of work sessions; "knob", "arm" and "level" are each explained where they first appear, and a number is shown with its unit. The pin ledger's row ids (`N1` to `N35`) appear only beside their names. A test reads the files with the same pattern the card text is held to.
 
 ## Commits and history
 

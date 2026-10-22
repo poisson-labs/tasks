@@ -1,17 +1,17 @@
-"""The guided session (spec §16, the plan's FD9), frozen as tests before it is built.
+"""The guided session, frozen as tests before it is built.
 
 A bare `poisson-tasks` on a terminal opens a session that stays open: a load screen with the
-ruled banner, then the run-through with no `tasks.toml`, else the home screen, which reads the
+chosen banner, then the run-through with no `tasks.toml`, else the home screen, which reads the
 folder from disk and offers short steps.  Every action is one of the seven verbs' command lines,
 run through the same parser and verb function as `main`, and shown with its `same as` command.
 Nothing calls a model before a yes at `run`'s own question.  Off a terminal there is no session.
 
-Each test names the invariant of spec §16.14 it pins, and the reason it is red before the build.
+Each test names the invariant it pins, and the reason it is red before the build.
 The ways of driving the session, the fixture states and what every expectation is computed from
 are in `tests/fd9_support.py`.
 
-Numbers in the status block are matched as the look already prints them (`cli._format`, FD5's,
-not changed here): a rate with three decimals, dollars as `_format.dollars`.
+Numbers in the status block are matched as the look already prints them (`cli._format`, the
+command's, not changed here): a rate with three decimals, dollars as `_format.dollars`.
 """
 
 from __future__ import annotations
@@ -68,23 +68,23 @@ __all__ = ["harness_env", "states", "world"]
 
 VERB_OF = {"run": "run", "again": "run", "card": "card", "task": "generate", "verify": "verify",
            "export": "export", "check": "doctor", "setup": "init", "flow": "init"}
-"""The verb each action word runs (spec §16.2)."""
+"""The verb each action word runs."""
 
 RUNTHROUGH_STEPS = ("Set up", "One task", "The run", "The card", "What next")
 ONE_LINE = "Poisson Labs  tasks {}"
-"""The banner's one line, ruled 2026-10-20 (P1): the ruled pick's own words."""
+"""The banner's one line, decided 2026-10-20: the chosen banner's own words."""
 RAW = re.compile(r"^\s*(\||#|---)")
-"""A line of raw Markdown: a table row, a heading or a rule (FD9.14)."""
+"""A line of raw Markdown: a table row, a heading or a rule."""
 
 
 def answering(*, start: str = "n", first: str | None = None,
               interrupt: str | None = None, flow: bool = False,
               menus: list[str] | None = None) -> Any:
-    """A policy for the questions: `run`'s `Start?` gets `start`; every other yes/no gets no (no
-    key check, no fetch: nothing leaves the machine unasked); `init`'s first menu gets the option
-    matching `first` when given; with `interrupt`, every question that module asks gets Ctrl-C;
-    the session's own menus get, in turn, the flow addPet.id into getPetById.petId (Petstore)
-    with `flow`, then the numbers in `menus`, then Ctrl-C, which leaves a menu (spec §16.7);
+    """A policy for the questions: `run`'s `Start?` gets `start`; every other yes-or-no question
+    gets no (no key check, no fetch: nothing leaves the machine unasked); `init`'s first menu gets
+    the option matching `first` when given; with `interrupt`, every question that module asks gets
+    Ctrl-C;  the session's own menus get, in turn, the flow addPet.id into getPetById.petId
+    (Petstore) with `flow`, then the numbers in `menus`, then Ctrl-C, which leaves a menu;
     everything else is Enter."""
     seen = {"_init": 0, "_session": 0}
     flow_picks = [r"^addPet\b", r"^id\b", r"^getPetById\b", r"^petId\b"] if flow else []
@@ -117,7 +117,7 @@ def flat(text: str) -> str:
 
 OPENING: dict[str, list[Any]] = {"A": [INTERRUPT]}
 """What reaches the home screen first: with no settings file the session opens on the
-run-through, and a Ctrl-C at its first prompt ends it on the home screen (spec §16.4)."""
+run-through, and a Ctrl-C at its first prompt ends it on the home screen."""
 
 
 def here(states: States, name: str, world: World) -> Path:
@@ -139,7 +139,7 @@ def keyed(monkeypatch: pytest.MonkeyPatch, states: States) -> None:
 
 
 # ---------------------------------------------------------------------------
-# FD9.1 entry
+# entry
 # ---------------------------------------------------------------------------
 
 
@@ -204,7 +204,7 @@ def test_fd9_1_a_verb_on_three_terminals_never_opens_the_session(
 
 
 # ---------------------------------------------------------------------------
-# FD9.2 isolation
+# isolation
 # ---------------------------------------------------------------------------
 
 
@@ -222,7 +222,7 @@ def test_fd9_2_a_verb_or_help_does_not_import_the_session(
 
 
 # ---------------------------------------------------------------------------
-# FD9.3 the first screen
+# the first screen
 # ---------------------------------------------------------------------------
 
 
@@ -245,7 +245,7 @@ def test_fd9_3_the_first_screen_is_the_run_through_without_settings_else_the_hom
 
 
 # ---------------------------------------------------------------------------
-# FD9.4 no model call before the yes
+# no model call before the yes
 # ---------------------------------------------------------------------------
 
 
@@ -275,9 +275,9 @@ def test_fd9_4_the_run_through_to_start_and_every_word_but_run_and_again_calls_n
 def test_the_run_through_takes_its_five_steps_in_order_and_ends_on_the_home_screen_with_a_card(
     harness_env: Path, states: States, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Spec §16.4, binding: set up, one task, the run (yes), the card, then what next: the home
+    """The run-through, binding: set up, one task, the run (yes), the card, then what next: the home
     screen of a finished run with its card, whose step 1 is `card`; and no line of it is raw
-    Markdown (FD9.14).  Red before the build: no session opens."""
+    Markdown.  Red before the build: no session opens."""
     here(states, "A", world)
     keyed(monkeypatch, states)
     session = in_session(Keys([Through("y"), "quit"], answer=answering()), monkeypatch)
@@ -294,7 +294,7 @@ def test_the_run_through_takes_its_five_steps_in_order_and_ends_on_the_home_scre
 
 
 # ---------------------------------------------------------------------------
-# FD9.5 and FD9.6 one implementation, and the same-as command
+# one implementation, and the same-as command
 # ---------------------------------------------------------------------------
 
 
@@ -360,7 +360,7 @@ def test_fd9_5_a_run_in_the_session_keeps_the_episodes_its_same_as_command_keeps
 
 
 # ---------------------------------------------------------------------------
-# FD9.7 the home screen's facts
+# the home screen's facts
 # ---------------------------------------------------------------------------
 
 CARD_WORDS = {"built": "card built", "refused": "card refused"}
@@ -388,7 +388,7 @@ def test_fd9_7_the_status_block_says_what_read_folder_reads_and_step_1_is_the_st
     status = "\n".join(line for line in block if not re.match(r"^next\s*$", line))
     assert steps_of(block)[0] == STEP_ONE[state], block
     if state == "D-refused":
-        assert "card" in steps_of(block)[1:], block  # ruled 2026-10-20: offered below replies
+        assert "card" in steps_of(block)[1:], block  # decided 2026-10-20: offered below replies
     rows = {match.group(1) for line in block if (match := re.match(r"^(\w[\w ]*?)\s{2,}", line))}
     assert "folder" in rows and "ready" in rows, block
     if facts.settings is None:
@@ -485,7 +485,7 @@ def test_fd9_7_read_folder_reads_the_folder_from_disk_alone(
 
 
 # ---------------------------------------------------------------------------
-# FD9.8 no step the verb refuses
+# no step the verb refuses
 # ---------------------------------------------------------------------------
 
 
@@ -496,11 +496,12 @@ def test_fd9_8_every_offered_step_runs_as_a_command_without_a_refusal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Each step of `next`, picked by its number in a session on a copy of the state, then its
-    `same as` command run from a shell in another copy (a run answered yes): no exit 1 or 2.  A
-    step with no command (`home`, `replies`) is a view.  In state D with a refused card, step 1 is
-    the replies view (ruled 2026-10-20) and `card` is offered below it; that `card` step shows the
-    refusal and exits 1 by FD5's codes, the one exception to FD9.8 (ruled 2026-10-21, FD9 Session
-    A's yes/no 5, yes), pinned by the test below.  Red before the build: no session."""
+    `same as` command run from a shell in another copy (a run answered yes): no exit 1 or 2.  A step
+    with no command (`home`, `replies`) is a view.  In state D with a refused card, step 1 is the
+    replies view (decided 2026-10-20) and `card` is offered below it; that `card` step shows the
+    refusal and exits 1 by the command's exit codes, the one exception to offering no step the verb
+    refuses (decided yes 2026-10-21), pinned by the test below.  Red before the build: no
+    session."""
     keyed(monkeypatch, states)
     work = here(states, state, world)
     held = hold_lock(run_folder(work)) if state == "C2" else None
@@ -548,9 +549,9 @@ def monkeypatch_for(work: Path, monkeypatch: pytest.MonkeyPatch) -> pytest.Monke
 def test_fd9_8_the_card_step_below_a_refused_cards_replies_exits_1_with_the_refusal(
     states: States, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Ruled 2026-10-21 (FD9 Session A's yes/no 5, yes): when the card is refused, `card` stays
-    offered below the replies view, and its command shows the refusal and exits 1, the one
-    exception to FD9.8; step 1, which the session leads with, never fails.  Folded in from its
+    """Decided yes 2026-10-21: when the card is refused, `card` stays offered below the replies
+    view, and its command shows the refusal and exits 1, the one exception to offering no step
+    the verb refuses; step 1, which the session leads with, never fails.  Folded in from its
     pending file unchanged.  Red before the build: there is no session."""
     states.copy("D-refused", world.work)
     shown = in_session(Keys(["quit"]), monkeypatch)
@@ -567,14 +568,14 @@ def test_fd9_8_the_card_step_below_a_refused_cards_replies_exits_1_with_the_refu
 
 
 # ---------------------------------------------------------------------------
-# FD9.9 the prompt
+# the prompt
 # ---------------------------------------------------------------------------
 
 
 def test_fd9_9_after_an_action_next_is_the_new_states_and_the_status_block_is_not_repeated(
     states: States, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Spec §16.3: after an action, its result, then `next` for the state it left, then the
+    """After an action, its result, then `next` for the state it left, then the
     prompt; the status block only on opening, after `home` and after a run.  Building the card
     (step 1 of a finished run with none) leaves the state of a card built, whose step 2 is not
     `task`.  Red before the build: there is no session."""
@@ -672,7 +673,7 @@ def test_fd9_9_tab_completes_a_unique_prefix(states: States, world: World) -> No
 
 
 # ---------------------------------------------------------------------------
-# FD9.10 leaving
+# leaving
 # ---------------------------------------------------------------------------
 
 
@@ -715,7 +716,7 @@ def test_fd9_10_ctrl_c_with_text_typed_clears_the_line_only(
 
 
 # ---------------------------------------------------------------------------
-# FD9.11 Ctrl-C at a question
+# Ctrl-C at a question
 # ---------------------------------------------------------------------------
 
 
@@ -735,7 +736,7 @@ def test_fd9_11_ctrl_c_at_an_init_question_writes_no_settings_and_the_session_st
 def test_fd9_11_ctrl_c_in_a_view_goes_back_to_the_prompt(
     word: str, states: States, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Spec §16.7: Ctrl-C in a view's menu (the session's own) goes back to the prompt, which then
+    """Ctrl-C in a view's menu (the session's own) goes back to the prompt, which then
     reads a word.  Red before the build: there is no session."""
     here(states, "E", world)
     session = in_session(Keys([word, "home", "quit"], answer=answering()), monkeypatch)
@@ -759,7 +760,7 @@ def test_fd9_11_ctrl_c_at_start_spends_nothing_makes_no_folder_and_the_session_s
 
 
 # ---------------------------------------------------------------------------
-# FD9.12 and FD9.13 Ctrl-C during a run, and the prompt after a run
+# Ctrl-C during a run, and the prompt after a run
 # ---------------------------------------------------------------------------
 
 
@@ -770,7 +771,7 @@ def test_fd9_12_ctrl_c_during_a_run_stops_it_as_run_does_and_step_1_resumes_it(
     """The run's own first interrupt: the folder keeps what ended, the session is at its prompt,
     the home screen says stopped partway with step 1 the resume, and taking it finishes the run
     with no episode run twice.  The prompt reads after the interrupt and after the run ends
-    (FD9.13).  Red before the build: there is no session."""
+    Red before the build: there is no session."""
     write_config(world.work / "tasks.toml",
                  states.flags(model="fixture-slow", tasks_per_level=3))
     plan = plan_of(world.work / "tasks.toml")
@@ -833,7 +834,7 @@ def test_fd9_13_the_prompt_reads_a_word_after_a_run_stopped_by_its_cap(
 
 
 # ---------------------------------------------------------------------------
-# FD9.14 no raw Markdown
+# no raw Markdown
 # ---------------------------------------------------------------------------
 
 
@@ -857,7 +858,7 @@ def test_fd9_14_the_card_view_and_more_print_no_raw_markdown(
 
 
 # ---------------------------------------------------------------------------
-# FD9.16 the copy, from the session
+# the copy, from the session
 # ---------------------------------------------------------------------------
 
 
@@ -882,7 +883,7 @@ def test_fd9_16_setup_and_flow_keep_the_file_they_replace(
 
 
 # ---------------------------------------------------------------------------
-# FD9.20 the first question
+# the first question
 # ---------------------------------------------------------------------------
 
 
@@ -926,7 +927,7 @@ def test_fd9_20_the_first_question_is_built_in_tasks_or_your_own_tools(
 
 
 # ---------------------------------------------------------------------------
-# FD9.21 the plain session
+# the plain session
 # ---------------------------------------------------------------------------
 
 
@@ -957,7 +958,7 @@ def test_fd9_21_the_plain_session_writes_no_escape_and_carries_the_pretty_ones_f
 
 
 # ---------------------------------------------------------------------------
-# FD9.22 the banner
+# the banner
 # ---------------------------------------------------------------------------
 
 DEPTHS = {
@@ -990,9 +991,9 @@ def _trimmed(line: list[tuple[str, Any, bool, bool]]) -> list[tuple[str, Any, bo
 def test_fd9_22_the_banner_at_each_colour_depth_is_the_ruled_one(
     depth: str, states: States, world: World
 ) -> None:
-    """B1 to B3: the mark flat cobalt (#3B5BDB, then Rich's step-down), the name in the terminal's
-    foreground, bold, the version dim; under `NO_COLOR` the same text with no escape sequence.
-    Each depth in a process of its own.  Red before the build: there is no session."""
+    """The banner as decided: the mark flat cobalt (#3B5BDB, then Rich's step-down), the name in the
+    terminal's foreground, bold, the version dim; under `NO_COLOR` the same text with no escape
+    sequence.  Each depth in a process of its own.  Red before the build: there is no session."""
     work = here(states, "B", world)
     with pty_session([], env=pretty_env(world, **DEPTHS[depth]), cwd=work,
                      columns=80) as session:
@@ -1030,8 +1031,8 @@ def _ans_text(depth: str) -> str:
 def test_fd9_22_the_banner_is_its_two_lines_at_every_width_it_fits_and_never_wraps(
     columns: int, states: States, world: World
 ) -> None:
-    """The ruled banner is its own narrow form, 26 cells wide, and shows down to its own width
-    (ruled 2026-10-20, P2, no: not one line below 40).  Red before the build."""
+    """The chosen banner is its own narrow form, 26 cells wide, and shows down to its own width
+    (decided 2026-10-20: not one line below 40).  Red before the build."""
     work = here(states, "B", world)
     with pty_session([], env=pretty_env(world), cwd=work, columns=columns) as session:
         session.quiet(1.5)
@@ -1045,7 +1046,7 @@ def test_fd9_22_the_banner_is_its_two_lines_at_every_width_it_fits_and_never_wra
 def test_fd9_22_below_its_own_width_the_banner_is_the_one_line(
     states: States, world: World
 ) -> None:
-    """Ruled 2026-10-20 (P2): the one line shows only where the ruled banner does not fit, below
+    """Decided 2026-10-20: the one line shows only where the chosen banner does not fit, below
     its own width; at 25 columns, with the colour on.  Red before the build: no session."""
     width = max(cell_len(line) for line in banner_text())
     work = here(states, "B", world)
@@ -1062,8 +1063,8 @@ def test_fd9_22_below_its_own_width_the_banner_is_the_one_line(
 def test_fd9_22_with_plain_or_a_dumb_terminal_the_banner_is_one_line_with_no_art(
     how: str, states: States, world: World
 ) -> None:
-    """B3, and the one line's words as ruled on 2026-10-20 (P1, no): `Poisson Labs  tasks
-    <version>`, the ruled banner's own words.  Red before the build: there is no session."""
+    """The plain banner, and the one line's words as decided on 2026-10-20: `Poisson Labs  tasks
+    <version>`, the chosen banner's own words.  Red before the build: there is no session."""
     work = here(states, "B", world)
     extra = {"TERM": "dumb"} if how == "TERM=dumb" else {}
     argv = ["--plain"] if how == "--plain" else []

@@ -1,10 +1,11 @@
 """The bytes every own-tools task in these tests is made from, frozen by digest.
 
-A task's id covers its tool file's digest (spec §2.2), so a fixture whose bytes moved, even by a
+A task's id covers its tool file's digest, so a fixture whose bytes moved, even by a
 space, moves every task made from it, and a frozen expectation read off one would move unseen.
-These are O1's fixtures, which O2 reuses and adds none to; the digests are each file's SHA-256 as
-O1 Session A committed it.  The tasks the build makes from them are pinned by content digests
-Session B adds after its build, as the knobs' sessions did.
+These are the tool-file readers' fixtures, which the own-tools tasks reuse and add none to; the
+digests are each file's SHA-256 as the readers' frozen tests committed it.  The tasks the build
+makes from them are pinned by content digests the build adds after it is built, as the knobs'
+builds did.
 """
 
 from __future__ import annotations

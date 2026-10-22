@@ -1,5 +1,5 @@
-"""JSON Schema handling shared by the readers: `$ref` inlining, the object test, the rules of
-spec §3 on an argument schema, and the free-text test behind `can_target`.
+"""JSON Schema handling shared by the readers: `$ref` inlining, the object test, the reading
+rules on an argument schema, and the free-text test behind `can_target`.
 
 Nothing here knows the formats.  A schema that cannot be used raises `SchemaProblem` with the
 refusal kind (`schema`, `binary` or `not_object`) and a one-line reason; the caller turns it
@@ -12,12 +12,13 @@ from typing import Any
 from urllib.parse import unquote
 
 # JSON Schema keywords the simulator cannot check exactly, beside a schema-valued
-# `additionalProperties`, a `$ref` cycle and the depth, which are tested apart: spec §3's five,
-# and the wider list ruled 2026-10-07 and written by O2 (the conditionals, the dependencies in
-# their 2020-12 and draft-7 forms, `propertyNames`, the containment family, `uniqueItems`,
-# `multipleOf`, the unevaluated pair, the property-count bounds, the dynamic references and
-# `contentSchema`), each coupling an argument's validity to another argument's, to a count of
-# arguments, or to a value the simulator cannot draw exactly.  The one tuple that holds them all.
+# `additionalProperties`, a `$ref` cycle and the depth, which are tested apart: the first five, and
+# the wider list decided 2026-10-07 and written with the own-tools tasks (the conditionals, the
+# dependencies in their 2020-12 and draft-7 forms, `propertyNames`, the containment family,
+# `uniqueItems`, `multipleOf`, the unevaluated pair, the property-count bounds, the dynamic
+# references and `contentSchema`), each coupling an argument's validity to another argument's, to a
+# count of arguments, or to a value the simulator cannot draw exactly.  The one tuple that holds
+# them all.
 UNCHECKABLE = (
     "anyOf", "oneOf", "allOf", "not", "patternProperties",
     "if", "then", "else",
@@ -31,10 +32,10 @@ UNCHECKABLE = (
     "$dynamicRef", "$recursiveRef",
     "contentSchema",
 )
-# The argument object is level 0; a schema at this level is one too deep (spec §3, "nesting
+# The argument object is level 0; a schema at this level is one too deep ("nesting
 # deeper than three levels"; the frozen test counts an array's items as a level).
 TOO_DEEP = 4
-# The keys a free-text string lacks (spec §3: "free text with no format, enum or bound").
+# The keys a free-text string lacks ("free text with no format, enum or bound").
 NOT_FREE = ("format", "enum", "const", "minLength", "maxLength")
 # Where a schema keeps the subschemas its `$ref`s name; dropped once they are inlined.
 DEFINITION_KEYS = ("$defs", "definitions")
@@ -161,7 +162,7 @@ def describe(schema: Any) -> str:
 
 
 def check_argument_schema(schema: Any) -> None:
-    """Spec §3's rules on an argument schema, every `$ref` already inlined: no file or binary
+    """The reading rules on an argument schema, every `$ref` already inlined: no file or binary
     string anywhere in it (kind `binary`), none of `UNCHECKABLE`, no schema-valued
     `additionalProperties`, and nothing deeper than three levels (kind `schema`)."""
     _walk(schema, 0)

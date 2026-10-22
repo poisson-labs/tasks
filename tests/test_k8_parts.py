@@ -1,7 +1,7 @@
 """What the four named reads answer at each information-spread level: the entry code in parts,
 frozen as tests.
 
-The invariant is K8.2 of the knobs plan, from spec §14.4 and the ledger's N35 and N8: at level P
+It rests on the pin ledger's N35 and N8.  At level P
 exactly P of the four answers carry a non-empty part, in order, joining to the scenario's entry
 code, split as evenly as possible with the earlier parts longer; the rest answer `none`; each
 payload is the part (or `none`), a `.` and keyed hex to 32 bytes; every such answer is `L_obs`
@@ -16,19 +16,19 @@ bytes, its `seq` the reference's own count from `seq_start`, the status `ok`), a
 as the table's payload field, whose head is what comes before its first full stop and whose fill
 is what comes after it.  The fill is lowercase hex, at least one character, and is keyed: across
 the card seeds of a split the first listed read's fill takes more than one value, so it is no
-constant (zeros would look like the engine's error payload, spec §14.4).
+constant (zeros would look like the engine's error payload).
 
 **2. The parts**: in the order the request lists the reads (`tests/k8_support.py`), exactly P heads
 are not `none`, and those P, in that order, are the entry code split into P parts as evenly as it
 goes, the earlier parts longer; every other head is `none`.  At every level the generator can
-build, the card's three and 3 between them.  Which of the four carry the parts is pending a yes/no
+build, the card's three and 3 between them.  Which of the four carry the parts is pending a decision
 (`tests/test_k8_pending_parts.py`); how the fill is keyed is another
 (`tests/test_k8_pending_fill.py`).
 
 **3. N8**: every answer's reference-token count is inside the table's band, at the card seeds and,
 because the card seeds draw thirty of the thirty-one entry codes the generator can draw (`type`
 is never drawn), also at one eval seed for every code no tool name carries, the codes the
-scenario draws from (the spec's measurement claims every code at every level).
+scenario draws from (the design's measurement claims every code at every level).
 """
 
 from __future__ import annotations

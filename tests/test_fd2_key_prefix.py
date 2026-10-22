@@ -1,6 +1,6 @@
 """The free key check's rule of four, without the key's public prefix, frozen as tests.
 
-Ruled 2026-10-12 (the key mask session's yes/no 2): the key check keeps a provider's short value
+Decided 2026-10-12, with the key mask: the key check keeps a provider's short value
 (a refusal's error code, a vLLM server's version) only when it holds no four characters in a row
 of the key's secret part, the part after its public prefix (`tests/keymask_support.py` states the
 rule; the run engine masks by the same one).  Before, the prefix counted too, so with a project
@@ -34,7 +34,8 @@ def config() -> Any:
 
 @pytest.fixture(autouse=True)
 def _environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    """No key and no proxy from the shell running the suite, as the frozen FD2 tests run."""
+    """No key and no proxy from the shell running the suite, as the frozen `test_fd2_*` tests
+    run."""
     for name in ("OPENAI_API_KEY", "MY_API_KEY", "VLLM_API_KEY", "OPENAI_BASE_URL"):
         monkeypatch.delenv(name, raising=False)
     for name in (

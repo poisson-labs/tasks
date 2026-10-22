@@ -1,14 +1,14 @@
-"""An Ollama model named without its tag is the `latest` one: waiting on a yes/no.
+"""An Ollama model named without its tag is the `latest` one: waiting on a decision.
 
 Ollama names a model `name:tag`, and a name given without a tag means `name:latest`: `ollama pull
 qwen3` pulls `qwen3:latest`, and a chat request for `qwen3` is answered by it.  Ollama's model
 list and `/api/tags` always write the tag.  So a `tasks.toml` that says `name = "qwen3"` runs, and
 a check that looks for `qwen3` in the list as written would call the model missing, and `run`
-would refuse it (spec §8.1 step 4); `server_facts` would find no digest for it.
+would refuse it at its key check; `server_facts` would find no digest for it.
 
 This file pins the reading, for the Ollama preset only, in both functions, with a control: a name
-without a tag does not match another tag of the same model.  It is committed on its own: a "no"
-to the yes/no drops that commit and nothing else.
+without a tag does not match another tag of the same model.  It is committed on its own: if it
+is declined, that commit is dropped and nothing else.
 """
 
 from __future__ import annotations

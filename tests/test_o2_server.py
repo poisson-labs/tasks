@@ -1,11 +1,10 @@
 """The export of tasks on a user's own tools: its taskset, its task, its tool server and the replay
 of a run, frozen as tests.
 
-The invariant is O2.6 of the knobs plan (spec §11, §10): the export's tool server serves an
-own-tools task's block byte for byte and replays to the verdict's observations on a fake endpoint.
-Spec §11: the package has its own task data class, task, verdict and toolset, since the built-in
-export's cannot carry a tool file, and the own toolset answers MCP's `isError` and
-`structuredContent` where the built-in one cannot.
+The invariant: the export's tool server serves an own-tools task's block byte for byte and replays
+to the verdict's observations on a fake endpoint.  The design: the package has its own task data
+class, task, verdict and toolset, since the built-in export's cannot carry a tool file, and the own
+toolset answers MCP's `isError` and `structuredContent` where the built-in one cannot.
 
 Shapes decided here
 -------------------

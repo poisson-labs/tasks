@@ -1,43 +1,44 @@
 """Information spread opened: `eval`, the levels it cannot build, and what is still not offered,
 frozen as tests.
 
-Taylor's standing rulings for a knob that gains tasks: the `eval` command takes its arms, the
+The standing decisions for a knob that gains tasks: the `eval` command takes its arms, the
 published cards' table answers for the knob so that no arm raises a `KeyError`, and an arm no
 published card covers gets the one note saying so; the census takes them.  Spread is the last knob
 without tasks: once it has them no knob is left for the generator or `eval` to refuse for want of
 tasks, which the frozen `tests/test_k2_eval.py` held for every knob in turn (its list of arms loses
-its last arm, `spread:p2`, in this session's retrofit commit, a ruling).  `tasks.toml` and `init`
-do not offer information spread (spec K-P3); the knob probe did not ship it (ruled 2026-10-14), so
+its last arm, `spread:p2`, in this knob's retrofit commit, a decided retrofit).  `tasks.toml` and
+`init` do not offer information spread; the knob probe did not ship it (decided 2026-10-14), so
 the shipped-knobs list the recipes read leaves it out.
 
 Shapes decided here
 -------------------
 
 **1. Every spread arm is on no published card**: neither card measured the knob.  `eval` takes the
-card's three levels and 3, the one level between them the generator can build (spec §3.2: spread
+card's three levels and 3, the one level between them the generator can build (spread
 from 1 to 4), each with the one plain note (one `UserWarning`, one line, naming the arm by its id;
 `tests/test_fd1_export_arm.py`), by its id and as the six fields, and the tasks it loads are that
 arm's.  The note's words are not pinned.  The census takes every arm `eval` takes (its count is
-pending a yes/no, `tests/test_k8_pending_census.py`).
+pending a decision, `tests/test_k8_pending_census.py`).
 
-**2. A level the knob cannot build is refused in one line naming the knob**, spec §3.2 as ruled
-2026-10-04 (spread outside 1 to 4), and so is any control (spread has none, spec §14.4): when the
-arm is made from its id, and by `eval`, by id and as the six fields.  The frozen
-`tests/test_k1_pending_level_bounds.py` and `tests/test_k1_knobs.py` pin that these are refused;
-this pins that each refusal is one line naming the knob.  On `main`, before K8, `eval` refuses the
-six fields for the knob itself (it has no tasks); after it, for the level or the control.
+**2. A level the knob cannot build is refused in one line naming the knob**, as decided 2026-10-04
+(spread outside 1 to 4), and so is any control (spread has none): when the arm is made from its id,
+and by `eval`, by id and as the six fields.  The frozen `tests/test_k1_pending_level_bounds.py` and
+`tests/test_k1_knobs.py` pin that these are refused;  this pins that each refusal is one line naming
+the knob.  On `main`, before the spread knob, `eval` refuses the six fields for the knob itself (it
+has no tasks); after it, for the level or the control.
 
-**3. A knob no generator knows** is refused by `eval` as the six fields in one line naming it.  It is
-the refusal that turned away the knobs without tasks; from K8 only a name that is no knob reaches
-it, and a build of spread changes the list of knobs it names.  This passes on `main` by design and
-holds the one-line rule over that list's rewording; the list's words are not pinned.  (The generator's own refusal of a knob without tasks can no
-longer be reached: `ArmSpec` refuses a name that is no knob before the generator sees it.)
+**3. A knob no generator knows** is refused by `eval` as the six fields in one line naming it.  It
+is the refusal that turned away the knobs without tasks; from the spread knob on, only a name that
+is no knob reaches it, and a build of spread changes the list of knobs it names.  This passes on
+`main` by design and holds the one-line rule over that list's rewording; the list's words are not
+pinned.  (The generator's own refusal of a knob without tasks can no longer be reached: `ArmSpec`
+refuses a name that is no knob before the generator sees it.)
 
 **4. Spread is not offered**: the project file and `init`'s flags refuse `spread` by the key that
 names it; the file `init` writes names none of the seven probe knobs; the knob probe did not ship
-spread (ruled 2026-10-14, a recorded retrofit of this file), so the package's list of shipped knobs
-leaves it out and the recipe that measures spread (`reading-and-filling`) is not offered and waits
-on it.
+spread (decided 2026-10-14, a recorded retrofit of this file), so the package's list of shipped
+knobs leaves it out and the recipe that measures spread (`reading-and-filling`) is not offered and
+waits on it.
 """
 
 from __future__ import annotations
@@ -58,7 +59,7 @@ from tests.k8_support import ARMS
 
 TASKSET_ID = "poisson-tasks"
 SEEDS = [404, 55]
-# The knobs no probe has yet shown to bite: none is offered before its probe (spec K-P3).
+# The knobs no probe has yet shown to bite: none is offered before its probe.
 UNPROBED = ("similarity", "faults", "history", "block", "arguments", "shape", "spread")
 UNBUILDABLE = ("spread:p0", "spread:p5", "spread:p8", "spread:p1+len(p4)", "spread:p2+len(p4)")
 

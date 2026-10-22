@@ -1,12 +1,12 @@
-"""Pending a yes/no: `export` opens no socket.
+"""Pending a decision: `export` opens no socket.
 
-FD5.16 has `export` refuse a key over plain http to another machine "with the `ConfigError`
-`check_key` raises" (FD2 Session A's yes/no 4).  `providers.check_key` raises that before any
+The design has `export` refuse a key over plain http to another machine "with the `ConfigError`
+`check_key` raises" (decided 2026-10-04).  `providers.check_key` raises that before any
 connection, but when it does not raise it makes the free request, sending the key to the
 endpoint; and the check that raises is private (`providers._refuse_plain_http_key`), which the
-command may not call (FD5.7).  Writing a config file needs neither the key nor the network.
+command may not call.  Writing a config file needs neither the key nor the network.
 
-**Recommended yes:** `export` makes no network request and reads no key: `providers` gains one
+**Recommended:** `export` makes no network request and reads no key: `providers` gains one
 public name that makes only the plain-http refusal (as `check_key` and `server_facts` make it),
 with no request, and `export` calls that.  `tests/test_fd5_export.py` already pins the refusal's
 text and that nothing is written; this pins that no socket is opened when the config is taken.

@@ -1,14 +1,15 @@
-"""Pending a yes/no: spread on a user's own tools names four reads at every level.
+"""Pending a decision: spread on a user's own tools names four reads at every level.
 
-**Why it is open.**  Spec §6.1: "a target value is split across the answers of 1, 2 or 4 named reads of
-your read tools".  Read literally, the number of reads (and so of calls, and of the request's lines)
-changes with the level, which is more than one factor.  The built-in knob names four reads at every
-level and has the first level-many hold a part, the others `none` (knobs spec §14.4; K8).
+**Why it is open.**  The design: "a target value is split across the answers of 1, 2 or 4 named
+reads of your read tools".  Read literally, the number of reads (and so of calls, and of the
+request's lines) changes with the level, which is more than one factor.  The built-in knob names
+four reads at every level and has the first level-many hold a part, the others `none`
+(`tests/test_k8_parts.py`).
 
-**Recommendation: yes.**  As the built-in knob: four named reads at every level, each a different
-call, the reads and their order drawn per seed and kept across levels; `level` of them hold a part of
-the value, in order, and the others hold `none` in the same field.  Level 1 is spec §5.1's "read then
-call".  A no names exactly `level` reads.
+**Recommended.**  As the built-in knob: four named reads at every level, each a different call, the
+reads and their order drawn per seed and kept across levels; `level` of them hold a part of the
+value, in order, and the others hold `none` in the same field.  Level 1 is the design's "read then
+call".  If it is declined, the build names exactly `level` reads.
 """
 
 from __future__ import annotations

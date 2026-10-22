@@ -1,16 +1,15 @@
 """The command's help, its version, its imports and its flags, frozen as tests.
 
-The invariants are FD5.1 (in this process; the fresh interpreter's half is in
-`tests/test_fd5_fresh.py`), FD5.2, FD5.6 for the parser, FD5.7 and FD5.13 of the front door's
-plan (spec §3, §4.0 and rules L1, L2 and L15):
-- **FD5.1** every verb's `--help` exits 0 and prints, on stdout, a description, help on every
+The invariants, with rules L1, L2 and L15 (the help in this process; the fresh interpreter's half
+is in `tests/test_fd5_fresh.py`):
+- every verb's `--help` exits 0 and prints, on stdout, a description, help on every
   argument and at least one example command, which starts with the prog;
-- **FD5.2** `--version` is `poisson-tasks <version> (verifiers <v>, Python <v>)`, exit 0;
-- **FD5.6** `build_parser(prog)` names the command by `prog`, and so does every verb's usage;
-- **FD5.7** the command's source imports only names a module lists in `__all__`, read from its
+- `--version` is `poisson-tasks <version> (verifiers <v>, Python <v>)`, exit 0;
+- `build_parser(prog)` names the command by `prog`, and so does every verb's usage;
+- the command's source imports only names a module lists in `__all__`, read from its
   source;
-- **FD5.13** an abbreviated flag is refused, exit 2, naming what was typed; the flag in full is
-  not; and a common flag may come before or after the verb (spec §4.0).
+- an abbreviated flag is refused, exit 2, naming what was typed; the flag in full is
+  not; and a common flag may come before or after the verb.
 
 Shapes decided here
 -------------------
@@ -92,7 +91,7 @@ def example_lines(text: str, prog: str, verb: str | None) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# FD5.1 help
+# help
 # ---------------------------------------------------------------------------
 
 
@@ -145,7 +144,7 @@ def test_fd5_1_help_comes_before_everything_else_a_verb_checks(
 def test_fd5_1_init_says_measure_is_an_alias_of_recipe(
     prog: str, world: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """R0: `--recipe` is the flag for init's sixth question and `--measure` its alias for one
+    """Recipes: `--recipe` is the flag for init's sixth question and `--measure` its alias for one
     release, which `init --help` says."""
     ran = run(["init", "--help"], prog, monkeypatch)
     assert ran.code == 0, ran
@@ -162,7 +161,7 @@ def test_fd5_1_init_says_measure_is_an_alias_of_recipe(
 
 
 # ---------------------------------------------------------------------------
-# FD5.2 the version
+# the version
 # ---------------------------------------------------------------------------
 
 
@@ -179,7 +178,7 @@ def test_fd5_2_the_version_names_the_package_verifiers_and_python(
 
 
 # ---------------------------------------------------------------------------
-# FD5.6 the parser
+# the parser
 # ---------------------------------------------------------------------------
 
 
@@ -192,7 +191,7 @@ def test_fd5_6_the_parser_and_every_verbs_usage_carry_the_prog(prog: str) -> Non
 
 
 # ---------------------------------------------------------------------------
-# FD5.7 public names only
+# public names only
 # ---------------------------------------------------------------------------
 
 
@@ -343,7 +342,7 @@ def test_fd5_7_the_command_takes_only_names_a_module_lists_in_all() -> None:
 
 
 # ---------------------------------------------------------------------------
-# FD5.13 abbreviations, and flags before or after the verb
+# abbreviations, and flags before or after the verb
 # ---------------------------------------------------------------------------
 
 ABBREVIATED = [

@@ -1,6 +1,6 @@
 """The request's words on a user's own tools, frozen as tests.
 
-Spec §7: a task's request names what to do without naming the tool, or selection becomes a word
+The design: a task's request names what to do without naming the tool, or selection becomes a word
 match.  With intents (`[own.intents]`, one line per tool) the request uses the intent; without,
 the first sentence of the tool's description, and the card says selection was partly a word match
 (the card's line is in `tests/test_o2_card.py`).  Values come from the schemas, drawn per
@@ -15,7 +15,7 @@ first message of `prompt`, which is otherwise `request` itself (`tests/test_o2_k
 **2. A value is stated as JSON**: a string in double quotes, as the built-in template quotes its
 record ids, a number or a boolean as JSON writes it.  So the request holds `json.dumps(value)` for
 each `(name, value)` of `stated`.  How it says which argument each value is for is the build's
-(spec §7's own example says "amount 12.50", not the argument's name).
+(the design's own example says "amount 12.50", not the argument's name).
 
 **3. No tool's name** (any name the block shows, and any name of the set) appears in the request
 as a word, even where an intent or a description says it: such a word is not the request's to

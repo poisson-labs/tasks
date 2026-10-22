@@ -1,24 +1,26 @@
-"""What K8 leaves alone: the task-shape knob's tasks keep their content, frozen as a test.
+"""What the spread knob leaves alone: the task-shape knob's tasks keep their content, frozen as a
+test.
 
-Plan Knobs §2, as the session prompt states it for K8: the 840 published tasks keep their content
+As the knobs' design states it for the spread knob: the 840 published tasks keep their content
 (frozen `tests/test_k1_content.py`), and so do the similarity, faults, history, block, arguments and
 shape tasks the knob modules before this one built.  Similarity's and faults' are held by the
 frozen `tests/test_k4_kept.py`, history's by the frozen `tests/test_k5_kept.py`, block's by the
 frozen `tests/test_k6_kept.py`, arguments' by the frozen `tests/test_k7_kept.py`.  Nothing held
-shape's: K7's tests pin its structure (four stage calls, the targets, the block's stage tools, the
-goal lines, the verdict), not its content, and K7 Session B found four of its build's choices that
+shape's: the `test_k7_*` tests pin its structure (four stage calls, the targets, the block's stage
+tools, the goal lines, the verdict), not its content, and the shape knob's build found four of its
+choices that
 move shape tasks and that no frozen test sees: which two of B's reads give way to the extra stage
 tools (every `w1`, `w4` and control task), where the drawn ledgers' tools sit at `w4` (every `w4`
 task), the order the three other ledgers are drawn in (every `w4` task), and the order of the
-prompt slots (every shape task's id; its mutation rows S2 to S5).  Ruled 2026-10-09, in K8
-Session A's prompt: K8 Session A pins shape's content with digests, the way K7 Session A pinned
+prompt slots (every shape task's id; four rows of its mutation pass).  Decided 2026-10-09: the
+spread knob's frozen tests pin shape's content with digests, the way the shape knob's pinned
 arguments', in a file and a commit of their own.
 
 The digests are of every field but `task_id`, `generator_hash` and `pins`, which move with any edit
-to the generator's modules (K-P6's rule, as in `tests/test_k1_content.py`), per arm and split, at
-every width and the control, at every card seed on the eval split and the first twelve on train
-(`tests/k4_support.py`).  Computed on `main` at `583f712` (K7 merged) before any K8 edit.  It
-passes on that tree by design.
+to the generator's modules (the rule in `tests/test_k1_content.py`), per arm and split, at every
+width and the control, at every card seed on the eval split and the first twelve on train
+(`tests/k4_support.py`).  Computed on `main` at `583f712` (the shape knob merged) before any edit
+for spread.  It passes on that tree by design.
 """
 
 from __future__ import annotations

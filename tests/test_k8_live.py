@@ -1,9 +1,9 @@
 """An information-spread episode that batches its four named reads into one turn, run live through
 the `null` harness and the launched tool server on a fake endpoint, frozen as a test.
 
-Taylor's standing ruling for a knob that gains tasks: when a run's records are read, the calls that
+The standing decision for a knob that gains tasks: when a run's records are read, the calls that
 reached the tool server are replayed and a disagreement is `replay_mismatch`, which scores nothing;
-the tool server, `verify` and the run's replay agree, checked on a scripted endpoint.  Spec §14.4: a
+the tool server, `verify` and the run's replay agree, checked on a scripted endpoint.  The design: a
 model that batches the four reads in one turn needs four model calls at every level.
 
 Shapes decided here
@@ -136,7 +136,7 @@ def planted(run_dir: Path, index: int) -> None:
 
 
 def provenance() -> cal.Provenance:
-    """A card's provenance for the one scripted model, as the K0 card tests write one."""
+    """A card's provenance for the one scripted model, as the `test_k0_*` card tests write one."""
     seeds = list(range(1000, 1000 + cal.S))
     return cal.Provenance(
         package_version="0.1.0",

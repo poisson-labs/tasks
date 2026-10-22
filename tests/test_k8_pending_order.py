@@ -1,6 +1,6 @@
-"""Pending a yes/no: the order of the reference's calls.
+"""Pending a decision: the order of the reference's calls.
 
-Spec §14.4 says the six calls an episode needs (four reads and two stage calls) are the same at
+The design says the six calls an episode needs (four reads and two stage calls) are the same at
 every level, and the reference makes one call per turn; it does not say in which order.  If the
 answer is yes, the reference makes the four named reads first, in the order the request lists them,
 then B's two stage calls: the order a model reading the request top to bottom makes them.  Dropped

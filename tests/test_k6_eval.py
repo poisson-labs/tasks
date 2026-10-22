@@ -1,23 +1,23 @@
 """Argument difficulty opened: `eval`, the levels it cannot build, and what stays shut, frozen as
 tests.
 
-Taylor's standing rulings for a knob that gains tasks: the `eval` command takes its arms, the
-published cards' table answers for the knob so that no arm raises a `KeyError`, and an arm no
-published card covers gets the one note saying so.  The two knobs still unbuilt (shape, spread)
-stay refused by the generator and by `eval`; that is the frozen
+The standing decisions for a knob that gains tasks: the `eval` command takes its arms, the published
+cards' table answers for the knob so that no arm raises a `KeyError`, and an arm no published card
+covers gets the one note saying so.  The two knobs still unbuilt (shape, spread) stay refused by the
+generator and by `eval`; that is the frozen
 `tests/test_k2_eval.py::test_the_six_knobs_without_tasks_stay_refused_beside_similarity`, whose list
-of arms loses its two arguments arms in this session's retrofit commit (a ruling).  `tasks.toml` and
-`init` do not offer argument difficulty before its probe (spec K-P3).
+of arms loses its two arguments arms in this knob's retrofit commit (a decided retrofit).
+`tasks.toml` and `init` do not offer argument difficulty before its probe.
 
 Shapes decided here
 -------------------
 
-**1. Every arguments arm is on no published card**, the control included: neither card measured
-the knob.  `eval` takes each card level and the control with the one plain note (one `UserWarning`,
-one line, naming the arm by its id; `tests/test_fd1_export_arm.py`), and the tasks it loads are
-that arm's.  The control is the arm that would raise the `KeyError` K1 Session B found if the table
-read a control pair for a knob it does not hold; the note shows it does not.  The note's words are
-not pinned.  The census takes every arm `eval` takes (its count is pending a yes/no,
+**1. Every arguments arm is on no published card**, the control included: neither card measured the
+knob.  `eval` takes each card level and the control with the one plain note (one `UserWarning`, one
+line, naming the arm by its id; `tests/test_fd1_export_arm.py`), and the tasks it loads are that
+arm's.  The control is the arm that would raise the `KeyError` the shared base's build found if the
+table read a control pair for a knob it does not hold; the note shows it does not.  The note's words
+are not pinned.  The census takes every arm `eval` takes (its count is pending a decision,
 `tests/test_k6_pending_census.py`).
 
 **2. Levels the card does not measure.**  `eval` takes any arguments level from 2 to 8, the ends
@@ -25,12 +25,12 @@ of the knob's candidate levels; the three between the card's (3, 5, 7) are held 
 export's pinned knob test holds every plain arm to, that an arm `eval` takes is one whose tasks
 load, and each loads tasks whose request states its level less two values.
 
-**3. A level the knob cannot build is refused in one line naming the knob**, spec §3.2 as ruled
-2026-10-04 (arguments outside 2 to 8): when the arm is made from its id, as a control standing in
-for one, and by `eval`, by id and as the six fields.  The frozen
-`tests/test_k1_pending_level_bounds.py` pins that these are refused; this pins that each refusal
-is one line naming the knob.  On `main`, before K6, `eval` refuses the six fields for the knob
-itself (it has no tasks); after it, for the level.
+**3. A level the knob cannot build is refused in one line naming the knob**, as decided 2026-10-04
+(arguments outside 2 to 8): when the arm is made from its id, as a control standing in for one, and
+by `eval`, by id and as the six fields.  The frozen `tests/test_k1_pending_level_bounds.py` pins
+that these are refused; this pins that each refusal is one line naming the knob.  On `main`, before
+the arguments knob, `eval` refuses the six fields for the knob itself (it has no tasks); after it,
+for the level.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ from tests.k6_support import ARMS, OFF_CARD_LEVELS, extras
 
 TASKSET_ID = "poisson-tasks"
 SEEDS = [404, 55]
-# The knobs no probe has yet shown to bite: none is offered before its probe (spec K-P3).
+# The knobs no probe has yet shown to bite: none is offered before its probe.
 UNPROBED = ("similarity", "faults", "history", "block", "arguments", "shape", "spread")
 UNBUILDABLE = ("arguments:a1", "arguments:a9", "arguments:a0", "arguments:a2+len(a9)")
 

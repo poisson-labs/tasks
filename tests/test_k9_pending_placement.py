@@ -1,10 +1,10 @@
-"""Pending a yes/no: the driver is a module of the package, beside the notebook's driver.
+"""Pending a decision: the driver is a module of the package, beside the notebook's driver.
 
 **The question.**  "The driver is committed beside the notebook.  It is not a user command and adds
 nothing to the command-line tool."  It could be a file in `notebooks/` or a module of the package.
 
 **Proposed: `poisson_tasks.knob_probe`**, run as `python -m poisson_tasks.knob_probe`, beside
-`poisson_tasks.calibration_run`, the module the notebook already drives and which the spec says
+`poisson_tasks.calibration_run`, the module the notebook already drives and which the design says
 holds the probe's design.  The notebook's probe design imports the probe's arms and gates from it,
 which a file in `notebooks/` could not offer the installed package; it is type-checked with the
 package.  `notebooks/` keeps the notebook and its requirements.  **A no** moves it to

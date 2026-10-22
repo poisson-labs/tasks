@@ -1,12 +1,12 @@
-"""Pending a yes/no: the arguments knob's target on a user's own tools.
+"""Pending a decision: the arguments knob's target on a user's own tools.
 
-**Why it is open.**  Spec §6.1: the levels run "from the target's required count up to its parameter
-count".  A set's writes differ in those counts, so a target drawn per seed would give levels some
-seeds' targets cannot reach, and the levels could not be one design.
+**Why it is open.**  The design: the levels run "from the target's required count up to its
+parameter count".  A set's writes differ in those counts, so a target drawn per seed would give
+levels some seeds' targets cannot reach, and the levels could not be one design.
 
-**Recommendation: yes.**  The target is the write that can be a target with the most checkable
-parameters, the first in the file on a tie, the same for every seed.  A no draws the target per seed
-among the writes that admit every level of the design.
+**Recommended.**  The target is the write that can be a target with the most checkable parameters,
+the first in the file on a tie, the same for every seed.  If it is declined, the build draws the
+target per seed among the writes that admit every level of the design.
 """
 
 from __future__ import annotations
@@ -16,8 +16,8 @@ from tests.o2_support import arm, fixture_sets, generator
 
 
 def checkable(tool: own.OwnTool) -> list[str]:
-    """The arguments that are not free text (O1's rule: a string, or untyped, with none of format,
-    enum, const, minLength and maxLength is free text)."""
+    """The arguments that are not free text (the tool-file readers' rule: a string, or untyped, with
+    none of format, enum, const, minLength and maxLength is free text)."""
     out = []
     for name, schema in tool.input_schema.get("properties", {}).items():
         kind = schema.get("type") if isinstance(schema, dict) else None

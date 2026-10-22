@@ -1,10 +1,10 @@
 """What a user's own server says about itself, frozen as tests: `providers.server_facts`.
 
-The invariant is FD2.8 of the front door's plan (spec §9.5): from a fake server, `server_facts`
+The invariant: from a fake server, `server_facts`
 reads Ollama's version (`/api/version`) and the model's digest (`/api/tags`), or vLLM's version
 (`/version`) and served model (`/v1/models`); it marks each field as reported by the server; and
-it sends a key only when one is configured.  The card's `self_served` serving kind (FD4) records
-what it returns.  Its refusal of a key over plain http is FD2.6's, in `tests/test_fd2_key.py`.
+it sends a key only when one is configured.  The card's `self_served` serving kind records
+what it returns.  Its refusal of a key over plain http is pinned in `tests/test_fd2_key.py`.
 
 Every request goes to a fake on loopback, inside the network guard of `tests/fd2_fakes.py`.
 Every test reaches the module through `importlib`, so the file collects on a tree with no
@@ -13,7 +13,7 @@ Every test reaches the module through `importlib`, so the file collects on a tre
 Shapes decided here
 -------------------
 
-**1. The facts are one JSON-ready mapping**, so that FD4 can write them into the card's provenance
+**1. The facts are one JSON-ready mapping**, so that the card can write them into its provenance
 as they are: `stack` (`"ollama"` or `"vllm"`, the preset's name), `endpoint` (the configured base
 URL), `stack_version`, and `model_digest` for Ollama or `served_model` for vLLM, the names
 `calibration`'s `local` kind already uses for the stack.  `reported_by_server` lists the fields
@@ -30,7 +30,7 @@ presets' `/v1` endpoints, so only that much is pinned.
 Not pinned here, and left to the build: what `server_facts` does for the openai, anthropic and
 openai-compatible presets; what it does when the server cannot be reached; and an Ollama model
 named without its tag (`qwen3` for `qwen3:latest`), which `tests/test_fd2_ollama_latest.py` holds
-while it waits on a ruling.
+while it waits on a decision.
 """
 
 from __future__ import annotations

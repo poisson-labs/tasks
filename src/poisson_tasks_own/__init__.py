@@ -2,8 +2,8 @@
 
 At ``verifiers==0.3.1`` a taskset id names a top-level module (``owner/`` and ``@version``
 stripped, ``-`` to ``_``), and a dotted id fails inside its loader, so the own-tools taskset
-needs a module of its own beside ``poisson_tasks`` in the same wheel (ruled 2026-10-13, O2
-Session A's yes/no 1).  The wheel reads ``__all__`` and looks each name up: exactly one
+needs a module of its own beside ``poisson_tasks`` in the same wheel (decided 2026-10-13).
+The wheel reads ``__all__`` and looks each name up: exactly one
 ``Taskset`` subclass, ``poisson_tasks.own.export.OwnTaskset``, and one ``Env`` subclass, the
 measured ``null`` harness's ``poisson_tasks.taskset.PoissonTasksEnv``.
 

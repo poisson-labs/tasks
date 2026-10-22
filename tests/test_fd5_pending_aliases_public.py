@@ -1,11 +1,11 @@
-"""Pending a yes/no: `config` names `init`'s flag aliases publicly.
+"""Pending a decision: `config` names `init`'s flag aliases publicly.
 
-`init --help` says `--measure` is an alias of `--recipe` (R0, pinned in `tests/test_fd5_help.py`).
+`init --help` says `--measure` is an alias of `--recipe` (pinned in `tests/test_fd5_help.py`).
 Which flag is an alias of which is `config._ALIASES`, a private name, and the command may take
-only names a module lists in `__all__` (FD5.7).  So either the command writes the alias into its
+only names a module lists in `__all__`.  So either the command writes the alias into its
 own help, a second copy of the library's table, or the table becomes public.
 
-**Recommended yes:** `config.INIT_FLAG_ALIASES`, in `config.__all__`, a read-only mapping from the
+**Recommended:** `config.INIT_FLAG_ALIASES`, in `config.__all__`, a read-only mapping from the
 older flag to the flag it stands for, `{"--measure": "--recipe"}`, the one table both the reader
 and the help read.
 

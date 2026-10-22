@@ -1,17 +1,17 @@
 """The export config's note covers every arm that is not one of the published cards' fourteen as
 written, not only a level the cards do not measure.
 
-**This file waits on a yes/no.**  Taylor's first ruling of 2026-10-02 asks for a plain note on "a
+**This file waits on a decision.**  The first decision of 2026-10-02 asks for a plain note on "a
 level that is legitimate but on no published card"; that is pinned in
 `tests/test_fd1_export_arm.py`.  An arm at a published level can still be on no published card:
 - a leaky arm carries other task ids (the strictness is in every task), so its tasks are not the
-  cards' tasks, which the spec's own strictness question already tells an `init` user;
+  cards' tasks, which `init`'s own strictness question already tells its user;
 - an arm on the `train` split draws other scenarios;
-- an arm at another generator version carries other task ids, which the spec's plan line says
-  for `run` (`tasks at generator version "tg-m3-v1" ... match no published card`).
-This file asks for the same note on each.  It is its own commit, so that a "no" drops it whole.
+- an arm at another generator version carries other task ids, which `run`'s plan line says
+  (`tasks at generator version "tg-m3-v1" ... match no published card`).  This file asks for the
+  same note on each.  It is its own commit, so that if it is declined it is dropped whole.
 
-Pinned as in the ruling's own test: exactly one `UserWarning`, one line, naming the arm by its id;
+Pinned as in the decision's own test: exactly one `UserWarning`, one line, naming the arm by its id;
 and the control, the same arm as the cards measured it, carries none.
 """
 

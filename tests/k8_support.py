@@ -24,12 +24,12 @@ from tests.k3_support import B_ARM, SPEC, made
 from tests.k3_support import CARD_SEEDS as CARD_SEEDS
 
 # The card's levels, and the one level between them the generator can build and no card measures:
-# a spread level is how many of the four named reads answer with a part, from 1 to 4 (spec §3.2).
+# a spread level is how many of the four named reads answer with a part, from 1 to 4.
 CARD_LEVELS = (1, 2, 4)
 LEVELS = (1, 2, 3, 4)
 READS = 4
 TEMPLATE_ID = "ledger-spread/v1"
-# Spec §14.4's two sentences, as the spec prints them.
+# The two sentences the design gives, word for word.
 SENTENCE = (
     "The entry code is split across the answers of these four reads, in the order listed: join "
     "the parts. An answer that holds no part reads `none`."

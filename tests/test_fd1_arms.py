@@ -1,9 +1,8 @@
 """Arms by their readable id, the one generator-version constant, and the pin ledger in one
 sentence, frozen as tests.
 
-The invariants are FD1.8, FD1.13 and FD1.14 of the front door's plan, for the new module
-`poisson_tasks.arms`.  Its three names cannot go in `knobs.py`, whose public surface frozen tests
-pin exactly.  The module's import purity (FD1.12) is tested beside `config`'s, in
+These tests hold the module `poisson_tasks.arms`.  Its three names cannot go in `knobs.py`, whose
+public surface frozen tests pin exactly.  The module's import purity is tested beside `config`'s, in
 `tests/test_fd1_config.py`.
 
 Shapes decided here
@@ -49,7 +48,7 @@ def cal() -> Any:
 
 
 # --------------------------------------------------------------------------
-# FD1.8: arm ids, both ways
+# arm ids, both ways
 # --------------------------------------------------------------------------
 
 
@@ -104,7 +103,7 @@ def test_fd1_8_the_refusals_control_every_canonical_id_is_taken() -> None:
 
 
 # --------------------------------------------------------------------------
-# FD1.14: the pin ledger in one sentence
+# the pin ledger in one sentence
 # --------------------------------------------------------------------------
 
 REPR = re.compile(r"[\[\]{}]|=['\"(]|\b\w+\(\w+=|\(\(|\('|\\n|\bTrue\b|\bFalse\b|\bNone\b")

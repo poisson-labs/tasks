@@ -1,12 +1,13 @@
-"""Pending a yes/no: the refusal of a key variable written as a shell would write it, reworded.
+"""Pending a decision: the refusal of a key variable written as a shell would write it, reworded.
 
-The pinning session's yes/no 2 (ruled yes, 2026-10-05) and bring your own tools (O1) flagged it:
+The pinning work (decided yes, 2026-10-05) and reading your own tools flagged it:
 `api_key_env = "$OPENAI_API_KEY"` is refused, rightly, with the words "the variable's name must
 contain API_KEY", and the name does contain `API_KEY`: the fault is that it is not a variable's
-name.  The words live in `config.py`, which the command's build touches for its messages; FD1's
-frozen test pins the refusal by its key and its one line, not by its words, so it is unchanged.
+name.  The words live in `config.py`, which the command's build touches for its messages; the
+`test_fd1_*` frozen test pins the refusal by its key and its one line, not by its words, so it is
+unchanged.
 
-**Proposed, recommended yes:**
+**Proposed, and recommended:**
 - a value that is a variable's name once a leading `$` (or `${…}`) or a trailing `=…` is taken
   off: `<setting> is "$OPENAI_API_KEY", which is not a variable's name; write the name alone, as
   OPENAI_API_KEY`, with `.suggestion` that name;

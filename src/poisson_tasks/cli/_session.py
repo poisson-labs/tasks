@@ -1,4 +1,4 @@
-"""The guided session (spec §16): a bare `poisson-tasks` on a terminal.
+"""The guided session: a bare `poisson-tasks` on a terminal.
 
 Every action is one of the seven verbs' command lines, built from the folder's state by the
 action table (`steps_for` and the `word_*` methods), parsed by the command's own parser and run
@@ -29,7 +29,7 @@ from poisson_tasks.cli._banner import COBALT
 
 WORDS = ("run", "again", "card", "more", "replies", "task", "verify", "runs", "settings", "setup",
          "flow", "export", "check", "home", "help", "quit")
-"""The prompt's closed set of words (spec §16.3)."""
+"""The prompt's closed set of words."""
 HELP = {
     "run": "start or finish a run; its plan and cost come before it spends",
     "again": "a second run of the same plan",
@@ -55,7 +55,7 @@ STEPS = (
     ("The card", "what each level was worth to the model", "free"),
     ("What next", "your options from here", ""),
 )
-"""The run-through's five steps (spec §16.4): the name, one line on it, and whether it is free."""
+"""The run-through's five steps: the name, one line on it, and whether it is free."""
 PLAIN_PROMPT = "type a number or a word, then Enter (help, quit): "
 WORD_OF_VERB = {"run": "run", "card": "card", "generate": "task", "init": "setup",
                 "export": "export", "doctor": "check", "verify": "verify"}
@@ -111,12 +111,12 @@ def card_reading(folder: Any) -> tuple[Sequence[tuple[str, float]], str]:
 
 
 # ---------------------------------------------------------------------------
-# the action table's `next` (spec §16.3)
+# the action table's `next`
 # ---------------------------------------------------------------------------
 
 
 def steps_for(folder: Any) -> list[Step]:
-    """The steps for a folder's state (spec §16.3's table), at most five.  A step is offered
+    """The steps for a folder's state, by the action table, at most five.  A step is offered
     only when its verb accepts this folder: `verify` never on your own tools, `again` only after
     a finished run, `flow` and `replies` on your own tools, `run` not on Windows."""
     from poisson_tasks.cli._common import is_windows
@@ -241,8 +241,8 @@ class Session:
 
     @property
     def console(self) -> Any:
-        """The session's own console, at the colour depth the terminal declares (B2: the
-        chrome's cobalt steps down as the banner's does)."""
+        """The session's own console, at the colour depth the terminal declares (as decided
+        for the banner: the chrome's cobalt steps down as the banner's does)."""
         if self._console is None:
             from rich.console import Console
 
@@ -481,7 +481,7 @@ class Session:
         return read_folder(self.config_path)
 
     def home(self) -> None:
-        """The status block, then `next` for the state (spec §16.3): printed when the session
+        """The status block, then `next` for the state: printed when the session
         opens, after `home`, and after a run."""
         from poisson_tasks.cli import _format
         from poisson_tasks.cli._common import config_words
@@ -569,7 +569,7 @@ class Session:
                 self.write(f"  {index}  {step.label.ljust(width)}  {step.word}")
         self.write()
 
-    # -- the run-through (spec §16.4) ---------------------------------------------------
+    # -- the run-through ------------------------------------------------------------------
 
     def run_through(self) -> None:
         where = _home_words(Path(self.config_path).parent)

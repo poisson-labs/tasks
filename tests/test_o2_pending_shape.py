@@ -1,19 +1,20 @@
-"""Pending a yes/no: the shape knob on a user's own tools.
+"""Pending a decision: the shape knob on a user's own tools.
 
-**Why it is open.**  Spec §6.1: shape runs "chains of your declared links, run in sequence or side by
-side; needs two independent declared chains for the parallel forms".  The built-in knob keeps four
-stage calls at every width (one record through four stages; two records two stages each; four records
-one stage each), so a width changes how the calls are arranged and nothing else.  A user's chains
-are as long as they declared them, so four calls at every width cannot be kept, and "two independent
-declared chains" does not say how widths 1, 2 and 4 are made from them.
+**Why it is open.**  The design: shape runs "chains of your declared links, run in sequence or side
+by side; needs two independent declared chains for the parallel forms".  The built-in knob keeps
+four stage calls at every width (one record through four stages; two records two stages each; four
+records one stage each), so a width changes how the calls are arranged and nothing else.  A user's
+chains are as long as they declared them, so four calls at every width cannot be kept, and "two
+independent declared chains" does not say how widths 1, 2 and 4 are made from them.
 
-**Recommendation: yes.**  Shape takes the longest declared chain whose first call takes a checkable
-argument (so its runs can be told apart) and runs it four times, each run on values of its own:
-width 1 is the four runs one after another, width 2 two such sequences of two side by side, width 4
-all four side by side.  A run that must follow another is held by the simulator (`not_ready`) until
-the other's last write is done.  Every width makes the same calls; only their order is constrained
-differently, which is the knob.  A no reads "two independent declared chains" literally: widths 1 and
-2 only, from two chains the user declared, which most tool sets will not have.
+**Recommended.**  Shape takes the longest declared chain whose first call takes a checkable argument
+(so its runs can be told apart) and runs it four times, each run on values of its own:  width 1 is
+the four runs one after another, width 2 two such sequences of two side by side, width 4 all four
+side by side.  A run that must follow another is held by the simulator (`not_ready`) until the
+other's last write is done.  Every width makes the same calls; only their order is constrained
+differently, which is the knob.  If it is declined, the build reads "two independent declared
+chains" literally: widths 1 and 2 only, from two chains the user declared, which most tool sets will
+not have.
 """
 
 from __future__ import annotations

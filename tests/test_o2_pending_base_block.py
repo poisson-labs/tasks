@@ -1,10 +1,10 @@
-"""Pending a yes/no: every arm but block offers the whole set, in the file's order.
+"""Pending a decision: every arm but block offers the whole set, in the file's order.
 
-**Why it is open.**  Spec §6.1 says block's levels draw blocks from the set's tools only, the
+**Why it is open.**  The design says block's levels draw blocks from the set's tools only, the
 target always present, and similarity adds copies of the target; it does not say what an arm of
 any other knob offers.  The built-in tasks offer a fixed block of sixteen.
 
-**Recommendation: yes.**  Every arm but block offers every usable tool of the set, in the file's
+**Recommended.**  Every arm but block offers every usable tool of the set, in the file's
 order (similarity's seven numbered tools standing where the target stands), since that is the
 block the user's own agent offers, and a fixed size would need a draw the user never sees.  A
 no fixes a size (sixteen, as the built-in tasks) and draws which tools, as block does at that level.

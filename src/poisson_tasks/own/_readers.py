@@ -22,15 +22,15 @@ from poisson_tasks.own._schema import (
 )
 from poisson_tasks.own._types import OwnToolsError, RawTool
 
-# The one empty argument object this package writes (spec §2.1: "a tool with none gets an
-# empty object").
+# The one empty argument object this package writes ("a tool with none gets an empty
+# object").
 EMPTY_OBJECT: dict[str, Any] = {"type": "object", "properties": {}}
 SHAPES = (
     "an OpenAI tools list (Chat Completions or Responses functions, bare or under a `tools` key)",
     "an MCP tools/list result (bare, in its JSON-RPC envelope, or a list of pages)",
     "an OpenAPI 3.0 or 3.1 document (JSON or YAML)",
 )
-# What spec §2.1's last column says of each HTTP method; methods it does not name are unknown.
+# What each HTTP method says of a tool's effect; methods not named here are unknown.
 METHOD_EFFECTS = {
     "get": "read",
     "head": "read",

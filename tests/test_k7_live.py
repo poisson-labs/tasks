@@ -1,9 +1,9 @@
 """A task-shape episode that batches `w4`'s four calls into one turn, run live through the `null`
 harness and the launched tool server on a fake endpoint, frozen as a test.
 
-The invariant is K7.5 of the knobs plan, from spec §14.3: an episode that makes `w4`'s four calls
+An episode that makes `w4`'s four calls
 in one turn passes, and the card reports model calls and tool calls beside the rate, so batching
-is visible.  With it, Taylor's standing ruling for a knob that gains tasks: when a run's records
+is visible.  With it, The standing decision for a knob that gains tasks: when a run's records
 are read, the calls that reached the tool server are replayed against the engine and a
 disagreement is `replay_mismatch`, which scores nothing; the tool server, `verify` and the run's
 replay agree, checked on a scripted endpoint.
@@ -136,7 +136,7 @@ def planted(run_dir: Path, index: int) -> None:
 
 
 def provenance() -> cal.Provenance:
-    """A card's provenance for the one scripted model, as the K0 card tests write one."""
+    """A card's provenance for the one scripted model, as the `test_k0_*` card tests write one."""
     seeds = list(range(1000, 1000 + cal.S))
     return cal.Provenance(
         package_version="0.1.0",

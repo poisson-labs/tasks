@@ -1,8 +1,8 @@
 # Changelog
 
-All notable changes to Poisson Tasks. The package has not been released; everything below is unreleased.
+All notable changes to Poisson Tasks.
 
-## Unreleased
+## 0.1.0 (2026-10-22)
 
 ### The guided session
 

@@ -1,9 +1,9 @@
-"""Pending a yes/no: `doctor` with no settings file checks the environment alone.
+"""Pending a decision: `doctor` with no settings file checks the environment alone.
 
-Spec §4.7: `doctor` "says whether this environment can run the config" and works without one, from
-flags (§4.0).  What it says with no `tasks.toml` and no `--config` is not written down.
+The design: `doctor` "says whether this environment can run the config" and works without one,
+from flags.  What it says with no `tasks.toml` and no `--config` is not written down.
 
-**Recommended yes:** with no settings file, `doctor` reports on the environment (Python, the
+**Recommended:** with no settings file, `doctor` reports on the environment (Python, the
 package, the tokenizer, the harness, the platform), says there is no settings file and that
 `init` writes one, and is ready, exit 0, when the tokenizer is in place on macOS or Linux.  Its
 `next:` is `init`.

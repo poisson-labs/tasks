@@ -1,8 +1,9 @@
-"""Pending a yes/no: a task-shape block is B's, its stage tools in the same four slots at every width.
+"""Pending a decision: a task-shape block is B's, its stage tools in the same four slots at every
+width.
 
-**This file waits on a yes/no** and is its own commit, so a "no" drops it whole.
+**This file waits on a decision** and is its own commit, so if it is declined it is dropped whole.
 
-Spec §14.3 says the block holds exactly the stage tools the width needs, with reads to sixteen, and
+The design says the block holds exactly the stage tools the width needs, with reads to sixteen, and
 that its composition moves with the width; the frozen `tests/test_k7_block.py` holds that, and the
 ledger's N2 holds the target ledger's stage tools that two widths share to one slot.  It does not
 say which reads, or where.  Recommended: as little moves as the width needs.  `w2` needs exactly

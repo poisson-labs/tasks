@@ -1,36 +1,46 @@
 """The recipe table, frozen as tests.
 
-The invariant is R0.1 of the knobs plan, from spec §17.1, §17.2 and §17.4: `RECIPES` in
+`RECIPES` in
 `poisson_tasks.arms` holds the eight recipes, each derived from `levels` and the list of shipped
-knobs; a recipe whose knobs have not shipped is not offered; before the probe (K9) only
-`first-look` and `card` are.  R0.2 and R0.3, the preset key and `--recipe`, are in
-`tests/test_r0_config.py`.
+knobs; a recipe whose knobs have not shipped is not offered; before the probe only
+`first-look` and `card` are.  The preset key and `--recipe` are in `tests/test_r0_config.py`.
 
 Invariants and the tests that hold them
 ---------------------------------------
 
 | invariant | tests |
 |---|---|
-| R0.1 the table: eight recipes, spec §17.2's rows | `test_the_table_is_the_eight_recipes_in_the_specs_order`, `test_with_every_knob_shipped_each_recipe_is_its_spec_row`, `test_the_card_recipe_is_the_published_design` |
-| R0.1 derived from `levels` | `test_the_recipes_follow_levels_rather_than_a_table_written_out` |
-| R0.1 offered turns on the shipped knobs | `test_what_is_offered_turns_on_the_shipped_knobs`, `test_before_the_probe_only_first_look_and_card_are_offered` |
-| R0.1 unbuilt knobs stay refused | `test_every_arm_offered_generates_and_only_a_probe_knob_can_ship` |
-| R0.2 the preset key takes the recipes and `custom` | `tests/test_r0_config.py`: `test_every_recipe_offered_is_a_preset_and_reads_back`, `test_a_recipe_not_offered_is_refused_in_one_line_naming_it_and_its_knobs`, `test_the_written_file_lists_only_the_recipes_offered`, `test_a_recipe_sets_inits_tasks_and_attempts_and_the_flags_override`, `test_custom_is_unchanged` |
-| R0.3 `--recipe`, with `--measure` its alias | `tests/test_r0_config.py`: `test_recipe_and_measure_give_the_same_config`, `test_recipe_is_the_flag_init_names_and_writes`, `test_the_last_of_recipe_and_measure_wins` |
-| R0.2 FD1's frozen tests stay green | the whole suite, at FD1's file digests |
+| the table: eight recipes, the design's rows |
+`test_the_table_is_the_eight_recipes_in_the_specs_order`,
+`test_with_every_knob_shipped_each_recipe_is_its_spec_row`,
+`test_the_card_recipe_is_the_published_design` |
+| derived from `levels` | `test_the_recipes_follow_levels_rather_than_a_table_written_out` |
+| offered turns on the shipped knobs | `test_what_is_offered_turns_on_the_shipped_knobs`,
+`test_before_the_probe_only_first_look_and_card_are_offered` |
+| unbuilt knobs stay refused | `test_every_arm_offered_generates_and_only_a_probe_knob_can_ship` |
+| the preset key takes the recipes and `custom` | `tests/test_r0_config.py`:
+`test_every_recipe_offered_is_a_preset_and_reads_back`,
+`test_a_recipe_not_offered_is_refused_in_one_line_naming_it_and_its_knobs`,
+`test_the_written_file_lists_only_the_recipes_offered`,
+`test_a_recipe_sets_inits_tasks_and_attempts_and_the_flags_override`, `test_custom_is_unchanged` |
+| `--recipe`, with `--measure` its alias | `tests/test_r0_config.py`:
+`test_recipe_and_measure_give_the_same_config`, `test_recipe_is_the_flag_init_names_and_writes`,
+`test_the_last_of_recipe_and_measure_wins` |
+| the settings file's frozen tests stay green | the whole suite, at the `test_fd1_*` files' digests
+|
 
 Shapes decided here
 -------------------
 
-**1. The names.**  `RECIPES` is a read-only mapping from name to `Recipe`, all eight, in spec
-§17.2's order.  `SHIPPED_KNOBS` is the knobs the probe has shipped (spec K-P3, §9.6), and
+**1. The names.**  `RECIPES` is a read-only mapping from name to `Recipe`, all eight, in the
+design's order.  `SHIPPED_KNOBS` is the knobs the probe has shipped, and
 `RECIPES == recipe_table(SHIPPED_KNOBS)`.  `recipe_table(shipped)` is the table for any list of
 shipped knobs, so what "offered" turns on is testable without waiting for the probe, and a knob
 shipping is one edit to `SHIPPED_KNOBS` with no test edit.  It takes only the seven probe knobs and
 refuses anything else in one line naming it: a misspelt knob would otherwise leave a recipe
 withdrawn with nothing said, and depth and the distractor dial ship with the published cards.
 
-**2. A `Recipe`** carries `name`, `asks` (spec §17.2's "what it asks"), `knobs` (every knob its
+**2. A `Recipe`** carries `name`, `asks` (the design's "what it asks"), `knobs` (every knob its
 design draws on, in the row's order), `arms` (arm ids it runs now), `tasks_per_level`,
 `attempts`, `episodes` (arms times tasks times attempts), `offered`, and `waiting` (its knobs
 that have not shipped).
@@ -38,11 +48,11 @@ that have not shipped).
 **3. What "offered" turns on.**  Depth and the distractor dial are on the published cards and
 need no probe: they are always available.  Each of the other seven knobs needs the probe.  A
 recipe is offered when it uses only the published cards' knobs, or when at least one of its other
-knobs has shipped; the arms of a knob that has not shipped are dropped (spec §17.2: "drops the
+knobs has shipped; the arms of a knob that has not shipped are dropped ("drops the
 unshipped arms").  A recipe not offered runs no arm.  So `planning` (depth and shape) is not
 offered before shape ships, rather than offered as `first-look` again; and `profile` waits for
-its first probe knob.  This is the one reading under which spec §17.2's mixing rule and the plan's
-"before K9 only `first-look` and `card`" agree; it is a yes/no in the session's rulings.
+its first probe knob.  This is the one reading under which the design's mixing rule and the plan's
+"before the probe only `first-look` and `card`" agree; it was left to a decision.
 
 **4. Derived from `levels`.**  A recipe names a knob and which of its levels: all of them; the
 first and last; or the first, the middle (`levels[len(levels) // 2]`) and the last.  So depth's
@@ -112,7 +122,7 @@ def seen(recipe: Any) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------
-# R0.1: the table
+# the table
 # --------------------------------------------------------------------------
 
 
@@ -129,8 +139,8 @@ def test_the_table_is_the_eight_recipes_in_the_specs_order() -> None:
 
 
 def test_with_every_knob_shipped_each_recipe_is_its_spec_row() -> None:
-    """Spec §17.2 row by row.  Bugs caught: history's middle level read as 1200; shape's top as
-    w2; `profile` at 20 tasks and one attempt; a control arm in a recipe; a recipe's knobs in
+    """The design's table row by row.  Bugs caught: history's middle level read as 1200; shape's top
+    as w2; `profile` at 20 tasks and one attempt; a control arm in a recipe; a recipe's knobs in
     another order; episodes counted at ten tasks for every recipe."""
     table = arms().recipe_table(PROBE_KNOBS)
     for name, (asks, design, tasks, attempts, episodes) in ROWS.items():
@@ -220,7 +230,7 @@ def test_the_recipes_follow_levels_rather_than_a_table_written_out() -> None:
 
 
 # --------------------------------------------------------------------------
-# R0.1: what "offered" turns on
+# what "offered" turns on
 # --------------------------------------------------------------------------
 
 
@@ -238,7 +248,7 @@ def test_what_is_offered_turns_on_the_shipped_knobs() -> None:
 
 
 def test_before_the_probe_only_first_look_and_card_are_offered() -> None:
-    """The plan's R0.1, and the package's table is the shipped list's.  Bugs caught: the
+    """The plan's table, and the package's table is the shipped list's.  Bugs caught: the
     package's table built as if every knob had shipped; any recipe offered with nothing shipped."""
     before = arms().recipe_table(())
     assert [name for name, recipe in before.items() if recipe.offered] == ["first-look", "card"]

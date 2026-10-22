@@ -1,10 +1,10 @@
 """The argument-difficulty knob's schema: eight parameters on each stage tool at every level, frozen
 as tests.
 
-The invariant is K6.1 of the knobs plan, from spec §14.2 and §3.6 (N4, N7, N30): at every level
+It rests on the pin ledger's N4, N7 and N30.  At every level
 each stage tool's schema lists the same eight parameters, the same two required, the two the engine
 knows and six more, opaque `*_code` fields named so that no tool name carries their words; so the
-block is the same at every level.  Spec §3.1: the knob's base level, a2, is B (`distractor:r0@k16`)
+block is the same at every level.  The design: the knob's base level, a2, is B (`distractor:r0@k16`)
 with the eight-parameter schema.
 
 Shapes decided here
@@ -24,7 +24,7 @@ and every name any task lists,
 not only the block's, and over each name as written and in words, as a request might state it: no
 reference-tokenizer token of either is a substring of any tool name.  The ledger's N7 sees only the
 tokens a request adds; a name made of a word the request already carries at a2 (a stage name, say)
-moves no overlap set and is still the name the spec rules out.
+moves no overlap set and is still the name the design rules out.
 """
 
 from __future__ import annotations

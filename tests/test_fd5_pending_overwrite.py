@@ -1,15 +1,16 @@
-"""Pending a yes/no: `generate`, `export` and `card` refuse to overwrite without `--force`.
+"""Pending a decision: `generate`, `export` and `card` refuse to overwrite without `--force`.
 
-Rule L12 (spec §11.1): "A verb that writes files says what it wrote, and refuses to overwrite
-without `--force`."  Spec §4.1 gives `init` its `--force`; §4.2, §4.4 and §4.6 list no `--force`
-for `generate`, `card` and `export`, which also write files.  The spec does not agree with itself.
+Rule L12: "A verb that writes files says what it wrote, and refuses to overwrite
+without `--force`."  The design gives `init` its `--force`, and lists no `--force`
+for `generate`, `card` and `export`, which also write files.  The design does not agree with itself.
 
-**Recommended yes, L12 holds:** each of the three, run again over its own files, refuses (exit 1,
-one line naming a file, nothing changed), and with `--force` writes them again.  A `card` is
+**Recommended, so that L12 holds:** each of the three, run again over its own files, refuses (exit
+1, one line naming a file, nothing changed), and with `--force` writes them again.  A `card` is
 derived from its run folder and cheap to make again, so `--force` costs a user little; a task file
 or a config someone edited is not lost by accident.
 
-**A no** drops this file's commit: the three overwrite their own files without asking.
+**If it is declined**, this file's commit is dropped: the three overwrite their own files without
+asking.
 """
 
 from __future__ import annotations

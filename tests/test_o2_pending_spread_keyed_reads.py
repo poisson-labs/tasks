@@ -1,12 +1,12 @@
-"""Pending a yes/no: spread's named reads are reads with a checkable argument.
+"""Pending a decision: spread's named reads are reads with a checkable argument.
 
-**Why it is open.**  Spec §6.1: spread needs "a read tool taking an argument".  A read whose only
+**Why it is open.**  The design: spread needs "a read tool taking an argument".  A read whose only
 arguments are free text takes one, but a request cannot name one call of it apart from another by a
-value the simulator can match exactly (spec §3's reason a free-text tool is no target).
+value the simulator can match exactly (the design's reason a free-text tool is no target).
 
-**Recommendation: yes.**  The named reads are reads with at least one checkable argument; a set whose
-reads take only free text has no spread levels.  A no names free-text reads by their text, matched
-byte for byte.
+**Recommended.**  The named reads are reads with at least one checkable argument; a set whose reads
+take only free text has no spread levels.  If it is declined, the build names free-text reads by
+their text, matched byte for byte.
 """
 
 from __future__ import annotations

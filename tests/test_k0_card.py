@@ -1,7 +1,7 @@
 """Cost and time on every card: the figures, where the card prints them, and what they never
 decide.
 
-The invariants are K0.3 to K0.7 of the knobs plan.  Every cell gains what its scored episodes
+Every cell gains what its scored episodes
 cost in calls and tokens, and, when its records carry time, what they took in seconds.  Every
 level table and the instrument table print median model calls, median tokens and median episode
 seconds beside the pass rates; the cost section prints the rest.  Time is never compared and
@@ -174,7 +174,7 @@ def printed(value: str, figure: float | None, *, none: str = NOT_RECORDED) -> No
 
 
 # ---------------------------------------------------------------------------
-# the figures (K0.3)
+# the figures
 # ---------------------------------------------------------------------------
 
 # Two tasks of five attempts.  Tokens per episode are ten distinct values, so the mean, the
@@ -277,7 +277,7 @@ def test_k0_3_a_cell_whose_records_carry_no_time_has_no_time_figures() -> None:
 
 
 # ---------------------------------------------------------------------------
-# beside the rate (K0.4) and in the cost section
+# beside the rate, and in the cost section
 # ---------------------------------------------------------------------------
 
 LEVEL_COLUMNS = ("median model calls", "median tokens", "median episode seconds")
@@ -379,7 +379,7 @@ def test_k0_4_tokens_per_strict_pass_prints_na_when_nothing_passed() -> None:
 
 
 # ---------------------------------------------------------------------------
-# nothing moves that was there (K0.5)
+# nothing moves that was there
 # ---------------------------------------------------------------------------
 
 
@@ -406,7 +406,7 @@ def test_k0_5_the_committed_cards_keep_every_figure_and_gain_the_new_ones(folder
 
 
 # ---------------------------------------------------------------------------
-# time is never a verdict (K0.6)
+# time is never a verdict
 # ---------------------------------------------------------------------------
 
 
@@ -483,7 +483,7 @@ def test_k0_6_the_page_says_time_is_not_compared_across_cards() -> None:
 
 
 # ---------------------------------------------------------------------------
-# concurrency (K0.7)
+# concurrency
 # ---------------------------------------------------------------------------
 
 

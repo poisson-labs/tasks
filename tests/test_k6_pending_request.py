@@ -1,11 +1,11 @@
-"""Pending a yes/no: how the request states a value.
+"""Pending a decision: how the request states a value.
 
-**This file waits on a yes/no** and is its own commit, so a "no" drops it whole.
+**This file waits on a decision** and is its own commit, so if it is declined it is dropped whole.
 
-Spec §14.2 gives the request's words by example only ("with lot code "x"..."), and plan K6.2 says
+The design gives the request's words by example only ("with lot code "x"..."), and says
 the request states the values; the frozen tests hold every stated value to appear in the request
 and no other of the six to be named there (`tests/test_k6_stated.py`), and a2's request to be B's
-(`tests/test_k6_fixed.py`).  Recommended, from the spec's example and the template's own rule for
+(`tests/test_k6_fixed.py`).  Recommended, from the design's example and the template's own rule for
 the values a model copies (the record id and the entry code are in double quotes, which took model
 A's first replies from asking for the values to making the call): B's request comes first,
 unchanged, and after it each stated value appears once, in double quotes, directly after its

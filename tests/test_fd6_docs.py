@@ -1,32 +1,33 @@
-"""The README, the docs and the changelog, frozen as tests: FD6.3, FD6.4, FD6.5, FD6.7, FD6.9 and
-FD6.10 of the front door's plan (spec §12), and the launch's wording on the dials.
+"""The README, the docs and the changelog, frozen as tests, with the launch's wording on the dials.
 
-- **FD6.3 The first screen.**  Above the README's first `---` come the install, `init`, `run` and
+- **The first screen.**  Above the README's first `---` come the install, `init`, `run` and
   `card` lines, in that order, then the platform line.  Every link in the README, images included,
   is an absolute `https` link, because the README is the PyPI page too.  The two kinds of user are
   named right after the first screen.
-- **FD6.4 Plain words.**  The README, `docs/` (but the two standards, `repo-hygiene.md` and
+- **Plain words.**  The README, `docs/` (but the two standards, `repo-hygiene.md` and
   `cli-look.md`), `CHANGELOG.md` and the text of a card carry no internal identifier: the pattern
   of `tests/test_cal_plain_words.py` (`tests.helpers.INTERNAL`, which those frozen tests are not
-  edited for) and the other kinds spec §12.5 names.  The pin ledger's row ids stand only beside
+  edited for) and the other kinds `OTHER` names.  The pin ledger's row ids stand only beside
   their names: in the ledger table of `docs/knobs-and-arms.md`, or after the word "row".
-- **FD6.5 Markers.**  Every fenced `bash`, `console` and `python` block in the README, `docs/` and
-  `CONTRIBUTING.md` carries a docs-check marker on the line before it (spec §13.3), and a marker
+- **Markers.**  Every fenced `bash`, `console` and `python` block in the README, `docs/` and
+  `CONTRIBUTING.md` carries a docs-check marker on the line before it, and a marker
   is well formed, sits on a block, and an `output` block follows a `run` block.  The clean-install
   job runs the blocks; this is the cheap check that none is left out.
-- **FD6.7.**  `docs/verifiers-export.md` keeps what frozen tests pin (they stay green) and its
-  sentence on the dotted form says an arm is given by its id, or as its six fields in one JSON
+- **The export page.**  `docs/verifiers-export.md` keeps what frozen tests pin (they stay green) and
+  its sentence on the dotted form says an arm is given by its id, or as its six fields in one JSON
   object, and that the dotted form is not a way to give one.
 - **The dials.**  Every dial is in the README with the status the evidence gives it, read from
   `poisson_tasks.arms.knob_status()` and the published cards; the decoy-tools dial is experimental;
   similarity, block, arguments and spread are "Available · retested in v2".
 - **`verify`.**  Everywhere `verify` is documented, the docs say that in this release it refuses a
   tasks file made on your own tools, in one line.
-- **FD6.9.**  The changelog has one `Unreleased` section, which names the front door, own tools
-  part two and the knob probe, and no entry in it is repeated.
-- **FD6.10.**  `docs/cli-look.md` is the look in words that fit any of the lab's three tools.
+- **The changelog.**  The changelog has one section for the release, headed with the version
+  `pyproject.toml` declares and its date, which names the front door, own tools part two and the
+  knob probe, and no entry in it is repeated.  (Retrofitted for the 0.1.0 release: the section
+  was `Unreleased` until then.)
+- **The look.**  `docs/cli-look.md` is the look in words that fit any of the lab's three tools.
 
-The docs set is the spec's (§12.3) with the own-tools page.  `docs/commands.md` holds each
+The docs set is the design's, with the own-tools page.  `docs/commands.md` holds each
 command's help, which this file holds equal to what the command prints.
 """
 
@@ -189,7 +190,7 @@ def test_fd6_5_the_check_catches_what_it_is_for_and_lets_a_marked_block_through(
 
 
 # ---------------------------------------------------------------------------
-# FD6.3 the first screen
+# the first screen
 # ---------------------------------------------------------------------------
 
 
@@ -263,11 +264,11 @@ def test_the_docs_set_is_the_specs_with_the_own_tools_page() -> None:
 
 
 # ---------------------------------------------------------------------------
-# FD6.4 plain words
+# plain words
 # ---------------------------------------------------------------------------
 
-# Spec §12.5 names more kinds than the frozen pattern: the other invariant families, session and
-# plan names, and the words "frozen" and "oracle".
+# The design names more kinds than the frozen pattern: the other invariant families, work-session
+# and module names, and the words "frozen" and "oracle".
 OTHER = re.compile(
     r"\bKC\d+\b|\bSF\d+\b|\bPG-\d+|\bTG-|\bfrozen\b|\boracle\b|\bSession [AB]\b|\bFD\d\b"
     r"|\bK(?:10|[0-9])\b|\bO[12]\b|\bPT4\b|\bP(?:[1-9]|1[0-5])\b|\bruled \d{4}-|\byes/no\b"
@@ -447,7 +448,7 @@ def test_commands_md_holds_each_commands_help_as_it_is_printed() -> None:
 
 
 # ---------------------------------------------------------------------------
-# FD6.7 docs/verifiers-export.md
+# docs/verifiers-export.md
 # ---------------------------------------------------------------------------
 
 
@@ -476,28 +477,43 @@ def test_fd6_7_the_pinned_block_opens_the_first_run_block_and_the_new_material_f
 
 
 # ---------------------------------------------------------------------------
-# FD6.9 the changelog, FD6.10 the look
+# the changelog, and the look
 # ---------------------------------------------------------------------------
 
 
+RELEASE_HEADING = re.compile(r"^## (\d+\.\d+\.\d+) \((\d{4}-\d{2}-\d{2})\)$", re.M)
+
+
+def declared_version() -> str:
+    import tomllib
+
+    return str(tomllib.loads((REPO / "pyproject.toml").read_text("utf-8"))["project"]["version"])
+
+
 def unreleased() -> str:
+    """The release's section: from its heading to the next `## ` heading.  (The name is the
+    frozen one; the section was `Unreleased` until the 0.1.0 release.)"""
     text = CHANGELOG.read_text("utf-8")
-    start = text.index("## Unreleased")
-    nxt = re.search(r"^## (?!Unreleased)", text[start + 5:], re.M)
-    return text[start:start + 5 + nxt.start()] if nxt else text[start:]
+    start = RELEASE_HEADING.search(text).start()  # type: ignore[union-attr]
+    nxt = re.search(r"^## ", text[start + 3:], re.M)
+    return text[start:start + 3 + nxt.start()] if nxt else text[start:]
 
 
 def test_fd6_9_the_changelog_has_one_unreleased_section_that_covers_the_three_pieces() -> None:
     text = CHANGELOG.read_text("utf-8")
-    assert len(re.findall(r"^## Unreleased\b", text, re.M)) == 1
+    assert len(RELEASE_HEADING.findall(text)) == 1
+    assert not re.search(r"^## Unreleased\b", text, re.M)
     section = unreleased().lower()
     for needle in ("poisson-tasks", "your own tools", "knob probe", "wheel", "verify"):
         assert needle in section, needle
 
 
 def test_fd6_9_the_changelog_says_it_is_unreleased_and_names_no_version_it_has_not_got() -> None:
-    head = CHANGELOG.read_text("utf-8").split("## Unreleased", 1)[0]
-    assert "not been released" in head
+    text = CHANGELOG.read_text("utf-8")
+    (version, _date), = RELEASE_HEADING.findall(text)
+    assert version == declared_version()
+    head = text[:RELEASE_HEADING.search(text).start()]  # type: ignore[union-attr]
+    assert "not been released" not in head and "unreleased" not in head.lower()
     headings = re.findall(r"^### .*$", unreleased(), re.M)
     assert len(headings) == len(set(headings)) >= 5
 

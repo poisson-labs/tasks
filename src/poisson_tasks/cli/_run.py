@@ -1,10 +1,10 @@
-"""`run`: show the plan and its cost, ask, then run the tasks against the model (spec §4.3, §8).
+"""`run`: show the plan and its cost, ask, then run the tasks against the model.
 
-The order of events is spec §8.1's: the platform, the tokenizer file, the settings file and the
+The order of events: the platform, the tokenizer file, the settings file and the
 plan, the key's presence, the run folder, the free key check, the tasks and their contrast, the
 plan on stdout, the question on stderr, then the run.  Nothing costs money before the run.  A
 plan expected to cost more than its cap is refused before the question, with a cap that would
-let it finish (the look's item 23); a dry run shows the plan and stops.
+let it finish; a dry run shows the plan and stops.
 """
 
 from __future__ import annotations
@@ -145,7 +145,7 @@ def run(ctx: Context) -> Result:
         kept, total = _kept_and_total(plan, folder)
         return _done(ctx, plan, folder, kept, total, 0, spent_dollars, spent_tokens)
 
-    # the free key check (spec §8.1 step 4)
+    # the free key check
     key_words = "not checked (--offline)"
     if args.offline:
         key_words = ("not checked (--offline)" if model.api_key_env
@@ -164,7 +164,7 @@ def run(ctx: Context) -> Result:
         else:
             key_words = f"none needed; {check.detail}"
 
-    # the tasks and their contrast (spec §8.1 step 5); on the user's own tools every task is
+    # the tasks and their contrast; on the user's own tools every task is
     # made, and a tool file that no longer has the plan's digest is refused here
     from poisson_tasks import arms, knobs, tasks
 
@@ -185,7 +185,7 @@ def run(ctx: Context) -> Result:
             if report.refused:
                 raise Refusal(arms.describe_pins(report))
 
-    # the plan (spec §8.2)
+    # the plan
     kept, total = _kept_and_total(plan, folder)
     left = total - kept
     estimate = None
@@ -254,7 +254,7 @@ def run(ctx: Context) -> Result:
                   "source": estimate.source, "same_model": estimate.same_model},
               "cap": {"spend_usd": caps["spend_usd"], "tokens": caps["tokens"]}},
     )
-    # the cap against the estimate, before the question (the look's item 23)
+    # the cap against the estimate, before the question (rule L7)
     over: str | None = None
     if caps["spend_usd"] is not None and expected_dollars is not None:
         if (spent_dollars or 0.0) + expected_dollars > float(caps["spend_usd"]):
@@ -280,7 +280,7 @@ def run(ctx: Context) -> Result:
     if over is not None:
         raise Refusal(over, [suggestion])
 
-    # the question (spec §8.1 step 7)
+    # the question
     if not args.yes:
         if not sys.stdin.isatty():
             raise Refusal("stdin is not a terminal; pass --yes to start")
@@ -293,7 +293,7 @@ def run(ctx: Context) -> Result:
             raise Stopped(Result(schema=SCHEMA, verdict="stopped", tone="warn",
                                  sentence="not started; nothing was spent", exit=1))
 
-    # the run (spec §8.3)
+    # the run
     path = Path(folder.path)
     path.mkdir(parents=True, exist_ok=True)
     if model.provider in ("ollama", "vllm") and not (path / "serving.json").exists():

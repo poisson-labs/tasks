@@ -1,6 +1,6 @@
 """What a run's records say about the block-size knob: the replay check takes it in, frozen as a test.
 
-Taylor's standing ruling for every knob that gains tasks: when a run's records are read, the calls
+The standing decision for every knob that gains tasks: when a run's records are read, the calls
 that reached the tool server are replayed against the engine and a disagreement with the tool
 messages is `replay_mismatch`, which scores nothing.  For block size the calls a model can make
 that no earlier knob offered are the aliased read copies, served under names the engine does not

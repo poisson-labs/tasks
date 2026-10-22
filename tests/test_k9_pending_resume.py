@@ -1,6 +1,6 @@
-"""Pending a yes/no: what running the driver again does.
+"""Pending a decision: what running the driver again does.
 
-**The question.**  The spec says a stop leaves the finished arms standing; it does not say what a
+**The question.**  The design says a stop leaves the finished arms standing; it does not say what a
 second run of the driver does after a stop, a failed phase 1 or a finished probe.
 
 **Proposed:** after a stop, the same command resumes: the run engine runs what is owed, within the

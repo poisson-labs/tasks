@@ -1,32 +1,33 @@
 """Similarity opened, and only similarity: the generator, `eval`, and what stays shut, frozen as
 tests.
 
-Taylor's ruling of 2026-10-05 on K1 Session B's second yes/no: once similarity has tasks, the
+The decision of 2026-10-05, after the knobs' shared base was built: once similarity has tasks, the
 `eval` command takes a similarity arm instead of refusing it as no knob, and the published cards'
-table of arms answers for the knob, so that no arm raises a `KeyError` there.  K1 generates no
-new knob's tasks and refuses their arms; K2 opens similarity alone.
+table of arms answers for the knob, so that no arm raises a `KeyError` there.  The shared base
+generates no new knob's tasks and refuses their arms; the similarity knob opens similarity alone.
 
 Shapes decided here
 -------------------
 
 **1. A similarity arm is on no published card.**  Neither published card measured similarity,
 so every similarity arm through `eval` is taken with the one plain note the front door gives an
-arm no card covers (`tests/test_fd1_export_arm.py`, ruling 1's pin: one `UserWarning`, one line,
-naming the arm by its id).  Similarity has no control arm, so the `KeyError` K1 Session B found
+arm no card covers (`tests/test_fd1_export_arm.py`, the first decision's pin: one `UserWarning`,
+one line, naming the arm by its id).  Similarity has no control arm, so the `KeyError` the shared
+base's build found
 (`_CONTROL_PAIRS[knob]` read for a control arm) cannot arise for it; what its row must say is that
 no similarity level is on a card, which the note shows.  The note's words are not pinned; they
 must not say the cards measure similarity.
 
 **2. The six other new knobs stay refused**, by the generator (`generate`, `structure_space`)
 and by `eval`, each as a `ValueError` (never a `KeyError`), beside similarity taken, until each
-knob's own module opens it: faults opened at K3, history at K4, block at K5, arguments at K6,
-shape at K7 and spread, the last, at K8, so no knob is left to refuse.  The test that held them
-keeps its other half, similarity taken, under a name that says so (ruled 2026-10-09).
+knob's own module opens it: faults, history, block, arguments, shape and spread, the last, each
+opened by its own module, so no knob is left to refuse.  The test that held them keeps its other
+half, similarity taken, under a name that says so (decided 2026-10-09).
 
-**3. `tasks.toml` and `init` still do not offer similarity.**  Spec K-P3: no difficulty knob
+**3. `tasks.toml` and `init` still do not offer similarity.**  By design no difficulty knob
 reaches `init`, `tasks.toml` or a published card until its probe has shown it bites.  `eval` is
 the library's command and takes any arm the generator makes; the project file is the product's
-and waits for the probe and K10.
+and waits for the probe and the card's redesign.
 """
 
 from __future__ import annotations
@@ -87,11 +88,12 @@ def test_similarity_generates_has_a_census_and_is_taken_by_eval() -> None:
     The test was `test_the_six_knobs_without_tasks_stay_refused_beside_similarity`, parametrised
     by the arms still refused, each refused as a `ValueError` by
     `generate`, `structure_space` and `eval` by id and as the six fields.  Faults left that list
-    when K3 gave it tasks, history at K4, block at K5, arguments at K6, shape at K7 and spread, its
-    last arm, at K8 (each a retrofit ruled with that module's Session A filing).  With no arm left,
+    when the faults knob's module gave it tasks, then history, block, arguments, shape and spread,
+    its last arm, each with its own module (each a decided retrofit, made with that module's frozen
+    tests).  With no arm left,
     a parametrisation over the empty list would be collected as one skipped case and run nothing,
     so the parametrisation and its refusals went with the list, the control's half runs as it did,
-    and the name says what is left (ruled 2026-10-09)."""
+    and the name says what is left (decided 2026-10-09)."""
     control = arm_from_id("similarity:s1")
     assert generate(control, 404).arm_id == "similarity:s1"
     assert structure_space(control) > 0

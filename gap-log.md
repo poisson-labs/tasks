@@ -341,8 +341,8 @@ Colab) were noted during that pass and are not repeated here.
 - **Date:** 2026-09-22
 - **Scope note:** a verifiers gap, like PG-18; a PG number because that is the repo's one
   series.
-- **Needed:** the model path's first layer (MP1 to MP9, what the export hands to the
-  model path) is about what `eval` does with the id `poisson-tasks`: which
+- **Needed:** the model path's first layer (what the export hands to the model path) is
+  about what `eval` does with the id `poisson-tasks`: which
   module it imports, which `Taskset` and `Env` it finds, which harness and runtime the run
   resolves to with no flag, and whether a flag still wins. Testing that means calling the
   same functions `eval` calls, without a model.

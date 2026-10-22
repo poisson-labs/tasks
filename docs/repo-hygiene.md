@@ -3,7 +3,7 @@
 **Standard:** `docs/repo-hygiene.md`  
 **Applies to:** All public repositories published under `github.com/poisson-labs`.  
 **Effective:** September 2026  
-**Revised:** 2026-09-21. Devlogs live in the vault, never in a repository (section 1.5 withdrawn, new section 2.7 and checklist item 12). History is rewritten only when a repository goes public, and that rewrite is the one force-push the standard allows (checklist items 9 and 10).
+**Revised:** 2026-09-21. Devlogs live in the lab's private notes, never in a repository (section 1.5 withdrawn, new section 2.7 and checklist item 12). History is rewritten only when a repository goes public, and that rewrite is the one force-push the standard allows (checklist items 9 and 10). Revised 2026-10-22: merge commits are signed by the maintainer who merged them (checklist item 10).
 
 This standard defines what a Poisson Labs public repository must contain and what it must never contain. It ensures that every public codebase is immediately reproducible, honest about its scope, legally sound, and free of internal agent tooling artifacts or personal data.
 
@@ -41,7 +41,7 @@ A standalone `NOTICE` file documenting all third-party code, foundation model we
 - Configured linter and test suite runners (`ruff`, `pytest`).
 
 ### 1.5 (Withdrawn 2026-09-21)
-A repository no longer carries a study log. Devlogs live in the vault only; see section 2.7. The number is kept so that earlier citations of this standard still resolve.
+A repository no longer carries a study log. Devlogs live in the lab's private notes only; see section 2.7. The number is kept so that earlier citations of this standard still resolve.
 
 ### 1.6 Reproducible Analysis & Verified Run Data
 - Scripts that extract published figures and metrics from raw data must be deterministic, self-contained, and output relative paths.
@@ -79,7 +79,7 @@ A Poisson Labs public repository must never contain the following:
 - Scratch exploration scripts, one-off test dumps, or unreviewed files must be resolved and removed prior to public release.
 
 ### 2.7 Devlogs
-- A devlog never lives in a repository. Devlogs live in the vault only.
+- A devlog never lives in a repository. Devlogs live in the lab's private notes only.
 - Every Poisson Labs repository, public or not yet public, lists `devlog.md` in its `.gitignore`, so one cannot be committed by accident.
 
 ---
@@ -96,6 +96,6 @@ Before releasing any Poisson Labs repository to public visibility:
 7. [ ] All agent request files and tooling traces are purged.
 8. [ ] Working tree is clean; load-bearing run data is verified; all uncommitted study files are resolved.
 9. [ ] Git commit history is reviewed: plain commit messages, zero AI attribution. No force-pushes, with one exception: the history rewrite in item 10, when the repository goes public. That is the only force-push this standard allows.
-10. [ ] Author identity is the work identity: commits are authored as `TaylorKolasinski` with `taylor@poissonlabs.ai`, as author and as committer (a commit GitHub itself makes keeps GitHub as committer). That address and the personal one are both verified on the one GitHub account, so no second account is involved. History is rewritten only when a repository goes public, and only then: the rewrite gives every commit the work address, and it is the one case in which a force-push is allowed (item 9). A repository staying private is not rewritten. A rewrite moves every commit hash, so the vault, the board, and any notes citing those hashes need re-pointing afterwards.
+10. [ ] Author identity is the work identity: commits are authored as `TaylorKolasinski` with `taylor@poissonlabs.ai`, as author and as committer. Merge commits are signed by the maintainer who merged them; a merge GitHub made is re-signed by that maintainer, who is named as its committer, when the history is rewritten. That address and the personal one are both verified on the one GitHub account, so no second account is involved. History is rewritten only when a repository goes public, and only then: the rewrite gives every commit the work address, and it is the one case in which a force-push is allowed (item 9). A repository staying private is not rewritten. A rewrite moves every commit hash, so the lab's private notes and any notes citing those hashes need re-pointing afterwards.
 11. [ ] Commits are signed, so GitHub shows them as verified rather than unverified. The signing key is registered on the GitHub account as a signing key; a key registered only for authentication still shows every commit as unverified. For a repo going public, the history rewrite resigns the existing commits in the same pass.
-12. [ ] `.gitignore` includes `devlog.md`, and no devlog is tracked. Devlogs live in the vault only (section 2.7).
+12. [ ] `.gitignore` includes `devlog.md`, and no devlog is tracked. Devlogs live in the lab's private notes only (section 2.7).

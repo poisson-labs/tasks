@@ -1,7 +1,7 @@
 """A plan on a user's own tools run end to end on a fake endpoint, frozen as tests.
 
-The invariants are O2.6 (the export's tool server replays to the verdict's observations on a fake
-endpoint) and O2.7 (the card on own tools), on the path a user's `run` takes: `config.resolve_plan`
+The invariants (the export's tool server replays to the verdict's observations on a fake
+endpoint, and the card on own tools), on the path a user's `run` takes: `config.resolve_plan`
 on a settings file with `[own]`, `runs.find_run`, `runs.run_plan` through verifiers' `null`
 harness and the launched own-tools tool server, `calibration.records_from_run` and
 `calibration.card_from_run`.  The model is the scripted endpoint of `tests/o2_support.py`, which
@@ -181,8 +181,8 @@ def test_the_runs_card_is_an_own_tools_card(own_run: OwnRun) -> None:
 def test_card_compare_published_shows_an_own_card_beside_the_published_one(
     own_run: OwnRun, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Spec §9: `card --compare published` prints the card and the published card of the same model
-    side by side and pools nothing (the command is FD5's, `cli.main`)."""
+    """The design: `card --compare published` prints the card and the published card of the same
+    model side by side and pools nothing (the command's, `cli.main`)."""
     import importlib
 
     from poisson_tasks import cards
@@ -196,7 +196,7 @@ def test_card_compare_published_shows_an_own_card_beside_the_published_one(
     code = importlib.import_module("poisson_tasks.cli").main(
         ["card", str(own_run.folder), "--compare", "published"], prog="poisson-tasks")
     assert code == 0, err.getvalue()
-    # Retrofitted by ruling G12 (FD9 Session A): neither card is printed; `compare.md` holds them.
+    # Retrofitted with the guided session: neither card is printed; `compare.md` holds them.
     assert expected not in out.getvalue()
     assert expected in (own_run.folder / "card" / "compare.md").read_text(encoding="utf-8")
 

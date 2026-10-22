@@ -1,19 +1,19 @@
 """Every knob on a user's own tools, with the probe's status beside, frozen as tests.
 
-Taylor's ruling of 2026-10-13 23:26, carried to O2 Session B1 as its second follow-up: every knob
-stays available on own tools in launch one.  Spec Own Tools §6.3's sentence "A knob that did not
+The decision of 2026-10-13 23:26, carried to the own-tools build: every knob stays available on
+own tools in launch one.  The own-tools design's sentence "A knob that did not
 ship as a difficulty control (it failed its probe) is not offered here either" is withdrawn.  The
 knob probe ran on two small models, and every dial is to be revisited in v2 on current models.
 
 Shapes decided here
 -------------------
 
-**1. All nine knobs are offered on own tools**, within each set's limits as the earlier rulings
+**1. All nine knobs are offered on own tools**, within each set's limits as the earlier decisions
 say (depth and shape only with flows, block to the set's size, and so on), whatever
 `arms.SHIPPED_KNOBS` holds: `own.recipes.offered_knobs(toolset, flows=...)` is every knob of
 `generator.KNOBS` the set reaches, in that order, with or without a `shipped` list given.
 
-**2. Recipes still lead with the knobs that shipped** (yes/nos 18 to 20 as ruled): a recipe is
+**2. Recipes still lead with the knobs that shipped** (as decided): a recipe is
 offered when one of its knobs shipped and the set reaches it, and runs arms of those knobs only;
 `own.recipes.shipped_knobs(toolset, flows=..., shipped=None)` is that list, read from
 `arms.SHIPPED_KNOBS` when none is given, and `default_recipe` is as before.
@@ -24,14 +24,15 @@ holds to `{model's short name: status}` exactly as the table gives them (bites, 
 easier, cannot tell), nothing copied, re-derived or hard-coded; a knob the table does not hold
 (depth, which the published cards measured) is left out.
 
-**4. The own-tools card states that status beside its own per-set table** (spec §6.3's table,
+**4. The own-tools card states that status beside its own per-set table** (the design's table,
 each level against the first, stays exactly as specced): under the table, one line per knob with
 its status on each model as the table gives it, and `own.card.PROBE_SENTENCE`, which says plainly
 that the probe's statuses come from the built-in tasks on two models while the per-set table is
 measured on the user's own tools.  A built-in card carries neither.
 
 What `custom` offers and what `init` leads with on own tools are the settings file's and the
-command's (Session B2): `custom` offers every knob and `init` leads with the shipped ones.
+command's (`tests/test_o2d_b2.py`): `custom` offers every knob and `init` leads with the shipped
+ones.
 """
 
 from __future__ import annotations
@@ -74,7 +75,7 @@ def test_every_knob_the_set_reaches_is_offered_whatever_shipped(
 
 
 def test_the_offer_is_within_each_sets_limits_as_ruled() -> None:
-    """The earlier rulings stand: depth and shape only with flows, block to the set's size, spread
+    """The earlier decisions stand: depth and shape only with flows, block to the set's size, spread
     with a keyed read; what a set does not reach is not offered."""
     rec, gen = recipes(), generator()
     acme = fixture_sets()["acme-mcp"]
@@ -154,7 +155,7 @@ def test_each_knobs_probe_status_is_the_tables_exactly() -> None:
 
 
 def test_the_status_follows_the_table_and_is_not_copied(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A guard for the ruling's "read only from knob_status()": another table, another answer."""
+    """A guard for the decision's "read only from knob_status()": another table, another answer."""
     table = arms_module.knob_status()
     moved: dict[str, Any] = {
         "models": {"m-one@r": "one", "m-two@r": "two"},
@@ -198,7 +199,7 @@ def test_the_own_card_states_the_probes_statuses_beside_its_own_table() -> None:
         for model, entry in table["knobs"][knob]["models"].items():
             assert f"{entry['status']} on {table['models'][model]}" in lines[knob], (knob, lines)
     assert "depth" in lines and "published cards" in lines["depth"]
-    # spec §6.3's table stays exactly as specced: each level against the first, strict, unchanged
+    # the design's table stays exactly as specced: each level against the first, strict, unchanged
     cells: dict[tuple[str, str], list[Any]] = {}
     rows = card().rows_from_artifact(own_artifact)
     assert [(r.knob, r.level, r.first, r.predicate) for r in rows] == [

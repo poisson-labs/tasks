@@ -1,35 +1,35 @@
 """The wider list of JSON Schema keywords the readers refuse, frozen as tests.
 
-Ruled 2026-10-07 (O1 Session B's yes/no 1): the keywords beyond spec §3's that the simulator
-cannot honour are O2's to write, each with a test and an accepted control, and
-`poisson_tasks.own._schema.UNCHECKABLE` is the one tuple that holds them all.  Taylor named
+Decided 2026-10-07, after the tool-file readers were built: the keywords beyond the design's that
+the simulator cannot honour are the own-tools tasks' to write, each with a test and an accepted
+control, and `poisson_tasks.own._schema.UNCHECKABLE` is the one tuple that holds them all.  The
+decision named
 `if`/`then`/`else`, `dependentSchemas`, `propertyNames`, `contains`, `uniqueItems`,
 `multipleOf` and `unevaluatedProperties`, "and anything else the simulator cannot honour".
 
 Shapes decided here
 -------------------
 
-**1. The list.**  O1's five (`anyOf`, `oneOf`, `allOf`, `not`, `patternProperties`) and these:
-the conditionals (`if`, `then`, `else`); the dependencies, in both their 2020-12 forms and the
-draft-7 one (`dependentSchemas`, `dependentRequired`, `dependencies`); `propertyNames`; the
-array containment family (`contains`, `minContains`, `maxContains`); `uniqueItems`;
-`multipleOf`; the unevaluated pair (`unevaluatedProperties`, `unevaluatedItems`); the
-property-count bounds (`minProperties`, `maxProperties`); the dynamic references
-(`$dynamicRef`, `$recursiveRef`), which inlining cannot follow; and `contentSchema`, a schema
-for decoded content that no argument check reads.  Each couples an argument's validity to
-another argument's, to a count of arguments, or to a value the simulator cannot draw exactly,
-so a request that states some arguments and leaves others out (the arguments knob) could not
-be checked exactly.
+**1. The list.**  The readers' five (`anyOf`, `oneOf`, `allOf`, `not`, `patternProperties`) and
+these:  the conditionals (`if`, `then`, `else`); the dependencies, in both their 2020-12 forms and
+the draft-7 one (`dependentSchemas`, `dependentRequired`, `dependencies`); `propertyNames`; the
+array containment family (`contains`, `minContains`, `maxContains`); `uniqueItems`;  `multipleOf`;
+the unevaluated pair (`unevaluatedProperties`, `unevaluatedItems`); the property-count bounds
+(`minProperties`, `maxProperties`); the dynamic references (`$dynamicRef`, `$recursiveRef`), which
+inlining cannot follow; and `contentSchema`, a schema for decoded content that no argument check
+reads.  Each couples an argument's validity to another argument's, to a count of arguments, or to a
+value the simulator cannot draw exactly, so a request that states some arguments and leaves others
+out (the arguments knob) could not be checked exactly.
 
 **2. Kept as honoured**, and so controls here: `pattern` (checked on a call, and never a value a
-request states, since O1's target rule counts a patterned string as free text), `const`,
+request states, since the readers' target rule counts a patterned string as free text), `const`,
 `enum`, the length and numeric bounds, `format` (one the simulator does not know is plain text),
 and `contentMediaType` alone.
 
 **3. Where.**  A keyword is refused wherever it sits in the argument schema: on the argument
-object itself, on an argument, and nested inside an argument's object or array, by O1's walk
+object itself, on an argument, and nested inside an argument's object or array, by the readers' walk
 (kind `schema`).  A property that merely has one of these words as its *name* is an argument
-like any other.  The output schema is kept whatever it uses (O1's rule, unchanged): what the
+like any other.  The output schema is kept whatever it uses (the readers' rule, unchanged): what the
 simulator does with an output keyword it cannot fill is the pending file
 `test_o2_pending_output_keywords.py`.
 """

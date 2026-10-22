@@ -1,11 +1,11 @@
-"""Pending a yes/no: an own-tools card reads depth on strict pass@1, as every other knob.
+"""Pending a decision: an own-tools card reads depth on strict pass@1, as every other knob.
 
-**Why it is open.**  The built-in card reads depth on leaky pass@1 (ruling 13), because every depth
+**Why it is open.**  The built-in card reads depth on leaky pass@1 (as decided), because every depth
 level offers the whole stage ladder and a model that overshoots the goal reached it.  Own tools have
 no stage past the goal, so no overshoot; what leaky accepts there is collateral, a real side effect.
 
-**Recommendation: yes.**  Every knob on own tools, depth included, is read against its first level on
-strict pass@1.  A no reads depth on leaky, as the built-in card does.
+**Recommended.**  Every knob on own tools, depth included, is read against its first level on
+strict pass@1.  If it is declined, the build reads depth on leaky, as the built-in card does.
 """
 
 from __future__ import annotations

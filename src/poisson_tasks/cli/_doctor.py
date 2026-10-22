@@ -1,14 +1,14 @@
-"""`doctor`: is this environment ready (spec §4.7 and §5.4).
+"""`doctor`: is this environment ready.
 
 One line per check, each with its own status word: Python, the package and where it was
 imported from, the tokenizer file, the settings file, the key, the harness and the platform.
 Exit 0 when ready, 4 when not, each failing line ending with what to run.  `--fix` fetches the
 tokenizer file when it is missing, the one thing `doctor` changes; `--offline` opens no socket;
 `--show-command` prints the `init --yes` command that writes the settings file.  With `[own]`
-in the settings file, the tool file is read again and its summary reported (own-tools spec §8.2):
+in the settings file, the tool file is read again and its summary reported:
 the counts, each refusal, the file's digest, and one line per knob the set reaches, the shipped
-ones first, with the knob probe's status on each model (ruled 2026-10-13 23:26); when the newest
-run of the same tool file carries another digest, one line says so, naming both (yes/no 27).
+ones first, with the knob probe's status on each model (decided 2026-10-13 23:26); when the newest
+run of the same tool file carries another digest, one line says so, naming both.
 """
 
 from __future__ import annotations
@@ -295,7 +295,7 @@ def _own_rows(ctx: Context, settings: Any) -> tuple[list[Row], dict[str, Any]]:
 
 def _last_run(runs_dir: Path, path: str, name: str) -> tuple[Path, str] | None:
     """The newest run folder whose `plan.json` names the same tool file (its set's name and the
-    file's name), and the digest it was made with (ruled 2026-10-13, yes/no 27)."""
+    file's name), and the digest it was made with (decided 2026-10-13)."""
     import json
 
     if not runs_dir.is_dir():

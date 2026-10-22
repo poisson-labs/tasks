@@ -1,11 +1,11 @@
-"""K9.8, Qwen's run: the Colab notebook's probe-only design, and the driver steps it calls.
+"""The knob probe on Qwen: the Colab notebook's probe-only design, and the driver steps it calls.
 
-The spec: the notebook's probe-only design applies the plumbing and instrument checks and the
-context checks (no context stop; the headroom gate) to every arm, and its leaky floor and no-call
-stop to the seven base arms only.  Serving settings are the card's.  The notebook keeps model B's
-card as it was and gains a design switch: what changes for the probe is the configuration cell
-(the design, its Drive folder, its local folder, its allowance, its bundle and the arm a void may
-re-run), `--design` passed to every step that takes the run's folders, one cell for the re-run,
+The probe's design: the notebook's probe-only design applies the plumbing and instrument checks and
+the context checks (no context stop; the headroom gate) to every arm, and its leaky floor and
+no-call stop to the seven base arms only.  Serving settings are the card's.  The notebook keeps
+model B's card as it was and gains a design switch: what changes for the probe is the configuration
+cell (the design, its Drive folder, its local folder, its allowance, its bundle and the arm a void
+may re-run), `--design` passed to every step that takes the run's folders, one cell for the re-run,
 the bundle cell's file name, and words.
 
 The rig is `tests/helpers.Rig` running the knob probe's design on fewer tasks

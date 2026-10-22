@@ -1,28 +1,28 @@
 """`run`, end to end against the fixture model, frozen as tests.
 
-The invariants are FD5.19 and FD5.20 of the front door's plan (spec §4.3, §8; FD3 Session A's
-yes/nos 2 and 3, ruled yes 2026-10-05), and the rest of the mistakes round FD5.4 names:
-- **FD5.19** every row of spec §8.7's table gives its verdict and its exit code: every episode
+The invariants are `run`'s (two decisions of 2026-10-05, both yes), and the rest of the mistakes
+round the output's rules name:
+- every row of the stops table gives its verdict and its exit code: every episode
   ran, `done`, 0; the cap, `stopped`, 3, with a `next:` command that raises the cap and resumes;
   the provider out of credit, `stopped`, 3; a failure streak, `stopped`, 3, naming the first
   error's status and the provider's own code; nothing happening, `stopped`, 3, quoting `run.log`;
   Ctrl-C, `stopped`, 130, then the resume.  A complete run reports itself and sends nothing;
 - **a run in which every episode ran but one failed ends `done`, exit 0, and is resumed, not
-  complete**: run again, it runs the one failed episode, and then reports itself complete (FD3
-  Session A's yes/no 2; what its done line says is `tests/test_fd5_pending_owed_done_line.py`);
-- **the key check** (spec §7.3, §8.1 step 4): refused, the model missing and the endpoint
+  complete**: run again, it runs the one failed episode, and then reports itself complete (the
+  first decision; what its done line says is `tests/test_fd5_pending_owed_done_line.py`);
+- **the key check**: refused, the model missing and the endpoint
   unreachable are each exit 1, nothing sent to the model, the `error:` line the library's own;
   a check that comes back "not checkable" still shows the plan, saying so, and still asks, and
-  with `--yes` the run is made (FD3 Session A's yes/no 3);
-- **uv's installer is disclosed in every plan the command shows** (FD3 Session A's yes/no 3): a
+  with `--yes` the run is made (the second decision);
+- **uv's installer is disclosed in every plan the command shows** (the second decision): a
   plan line names uv, astral.sh and PyPI, for each recipe, a custom plan and a resumed run;
-- **nothing is sent, written or opened before the user confirms** (spec P-4, §8.1): on a pipe
+- **nothing is sent, written or opened before the user confirms**: on a pipe
   without `--yes`, or answered no, the plan is printed, no model call is made, no run folder is
   made and no harness is started;
-- **FD5.20** with the platform reported as Windows, `run` refuses in one line, exit 1, before it
+- with the platform reported as Windows, `run` refuses in one line, exit 1, before it
   opens the settings file;
 - **a changed plan gets a new folder**, and the plan line says which folder it follows and what
-  changed (spec §8.5);
+  changed;
 - `--run` naming a folder that is not there is refused with the library's text.
 
 Every run is against the fixture model on loopback (`tests/fixtures/model_server.py`), the
@@ -39,12 +39,12 @@ whether or not the key is set; a run that would send something refuses a key tha
 **2. The `next:` command after the cap carries `--spend-cap` (or `--token-cap`) with a higher
 cap**, and run as printed it resumes the same folder.
 
-**3. A plan expected to cost more than its cap is refused before the question** (the look's
-item 23, ruled 2026-10-13; rule L7): exit 1, the plan on screen, one `error:` line, and a
-`next:` command carrying a cap that would let it finish, the larger of $1.00 and twice the
-estimate rounded up to a whole dollar (item 11's rule).  So the two cap tests below run a plan
-whose estimate is under its cap and whose measured spend is not (`over_estimate_design`); they
-set the cap below the first episode's estimate until 2026-10-13, which item 23 refuses.
+**3. A plan expected to cost more than its cap is refused before the question** (decided 2026-10-13;
+rule L7): exit 1, the plan on screen, one `error:` line, and a `next:` command carrying a cap that
+would let it finish, the larger of $1.00 and twice the estimate rounded up to a whole dollar
+(`init`'s default cap rule).  So the two cap tests below run a plan whose estimate is under its cap
+and whose measured spend is not (`over_estimate_design`); they set the cap below the first episode's
+estimate until 2026-10-13, which this rule refuses.
 """
 
 from __future__ import annotations
@@ -142,7 +142,7 @@ def over_estimate_design(base_url: str) -> tuple[list[str], float]:
     3, one at a time, priced on cached input alone, of which the fixture reports more per call
     (400 tokens) than the published card's records average per episode; so the estimate, read
     from those records, stays under the cap, and the fixture's measured spend passes it after
-    the two depth-1 episodes (the look's item 23, ruled 2026-10-13).  The test checks both."""
+    the two depth-1 episodes (decided 2026-10-13).  The test checks both."""
     cap = 0.10
     flags = fixture_flags(base_url, levels="1,3", tasks_per_level=2, concurrency=1,
                           spend_cap=cap,
@@ -181,7 +181,7 @@ def test_fd5_19_every_episode_ran_is_done_exit_0_and_the_next_step_is_the_card(
     assert fixture.calls() == 2 * 2
     assert scored_tasks(plan, folders[0]) == planned_tasks(plan)
     assert next_commands(ran.out)[-1] == f"{prog} card"
-    # the leak rule (ruled 2026-10-12): twelve characters of the key's secret part nowhere in
+    # the leak rule (decided 2026-10-12): twelve characters of the key's secret part nowhere in
     # the output or the folder, four nowhere in `run.log`
     assert_clean(ran, "run", folders[0])
 
@@ -313,7 +313,7 @@ def test_fd5_19_nothing_happening_stops_with_exit_3_quoting_run_log(
         quoted = [index for index, line in enumerate(log) if line in ran.out]
         assert len(quoted) >= 2, (ran.out, log[-8:])
         assert any(b == a + 1 for a, b in zip(quoted, quoted[1:])), "no run of the log is quoted"
-        # the leak rule (ruled 2026-10-12): the lines quoted from `run.log` can carry the key, so
+        # the leak rule (decided 2026-10-12): the lines quoted from `run.log` can carry the key, so
         # they hold no four characters of its secret part; the rest of the output no twelve
         assert_clean(ran, "run", quoted=[log[index] for index in quoted])
         assert fixture.calls() == 0
@@ -343,7 +343,7 @@ def test_fd5_4_a_run_in_a_process_of_its_own_says_nothing_raw_on_stderr(
     assert ran.code == 0, ran
     assert last_verdict(ran.out)[0] == "done", ran
     assert ran.record["ended"] == "returned", ran.record
-    # the leak rule (ruled 2026-10-12): every file of every run folder, traces included, holds no
+    # the leak rule (decided 2026-10-12): every file of every run folder, traces included, holds no
     # twelve characters of the key's secret part, and `run.log` no four
     assert_clean(ran, "run", world.work / "runs")
     assert [line for line in ran.err_lines if line.startswith("note: ")], ran
@@ -476,11 +476,11 @@ def test_fd5_19_an_estimate_above_the_cap_is_refused_before_the_question(
     harness_env: Path, fixture: FixtureModel, prog: str, world: World,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The look's item 23 (ruled 2026-10-13; rule L7): the published cards' design at the
+    """The cap before the question (decided 2026-10-13; rule L7): the published cards' design at the
     fixture's prices is expected to cost more than a $1.00 cap, so the run is refused before it
     asks: the plan stays on screen, exit 1, nothing is sent to the model, no folder is made, no
-    question is read, and the `next:` command carries a cap that would let it finish (item 11's
-    rule).  A dry run still shows the plan and exits 0."""
+    question is read, and the `next:` command carries a cap that would let it finish (`init`'s
+    default cap rule).  A dry run still shows the plan and exits 0."""
     write_config(world.work / "tasks.toml",
                  fixture_flags(fixture.base_url, recipe="card", tasks_per_level=None,
                                attempts=5, spend_cap=1.0))
@@ -541,7 +541,7 @@ def tree_of(root: Path) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# FD5.20 Windows
+# Windows
 # ---------------------------------------------------------------------------
 
 
@@ -694,7 +694,7 @@ def test_fd5_19_again_starts_a_second_folder_and_run_names_one(
     harness_env: Path, fixture: FixtureModel, prog: str, world: World,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Spec §4.3 and §8.5: `--again` runs the same plan in a new folder, `-2`; `--run NAME`
+    """`--again` runs the same plan in a new folder, `-2`; `--run NAME`
     reports the folder named, here complete, sending nothing."""
     write_config(world.work / "tasks.toml", fixture_flags(fixture.base_url))
     assert invoke(["run", "--yes"], prog=prog, monkeypatch=monkeypatch).code == 0

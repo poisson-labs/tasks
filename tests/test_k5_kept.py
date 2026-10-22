@@ -1,20 +1,23 @@
-"""What K5 leaves alone: the history knob's tasks keep their content, frozen as a test.
+"""What the block-size knob leaves alone: the history knob's tasks keep their content, frozen as a
+test.
 
-Plan Knobs §2, as the session prompt states it for K5: the 840 published tasks keep their content
+As the knobs' design states it for the block-size knob: the 840 published tasks keep their content
 (frozen `tests/test_k1_content.py`), and so do the similarity, faults and history tasks the knob
 modules before this one built.  Similarity's and faults' are held by the frozen
-`tests/test_k4_kept.py`, at the digests K4 Session A took.  Nothing held history's: K4's tests pin
-its structure (the seeded pairs' kind, their total, their count), not its content, and a change to
-a draw or a seeding rule history shares with the block knob, such as the read-pair table or the
-order the block's reads are listed in, would pass them.  K4 Session B found no frozen test pinning
-history's content across later modules, and none does on `main` at `e39c7fc`.
+`tests/test_k4_kept.py`, at the digests taken for the history knob.  Nothing held history's: the
+`test_k4_*` tests pin its structure (the seeded pairs' kind, their total, their count), not its
+content, and a change to a draw or a seeding rule history shares with the block knob, such as the
+read-pair table or the order the block's reads are listed in, would pass them.  The history knob's
+build found no frozen test pinning history's content across later modules, and none does on `main`
+at `e39c7fc`.
 
 The digests are of every field but `task_id`, `generator_hash` and `pins`, which move with any edit
-to the generator's modules (K-P6's rule, as in `tests/test_k1_content.py`), per arm and split, at
-the seeds K4's tests read: every card seed on the eval split and the first twelve on train
+to the generator's modules (the rule in `tests/test_k1_content.py`), per arm and split, at the seeds
+the `test_k4_*` tests read: every card seed on the eval split and the first twelve on train
 (`tests/k4_support.py`).  `history:t0` is left out: it is B in every field but its id and pins
 (frozen `tests/test_k4_kind.py`), and B's eval tasks are among the 840.  Computed on `main` at
-`e39c7fc` (K4 and the run engine merged) before any K5 edit.  It passes on that tree by design.
+`e39c7fc` (the history knob and the run engine merged) before any edit for block size.  It passes on
+that tree by design.
 """
 
 from __future__ import annotations

@@ -1,6 +1,6 @@
 """A run's open files: room made at its start, or a refusal before anything starts.
 
-Ruled 2026-10-15, after the knob probe's gpt-5-nano run crashed at its start on macOS with
+Decided 2026-10-15, after the knob probe's gpt-5-nano run crashed at its start on macOS with
 `OSError` 24, too many open files (a shell's soft limit there is 256; the run was at 128 episodes
 at once):
 - at the start of a run, the process's soft limit on open files is raised as far as the hard
@@ -41,7 +41,7 @@ from tests.fd3_support import child_env, fixture_model, needs_uv, new_mark, stub
 from tests.fd5_support import fixture_flags, verdict_lines, write_config
 
 __all__ = ["fixture_model"]
-"""The fixture model, as FD3's tests have it."""
+"""The fixture model, as the `test_fd3_*` tests have it."""
 
 pytestmark = needs_uv
 
@@ -55,7 +55,7 @@ CELL_CONCURRENCY = 128
 
 
 def needed(at_once: int) -> int:
-    """The open files a run with `at_once` episodes in flight needs, as measured and ruled."""
+    """The open files a run with `at_once` episodes in flight needs, as measured and decided."""
     return 64 + 5 * at_once
 
 

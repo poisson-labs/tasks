@@ -1,11 +1,12 @@
-"""Pending a yes/no: `--yes` beside `--mcp-command` is the consent to start the user's server.
+"""Pending a decision: `--yes` beside `--mcp-command` is the consent to start the user's server.
 
-**Why it is open.**  Spec §3: Tasks starts the user's MCP server "only to list its tools, with your
-consent"; §8.1 lists `--mcp-command CMD` among `init`'s flags, and under `--yes` `init` asks nothing.
+**Why it is open.**  The design: Tasks starts the user's MCP server "only to list its tools, with
+your consent", and lists `--mcp-command CMD` among `init`'s flags, and under `--yes` `init` asks
+nothing.
 
-**Recommendation: yes.**  A user who typed `--mcp-command` and `--yes` has consented; without `--yes`
-the dialogue asks before anything starts.  A no makes `--mcp-command` refuse under `--yes` unless a
-flag of its own (`--start-server`, say) is given.
+**Recommended.**  A user who typed `--mcp-command` and `--yes` has consented; without `--yes` the
+dialogue asks before anything starts.  If it is declined, the build makes `--mcp-command` refuse
+under `--yes` unless a flag of its own (`--start-server`, say) is given.
 """
 
 from __future__ import annotations

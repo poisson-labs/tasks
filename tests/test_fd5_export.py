@@ -1,10 +1,10 @@
 """`export`, frozen as tests.
 
-The invariant is FD5.16 of the front door's plan (spec §4.6 and §8.9; ruled 2026-10-04, FD2
-Session A's yes/no 4):
+The invariant is `export`'s (decided 2026-10-04):
 - the config file `export --to verifiers` writes for an arm, loaded through verifiers' own config
   reader (the one `eval @ FILE` uses), equals `runs.verifiers_config(plan, arm)` loaded the same
-  way, the run's identity aside (`output_dir`, `run.name` and `run.dir`, spec §8.9), and carries the arm as its six-field mapping;
+  way, the run's identity aside (`output_dir`, `run.name` and `run.dir`), and carries the arm as its
+  six-field mapping;
 - the command it prints for each file runs verifiers' `eval` by an absolute path to a file that
   exists in this environment, then `@` and the file;
 - a config that would send a key over plain http to a host that is not loopback is refused with
@@ -16,13 +16,13 @@ Shapes decided here
 **1. A file per arm**, `eval-<the arm's folder-safe id>` with one suffix for every file, in
 `--out DIR`, else `export/` beside the settings file.
 
-**The file's format is left open here, and that is a defect of the spec and the plan.** Both say
-TOML.  TOML has no null, an arm with no control arm has `control = None`, and the export's arm
-validator refuses a mapping with `control` missing (FD1's frozen tests pin that refusal, ruled
+**The file's format is left open here, and that is a defect of the design.**  It says TOML.  TOML
+has no null, an arm with no control arm has `control = None`, and the export's arm validator refuses
+a mapping with `control` missing (the frozen `test_fd1_*` tests pin that refusal, decided
 2026-10-03).  So no TOML file can carry a first look's arm as its six-field mapping, and `eval @`
 refuses one that leaves `control` out (measured, `evidence/front-door-fd5-a/`).  These tests take
 `.json`, which `eval @` reads the same way and which carries `null`, or `.toml` for a plan whose
-every arm it can carry; `tests/test_fd5_pending_export_json.py` pins JSON, pending a yes/no.
+every arm it can carry; `tests/test_fd5_pending_export_json.py` pins JSON, pending a decision.
 
 **2. The printed command** is `<eval's absolute path> @ <the file>`, one line per file.
 """
@@ -55,7 +55,8 @@ __all__ = ["prog", "world"]
 
 
 def through_verifiers(path: Path) -> dict[str, Any]:
-    """The config file read the way `eval @ FILE` reads it (FD3's own reader)."""
+    """The config file read the way `eval @ FILE` reads it (the `test_fd3_*` tests' own
+    reader)."""
     from pydantic_config import cli  # type: ignore[import-untyped]
     from verifiers.v1.cli.resolve import narrow_config
     from verifiers.v1.configs.cli.eval import EvalConfig

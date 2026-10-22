@@ -1,18 +1,19 @@
-"""Pending a yes/no: `custom` on a user's own tools.
+"""Pending a decision: `custom` on a user's own tools.
 
-**Why it is open.**  Spec §8.1 has `init` offer, on own tools, the recipes that apply to the set; it
-says nothing of choosing the knob and levels yourself there, which the built-in tasks offer as
+**Why it is open.**  The design has `init` offer, on own tools, the recipes that apply to the set;
+it says nothing of choosing the knob and levels yourself there, which the built-in tasks offer as
 `[measure] preset = "custom"`.  `tasks.toml` can say `custom` beside `[own]` all the same.
 
-**Recommendation: yes.**  `custom` is read on own tools: `knob` must be one offered on this set
-(`own.recipes.offered_knobs`) and every level one the set reaches (`knob_levels`), each refused under
-its key otherwise; `strictness` is as for the built-in tasks; the arms come in the knob's order of
-levels, whatever order they were written in (as FD1's shape 6 has it for the built-in tasks).  `init`'s dialogue does not ask for it; the flags
-`--recipe custom --knob ... --levels ...` and the file say it.  A no refuses `custom` beside
-`[own]` under `measure.preset`.
+**Recommended.**  `custom` is read on own tools: `knob` must be one offered on this set
+(`own.recipes.offered_knobs`) and every level one the set reaches (`knob_levels`), each refused
+under its key otherwise; `strictness` is as for the built-in tasks; the arms come in the knob's
+order of levels, whatever order they were written in (as the settings file's shape 6 has it for the
+built-in tasks).  `init`'s dialogue does not ask for it; the flags
+`--recipe custom --knob ... --levels ...` and the file say it.  If it is declined, the build refuses
+`custom` beside `[own]` under `measure.preset`.
 
-*Ruled yes 2026-10-13, and on 2026-10-13 23:26 every knob stays available on own tools (spec Own
-Tools §6.3 as amended): retrofitted 2026-10-14 by O2 Session B2, a recorded commit.  As frozen, a
+*Decided yes 2026-10-13, and on 2026-10-13 23:26 every knob stays available on own tools (the
+design as amended): retrofitted 2026-10-14 by the own-tools build, a recorded commit.  As frozen, a
 knob the probe had not shipped was refused under `measure.knob`; `custom` now takes any knob the
 set reaches, whatever `arms.SHIPPED_KNOBS` holds, and the knob that is no knob on own tools (the
 distractor dial) is still refused under `measure.knob`.*
@@ -59,7 +60,7 @@ def test_custom_takes_a_knob_offered_on_the_set_at_levels_it_reaches(
         ("depth", 1, "leaky", "own-1"), ("depth", 2, "leaky", "own-1")]
     assert outcome('preset = "custom"\nknob = "depth"\nlevels = [3]', tmp_path) == "measure.levels"
     faults = outcome('preset = "custom"\nknob = "faults"\nlevels = [0, 4]', tmp_path)
-    # every knob the set reaches, shipped or not (ruled 2026-10-13 23:26)
+    # every knob the set reaches, shipped or not (decided 2026-10-13 23:26)
     assert [(a.knob, a.level) for a in faults.arms] == [("faults", 0), ("faults", 4)]
     assert outcome('preset = "custom"\nknob = "distractor"\nlevels = [0]', tmp_path) == "measure.knob"
 

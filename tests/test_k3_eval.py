@@ -1,12 +1,12 @@
 """Faults opened: the generator, `eval`, and what stays shut, frozen as tests.
 
-Taylor's standing rulings of 2026-10-05 and 2026-10-06: once a knob has tasks, the `eval` command
+The standing decisions of 2026-10-05 and 2026-10-06: once a knob has tasks, the `eval` command
 takes its arms, the published cards' table answers for the knob so that no arm raises a
 `KeyError`, and an arm no published card covers gets the one note saying so.  The five knobs
 still unbuilt (history, block, arguments, shape, spread) stay refused by the generator and by
 `eval`; that is the frozen `tests/test_k2_eval.py::test_the_six_knobs_without_tasks_stay_refused_beside_similarity`,
-whose list of arms loses its two faults arms in this session's retrofit commit (a ruling).
-`tasks.toml` and `init` do not offer faults before its probe (spec K-P3).
+whose list of arms loses its two faults arms in the faults knob's retrofit commit (a decided
+retrofit).  `tasks.toml` and `init` do not offer faults before its probe.
 
 Shapes decided here
 -------------------
@@ -14,10 +14,10 @@ Shapes decided here
 **1. Every faults arm is on no published card**, the control included: neither card measured
 faults.  So `eval` takes each with the one plain note (one `UserWarning`, one line, naming the
 arm by its id; `tests/test_fd1_export_arm.py`).  The note's words are not pinned.  The control is
-where K1 Session B's `KeyError` would have come from (`_CONTROL_PAIRS[knob]` read for a control
+where the shared base's `KeyError` would have come from (`_CONTROL_PAIRS[knob]` read for a control
 arm); this asks for it by id and as the six fields.
 
-**2. Levels and controls the card does not measure.**  The spec names one faults control,
+**2. Levels and controls the card does not measure.**  The design names one faults control,
 `faults:f0+len(f4)`; `eval` takes a control at any level below its reference level, so
 `faults:f2+len(f4)` reaches the generator too, and so does `faults:f3`, a level no card measures.  Whether such a control is built or refused is left to the build, held to the rule
 the export's pinned knob test (`tests/test_fd1_export_knob_pending.py`) holds every plain arm to:

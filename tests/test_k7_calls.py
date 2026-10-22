@@ -1,7 +1,7 @@
 """What each task-shape width asks of the reference: four stage calls and a reply, arranged by the
 width, frozen as tests.
 
-The invariant is K7.1 of the knobs plan, from spec §14.3: every width's reference makes four stage
+Every width's reference makes four stage
 calls and a reply (N33); `w1` advances the target record through four stages, a chain; `w2`
 advances the target and the decoy record, which the scenario already holds in the target ledger,
 two stages each; `w4` advances the target record's id one stage in four ledgers, the scenario
@@ -19,18 +19,18 @@ and each later one with the token the call before it on that record returned.  T
 stands in for `w4`'s length, makes `w1`'s calls.
 
 **2. The targets** are the records whose stage differs between the initial and the expected
-records (plan K1.9).  `w1`: the target record (the seed's own id) in the target ledger (the
+records.  `w1`: the target record (the seed's own id) in the target ledger (the
 scenario's), at stage 4.  `w2`: that record and the scenario's decoy record, in the target ledger,
 at stage 2.  `w4`: the target record at stage 1 in the target ledger and in three others.  The
 goal is the first target, the target record in the target ledger, at its stage.
 
-**3. "Drawn from `(seed, split)`, a domain of their own"** is read, as K6's draw was, as what it
-excludes: the three other ledgers are three different ledgers none the target's; none is one of
-the three at more than half the card seeds of a split; they are not a function of the target
-ledger (two seeds with the same target ledger draw different ones); the split is read by the draw
-itself (at the card seeds whose two splits draw the same target ledger, the three differ at some);
-and they are not drawn from the similarity knob's domain (at some seed they are not among the six
-lookalike ledgers similarity draws for the same task, read through its block and the display
+**3. "Drawn from `(seed, split)`, a domain of their own"** is read, as the arguments knob's draw
+was, as what it excludes: the three other ledgers are three different ledgers none the target's;
+none is one of the three at more than half the card seeds of a split; they are not a function of the
+target ledger (two seeds with the same target ledger draw different ones); the split is read by the
+draw itself (at the card seeds whose two splits draw the same target ledger, the three differ at
+some);  and they are not drawn from the similarity knob's domain (at some seed they are not among
+the six lookalike ledgers similarity draws for the same task, read through its block and the display
 map).  Their order is not pinned here.  "Never from the scenario's draw" is pinned only as far as
 "not a function of the target ledger": a draw from the scenario's slot order is not told apart.
 
@@ -69,7 +69,7 @@ TOKEN = SPEC.parameter_names["token"]
 
 
 def expected_targets(bundle: Any, width: int) -> dict[tuple[str, str], int] | None:
-    """The targets spec §14.3 names for `width`; `None` for `w4`, whose other ledgers are drawn."""
+    """The targets the design names for `width`; `None` for `w4`, whose other ledgers are drawn."""
     ledger, target, _stage = bundle.goal
     _target, decoy = records(bundle)
     if width == 1:

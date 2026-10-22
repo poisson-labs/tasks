@@ -1,5 +1,5 @@
-"""What a folder holds, read from disk alone: the facts the guided session's home screen shows
-(spec §16.2).
+"""What a folder holds, read from disk alone: the facts the guided session's home screen
+shows.
 
 `read_folder(config_path)` reads the settings file, the environment, whether the key's variable is
 set, the tool file's counts on your own tools, every run folder under the settings' `runs` folder

@@ -1,16 +1,18 @@
-"""Pending a yes/no: what the simulator does with an output schema keyword it cannot fill.
+"""Pending a decision: what the simulator does with an output schema keyword it cannot fill.
 
-**Why it is open.**  O1 kept every output schema as written (its frozen tests read an output `anyOf`,
-a deep output and Petstore's maps unchanged; the simulator "generates from it and checks nothing").
-Spec §4 says an answer conforms to the output schema, and O2.2 pins that by a sweep.  Some keywords
-cannot be filled by a draw keyed on the call: a `pattern`, a `not`, the conditionals, the containment
-family, and the others the readers refuse in an argument schema.
+**Why it is open.**  The tool-file readers keep every output schema as written (their frozen tests
+read an output `anyOf`, a deep output and Petstore's maps unchanged; the simulator "generates from
+it and checks nothing").  The design says an answer conforms to the output schema, and
+`tests/test_o2_simulator.py` pins that by a sweep.  Some keywords cannot be filled by a draw keyed
+on the call: a `pattern`, a `not`, the conditionals, the containment family, and the others the
+readers refuse in an argument schema.
 
-**Recommendation: yes.**  The simulator honours `anyOf` (its first branch), `oneOf` (the first branch
-whose value no other branch accepts) and every keyword the sweep draws, and passes over each of
-`simulator.OUTPUT_PASSED_OVER`: the answer conforms to the schema with those keywords taken out.  The
-tool is still offered and still answers.  A no refuses, at reading, a tool whose output schema uses
-one of them, which changes O1's rule and the summary of a set that has one.
+**Recommended.**  The simulator honours `anyOf` (its first branch), `oneOf` (the first branch whose
+value no other branch accepts) and every keyword the sweep draws, and passes over each of
+`simulator.OUTPUT_PASSED_OVER`: the answer conforms to the schema with those keywords taken out.
+The tool is still offered and still answers.  If it is declined, the build refuses, at reading, a
+tool whose output schema uses one of them, which changes the readers' rule and the summary of a set
+that has one.
 """
 
 from __future__ import annotations

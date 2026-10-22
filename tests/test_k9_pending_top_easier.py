@@ -1,4 +1,4 @@
-"""Pending a yes/no: "the top is easier by the same rule" is read on base minus top alone.
+"""Pending a decision: "the top is easier by the same rule" is read on base minus top alone.
 
 **The question.**  A knob does not ship when "the top is easier on either" model.  For faults,
 block size and argument difficulty, which bite only on two contrasts, "easier by the same rule"

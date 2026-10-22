@@ -1,8 +1,8 @@
-"""The similarity knob's census, exactly: pending a yes/no.
+"""The similarity knob's census, exactly: pending a decision.
 
-**This file waits on a yes/no** and is its own commit, so a "no" drops it whole.
+**This file waits on a decision** and is its own commit, so if it is declined it is dropped whole.
 
-Spec §5.7 says `structure_space(similarity:sS)` "counts the target class, the slot permutation,
+The design says `structure_space(similarity:sS)` "counts the target class, the slot permutation,
 the six lookalike ledgers and the kept positions; the numbers themselves are masked".  But G16's
 count is the number of structures the fingerprint can tell apart (`test_g16_1` holds it equal to a
 brute-force count of distinct fingerprints), and once the numbers are masked and the seven tools of
@@ -21,8 +21,8 @@ the places each of the six lookalike ledgers shares with the target (C(4, S) eac
     k(S) = 12 * 43,680 * C(4, S)**6
 
 which is 524,160 at s0 and s1's 2,146,959,360, s2's 24,455,208,960 and s3's 2,146,959,360.  Each
-clears the floor of 360,000 at N = 60 (`test_k2_fingerprint.py` pins the floor whichever way this
-is ruled).  It cannot be brute-forced as `test_g16_1` does, since no reduced vocabulary holds seven
+clears the floor of 360,000 at N = 60 (`test_k2_fingerprint.py` pins the floor whichever way this is
+decided).  It cannot be brute-forced as `test_g16_1` does, since no reduced vocabulary holds seven
 ledgers and a sixteen-tool block, so it is stated.
 """
 

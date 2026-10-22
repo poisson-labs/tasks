@@ -1,18 +1,17 @@
 """The knob probe's outcome in the package: the knobs it shipped and each knob's measured status.
 
-The knob probe (spec Knobs §9) ran on gpt-5-nano and Qwen3-8B.  Its outcome as Taylor ruled it on
-2026-10-14:
+The knob probe ran on gpt-5-nano and Qwen3-8B.  Its outcome as decided on 2026-10-14:
 
 1. **Faults, history and shape ship**, and nothing else: `arms.SHIPPED_KNOBS` is exactly those
-   three, in the probe's knob order.  The recipes follow R0's rule unchanged: a recipe is offered
-   when it uses only the published cards' knobs or one of its probe knobs has shipped, and the
-   arms of a knob that has not shipped are dropped.  So `error-recovery`, `long-sessions`,
+   three, in the probe's knob order.  The recipes follow the recipe table's rule unchanged: a recipe
+   is offered when it uses only the published cards' knobs or one of its probe knobs has shipped,
+   and the arms of a knob that has not shipped are dropped.  So `error-recovery`, `long-sessions`,
    `planning` and `profile` join `first-look` and `card`; `tool-choice` waits on similarity and
    block, `reading-and-filling` on spread and arguments.
 2. **Every knob stays.**  The four that did not ship keep their tasks and their arms (the kept
    digests of every knob's tasks pin that), each labelled with its measured status on each model.
-3. **No knob is called a non-biter where its base could not show it.**  As Taylor ruled the
-   reading on 2026-10-14 (a recorded change to this file, after the freeze): a "does not bite"
+3. **No knob is called a non-biter where its base could not show it.**  As the reading was
+   decided on 2026-10-14 (a recorded change to this file, after the freeze): a "does not bite"
    is "cannot tell", with the base rate given, when the knob's base arm's strict pass@1 is below
    0.15, the rule's own drop, so a drop of that size could not show.  A base near 1 can still
    drop by 0.15, so the ceiling never makes a non-bite "cannot tell"; it applies only to a "top
@@ -26,8 +25,8 @@ The knob probe (spec Knobs §9) ran on gpt-5-nano and Qwen3-8B.  Its outcome as 
 
 The numbers are the combined outcome's (`python -m poisson_tasks.knob_probe analyse` over both
 models' records), which is not in the repository.  These tests hold the file to its own rule and
-to the statuses that outcome gave, not to the outcome's bytes; the vault's filing rebuilds the
-file from the outcome byte for byte.
+to the statuses that outcome gave, not to the outcome's bytes; a rebuild kept in the lab's private
+notes makes the file from the outcome byte for byte.
 """
 
 from __future__ import annotations
@@ -74,7 +73,7 @@ STATUSES = ("bites", "does not bite", "top easier", "cannot tell")
 DELTA = 0.15
 FLOOR = DELTA
 CEILING = 1 - DELTA
-# The outcome with ruling 3 read in, (gpt-5-nano, Qwen3-8B).
+# The outcome with point 3 read in, (gpt-5-nano, Qwen3-8B).
 MEASURED = {
     "similarity": ("does not bite", "does not bite"),
     "faults": ("does not bite", "bites"),
@@ -91,7 +90,7 @@ def knob_of(arm: str) -> str:
 
 
 def published(measured: str, base: float, top: float) -> str:
-    """Ruling 3 as ruled: the floor turns only a non-bite, the ceiling only a top-easier."""
+    """Point 3 as decided: the floor turns only a non-bite, the ceiling only a top-easier."""
     if measured == "does not bite" and base < FLOOR:
         return "cannot tell"
     if measured == "top easier" and top > CEILING:
@@ -122,7 +121,7 @@ def strings(value: Any) -> list[str]:
 
 
 def test_the_probe_shipped_faults_history_and_shape_and_the_recipes_follow() -> None:
-    """Rulings 1 and 2.  Bugs caught: the list left empty, a fourth knob shipped, a knob listed
+    """Points 1 and 2.  Bugs caught: the list left empty, a fourth knob shipped, a knob listed
     twice or out of order; the recipe table built from another list than the shipped one; a
     recipe of a knob that did not ship offered, or a shipped knob's arms dropped; `init` refusing
     a recipe the list now offers."""
@@ -150,7 +149,7 @@ def test_the_probe_shipped_faults_history_and_shape_and_the_recipes_follow() -> 
 
 
 def test_the_status_table_is_package_data_read_through_one_public_function() -> None:
-    """Ruling 4.  Bugs caught: the table written into the code rather than the package's file;
+    """Point 4.  Bugs caught: the table written into the code rather than the package's file;
     the function not public; a caller's edit to what it returned seen by the next caller."""
     assert "knob_status" in arms.__all__
     path = REPO / "src" / "poisson_tasks" / "knob_status.json"
@@ -162,7 +161,7 @@ def test_the_status_table_is_package_data_read_through_one_public_function() -> 
 
 
 def test_every_probe_knob_has_its_measured_status_on_each_model_and_shipped_is_the_list() -> None:
-    """Rulings 2 and 4, and the statuses the outcome gave with ruling 3 read in.  Bugs caught: a
+    """Points 2 and 4, and the statuses the outcome gave with point 3 read in.  Bugs caught: a
     knob that did not ship left out of the table; a model left out; a status outside the four
     words; a knob marked shipped that is not in `SHIPPED_KNOBS`, or the other way; a status word
     edited by hand; spread's base on gpt-5-nano not the 0.067 the run measured."""
@@ -189,7 +188,7 @@ def test_every_probe_knob_has_its_measured_status_on_each_model_and_shipped_is_t
 
 
 def test_no_knob_is_called_a_non_biter_where_its_base_could_not_show_a_drop() -> None:
-    """Ruling 3 as ruled, and each status follows from its own numbers by spec §9.4 and §9.5.
+    """Point 3 as decided, and each status follows from its own numbers by the probe's rule.
     Bugs caught: a knob called a non-biter on a model whose base was below 0.15; a non-bite
     made "cannot tell" by a base near 1; the floor applied to a top-easier reading, or the
     ceiling not applied to one; a bite turned into "cannot tell"; a status that its contrasts do
@@ -248,7 +247,7 @@ def test_each_knobs_line_says_its_statuses_in_plain_words() -> None:
 
 
 def test_the_knobs_page_states_each_knobs_status_on_each_model() -> None:
-    """Ruling 2's label where a reader looks for a knob.  Bugs caught: the page's table left out
+    """Point 2's label where a reader looks for a knob.  Bugs caught: the page's table left out
     of step with the file; a knob that did not ship missing from it; a "cannot tell" cell with no
     rate."""
     page = (REPO / "docs" / "knobs-and-arms.md").read_text(encoding="utf-8")

@@ -1,13 +1,13 @@
 """`--mcp-command`: Tasks starts a user's MCP server once to list its tools, stops it and calls
-nothing else, frozen as tests (O1.5).
+nothing else, frozen as tests.
 
-The invariant is O1.5 of the knobs plan, from the own-tools spec §2.1, §3 ("Tasks will not call
-your endpoints, your MCP server's tools or anything else on your network; `--mcp-command` starts
-your server only to list its tools, with your consent, and stops it") and §8.2 (the merged
-`tools/list` result, pages in the server's order, saved as canonical JSON, which the digest then
-covers).  The server here is `tests/fixtures/o1/fake_mcp_server.py`, a stdio JSON-RPC server with
-no MCP library behind it, which logs every request it receives and leaves a marker file if any
-tool is called.  Nothing here touches the network.
+The invariant, from the own-tools design ("Tasks will not call your endpoints, your MCP server's
+tools or anything else on your network; `--mcp-command` starts your server only to list its tools,
+with your consent, and stops it"), and the merged `tools/list` result, pages in the server's order,
+saved as canonical JSON, which the digest then covers.  The server here is
+`tests/fixtures/o1/fake_mcp_server.py`, a stdio JSON-RPC server with no MCP library behind it, which
+logs every request it receives and leaves a marker file if any tool is called.  Nothing here touches
+the network.
 
 Shapes decided here
 -------------------
@@ -16,7 +16,7 @@ Shapes decided here
 a POSIX shell would (`shlex.split`), and a boolean consent the caller (`init`) has obtained;
 without consent it starts nothing and refuses (`OwnToolsError`).
 
-**2. What it returns is the file** `init` saves beside `tasks.toml` as `tools.mcp.json` (§8.2):
+**2. What it returns is the file** `init` saves beside `tasks.toml` as `tools.mcp.json`:
 the bytes of `{"tools": [...]}`, the pages' tools in the server's order, as this package's
 canonical JSON (`json.dumps(..., sort_keys=True, separators=(",", ":"))`, the rendering every
 hash in `tasks.py` is taken over), so `read_tools` on those bytes is the MCP reader and the digest

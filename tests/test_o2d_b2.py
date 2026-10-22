@@ -1,9 +1,9 @@
-"""The settings file, the run and the command on a user's own tools: the choices O2 Session B2
-made beyond the frozen tests, pinned.
+"""The settings file, the run and the command on a user's own tools: the choices the own-tools
+build made beyond the frozen tests, pinned.
 
-Own-tools spec §8 as ruled (2026-10-13, yes/nos 18 to 28; 2026-10-13 23:26, every knob), built
-2026-10-14.  What the frozen tests of `tests/test_o2_config.py`, `tests/test_o2_cli.py`,
-`tests/test_o2_run.py` and the pending files of yes/nos 20 to 28 do not name, this file does:
+The own-tools design as decided (2026-10-13; at 23:26 that day, every knob), built 2026-10-14.
+What the frozen tests of `tests/test_o2_config.py`, `tests/test_o2_cli.py`, `tests/test_o2_run.py`
+and the matching pending files do not name, this file does:
 
 - `config`'s copy of the own knobs is the own generator's list; `custom` beside `[own]` takes
   every level the set reaches when `levels` is unset, in the knob's order; `card` beside `[own]`
@@ -224,7 +224,7 @@ def test_doctor_lists_every_knob_the_set_reaches_shipped_first_with_its_status(
     assert ran.code == 0, ran
     rows = doctor_rows(ran)
     reached = recipes.offered_knobs(toolset, flows=flows)
-    # Retrofitted by ruling G14 (FD9 Session A): a knob's probe line is information, `note`.
+    # Retrofitted with the guided session: a knob's probe line is information, `note`.
     assert all(status == ("note" if label in reached else "ok")
                for label, (status, _) in rows.items()), rows
     lead = recipes.shipped_knobs(toolset, flows=flows)
@@ -302,7 +302,7 @@ def test_choosing_the_knob_yourself_on_own_tools_offers_every_knob_shipped_first
     ordered = [*lead, *(knob for knob in reached if knob not in lead)]
     chosen = ordered[-1]
     err = io.StringIO()
-    stdin = Answers(["2", "", "", "", "", "tools.json",  # G7 (FD9 Session A)
+    stdin = Answers(["2", "", "", "", "", "tools.json",  # the guided session's first question
                      custom_entry, str(len(ordered)), "", ""])
     saved = sys.stderr
     ran = invoke(["init", "--no-check-key", *FLOWS], monkeypatch, stdin)
@@ -331,7 +331,7 @@ def test_mcp_command_without_yes_asks_for_consent_and_no_writes_nothing(
 ) -> None:
     command = shlex.join([sys.executable, str(FAKE_MCP_SERVER), str(work / "log"),
                           str(work / "marker")])
-    # G7 (FD9 Session A): own tools is the first question's second answer, before the provider
+    # the guided session: own tools is the first question's second answer, before the provider
     declined = invoke(["init", "--no-check-key", "--mcp-command", command, "--recipe",
                        "error-recovery"], monkeypatch, Answers(["2", "", "", "", "", "n"]))
     assert declined.code == 1, declined
@@ -549,7 +549,7 @@ def test_the_dialogue_says_the_summary_line_before_the_recipe_question(
 ) -> None:
     (work / "tools.json").write_bytes(fixture("acme-mcp-tools-list.json"))
     first = own.summary(own.read_tools(fixture("acme-mcp-tools-list.json"), name="tools")).splitlines()[0]
-    stdin = Answers(["2", "", "", "", "", "tools.json"])  # G7 (FD9 Session A)
+    stdin = Answers(["2", "", "", "", "", "tools.json"])  # the guided session's first question
     ran = invoke(["init", "--no-check-key", *FLOWS], monkeypatch, stdin)
     assert ran.code == 0, ran
     assert first in ran.err and ran.err.index(first) < ran.err.index("What do you want to measure on")

@@ -33,11 +33,11 @@ CARD_SEEDS: tuple[int, ...] = cal.seed_list()
 
 
 def _probe_seeds() -> tuple[int, ...]:
-    """The probe's seeds as spec §9.2 describes them, made the way the cards' are: seed `i` is the
-    first four bytes of `sha256("poisson-tasks/knob-probe/seeds/v1:<i>")`, skipping a card seed
-    or a repeat; the first three are phase 1's and the next sixty, sorted, the probe's.  The
-    probe's own module (K9) is where the derivation is fixed; these sixty-three are seeds a test
-    can read now."""
+    """The probe's seeds as its design describes them, made the way the cards' are: seed `i` is the
+    first four bytes of `sha256("poisson-tasks/knob-probe/seeds/v1:<i>")`, skipping a card seed or a
+    repeat; the first three are phase 1's and the next sixty, sorted, the probe's.  The probe's own
+    module (`knob_probe`) is where the derivation is fixed; these sixty-three are seeds a test can
+    read now."""
     out: list[int] = []
     index = 0
     while len(out) < 63:

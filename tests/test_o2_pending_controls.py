@@ -1,16 +1,16 @@
-"""Pending a yes/no: there are no control arms on a user's own tools.
+"""Pending a decision: there are no control arms on a user's own tools.
 
 **Why it is open.**  The built-in knobs have control arms (depth's `d1+h8`, faults' `f0+len(f4)`,
-block's, arguments' and shape's) that hold a level's length while the knob stays at its base.  Spec
-§6 says nothing of controls on own tools, and the recipes, which are what own tools offer, use none.
-A control's length is made of the built-in table's own reads and filler, which have no meaning on a
-user's tools.
+block's, arguments' and shape's) that hold a level's length while the knob stays at its base.  The
+design says nothing of controls on own tools, and the recipes, which are what own tools offer, use
+none.  A control's length is made of the built-in table's own reads and filler, which have no
+meaning on a user's tools.
 
-**Recommendation: yes.**  An own-tools arm with a control is refused in one line by the generator,
-and `tasks.toml`'s `controls = true` beside `[own]` is refused under `measure.controls` while
+**Recommended.**  An own-tools arm with a control is refused in one line by the generator, and
+`tasks.toml`'s `controls = true` beside `[own]` is refused under `measure.controls` while
 `controls = false` is read.  `controls` is read only under `preset = "custom"`, so the second test
-also takes `custom` on own tools as recommended (`tests/test_o2_pending_custom.py`).  A no designs a
-control per knob from the user's own reads, a design of its own.
+also takes `custom` on own tools as recommended (`tests/test_o2_pending_custom.py`).  If it is
+declined, the build designs a control per knob from the user's own reads, a design of its own.
 """
 
 from __future__ import annotations

@@ -1,10 +1,11 @@
 """A card on your own tools names the comparison with the published cards only when it works
-(FD6 follow-up 2, yes/no 13).
+(decided with the documentation's second round of fixes).
 
-Follow-up 1 left the line `next: poisson-tasks card --compare published` on every card made from
-your own tools.  The comparison puts your card beside the published card of the same model, so for
-a model no published card measured it refuses in one line ("no published card measured …"), and a
-user following the line got that refusal.  Now the line is there exactly when following it works.
+The first round of fixes left the line `next: poisson-tasks card --compare published` on every card
+made from your own tools.  The comparison puts your card beside the published card of the same
+model, so for a model no published card measured it refuses in one line ("no published card measured
+…"), and a user following the line got that refusal.  Now the line is there exactly when following
+it works.
 
 Three runs on the acme tools, each played by the scripted endpoint, differ only in the model the
 settings name:
@@ -105,7 +106,7 @@ def test_the_comparison_line_is_there_exactly_when_following_it_works(
     assert ran.code == 0, ran
     lines = next_lines(ran.out)
     followed = invoke(["card", str(folder), *COMPARE, "--force"], monkeypatch)
-    # Retrofitted by ruling G12 (FD9 Session A): no card on your own tools names the comparison;
+    # Retrofitted with the guided session: no card on your own tools names the comparison;
     # asked for, it says `different` and exits 0, and where a published card measured the model,
     # `compare.md` holds that card beside the run's.
     assert lines == [], lines

@@ -1,14 +1,14 @@
-"""Pending a yes/no: `init --mcp-command` keeps the listed tools, not the command.
+"""Pending a decision: `init --mcp-command` keeps the listed tools, not the command.
 
-**Why it is open.**  Spec §8.2: with `--mcp-command` "there is no file of yours: Tasks saves the merged
-`tools/list` result ... as canonical JSON (`tools.mcp.json`) beside `tasks.toml`, and the digest covers
-that file".  §8.2's `[own]` keys do not include the command, and §8.1's equivalent command must write
-the same file; whether the command is kept to list the tools again is not said.
+**Why it is open.**  The design: with `--mcp-command` "there is no file of yours: Tasks saves the
+merged `tools/list` result ... as canonical JSON (`tools.mcp.json`) beside `tasks.toml`, and the
+digest covers that file".  The `[own]` keys do not include the command, and the equivalent command
+must write the same file; whether the command is kept to list the tools again is not said.
 
-**Recommendation: yes.**  `[own] file = "tools.mcp.json"`, the command kept nowhere; the equivalent
-command says `--own-file tools.mcp.json`, so it writes the same file without starting the server; the
-plan's digest is the saved file's.  A no keeps the command in `[own]` and lists the tools on every
-run, which starts the user's program each time.
+**Recommended.**  `[own] file = "tools.mcp.json"`, the command kept nowhere; the equivalent command
+says `--own-file tools.mcp.json`, so it writes the same file without starting the server; the plan's
+digest is the saved file's.  If it is declined, the build keeps the command in `[own]` and lists the
+tools on every run, which starts the user's program each time.
 """
 
 from __future__ import annotations

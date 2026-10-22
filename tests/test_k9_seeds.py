@@ -1,15 +1,15 @@
-"""K9.1, the seeds: the probe's sixty and phase 1's three, from their own named derivation.
+"""The knob probe's seeds: the probe's sixty and phase 1's three, from their own named derivation.
 
-The spec: a new named derivation, `poisson-tasks/knob-probe/seeds/v1`, from the eval split,
-skipping any seed in the cards' published sixty; its first three seeds are phase 1's; the next
-sixty, sorted, are the probe's.  So no probe task is a card task.  The driver records the seed
+The probe's design: a new named derivation, `poisson-tasks/knob-probe/seeds/v1`, from the eval
+split, skipping any seed in the cards' published sixty; its first three seeds are phase 1's; the
+next sixty, sorted, are the probe's.  So no probe task is a card task.  The driver records the seed
 list's hash.
 
 Seed `i` is computed here from the derivation string with `hashlib` alone, the shape the cards'
 own seeds have (`calibration._derive_seeds`), so the module under test is checked against the
-declaration and not against itself.  The same sixty-three are the ones K2 Session A made in
-`tests/k2_support.py` and checked the similarity block's length on; equality here is K2.4's check
-re-run on the probe's own list, as K2 owed it.
+declaration and not against itself.  The same sixty-three are the ones the similarity knob's
+frozen tests made in `tests/k2_support.py` and checked the similarity block's length on; equality
+here is that check re-run on the probe's own list, as the similarity knob owed it.
 """
 
 from __future__ import annotations
@@ -125,7 +125,8 @@ def test_another_process_makes_the_same_lists() -> None:
 
 
 def test_k2s_sixty_three_are_the_probes() -> None:
-    """K2.4 was checked on `tests/k2_support.py`'s sixty-three; they are the driver's."""
+    """The similarity block's length was checked on `tests/k2_support.py`'s sixty-three; they are
+    the driver's."""
     from poisson_tasks import knob_probe as probe
     from tests.k2_support import PROBE_SEEDS
 

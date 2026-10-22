@@ -1,27 +1,28 @@
 """`card`, frozen as tests.
 
-The invariant is FD5.18 of the front door's plan (spec §4.4, §9; ruled 2026-10-03 on naming cards
-by their model), with what cards for any plan (FD4) carried to it:
-- **FD5.18** the verdict comes first and the three files are written, each the library's: the
+The invariant is the `card` verb's (decided 2026-10-03 on naming cards by their model), with what
+cards for any plan carried to it:
+- the verdict comes first and the three files are written, each the library's: the
   records, the artifact and the document `calibration.card_from_run` gives for the folder;
   `--check` exits 4 after a one-byte change to `artifact.json`, and 0 on the files as written;
   `--published` recomputes the published cards, and `--published NAME` names one by its model,
   the names `card --help` lists;
 - **a refused card** (a cell over a gate) is exit 1, verdict `refused` naming the level, and
-  nothing written but the records (spec §4.4);
-- **a partial card carries its "What ran" section**, and the command shows it (FD4 Session B's
-  yes/no 7, ruled): the facts of that section are in what `card` prints;
-- **comparing a run with the published cards is refused for every run until the new cards
-  exist** (FD4 Session A's finding, carried): exit 1, one line, the side-by-side renderer's own;
-  nothing is written;
+  nothing written but the records;
+- **a partial card carries its "What ran" section**, and the command shows it (decided): the facts
+  of that section are in what `card` prints;
+- **comparing a run with the published cards is refused for every run until the new cards exist** (a
+  finding of the card's build, carried): exit 1, one line, the side-by-side renderer's own;  nothing
+  is written;
 - **a run against the user's own server saves what the server reports about itself when the run
-  starts, and the card reads that saved copy** (FD4 Session A's yes/no 5, ruled yes): the card's
+  starts, and the card reads that saved copy** (decided yes): the card's
   artifact is `card_from_run(folder, serving=<the saved facts>)`'s, and `card` opens no socket;
 - **the default folder** is the settings file's newest run, named in what `card` prints;
 - **not a run folder, or a run that recorded nothing**, is exit 1 with the library's line.
 
-The run folders are FD4's scenarios, made by the run engine against the fixture model once per
-session (`tests/fd4_support.py`), and copied into each test's own folder before `card` reads them.
+The run folders are the card tests' scenarios, made by the run engine against the fixture model once
+per test session (`tests/fd4_support.py`), and copied into each test's own folder before `card`
+reads them.
 
 Shapes decided here
 -------------------
@@ -35,13 +36,13 @@ the way `cards.recompute` recomputes a published one.
 by its short name**, in `cards.published()`'s order, and refuses with the text
 `calibration.render_side_by_side` raises for that mapping.
 
-**3. "The config's newest run"** (spec §4.4) is the newest folder holding the settings file's
+**3. "The config's newest run"** is the newest folder holding the settings file's
 plan, as `run` finds it; the test's two folders both hold it.
 
 **4. `--page --out FILE`** writes `calibration.render_combined_document` of the published cards,
 in `cards.published()`'s order.
 
-**5. The saved facts are `serving.json` in the run folder** (FD4 Session A's yes/no 5 names it),
+**5. The saved facts are `serving.json` in the run folder** (the decision above names it),
 written before the first model call and holding `providers.server_facts`'s mapping.
 """
 
@@ -256,7 +257,7 @@ def test_fd5_18_comparing_with_the_published_cards_is_refused_for_every_run_toda
         calibration().render_side_by_side(mapping)
     ran = invoke(["card", str(folder), "--compare", "published"], prog=prog,
                  monkeypatch=monkeypatch)
-    # Retrofitted by ruling G12, on FD9 Session A's yes/no 4 (2026-10-20): the library still sets
+    # Retrofitted by the decision of 2026-10-20, with the guided session: the library still sets
     # no built-in card beside the published ones; the command says so as its verdict, `different`,
     # exit 0, and writes `compare.md`.
     assert ran.code == 0 and ran.word == "different", ran

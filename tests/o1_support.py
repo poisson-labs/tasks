@@ -1,5 +1,6 @@
-"""Helpers the O1 test files share: the fixture folder, builders for small tool files in each of
-the three formats, and the one partner tool that keeps a set above the set-level refusals.
+"""Helpers the `tests/test_o1_*.py` files share: the fixture folder, builders for small tool files
+in each of the three formats, and the one partner tool that keeps a set above the set-level
+refusals.
 
 Every builder returns the file's bytes, since `own.read_tools` reads bytes and digests them.
 Test files import this as `tests.o1_support`, the way `pyproject.toml`'s `pythonpath` lets them.

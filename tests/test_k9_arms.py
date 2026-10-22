@@ -1,12 +1,12 @@
-"""K9.2, the arms, and the settings every episode runs under.
+"""The knob probe's arms, and the settings every episode runs under.
 
-The spec's table: eighteen arms per model, run in this order: the seven bases, then the seven tops,
-then the four controls.  Two attempts per task, 120 episodes an arm, 2,160 a model.  Every episode
-capped at 32 model calls, through the `null` harness, concurrency recorded.  gpt-5-nano at
-`gpt-5-nano-2025-08-07` at api.openai.com with temperature 1.0, top_p 1.0, reasoning effort low
-and 2,048 completion tokens; Qwen3-8B served as its card was.
+The probe's design table: eighteen arms per model, run in this order: the seven bases, then the
+seven tops, then the four controls.  Two attempts per task, 120 episodes an arm, 2,160 a model.
+Every episode capped at 32 model calls, through the `null` harness, concurrency recorded.
+gpt-5-nano at `gpt-5-nano-2025-08-07` at api.openai.com with temperature 1.0, top_p 1.0, reasoning
+effort low and 2,048 completion tokens; Qwen3-8B served as its card was.
 
-The list is typed in `tests/k9_support.py` from the spec's table, not read from the module.
+The list is typed in `tests/k9_support.py` from the design's table, not read from the module.
 """
 
 from __future__ import annotations

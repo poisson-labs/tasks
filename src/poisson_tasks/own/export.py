@@ -1,11 +1,11 @@
 """The verifiers export of tasks on a user's own tools: the taskset, the task, its data and the
-tool server (spec §11).
+tool server.
 
 The built-in export's task data mirrors the built-in bundle's fields and has nowhere to carry a
 tool file, its toolset builds its state from the engine, and its reward goes through
 `tasks.verify`; so own tools have a task data class, a task, a taskset and a toolset of their
 own.  The taskset's id is `poisson-tasks-own`, the second top-level module of the wheel
-(`poisson_tasks_own`; ruled 2026-10-13, yes/no 1): verifiers 0.3.1 finds a taskset by a top-level
+(`poisson_tasks_own`; decided 2026-10-13): verifiers 0.3.1 finds a taskset by a top-level
 module only.  Its config carries `own`, the tool file's settings as a resolved plan carries them
 (`file`, `format`, `name`, `read`, `write`, `intents`, `flows`, `file_digest`), the arm and the
 seeds; it loads one task per seed in the declared order, and refuses a file whose bytes no longer
@@ -17,7 +17,7 @@ server advertises the task's block byte for byte and answers with the simulator:
 `CallToolResult` with its text, its `structuredContent` and its `isError`, which FastMCP passes
 through unchanged; the body is total, the raw arguments handed to the simulator, so a call that
 breaks the schema is answered `invalid_arguments` and counted as the replay counts it.  The
-answer is the object alone, no sequence number (yes/no 2).  `tests/test_o2_server.py` and
+answer is the object alone, no sequence number.  `tests/test_o2_server.py` and
 `tests/test_o2_run.py` pin this.
 """
 

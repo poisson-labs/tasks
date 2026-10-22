@@ -1,6 +1,6 @@
-"""Pending a yes/no: how a named read's fill is keyed.
+"""Pending a decision: how a named read's fill is keyed.
 
-Spec §14.4 says a part answer's payload is the part, a `.`, then hex from a keyed hash to fill the
+The design says a part answer's payload is the part, a `.`, then hex from a keyed hash to fill the
 width, and a `none` answer `none.` and hex the same way; it does not say what the hash is keyed on.
 If the answer is yes, each named read has one fill of its own, keyed by the task and the read's
 place in the request and not by the level: at every level a read's fill is the start of that one

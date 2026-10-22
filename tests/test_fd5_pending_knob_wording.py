@@ -1,18 +1,19 @@
-"""Pending a yes/no: init's refusal of a knob the library has and `tasks.toml` does not offer.
+"""Pending a decision: init's refusal of a knob the library has and `tasks.toml` does not offer.
 
-K4 Session B's yes/no 5 (ruled yes, 2026-10-07) left `init --recipe custom --knob history` saying
+A decision with the history knob (decided yes, 2026-10-07) left
+`init --recipe custom --knob history` saying
 `--knob: "history" is not a knob; it is one of depth or distractor` until the step that opens the
-new knobs in `init`; bring your own tools (O1) flagged it for rewording with the command.  History
-is a knob: the library makes its tasks.  What is true is that the settings file does not offer it
-yet.  The refusal itself is pinned in `tests/test_fd5_init.py`; this pins the words.
+new knobs in `init`; reading your own tools flagged it for rewording with the command.  History is a
+knob: the library makes its tasks.  What is true is that the settings file does not offer it yet.
+The refusal itself is pinned in `tests/test_fd5_init.py`; this pins the words.
 
-**Proposed, recommended yes:** `--knob: "history" is a knob not offered here yet; the knobs
+**Proposed, and recommended:** `--knob: "history" is a knob not offered here yet; the knobs
 offered are depth and distractor` (in the file, `tasks.toml line N: [measure] knob: …`), for
 every knob the library has that `tasks.toml` does not offer; a word that is no knob keeps today's
 words, with its nearest knob.
 
-**A no** drops this file's commit, and the words wait for the step that opens the knobs, as K4
-Session B's yes/no 5 has it.
+**If it is declined**, this file's commit is dropped, and the words wait for the step that opens
+the knobs, as the decision of 2026-10-07 has it.
 """
 
 from __future__ import annotations

@@ -32,7 +32,7 @@ B_ARM = "distractor:r0@k16"
 CARD_SEEDS: tuple[int, ...] = cal.seed_list()
 FMT = FormatSpec(name="reference", markers=())
 
-# Spec §6.3's sentence, as the spec prints it.
+# The sentence the design gives, word for word.
 SENTENCE = (
     "A call can come back `unavailable`: nothing changed, and the same call can be made again."
 )
@@ -215,8 +215,8 @@ def episode(tmp_path: Path, bundle: Any, calls: Sequence[tuple[str, Any]]) -> An
     return record
 
 
-# The two names K3 adds, read by name: no skeleton declares them, so on a tree without K3 a test
-# that reads one fails because it is missing.
+# The two names the faults knob adds, read by name: no skeleton declares them, so on a tree
+# without them a test that reads one fails because it is missing.
 GAVE_UP = "gave_up_after_fault"
 APPLY_PLANNED = "apply_planned"
 

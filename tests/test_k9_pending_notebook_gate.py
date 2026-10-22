@@ -1,8 +1,8 @@
-"""Pending a yes/no: the notebook's own gates are read on phase 1's episodes, by the probe step.
+"""Pending a decision: the notebook's own gates are read on phase 1's episodes, by the probe step.
 
 **The question.**  For Qwen, "its probe-only design applies the plumbing and instrument checks and
 the context checks ... to every arm, and its leaky floor and no-call stop to the seven base arms
-only."  The spec does not say which episodes those gates read, or when.  Model B's card ran a
+only."  The design does not say which episodes those gates read, or when.  Model B's card ran a
 probe of its own (48 episodes at the hardest and longest arms) before the card.
 
 **Proposed: they read phase 1's 54 episodes, in the notebook's probe step, which runs none**, so

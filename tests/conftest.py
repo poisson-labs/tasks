@@ -48,7 +48,7 @@ settings.register_profile("ci", derandomize=True)
 settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "default"))
 
 # The test files that need the extra: the scripted path's, which drives Proofload's CLI, and
-# the model path's bridge (MP10), which calls `to_episode`. Matched on the name, so a run from
+# the model path's bridge, which calls `to_episode`. Matched on the name, so a run from
 # any directory and any invocation (`pytest`, `pytest tests/`, a single node id) sees the same
 # thing.
 PROOFLOAD_TEST_FILES = frozenset({"test_tg_m5_scripted.py", "test_tg_m5_bridge.py"})

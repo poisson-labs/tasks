@@ -1,6 +1,6 @@
 """The argument-difficulty knob's stated values, and the ledger over its contrast, frozen as tests.
 
-The invariant is K6.2 of the knobs plan, from spec §14.2 and §3.6 (N31, N32): `arguments:aA`'s
+It rests on the pin ledger's N31 and N32.  `arguments:aA`'s
 request states exactly `A - 2` extra values, opaque words drawn from `(seed, split)`, which both
 stage calls must carry; the control `arguments:a2+len(a8)` holds a2's request plus a neutral filler
 within two tokens of what a8's request adds.
@@ -16,13 +16,13 @@ of a tool the table defines; and the request names no other of the six, neither 
 words.  So a request that stated more than its level, or a reference
 that carried fewer, fails here.
 
-**2. "Drawn from `(seed, split)`" is read as what it excludes**: the values a level states are
-among the six a8 states for the same task, so the draw does not read the level (which parameter
-takes which value at each level is pending a yes/no, `tests/test_k6_pending_nested.py`); the values
-move from seed to seed, so that no value fills one parameter at more than half the card seeds of a
-split; and at some card seed the two splits draw different values.  The words are opaque; which list
-they come from is not pinned.  A task is the same in another process under another hash seed, so
-the draw reads nothing but its inputs.
+**2. "Drawn from `(seed, split)`" is read as what it excludes**: the values a level states are among
+the six a8 states for the same task, so the draw does not read the level (which parameter takes
+which value at each level is pending a decision, `tests/test_k6_pending_nested.py`); the values move
+from seed to seed, so that no value fills one parameter at more than half the card seeds of a split;
+and at some card seed the two splits draw different values.  The words are opaque; which list they
+come from is not pinned.  A task is the same in another process under another hash seed, so the draw
+reads nothing but its inputs.
 
 **3. The contrast is the five arms at once**, a2 to a8 and the control, at every card seed on both
 splits, as `generate_contrast` would refuse it: the ledger refuses nothing and reports nothing.  So

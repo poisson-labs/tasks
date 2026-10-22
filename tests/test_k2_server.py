@@ -1,7 +1,7 @@
 """The similarity knob on the export path: the tool server, a live episode, and the replay check,
 frozen as tests.
 
-The invariant is K2.7 of the knobs plan, from spec §3.3 and §6.4.  The tool server advertises the
+The tool server advertises the
 bundle's block byte for byte (X3) and applies a call by its shown name to the engine tool that name
 stands for.  An episode driven by a fake model endpoint through the real `null` harness and the
 launched tool server replays, in `verify`, to the observations the server sent; and
@@ -20,7 +20,7 @@ an engine name the knob hides) is not replayed.
 **2. A `replay_mismatch` record is scored as nothing**: strict and leaky both false, as every
 instrument label's record is (`EpisodeRecord` refuses a leaky instrument record).
 
-**3. Which arms the check runs on.**  Spec §6.4 names faults and similarity.  This file pins it for
+**3. Which arms the check runs on.**  The design names faults and similarity.  This file pins it for
 similarity; whether depth and distractor arms are checked too is left to the build, since on a
 genuine run the check finds nothing there either.
 

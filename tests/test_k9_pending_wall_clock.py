@@ -1,7 +1,7 @@
-"""Pending a yes/no: the notebook gives the knob probe two hours of phase 3.
+"""Pending a decision: the notebook gives the knob probe two hours of phase 3.
 
 **The question.**  The notebook's wall-clock allowance stops phase 3 cleanly when it runs out
-(the card's is 6.0 hours).  The spec estimates the probe at about 1.0 hour of episodes on an L4
+(the card's is 6.0 hours).  The design estimates the probe at about 1.0 hour of episodes on an L4
 and 3 to 4 Colab units in all; it sets no allowance.
 
 **Proposed: 2.0 hours** across every resume, twice the estimate.  A stop leaves the arms finished
