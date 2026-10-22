@@ -1,6 +1,6 @@
 """The environment report behind `doctor`, frozen as tests: `providers.environment_report`.
 
-The invariant is FD2.7 of the front door's plan (spec §4.7, and §1.2 items 1, 7, 8 and 15):
+The invariant is `doctor`'s environment report:
 - the report names `sys.executable` and the folder the package was imported from, and flags that
   folder when it is outside `sys.prefix`: the hands-on test's F1, a package imported from an
   editable install or from another project's environment;
@@ -26,7 +26,7 @@ and `"wrong digest"`.
 starts with the prefix's name is outside it, and a prefix reached through a symbolic link (macOS's
 `/tmp` is one) is the folder it links to.
 
-**3. Supported means macOS or Linux** (spec §4.3, which refuses `run` on Windows), read from
+**3. Supported means macOS or Linux** (`run` is refused on Windows), read from
 `sys.platform` (`platform.system()` is set to agree in each case).
 
 **4. With a config, the report names its key variable and whether that variable holds a value**,
@@ -34,8 +34,8 @@ with no network; `key_set` is `None` when the config names no key variable.  It 
 key: `tests/test_fd2_key.py` searches it for one.
 
 Not pinned here, and left to the build: whether `uv` there is executable; what the report says
-about a tokenizer file it cannot read; and `fetch_tokenizer`, which no invariant of the plan
-covers, and whose pinning is left to a ruling.
+about a tokenizer file it cannot read; and `fetch_tokenizer`, which no invariant of the design
+covers, and whose pinning is left to a later decision.
 """
 
 from __future__ import annotations
@@ -152,7 +152,7 @@ def test_fd2_7_a_copy_of_the_package_is_named_and_flagged_with_its_tokenizers_st
 def test_fd2_7_uv_is_looked_for_in_home_local_bin(
     where: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Where the harness's bootstrap installs uv and puts first on `PATH` (spec §1.2 item 1); a uv
+    """Where the harness's bootstrap installs uv and puts first on `PATH`; a uv
     elsewhere on `PATH` is not that one."""
     home = tmp_path / "home"
     (home / ".local" / "bin").mkdir(parents=True)

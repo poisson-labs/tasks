@@ -1,4 +1,5 @@
-"""Fake providers and a network guard for FD2's tests: nothing in them leaves this machine.
+"""Fake providers and a network guard for the `tests/test_fd2_*.py` tests: nothing in them leaves
+this machine.
 
 **`FakeServer`** answers HTTP on loopback with whatever replies a test routes to its paths, and
 records every request it is sent: the method, the path, the headers, and the request's head as

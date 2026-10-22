@@ -1,11 +1,12 @@
 """The export config refuses, when it is validated, every arm the generator cannot make.
 
-**This file waits on a yes/no.**  It goes beyond Taylor's first ruling of 2026-10-02 (an unknown
-strictness and a level below 1 are refused), and is its own commit so that a "no" drops it whole.
+**This file waits on a decision.**  It goes beyond the first decision of 2026-10-02 (an unknown
+strictness and a level below 1 are refused), and is its own commit so that if it is declined it
+is dropped whole.
 
-Measured on the tree FD1 started from (verifiers 0.3.1), each of these is taken by the config, so
-`eval --dry-run` passes, and fails only when the tasks are generated, as a bare `IndexError`,
-`TypeError` or `ValueError` from inside the generator:
+Measured on the tree the settings file's build started from (verifiers 0.3.1), each of these is
+taken by the config, so `eval --dry-run` passes, and fails only when the tasks are generated, as a
+bare `IndexError`, `TypeError` or `ValueError` from inside the generator:
 - depth above 8, and a depth control above 8: the stage ladder has eight stages;
 - distractor above 14, and a distractor control above 14: the table offers fourteen distractors;
 - a split other than `eval` and `train`.

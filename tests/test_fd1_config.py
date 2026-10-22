@@ -1,8 +1,7 @@
 """The settings file behind `init`: `tasks.toml`, init's flags, the provider presets and the
 resolved plan, frozen as tests.
 
-The invariants are FD1.1 to FD1.7, FD1.9, FD1.10, FD1.12 (for `config`), FD1.15 and FD1.16 of the
-front door's plan, and four of the rulings of 2026-10-02 on it:
+The invariants are the settings file's, and four decisions of 2026-10-02 on it:
 - init's default spend cap is the larger of $1.00 and twice the run's estimate, rounded up to a
   whole dollar;
 - init asks for an endpoint only for the vLLM preset and for another OpenAI-compatible endpoint;
@@ -24,13 +23,13 @@ the caps) and otherwise go through the file: `dump_config`, then `tomllib`.
 **2. `ConfigError.key` is the dotted path of the offending key** (`"measure.levles"`, `"mesure"`
 for a table), and `.suggestion` is the dotted path of the nearest known key in the same table.
 For a value that is not one of its choices (a provider, a measure, a knob, a strictness),
-`.suggestion` is the nearest choice itself (`"leaky"` for `"leakey"`), as the spec's
+`.suggestion` is the nearest choice itself (`"leaky"` for `"leakey"`), as the design's
 `"dpeth" is not a knob; did you mean "depth"?` shows.  "Within two edits" is pinned only on cases
 where Levenshtein and Damerau-Levenshtein agree.  The message is one line and names the key's last
 part; its wording is not pinned.
 
 **3. A refusal is pinned by its `.key`, against an accepted control document** that differs only
-in the clause under test.  Where the plan says only "refused" and leaves the place open (the card
+in the clause under test.  Where the design says only "refused" and leaves the place open (the card
 preset's `[tasks]` table could be refused while reading or while resolving), the test accepts
 either: `resolve_plan(loads_config(text))` raises `ConfigError`.
 
@@ -39,13 +38,14 @@ estimate in dollars, which `init` computes and this module cannot (the estimate 
 published cards' records, and that needs the tokenizer this module must not need).  Without it the
 default spend cap is $1.00, the rule's floor.  `default_spend_cap(expected_dollars)` is the rule
 itself, and is public so that `init`, the plan line and the cap refusal all use one.  It returns
-dollars as a float.  That `init` passes its estimate is FD5's to pin.
+dollars as a float.  That `init` passes its estimate is for the `test_fd5_*` tests to pin.
 
 **5. The presets are a mapping from name to `Preset`, in `PRESET_NAMES` order**, with the fields
 `name`, `label`, `endpoint`, `api_key_env`, `default_model`, `key_check_path`, and two more that
-carry two rulings as data: `asks_endpoint` and `asks_price`.  `None` means the setting has no
+carry two decisions as data: `asks_endpoint` and `asks_price`.  `None` means the setting has no
 default and must be given (with `--yes`, a flag).  `key_check_path` is the path appended to the
-endpoint, with `{model}` for the model's name.  `init`'s dialogue reading these is FD5's to pin.
+endpoint, with `{model}` for the model's name.  `init`'s dialogue reading these is for the
+`test_fd5_*` tests to pin.
 
 **6. `Plan` has at least `arms`, `seeds`, `attempts` and `decoding`.**  `arms` is a tuple of
 `knobs.ArmSpec` in the order the card's own arms come in (`calibration.arm_specs()`), whatever
@@ -58,8 +58,8 @@ unknown key is.  A level listed twice in `custom` is refused, as a repeated seed
 Not pinned here, and left to the build: comments in the written file; the wording of every
 message; what a missing required key is told; `--price` without `--price-read-on`; which flags the
 equivalent command leaves at their defaults (only `--yes` and `--base-url` are pinned in it); a
-changed `[decoding]` under the card preset (the card's comparability check reports it, FD4); and
-what `[model]` says about plain http, which is FD2's (FD2.6).
+changed `[decoding]` under the card preset (the card's comparability check reports it, in the
+`test_fd4_*` tests); and what `[model]` says about plain http, which the `test_fd2_*` tests pin.
 """
 
 from __future__ import annotations
@@ -104,10 +104,10 @@ def cal() -> Any:
 
 
 # --------------------------------------------------------------------------
-# the spec's file and its keys
+# the design's file and its keys
 # --------------------------------------------------------------------------
 
-# Spec §5.2's file with its comments removed: what `init` writes for the openai preset's defaults.
+# The settings file with its comments removed: what `init` writes for the openai preset's defaults.
 SPEC_FILE = textwrap.dedent("""\
     version = 1
 
@@ -146,7 +146,7 @@ SPEC_FILE = textwrap.dedent("""\
     tasks = "tasks"
 """)
 
-# Every key §5.2 names, the commented ones included, as dotted paths.
+# Every key the settings file names, the commented ones included, as dotted paths.
 SPEC_KEYS = (
     "version",
     "model.provider", "model.name", "model.base_url", "model.api_key_env",
@@ -159,8 +159,8 @@ SPEC_KEYS = (
     "output.runs", "output.tasks",
 )
 
-# Spec §6.2's flags that set a key of the file (`--fetch` and `--check-key` set none), with
-# `--recipe`, which the knobs spec (§17.4) adds as question 6's flag; `--measure` is its alias.
+# `init`'s flags that set a key of the file (`--fetch` and `--check-key` set none), with
+# `--recipe`, which the recipes added as question 6's flag; `--measure` is its alias.
 SPEC_FLAGS = frozenset({
     "--provider", "--model", "--base-url", "--api-key-env", "--allow-plain-http-key",
     "--price", "--price-read-on", "--no-price",
@@ -173,7 +173,7 @@ SPEC_FLAGS = frozenset({
 
 
 def custom(measure: str, tasks: str = "per_level = 10\nattempts = 1") -> str:
-    """The spec's file with its `[measure]` and `[tasks]` tables replaced."""
+    """The settings file with its `[measure]` and `[tasks]` tables replaced."""
     text = SPEC_FILE.replace('[measure]\npreset = "first-look"\n', f"[measure]\n{measure}\n")
     return text.replace("[tasks]\nper_level = 10\nattempts = 1\n", f"[tasks]\n{tasks}\n")
 
@@ -254,7 +254,7 @@ def fresh(code: str, *, env: dict[str, str] | None = None) -> str:
 
 
 # --------------------------------------------------------------------------
-# FD1.1 and FD1.10: every config init can write, through the file and through the command
+# every config init can write, through the file and through the command
 # --------------------------------------------------------------------------
 
 PROVIDERS = ("openai", "anthropic", "ollama", "vllm", "openai-compatible")
@@ -391,7 +391,8 @@ def test_fd1_10_the_equivalent_command_writes_the_same_file(argv: list[str], exp
 
 
 def test_fd1_1_every_key_of_the_file_is_reachable_from_a_flag() -> None:
-    """Each key of §5.2 (but `version`, which is the schema's) moved by its own flag, against the
+    """Each key of the settings file (but `version`, which is the schema's) moved by its own
+    flag, against the
     defaults."""
     price = ["--price", "0.1,0.01,0.8", "--price-read-on", "2026-10-01"]
     custom_levels = ["--measure", "custom", "--levels", "2,5"]
@@ -435,7 +436,8 @@ def test_fd1_1_every_key_of_the_file_is_reachable_from_a_flag() -> None:
 
 
 def test_fd1_1_the_flag_table_covers_every_key_with_the_spec_flags() -> None:
-    """`INIT_FLAGS` is §6.2 as data: each entry names a flag of §6.2 and a key of §5.2 (or the
+    """`INIT_FLAGS` is `init`'s flag table as data: each entry names a flag and a key of the file
+    (or the
     table it sets whole, as `--price` does), and between them they reach every key."""
     flags = config().INIT_FLAGS
     names = {flag.flag for flag in flags}
@@ -464,7 +466,7 @@ def test_fd1_1_the_written_file_is_the_same_bytes_in_every_process() -> None:
 
 
 # --------------------------------------------------------------------------
-# FD1.2: the written file
+# the written file
 # --------------------------------------------------------------------------
 
 
@@ -483,7 +485,7 @@ def test_fd1_2_the_spec_file_reads_as_init_defaults() -> None:
 
 
 # --------------------------------------------------------------------------
-# FD1.3: unknown keys and tables
+# unknown keys and tables
 # --------------------------------------------------------------------------
 
 LEVELS_DOC = 'preset = "custom"\nknob = "depth"\nlevels = [1, 3]'
@@ -525,7 +527,7 @@ def test_fd1_3_an_unknown_key_names_its_path_and_the_nearest_key(
 
 
 # --------------------------------------------------------------------------
-# FD1.4: bad values
+# bad values
 # --------------------------------------------------------------------------
 
 BAD_VALUES = [
@@ -600,7 +602,7 @@ def test_fd1_4_a_file_that_is_not_toml_gives_the_line_tomllib_reports(broken: st
 
 
 # --------------------------------------------------------------------------
-# FD1.5: the refusals, each with its control
+# the refusals, each with its control
 # --------------------------------------------------------------------------
 
 NO_PRICE = edit(
@@ -711,7 +713,7 @@ def test_fd1_5_the_flags_are_refused_where_the_file_is() -> None:
 
 
 # --------------------------------------------------------------------------
-# FD1.6 and FD1.7: what each preset resolves to
+# what each preset resolves to
 # --------------------------------------------------------------------------
 
 CARD = custom('preset = "card"', tasks="")
@@ -809,7 +811,7 @@ def test_fd1_7_declared_seeds_and_a_generator_version_reach_every_arm() -> None:
 
 
 # --------------------------------------------------------------------------
-# FD1.9: the plan's identity
+# the plan's identity
 # --------------------------------------------------------------------------
 
 HASH_BASE = custom('preset = "custom"\nlevels = [1, 3]', tasks="per_level = 10\nattempts = 1")
@@ -882,7 +884,7 @@ def test_fd1_9_the_plan_hash_is_the_same_in_every_process() -> None:
 
 
 # --------------------------------------------------------------------------
-# FD1.12: pure, and the tokenizer first
+# pure, and the tokenizer first
 # --------------------------------------------------------------------------
 
 GENERATOR_MODULES = ("verifiers", "poisson_tasks.tasks", "poisson_tasks.calibration",
@@ -996,7 +998,7 @@ def test_fd1_6_init_defaults_carry_the_published_decoding_and_the_cards_price() 
 
 
 # --------------------------------------------------------------------------
-# FD1.15, FD1.16 and rulings 3 and 4: the presets
+# the presets, and two decisions of 2026-10-02 on them
 # --------------------------------------------------------------------------
 
 SPEC_PRESETS = {
@@ -1011,7 +1013,7 @@ SPEC_PRESETS = {
 
 
 def test_fd1_15_the_presets_are_the_spec_table() -> None:
-    """Anthropic has no default model until its live check (ruled), vLLM's is whatever the server
+    """Anthropic has no default model until its live check (decided), vLLM's is whatever the server
     lists, and the openai-compatible endpoint is asked for every time."""
     assert config().PRESET_NAMES == PROVIDERS
     assert tuple(config().PRESETS) == PROVIDERS
@@ -1094,7 +1096,7 @@ def test_fd1_16_openai_base_url_is_the_openai_presets_default_endpoint() -> None
 
 
 # --------------------------------------------------------------------------
-# ruling 2: the default spend cap
+# the default spend cap (decided 2026-10-02)
 # --------------------------------------------------------------------------
 
 

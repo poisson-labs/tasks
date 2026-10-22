@@ -1,14 +1,14 @@
-"""Anthropic's key check names the API version it speaks: waiting on a yes/no.
+"""Anthropic's key check names the API version it speaks: waiting on a decision.
 
-Spec §7.1 gives the Anthropic preset's free check as `GET /v1/models/{model}` on the native API,
+The design gives the Anthropic preset's free check as `GET /v1/models/{model}` on the native API,
 with `x-api-key`, and says nothing more about its headers.  Anthropic's API documents every
 request with an `anthropic-version` header as well (its own model-retrieve example sends
 `anthropic-version: 2023-06-01`), and its client libraries send it on every call.  A check
 without it risks a 400 from the real API for every Anthropic key, which only the live check
-(plan §4.3) would find.
+would find.
 
 This file pins that the check sends `anthropic-version: 2023-06-01` on each request.  It is
-committed on its own: a "no" to the yes/no drops that commit and nothing else.
+committed on its own: if it is declined, that commit is dropped and nothing else.
 """
 
 from __future__ import annotations

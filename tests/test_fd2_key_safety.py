@@ -1,12 +1,12 @@
-"""Four clauses of the key check that keep the key safe, which FD2's build added and no frozen test
-pinned, frozen as tests.
+"""Four clauses of the key check that keep the key safe, which the key check's build added and no
+frozen test pinned, frozen as tests.
 
-FD2 Session B's mutation pass named them among the build's unpinned clauses (its table's `b-`
-rows), and Taylor ruled on 2026-10-04 that a test-only session pins them:
+The mutation pass on the key check's build named them among the build's unpinned clauses (its
+table's `b-` rows), and it was decided on 2026-10-04 that a change of tests alone pins them:
 
 - **A redirect is not followed.**  urllib would follow a 3xx to the host it names and carry the
   `Authorization` header there, so the key would reach a host the config did not name.  The
-  answer is not checkable (ruled 2026-10-04: an answer that says nothing about the key).
+  answer is not checkable (decided 2026-10-04: an answer that says nothing about the key).
 - **A key no header can carry is refused before any request.**  A value with a line break in it
   (a key pasted with its newline) makes Python's client raise an error that quotes the header,
   and so the key; a value with a space or a character outside ASCII would be sent as it is.  The
@@ -15,9 +15,9 @@ rows), and Taylor ruled on 2026-10-04 that a test-only session pins them:
   key**: the error code of a refusal, a server's version and a model's digest.  A server that
   echoes the key, or sends text where a code goes, gets nothing of it into what `check_key` and
   `server_facts` return.
-- **The proxy settings are read at each call** (Session A's yes/no 5, ruled 2026-10-04: the key
-  check follows the user's proxy settings).  A check made with `HTTP_PROXY` set goes through the
-  proxy, and the next one, made with it unset, goes direct.
+- **The proxy settings are read at each call** (decided 2026-10-04: the key check follows the user's
+  proxy settings).  A check made with `HTTP_PROXY` set goes through the proxy, and the next one,
+  made with it unset, goes direct.
 
 Every check runs against a fake on loopback (`tests/fd2_fakes.py`), inside its network guard.  No
 real key is used and no provider is called.
@@ -64,7 +64,7 @@ PROXY_VARIABLES = (
 
 
 def no_proxy(monkeypatch: pytest.MonkeyPatch) -> None:
-    """No proxy, as the frozen FD2 tests run: none set, and `NO_PROXY` is `*`."""
+    """No proxy, as the frozen `test_fd2_*` tests run: none set, and `NO_PROXY` is `*`."""
     for name in PROXY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("NO_PROXY", "*")

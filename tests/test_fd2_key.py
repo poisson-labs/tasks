@@ -1,11 +1,10 @@
 """The key check, frozen as tests: `providers.key_is_set` and `providers.check_key`.
 
-The invariants are FD2.1 to FD2.6 of the front door's plan (spec §7.1's free checks and §7.3),
-and two rulings: a key is named by its environment variable only, never stored or printed; and an
-"another OpenAI-compatible endpoint" setup names its own key variable, so OpenAI's key is never
-sent to a third party's host.  FD2.1 is held here over every public function of the module: the
-key check on each of its status paths, the plain-http refusal, `server_facts` and
-`environment_report`.
+The invariants are the free key checks and the key's handling, and two decisions: a key is named by
+its environment variable only, never stored or printed; and an "another OpenAI-compatible endpoint"
+setup names its own key variable, so OpenAI's key is never sent to a third party's host.  That the
+key never shows is held here over every public function of the module: the key check on each of its
+status paths, the plain-http refusal, `server_facts` and `environment_report`.
 
 Every check runs against a fake provider on loopback (`tests/fd2_fakes.py`), inside a guard that
 records every socket event and stops any that would leave the machine.  No real key is used and
@@ -24,7 +23,7 @@ equality.  Their values are not pinned.
 
 **2. `KeyCheck.host` is the endpoint's host as its URL writes it, with the port when the URL gives
 one** (`urllib.parse.urlsplit(base_url).netloc` for a URL with no user part): `127.0.0.1:11434`,
-as the spec's `cannot reach 127.0.0.1:11434` names it.  It is pinned on every status that made a
+as the design's `cannot reach 127.0.0.1:11434` names it.  It is pinned on every status that made a
 request or tried to.
 
 **3. `KeyCheck.code` is the provider's own code**, read from the error body: `error.code` in
@@ -35,8 +34,7 @@ on refusals, as the plan asks; on other statuses it is not.
 
 **4. `KeyCheck.detail` is one line.**  Its wording is not pinned; the facts it must carry are:
 the key's variable, when the key is not set or refused; the provider's code, when a refusal has
-one; the model's name, when it is missing; and for Ollama, `ollama pull <model>` as the next step
-(spec §7.1).
+one; the model's name, when it is missing; and for Ollama, `ollama pull <model>` as the next step.
 
 **5. The plain-http refusal is a `config.ConfigError` raised by `check_key`, with `.key`
 `"model.base_url"`**, the setting whose scheme is wrong, and a one-line message that names
@@ -205,7 +203,7 @@ def one_line(text: str) -> bool:
 
 
 # --------------------------------------------------------------------------
-# FD2.3 free by construction: one GET, to the preset's path
+# free by construction: one GET, to the preset's path
 # --------------------------------------------------------------------------
 
 
@@ -225,7 +223,7 @@ def test_fd2_3_the_check_asks_only_the_presets_path_with_a_get(
 
 
 # --------------------------------------------------------------------------
-# FD2.2 one host, in the preset's header
+# one host, in the preset's header
 # --------------------------------------------------------------------------
 
 
@@ -264,7 +262,7 @@ def test_fd2_2_the_check_connects_to_the_configured_host_and_no_other(
 def test_fd2_2_a_named_variable_is_the_only_key_sent(
     fake: Callable[[], FakeServer], monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The ruling of 2026-10-03: another endpoint's key is the variable it names, and OpenAI's
+    """The decision of 2026-10-03: another endpoint's key is the variable it names, and OpenAI's
     key, set in the same shell, is never sent there."""
     case = PRESETS["openai-compatible"]
     server = fake().route(case.path, 200, found(case))
@@ -292,7 +290,7 @@ def test_fd2_2_no_key_variable_sends_no_key(
 
 
 # --------------------------------------------------------------------------
-# FD2.4 each answer maps to its status
+# each answer maps to its status
 # --------------------------------------------------------------------------
 
 # (id, preset, status, body, the status's name, the code)
@@ -433,7 +431,7 @@ def test_fd2_4_any_other_answer_is_never_accepted(
 
 
 # --------------------------------------------------------------------------
-# FD2.5 not set
+# not set
 # --------------------------------------------------------------------------
 
 
@@ -468,7 +466,7 @@ def test_fd2_5_key_is_set_only_for_a_value(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 # --------------------------------------------------------------------------
-# FD2.6 plain http
+# plain http
 # --------------------------------------------------------------------------
 
 NOT_LOOPBACK = {
@@ -575,7 +573,7 @@ def test_fd2_6_server_facts_refuses_a_key_over_plain_http_the_same_way(
 
 
 # --------------------------------------------------------------------------
-# FD2.1 the key never shows
+# the key never shows
 # --------------------------------------------------------------------------
 
 

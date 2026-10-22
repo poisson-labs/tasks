@@ -1,12 +1,12 @@
 """A refused value in `tasks.toml` carries the line it is written on.
 
-**This file waits on a yes/no.**  The plan's FD1.4 gives a `ConfigError` its `.line` "wherever
+**This file waits on a decision.**  The design gives a `ConfigError` its `.line` "wherever
 `tomllib` reports one", and `tomllib` reports a line only for a file that is not TOML (pinned in
-`tests/test_fd1_config.py`).  The spec's own example of a refused value carries one:
+`tests/test_fd1_config.py`).  The design's own example of a refused value carries one:
 `tasks.toml line 14: level 4 is not a depth level; the levels are 1, 2, 3, 5 and 8`.  To give it,
 the reader finds the line of the key it refuses in the text itself.  This file asks for that, for
-an unknown key or table as well as a bad value.  It is its own commit, so that a "no" drops it
-whole.
+an unknown key or table as well as a bad value.  It is its own commit, so that if it is declined
+it is dropped whole.
 
 The line is the 1-based line on which the offending key is written, or, for a table, its header.
 """

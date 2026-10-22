@@ -1,9 +1,9 @@
-"""The settings file's clauses that FD1's build added and no frozen test pinned, frozen as tests.
+"""The settings file's clauses that its build added and no frozen test pinned, frozen as tests.
 
-FD1 Session B's mutation pass named eleven clauses of `config.py` and the export arm validator
-that the build has and Session A's tests do not ask for (its table's `b-` rows), and Taylor ruled
-on 2026-10-03 that a test-only session pins them, with the five yes/nos they rest on ruled as
-built.  The `config.py` ones are here; the export validator's are in
+The mutation pass on the settings file's build named eleven clauses of `config.py` and the export
+arm validator that the build has and the frozen tests do not ask for (its table's `b-` rows), and
+it was decided on 2026-10-03 that a change of tests alone pins them, with the five questions they
+rest on decided as built.  The `config.py` ones are here; the export validator's are in
 `tests/test_fd1_export_build_clauses.py`.
 
 Each refusal is pinned by its `.key` against an accepted control that differs only in the clause
@@ -15,17 +15,17 @@ pinned.
   refused when the file is read.
 - `per_level` and `seeds` together are refused (under `tasks.seeds`): a plan takes its tasks from
   one of them.
-- The published model's price is prefilled on the OpenAI preset only (ruled yes/no 3): not on
+- The published model's price is prefilled on the OpenAI preset only (decided): not on
   Anthropic's, nor on another endpoint serving a model of that name.
 - The plan's identity leaves out the measure preset's name, the provider and the key variable
-  (ruled yes/no 5): the same tasks against the same model at the same endpoint are the same run.
+  (decided): the same tasks against the same model at the same endpoint are the same run.
 - A key variable is a variable's name (`[A-Za-z_][A-Za-z0-9_]*`) as well as holding `API_KEY`:
   `$OPENAI_API_KEY` or `OPENAI_API_KEY=...` is refused, not looked up as a variable no shell can
   set, and not written into the file with a key after it.
 - `top_p` is above 0, as `temperature` is: 0 is refused.
 - `read_on` written as a TOML date reads as the same date written as text.
-- A priced file with a token cap and no dollar cap has no equivalent `init` command (ruled
-  yes/no 1): `equivalent_init_command` refuses it under `limits.spend_usd`.
+- A priced file with a token cap and no dollar cap has no equivalent `init` command
+  (decided): `equivalent_init_command` refuses it under `limits.spend_usd`.
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ def arms() -> Any:
     return importlib.import_module("poisson_tasks.arms")
 
 
-# Spec §5.2's file with its comments removed: what `init` writes for the openai preset's defaults.
+# The settings file with its comments removed: what `init` writes for the openai preset's defaults.
 BASE = textwrap.dedent("""\
     version = 1
 

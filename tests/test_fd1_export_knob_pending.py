@@ -1,6 +1,7 @@
-"""Pending a yes/no: an arm the export config takes is an arm whose tasks load.
+"""Pending a decision: an arm the export config takes is an arm whose tasks load.
 
-FD1 Session B named the export validator's knob check equivalent: with it gone, the generator's
+The mutation pass on the settings file's build named the export validator's knob check
+equivalent: with it gone, the generator's
 own `levels()` refused an unknown knob, also as a `ValueError`.  Since the knobs' shared base,
 `levels()` knows nine knobs and the generator makes tasks for two, so with the check gone an arm
 of a knob such as faults is taken when the config is validated, with no note, and refused only
@@ -9,7 +10,7 @@ when its tasks are generated.  `eval --dry-run` would accept it.
 This pins the rule the check keeps, in a form the knob modules can open knobs under without
 editing it: for every knob `levels()` knows, at every candidate level, the export config either
 refuses the arm when it is validated, in one line naming the knob, or takes it and its tasks
-load.  Dropped if the answer is no.
+load.  Dropped if it is declined.
 """
 
 from __future__ import annotations
