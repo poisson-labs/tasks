@@ -1,19 +1,19 @@
-"""The examples and the Colab driver's help, frozen as tests: FD0's yes/no 2, the examples at
-generator version `"0"` (FD6.6) and the driver's help (FD6.8, P9).
+"""The examples and the Colab driver's help, frozen as tests: help with no encoding file, the
+examples at generator version `"0"` and the driver's help.
 
-- **FD0's yes/no 2 (ruled yes).**  `--help` and a bad argument need no encoding file, on the three
-  examples and on `python -m poisson_tasks.calibration_run verify`.  The check runs each from a copy
-  of the package that has no `*.tiktoken` (`tests/fd5_support.package_copy`): the help is the
-  help the full package gives, byte for byte, and a bad argument is the same one `error:` line and
-  exit code.  The control is the same copy running a command that does need the file, which fails
-  naming it.
-- **FD6.6.**  The examples use generator version `"0"`, as ruled (the published cards were measured
-  at `"0"`), and none keeps `"tg-m3-v1"`; the task `one_task.py` prints is the task the library
-  makes at `"0"`.
-- **FD6.8 (P9).**  `calibration_run --help` describes the driver without "Model B"; every option of
-  every step has help text; each option is shown only on the steps that read it.  The notebook
-  hands one set of folder options to nearly every step and its cells are frozen, so a step still
-  accepts an option it does not read, and does not list it.
+- **Help needs no encoding file (decided yes).**  `--help` and a bad argument need no encoding file,
+  on the three examples and on `python -m poisson_tasks.calibration_run verify`.  The check runs
+  each from a copy of the package that has no `*.tiktoken` (`tests/fd5_support.package_copy`): the
+  help is the help the full package gives, byte for byte, and a bad argument is the same one
+  `error:` line and exit code.  The control is the same copy running a command that does need the
+  file, which fails naming it.
+- **The examples.**  The examples use generator version `"0"`, as decided (the published cards were
+  measured at `"0"`), and none keeps `"tg-m3-v1"`; the task `one_task.py` prints is the task the
+  library makes at `"0"`.
+- **The driver's help.**  `calibration_run --help` describes the driver without "Model B"; every
+  option of every step has help text; each option is shown only on the steps that read it.  The
+  notebook hands one set of folder options to nearly every step and its cells are frozen, so a step
+  still accepts an option it does not read, and does not list it.
 
 **What each step reads** is the table `READS` below, from the driver's source: `serve` starts the
 server (its folder for the process id and log, the port, the vLLM executable, the tokenizer
@@ -128,7 +128,7 @@ def test_the_copy_without_the_file_really_does_without_it(which: str, bare: Path
 
 
 # ---------------------------------------------------------------------------
-# FD6.6 the examples at generator version "0"
+# the examples at generator version "0"
 # ---------------------------------------------------------------------------
 
 
@@ -156,7 +156,7 @@ def test_fd6_6_the_task_the_example_prints_is_the_task_the_library_makes_at_0() 
 
 
 # ---------------------------------------------------------------------------
-# FD6.8 the driver's help
+# the driver's help
 # ---------------------------------------------------------------------------
 
 

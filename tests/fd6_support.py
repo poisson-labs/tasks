@@ -1,5 +1,5 @@
-"""Shared ground for FD6's tests: the wheel built from this checkout, unpacked, and a child
-interpreter that imports the package from it and not from the checkout.
+"""Shared ground for the `tests/test_fd6_*.py` tests: the wheel built from this checkout, unpacked,
+and a child interpreter that imports the package from it and not from the checkout.
 
 **The wheel is built, never described.**  `hatchling` builds it from the working tree, once per
 test session, into a folder of the session's own.  What the tests read is the zip's own file list

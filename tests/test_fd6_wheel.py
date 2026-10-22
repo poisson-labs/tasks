@@ -1,14 +1,13 @@
 """What the built wheel carries and claims, and what the package does from it, frozen as tests.
 
-The invariants are FD6.1 and FD6.2 of the front door's plan (spec §9.7 and §12.6), and the four
-carried items that need the cards inside the package (FD3 Session A's yes/no 5, FD4 Session B's
-items 1 and 3, FD5 Session B's item 1, FD4 Session A's finding 22):
-- **FD6.1** the wheel carries the `poisson-tasks` console script, `poisson_tasks/py.typed`,
+The invariants, and the four items carried from earlier builds that need the cards inside the
+package:
+- the wheel carries the `poisson-tasks` console script, `poisson_tasks/py.typed`,
   `knob_status.json` and `poisson_tasks/cards/<both card folders>/`, byte for byte what the
   checkout keeps in `calibration/`; it carries no `*.tiktoken`, no `examples/`, no `tests/`;
-- **FD6.2** it claims Python 3.11 to 3.13 (`>=3.11,<3.14`, matching verifiers 0.3.1) on macOS and
+- it claims Python 3.11 to 3.13 (`>=3.11,<3.14`, matching verifiers 0.3.1) on macOS and
   Linux, and no other version or system;
-- **finding 22** the module `poisson_tasks/cards.py` and the data folder `poisson_tasks/cards/`
+- **a shared name**: the module `poisson_tasks/cards.py` and the data folder `poisson_tasks/cards/`
   share a name.  The module wins an import while the folder holds no `__init__.py`, and the wheel
   holds no Python file in it, so the two cannot collide;
 - **the cards in the package** from the wheel alone, with no checkout beside it: the published
@@ -71,7 +70,7 @@ def metadata(built_wheel: Path) -> email.message.Message:
 
 
 # ---------------------------------------------------------------------------
-# FD6.1 the wheel
+# the wheel
 # ---------------------------------------------------------------------------
 
 
@@ -121,7 +120,7 @@ def test_fd6_1_the_wheel_carries_no_tokenizer_file_no_examples_no_tests(
 
 
 # ---------------------------------------------------------------------------
-# FD6.2 the range
+# the range
 # ---------------------------------------------------------------------------
 
 
@@ -319,6 +318,6 @@ def test_a_runs_card_from_a_clean_wheel_carries_its_small_sample_and_comparabili
 
 def test_the_repo_layout_is_unchanged_the_cards_stay_in_calibration() -> None:
     """The packaging maps `calibration/` into the wheel; it adds no `cards/` folder to the
-    source tree, so the checkout falls back to `calibration/` as it did (spec §9.7)."""
+    source tree, so the checkout falls back to `calibration/` as it did."""
     assert not (REPO / "src" / "poisson_tasks" / "cards").exists()
     assert (CARDS_SOURCE / "gpt-5-nano-2025-08-07" / "artifact.json").is_file()

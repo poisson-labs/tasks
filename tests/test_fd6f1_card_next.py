@@ -1,8 +1,8 @@
-"""`card` does not end by pointing at a comparison this release refuses (FD6 follow-up 1, fix 10).
+"""`card` does not end by pointing at a comparison this release refuses.
 
 The two published cards were measured by an earlier build of the generator, so a card on the
 built-in tasks cannot be read beside them and `card --compare published` refuses it
-("the generators differ").  FD5 Session B's item 6 dropped the closing `next:` line for that
+("the generators differ").  The command's build dropped the closing `next:` line for that
 reason; the command still printed it.  A card on your own tools is a different matter: it is put
 beside the published card of its model, so the line stays there.
 
@@ -41,7 +41,7 @@ def test_a_card_on_the_built_in_tasks_names_no_comparison_that_refuses(
     assert ran.code == 0, ran
     assert next_lines(ran.out) == [], ran.out
     assert "--compare" not in ran.out
-    # Retrofitted by ruling G12, on FD9 Session A's yes/no 4: the comparison says `different`,
+    # Retrofitted with the guided session (decided 2026-10-20): the comparison says `different`,
     # exit 0, instead of refusing.
     asked = invoke(["card", str(folder), *COMPARE, "--force"], monkeypatch)
     assert asked.code == 0 and asked.out.startswith("different  "), asked
@@ -54,7 +54,7 @@ def test_a_card_on_your_own_tools_still_names_the_comparison_and_it_works(
     shutil.copytree(own_run.folder, folder)
     ran = invoke(["card", str(folder), "--force"], monkeypatch)
     assert ran.code == 0, ran
-    # Retrofitted by ruling G12 (FD9 Session A): a card on your own tools names no comparison
+    # Retrofitted with the guided session: a card on your own tools names no comparison
     # either; the comparison, asked for, says `different` and works.
     assert next_lines(ran.out) == [], ran.out
     asked = invoke(["card", str(folder), *COMPARE, "--force"], monkeypatch)

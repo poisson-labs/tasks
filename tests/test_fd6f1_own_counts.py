@@ -1,5 +1,5 @@
 """The counts `init` and `doctor` print for a set of your own tools are the set's after you have
-said what each tool does, not only what the file says (FD6 follow-up 1, fix 9).
+said what each tool does, not only what the file says.
 
 A file that does not say whether a tool reads or writes (an OpenAI tools file never does) leaves
 every tool "not known (treated as write)".  You then say it in `tasks.toml` (`[own] read` and
@@ -105,7 +105,7 @@ def test_the_answers_to_the_per_tool_question_are_counted(
     """The dialogue asks about each tool of unknown effect, in the file's order; what is answered
     is written to `tasks.toml` and is what the result line counts."""
     (work / "tools.json").write_bytes(fixture("acme-openai-chat.json"))
-    stdin = Answers(["2", "", "", "", "", "tools.json",  # G7 (FD9 Session A)
+    stdin = Answers(["2", "", "", "", "", "tools.json",  # the guided session's first question
                      "r", "r", "w", "", "r"])
     ran = invoke(["init", "--no-check-key"], monkeypatch, stdin)
     assert ran.code == 0, ran
