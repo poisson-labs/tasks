@@ -1,5 +1,5 @@
-"""What Taylor's third hands-on check (0.1.0rc3, 2026-10-21) found wrong in the guided session, fixed
-as he ruled the same day, frozen as tests.
+"""What the third hands-on check (0.1.0rc3, 2026-10-21) found wrong in the guided session, fixed
+as decided the same day, frozen as tests.
 
 - **G1. `replies` opens the tenth episode**, in both looks, on the plan setup writes by default (10
   tasks a level, 1 attempt: 10 episodes an arm).  The pretty look's menu gave questionary a
@@ -10,8 +10,8 @@ as he ruled the same day, frozen as tests.
   stop at the goal, which the top level cannot ask.
 - **G4. At the run-through's first prompt, `1`, `y` and `yes` start it**, as Enter does; they used
   to land on the home screen, whose step 1 opened the run-through again.  Its second prompt takes
-  `3`, `y` and `yes` the same way (ruled 2026-10-21, follow-up Q2).
-- **The plain look numbers each episode once** (ruled 2026-10-21, follow-up Q1): it printed
+  `3`, `y` and `yes` the same way (decided 2026-10-21).
+- **The plain look numbers each episode once** (decided 2026-10-21): it printed
   `10) 10  passed`.
 
 The ways of driving the session and the fixture model are `tests/fd9_support.py`'s; every
@@ -115,7 +115,7 @@ def test_g1_replies_opens_the_tenth_episode_in_both_looks_on_setups_defaults(
 def _overshooting(asked: Asked) -> Any:
     """Setup's defaults but the model's name, `fixture-overshoot`: it reaches every goal and goes
     one stage past it below the top level, so strict and leaky differ there.  The key check and
-    every other yes/no get no; `run`'s own question is `Through`'s."""
+    every other yes-or-no question gets no; `run`'s own question is `Through`'s."""
     if asked.kind == "ask" and asked.question.startswith("The model's name"):
         return "fixture-overshoot"
     if asked.kind == "confirm":

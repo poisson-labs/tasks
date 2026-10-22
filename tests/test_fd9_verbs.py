@@ -1,6 +1,6 @@
-"""What the guided session changes in the seven verbs (spec §16.11, the plan's FD9), frozen as
-tests before it is built.  One implementation: the session's actions are these verbs, so each
-change is the verb's own, printed from a shell as in the session.
+"""What the guided session changes in the seven verbs, frozen as tests before it is built.  One
+implementation: the session's actions are these verbs, so each change is the verb's own, printed
+from a shell as in the session.
 
 - **G9, the run lock**: `run` holds `<run folder>/run.lock` (an advisory `flock`) while it runs; a
   second `run` on a held folder refuses, exit 1, nothing spent; a lock whose process is gone is
@@ -10,7 +10,8 @@ change is the verb's own, printed from a shell as in the session.
   written card, needs no `--force`, opens with `different`, writes `compare.md`, prints no card.
 - **G13, N3**: `generate --show` with no `--arm` shows the first arm's first task and names the
   other arms; `verify` with nothing to judge names a complete command; an overwrite refusal's
-  `next:` keeps every flag typed.  (The corpus test of FD9.18, following every `next:` three hops,
+  `next:` keeps every flag typed.  (The corpus test of complete next steps, following every
+`next:` three hops,
   was cut by the cut rule: no mutant of the build fails it alone, since each new `next:` line is
   pinned exactly here.)
 - **G14, N7**: no path, URL or command split by a newline in the pretty look; a wrapped row keeps
@@ -80,7 +81,7 @@ def here(states: States, name: str, world: World) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# G9 the run lock (FD9.15)
+# G9 the run lock
 # ---------------------------------------------------------------------------
 
 
@@ -147,7 +148,7 @@ def test_fd9_15_g9_a_lock_whose_process_is_gone_does_not_stop_a_run(
 
 
 # ---------------------------------------------------------------------------
-# G10 the copy (FD9.16)
+# G10 the copy
 # ---------------------------------------------------------------------------
 
 
@@ -166,7 +167,7 @@ def test_fd9_16_g10_init_force_keeps_the_replaced_file_and_says_so(
 
 
 # ---------------------------------------------------------------------------
-# G12 the comparison (FD9.17)
+# G12 the comparison
 # ---------------------------------------------------------------------------
 
 
@@ -205,7 +206,7 @@ def test_fd9_17_g12_card_compare_published_reads_the_written_card(
 def test_fd9_17_g12_card_compare_published_on_the_built_in_tasks_says_different(
     states: States, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Ruled 2026-10-20 (FD9 Session A's yes/no 4, yes): G12's one-line verdict covers the
+    """Decided yes 2026-10-20: G12's one-line verdict covers the
     built-in tasks: exit 0, `different`, and `compare.md` holding the earlier-build sentence.
     Folded in from its pending file unchanged.  Red before the build: it is refused, exit 1."""
     folder = run_folder(states.copy("D", world.work))
@@ -216,7 +217,7 @@ def test_fd9_17_g12_card_compare_published_on_the_built_in_tasks_says_different(
 
 
 # ---------------------------------------------------------------------------
-# G13 every next step complete (FD9.18)
+# G13 every next step complete
 # ---------------------------------------------------------------------------
 
 def test_fd9_18_g13_generate_show_without_an_arm_shows_the_first_arms_first_task(
@@ -277,7 +278,7 @@ def test_fd9_18_g13_an_overwrite_refusals_next_keeps_every_flag_typed(
 
 
 # ---------------------------------------------------------------------------
-# G14 the output list (FD9.19)
+# G14 the output list
 # ---------------------------------------------------------------------------
 
 

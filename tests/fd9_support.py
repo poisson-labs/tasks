@@ -1,4 +1,4 @@
-"""Shared ground for FD9's tests, the guided session: frozen with them.
+"""Shared ground for the `tests/test_fd9_*.py` tests, the guided session: frozen with them.
 
 **What is driven, and how.**  Two ways, each where it is the only faithful one.
 
@@ -6,7 +6,8 @@
   for streams the test owns, each saying it is a terminal (`isatty()` is true; there is no file
   descriptor).  The world's colour is off (`NO_COLOR=1`, `TERM=dumb`), so the session runs in the
   plain look (G4), whose prompt and menus are read a line at a time with `sys.stdin.readline()`, as
-  `PlainUI` reads `init`'s questions.  Every call is made inside FD2's network guard.  This is how
+  `PlainUI` reads `init`'s questions.  Every call is made inside the network guard of
+`tests/fd2_fakes.py`.  This is how
   the home screen's facts, the words, the actions and their files, the run-through, Ctrl-C at a
   question and leaving are pinned.
 - **In a pseudo-terminal** (`Pty`): `python -m poisson_tasks` with stdin, stdout and stderr on one
@@ -24,11 +25,11 @@ default, and which module asked (`_init`, `_run`, `_doctor` and the rest, or `_s
 line read is the session's own prompt, and gets the test's next word.  So the session's prompt, and
 the run-through's prompts between steps, are not `PlainUI.ask`, `choice` or `confirm`.
 
-**The five folder states of spec §16.3** (`States`), made once per process, offline, against the
+**The session's five folder states** (`States`), made once per process, offline, against the
 fixture model (built-in tasks) or a scripted model playing each task's reference calls (your own
 tools), and copied into each test's own folder.  Every run folder in them holds a `run.lock` that
 no process holds, as a run that ended may leave it, so every state is also a lock whose process is
-gone (FD9.15):
+gone:
 
 | name | what is on disk |
 |---|---|
@@ -42,7 +43,7 @@ gone (FD9.15):
 | `E` | the Petstore file on your own tools, the error-recovery recipe, one task a level, run and its card built |
 
 **What every expectation is computed from**: the library (`folder.read_folder`, `config`, `runs`,
-`own`, `cards`), the files on disk, the fixture's own count, and the banner files the ruling chose
+`own`, `cards`), the files on disk, the fixture's own count, and the banner files that were chosen
 (`tests/fixtures/fd9/`); never the session under test.
 """
 
@@ -93,19 +94,19 @@ PUBLISHED_MODEL = "gpt-5-nano-2025-08-07"
 """The published card's model: a run under this name has a published card beside it (G17)."""
 
 SESSION_MODULES = ("poisson_tasks.cli._session", "poisson_tasks.cli._banner")
-"""The session's modules, as the plan names them (FD9, Session B's Touches)."""
+"""The session's modules: the two files the session's build touches."""
 
 WORDS = ("run", "again", "card", "more", "replies", "task", "verify", "runs", "settings", "setup",
          "flow", "export", "check", "home", "help", "quit")
-"""The prompt's closed set of words (spec §16.3)."""
+"""The prompt's closed set of words."""
 
 STEP_ONE = {
     "A": "setup", "B": "run", "C1": "run", "C2": "home", "D": "card", "D-nocard": "card",
     "D-refused": "replies", "E": "card",
 }
-"""Step 1 of `next` for each fixture state (spec §16.3's table).  A refused card's step 1 is the
-replies view, ruled 2026-10-20 (FD9 Session A's yes/no 3, no): the session never leads with a
-step that fails; `card` is offered below it."""
+"""Step 1 of `next` for each fixture state, by the session's action table.  A refused card's step 1
+is the replies view (decided 2026-10-20): the session never leads with a step that fails; `card` is
+offered below it."""
 
 STEP_COMMAND = {"setup": ["init"], "run": ["run"], "home": None, "card": ["card"]}
 """Step 1's verb, for the off-terminal `next:` (G5): `setup` is the run-through, whose command is
@@ -131,7 +132,7 @@ def version() -> str:
 
 
 def banner_text() -> list[str]:
-    """The ruled banner's two lines, with this install's version for the one it was drawn with."""
+    """The chosen banner's two lines, with this install's version for the one it was drawn with."""
     lines = (FIXTURES / "banner.txt").read_text(encoding="utf-8").splitlines()
     return [line.replace("0.1.0", version()) for line in lines]
 
@@ -197,7 +198,7 @@ def styled(text: str) -> list[tuple[str, Any, bool, bool]]:
 
 
 def banner_styles(depth: str) -> list[tuple[str, Any, bool, bool]]:
-    """The ruled banner at one colour depth, character by character (`banner-R-<depth>.ans`)."""
+    """The chosen banner at one colour depth, character by character (`banner-R-<depth>.ans`)."""
     text = (FIXTURES / f"banner-R-{depth}.ans").read_text(encoding="utf-8")
     want = version()
     out = []

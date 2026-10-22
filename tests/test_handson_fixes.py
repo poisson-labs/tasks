@@ -1,4 +1,4 @@
-"""What the hands-on pass on 0.1.0rc1 found broken on the agent-teams path, fixed as Taylor ruled on
+"""What the hands-on pass on 0.1.0rc1 found broken on the agent-teams path, fixed as decided on
 2026-10-19, frozen as tests.
 
 - **A preview on your own tools shows a task on your tools.**  `generate --show --arm ID` in a folder
@@ -13,7 +13,7 @@
   refused level's traces file in the run folder, and ends with a `next:` command.
 - **`export` says its commands spend with no cap**, in the line right above them.
 - **`verify --arm` in a folder on your own tools refuses in one line**, as `verify --tasks` refuses an
-  own-tools tasks file (Taylor, 2026-10-20): it used to judge a task on the built-in table.
+  own-tools tasks file (decided 2026-10-20): it used to judge a task on the built-in table.
 """
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ def test_a_preview_on_your_own_tools_is_the_task_generate_writes(
 ) -> None:
     plan = _petstore_folder(work, monkeypatch)
     assert len(plan.arms) > 1
-    # Retrofitted by ruling G13 (FD9 Session A): no refusal; the first arm's task 1, and every
+    # Retrofitted with the guided session: no refusal; the first arm's task 1, and every
     # other arm named.
     shown_first = invoke_here(["generate", "--show"], monkeypatch)
     assert shown_first.code == 0, shown_first
@@ -128,7 +128,7 @@ def test_verify_by_arm_in_a_folder_on_your_own_tools_refuses_in_one_line(
     for argv in (["--arm", "faults:f1", "--task", "1"], ["--arm", "faults:f1", "--seed", "7"]):
         ran = invoke_here(["verify", "--self-check", *argv], monkeypatch)
         assert ran.code == 1 and ran.out == "", ran
-        # Retrofitted by ruling G13 (FD9 Session A): the one line is followed by its `next:`.
+        # Retrofitted with the guided session: the one line is followed by its `next:`.
         lines = ran.err.splitlines()
         assert lines[0].startswith("error: ") and len(lines) == 2, ran
         assert lines[1].strip().startswith("next: "), ran
