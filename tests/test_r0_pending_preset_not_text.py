@@ -1,14 +1,14 @@
 """A preset that is not text is refused in one line, frozen as a test.
 
-R0.2, from the yes/no on the build's untested clauses (`evidence/recipes-r0/rulings.md`, item 4, ruled
-2026-10-08: one part pinned).  `[measure] preset` takes a recipe's name or `custom`, both text.  The
+The preset key, from the decision on the build's untested clauses (decided 2026-10-08: one part
+pinned).  `[measure] preset` takes a recipe's name or `custom`, both text.  The
 build looks a preset up among the recipes only when it is text; a value that is not, such as a list
 or a table, would otherwise reach that lookup and raise `TypeError` (a list is unhashable) instead of
 the reader's one-line refusal under `measure.preset`.
 
 The bug this catches: the build's text check dropped, so `preset = [1]` raises `TypeError`
-(mutation row b03).  It passes on `main` before R0, where no recipe lookup exists: the test pins
-behaviour R0 must keep, not behaviour R0 adds.
+(a row of its mutation pass).  It passes on `main` before the recipes, where no recipe lookup
+exists: the test pins behaviour the recipes must keep, not behaviour they add.
 """
 
 from __future__ import annotations

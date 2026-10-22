@@ -1,8 +1,9 @@
-"""What the recipe tests share: spec §17.2's rows, the two kinds of knob, and a fresh interpreter.
+"""What the recipe tests share: the recipe table's rows, the two kinds of knob, and a fresh
+interpreter.
 
-The test files are `tests/test_r0_recipes.py` (R0.1, with the invariant-to-test table and the
-shapes decided) and `tests/test_r0_config.py` (R0.2 and R0.3).  Nothing here asserts anything
-but that a fresh interpreter exited cleanly.
+The test files are `tests/test_r0_recipes.py` (the recipe table, with the invariant-to-test table
+and the shapes decided) and `tests/test_r0_config.py` (recipes in the settings file).  Nothing here
+asserts anything but that a fresh interpreter exited cleanly.
 """
 
 from __future__ import annotations
@@ -16,12 +17,12 @@ from typing import Any
 from poisson_tasks.knobs import arm_id
 
 # Depth and the distractor dial are on the published cards; the other seven ship through the
-# probe (spec K-P3, §9.6).
+# probe.
 PUBLISHED_KNOBS = ("depth", "distractor")
 PROBE_KNOBS = ("similarity", "faults", "history", "block", "arguments", "shape", "spread")
 
-# Spec §17.2, every recipe but `card`, with every knob shipped: (what it asks, the arms, tasks per
-# level, attempts, episodes).
+# The recipe table, every recipe but `card`, with every knob shipped: (what it asks, the arms, tasks
+# per level, attempts, episodes).
 ROWS: dict[str, tuple[str, tuple[str, ...], int, int, int]] = {
     "first-look": (
         "where does depth start to hurt?",
