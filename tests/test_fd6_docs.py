@@ -212,9 +212,7 @@ def test_fd6_3_the_first_screen_has_install_init_run_card_then_the_platform_line
     platform = next(i for i, line in enumerate(lines)
                     if re.match(r"Python 3\.11 to 3\.13, on macOS or Linux\b", line))
     assert install < init < run < card < platform
-    # the title is first, or comes straight after the banner block the README may open with
-    top = lines[lines.index("</p>") + 2] if lines[0] == '<p align="center">' else lines[0]
-    assert top == "# Poisson Tasks"
+    assert lines[0] == "# Poisson Tasks"
     assert len(first_screen().splitlines()) <= 60
 
 
@@ -546,18 +544,24 @@ def test_fd6_10_cli_look_is_the_look_in_words_that_fit_each_tool() -> None:
 RAW = "https://raw.githubusercontent.com/poisson-labs/tasks/main/"
 
 
-def test_the_readmes_images_are_pngs_in_the_repo_linked_from_absolute_https_addresses() -> None:
+BADGE = re.compile(r"https://img\.shields\.io/pypi/(v|pyversions|l)/poisson-tasks(?:\?[\w=&%.-]*)?")
+
+
+def test_the_readmes_pictures_are_pngs_in_the_repo_and_its_badges_are_this_packages_on_pypi() -> None:
     text = README.read_text("utf-8")
-    # the terminal picture is a markdown image; the banner is an HTML <picture> with a dark and a light file (GitHub
-    # switches on the colour scheme; PyPI drops <source> and shows the <img>, the light one)
-    pictures = re.findall(r"!\[[^\]]*\]\(([^)\s]+)\)", text)
-    banner = re.findall(r'<(?:img src|source [^>]*?srcset)="([^"]+)"', text)
-    assert len(pictures) == 1 and len(banner) == 2, (pictures, banner)
-    for image in pictures + banner:
-        assert image.startswith(RAW) and image.endswith(".png"), image
-        path = REPO / image.removeprefix(RAW)
-        assert path.is_file() and path.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n", image
-        assert path.stat().st_size < 600_000, image
+    images = re.findall(r"!\[[^\]]*\]\(([^)\s]+)\)", text) + re.findall(r'<(?:img src|source [^>]*?srcset)="([^"]+)"', text)
+    badges = [image for image in images if BADGE.fullmatch(image)]
+    pictures = [image for image in images if image not in badges]
+    # two pictures: the first screen and the task `generate --show` prints, each a PNG in the repo, linked from an absolute
+    # address, under 600 kB; a light-on-dark card, so it reads the same on a light page and a dark one
+    assert sorted(picture.removeprefix(RAW) for picture in pictures) == ["docs/images/first-screen.png", "docs/images/generate-show.png"], pictures
+    for picture in pictures:
+        assert picture.startswith(RAW) and picture.endswith(".png"), picture
+        path = REPO / picture.removeprefix(RAW)
+        assert path.is_file() and path.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n", picture
+        assert path.stat().st_size < 600_000, picture
+    # three badges, each of this package on PyPI: its version, its Python versions and its licence
+    assert sorted(BADGE.fullmatch(badge).group(1) for badge in badges) == ["l", "pyversions", "v"], badges
 
 
 def test_the_readme_lists_each_published_cards_levels_as_the_code_renders_them() -> None:

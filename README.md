@@ -1,13 +1,10 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/poisson-labs/tasks/main/docs/images/banner-on-dark.png">
-    <img src="https://raw.githubusercontent.com/poisson-labs/tasks/main/docs/images/banner-on-light.png" alt="poisson labs tasks" width="360">
-  </picture>
-</p>
-
 # Poisson Tasks
 
+[![PyPI version](https://img.shields.io/pypi/v/poisson-tasks?style=flat-square&color=3B5BDB)](https://pypi.org/project/poisson-tasks/) [![Python versions](https://img.shields.io/pypi/pyversions/poisson-tasks?style=flat-square&color=3B5BDB)](https://pypi.org/project/poisson-tasks/) [![Licence: MIT](https://img.shields.io/pypi/l/poisson-tasks?style=flat-square&color=3B5BDB)](https://github.com/poisson-labs/tasks/blob/main/LICENSE)
+
 Tool-use tasks with a known right answer, generated on your machine, and a card that says what each level of difficulty was worth to the model you ran.
+
+![The first screen of poisson-tasks, drawn in a terminal: the poisson labs tasks banner, the five steps of a first run (set up, one task, the run, the card, what next) and the prompt](https://raw.githubusercontent.com/poisson-labs/tasks/main/docs/images/first-screen.png)
 
 Each task asks a model to move one record of a small mock ledger up a ladder of stages, using only the tools it is given. Every task is generated with its own checker, so a run is scored exactly, with no judge model.
 
