@@ -9,7 +9,10 @@ as he ruled the same day, frozen as tests.
   leaky pass@1, and say so**, as the card does: below the top level strict also asks the model to
   stop at the goal, which the top level cannot ask.
 - **G4. At the run-through's first prompt, `1`, `y` and `yes` start it**, as Enter does; they used
-  to land on the home screen, whose step 1 opened the run-through again.
+  to land on the home screen, whose step 1 opened the run-through again.  Its second prompt takes
+  `3`, `y` and `yes` the same way (ruled 2026-10-21, follow-up Q2).
+- **The plain look numbers each episode once** (ruled 2026-10-21, follow-up Q1): it printed
+  `10) 10  passed`.
 
 The ways of driving the session and the fixture model are `tests/fd9_support.py`'s; every
 expectation is computed from the files on disk, never from the session under test.
@@ -197,3 +200,38 @@ def test_g2_the_latest_card_row_stays_on_strict_where_the_card_reads_strict(
     session = in_session(Keys(["quit"]), monkeypatch)
     row = next(line for line in home_blocks(session.out)[0] if line.startswith("latest card"))
     assert "strict pass@1" in row and "leaky" not in row, row
+
+
+@pytest.mark.parametrize("word", ["3", "y", "yes"])
+def test_g4_three_y_or_yes_at_the_run_throughs_second_prompt_starts_step_three(
+    word: str, states: States, world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Setup with every default (its key check declined), one task, then `word` at the prompt
+    before the run: step 3's plan and its `Start?` (answered no, so nothing is spent).  Red on
+    check3's tip at `c47c1e6`: `3` is the home screen's third step and `y` and `yes` are not
+    words, so `run`'s question is never asked."""
+    states.copy("A", world.work)
+    keyed(monkeypatch, states)
+
+    def answer(asked: Asked) -> Any:
+        return "n" if asked.kind == "confirm" else None
+
+    session = in_session(Keys(["", word, "quit"], answer=answer), monkeypatch)
+    assert session.keys.started, session
+    assert re.search(r"^Step 3 of 5", stripped(session.out), re.MULTILINE), session
+
+
+def test_the_plain_episode_menu_numbers_each_episode_once(
+    states: States, world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Red on check3's tip at `c47c1e6`: each option reads `1)  1  passed`."""
+    states.copy("D", world.work)
+
+    def answer(asked: Asked) -> Any:
+        return INTERRUPT if asked.module == "_session" else None
+
+    session = in_session(Keys(["replies", "quit"], answer=answer), monkeypatch)
+    menu = stripped(session.err).split("Which episode?")[-1]
+    numbered = re.findall(r"^\s+(\d+)\)\s+(.*)$", menu, re.MULTILINE)
+    assert numbered, session
+    assert all(not re.match(r"\d+\s", rest) for _, rest in numbered), numbered
