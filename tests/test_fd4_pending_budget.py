@@ -1,10 +1,10 @@
-"""Pending a yes/no (`evidence/front-door-fd4-a/rulings.md`, yes/no 4): a run's card says its budget
+"""Pending a decision: a run's card says its budget
 was not recorded.
 
-Spec §9.2 lists "the budget" among what `Provenance.for_plan` records, and every card prints it
+The design lists "the budget" among what `Provenance.for_plan` records, and every card prints it
 ("budget: 100000000 tokens, 43200 s wall clock, or the provider out of credit, whichever
 first").  A run of a plan has no such budget: it stops on the spend cap, the token cap, the
-provider, a failure streak or the watchdog (spec §8.7), and its caps are in no file of its folder
+provider, a failure streak or the watchdog, and its caps are in no file of its folder
 (they are not part of the plan, and raising one resumes the same run).  A card that printed the
 published design's twelve-hour budget would state a limit the run never had.  So `for_plan`'s
 budget, when the caller gives none, is `{"tokens": None, "wall_clock_seconds": None}`, and the

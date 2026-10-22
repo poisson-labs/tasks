@@ -1,19 +1,20 @@
-"""Shared ground for FD4's tests: run folders made by the run engine, the published cards read off
-the files they ship as, and the checks the card tests share.  Frozen with them.
+"""Shared ground for the `tests/test_fd4_*.py` tests: run folders made by the run engine, the
+published cards read off the files they ship as, and the checks the card tests share.  Frozen with
+them.
 
 **Run folders are made, never written by hand.**  Each scenario below is a plan run by
-`runs.run_plan` against the fixture model (`tests/fixtures/model_server.py`), the way FD3's tests
-run one: the do-nothing `pip` first on `PATH`, the fixture's key in its variable, inside the network
-guard.  So a card is built from exactly what the run engine leaves in a folder: `plan.json`, the
-ledger, `run.log`, each arm's `traces.jsonl` and instrument tally.  Each scenario is made once per
-test session, the first time a test asks for it, in a folder of the session's own; the card tests
-only read it, and `test_fd4_card.py` checks that building a card changes no byte of it.  The
-session's folders are held by this module, not by each test module that imports the fixture, so a
-scenario is run once however many files read it.
+`runs.run_plan` against the fixture model (`tests/fixtures/model_server.py`), the way the
+`test_fd3_*` tests run one: the do-nothing `pip` first on `PATH`, the fixture's key in its variable,
+inside the network guard.  So a card is built from exactly what the run engine leaves in a folder:
+`plan.json`, the ledger, `run.log`, each arm's `traces.jsonl` and instrument tally.  Each scenario
+is made once per test session, the first time a test asks for it, in a folder of the session's own;
+the card tests only read it, and `test_fd4_card.py` checks that building a card changes no byte of
+it.  The session's folders are held by this module, not by each test module that imports the
+fixture, so a scenario is run once however many files read it.
 
 **`FD4_RUN_FOLDERS`.**  When this variable names a folder, a scenario already there is copied from
-it instead of being run again, and a scenario not there is run and then kept there.  Nothing in FD4
-changes what the run engine writes, so a folder made once stands for every later session; the
+it instead of being run again, and a scenario not there is run and then kept there.  Nothing in the
+card tests changes what the run engine writes, so a folder made once stands for every later run; the
 mutation pass sets it so that each mutant does not wait on the same runs again.  Unset, as in every
 gate, every scenario is run afresh.
 
@@ -21,7 +22,7 @@ gate, every scenario is run afresh.
 checkout): every folder there holding an `artifact.json`, rebuilt from its own records under the
 provenance it recorded (`tests.helpers.rebuild_committed_card`).  No test pins how many there are,
 their folder names or their figures, so the tests hold when the cards are replaced by the new
-design; the few assertions that must name them are listed in the session's filing.
+design; the few assertions that must name them are listed in the lab's private notes.
 
 **What every expectation is computed from.**  A test's expectation comes from the plan, the folder
 (its ledger, its trace lines, its tally) or the shipped files, never from the code under test.
@@ -123,8 +124,8 @@ SCENARIOS: dict[str, Scenario] = {
                                     model="fixture-429-after-103", concurrency=8),
     # The cap cuts the first episode of depth:d8 short; depth:d8 then has no recorded episode.
     "cut": Scenario(arms=("depth:d1", "depth:d8"), seeds=0, concurrency=1, spend_cap="cut"),
-    # The cap stops the run after one depth:d3 task of several: a partial cell (spec §9.3's own
-    # example), owed tasks it never reached, and no episode cut short.
+    # The cap stops the run after one depth:d3 task of several: a partial cell (the card design's
+    # own example), owed tasks it never reached, and no episode cut short.
     "partial": Scenario(arms=("depth:d1", "depth:d3"), seeds=0, concurrency=1,
                         spend_cap="partial"),
     # A reply with no tool call, every time: the no-call gate.
@@ -195,7 +196,7 @@ def model_a_records() -> list[Any]:
 
 def first_reservation() -> float:
     """What a run of a model no card measured reserves before its first depth:d1 episode, at the
-    tests' prices: the 95th percentile of model A's published depth:d1 episodes (spec §8.4)."""
+    tests' prices: the 95th percentile of model A's published depth:d1 episodes."""
     rows = [row for row in model_a_records() if row.arm_id == "depth:d1"]
     rates = {"input_rate": PRICE_FIELDS["input"], "cached_input_rate": PRICE_FIELDS["cached_input"],
              "output_rate": PRICE_FIELDS["output"]}
@@ -222,8 +223,8 @@ def partial_design() -> tuple[int, float]:
 def cut_design() -> tuple[int, float]:
     """The `cut` scenario's seeds and cap, from the published card the run reserves from.
 
-    Before its first episode a run reserves the published card's 95th percentile of the arm
-    (spec §8.4), read from model A's card for a model no card measured; after that, the largest
+    Before its first episode a run reserves the published card's 95th percentile of the arm,
+    read from model A's card for a model no card measured; after that, the largest
     episode it has seen.  A depth:d1 episode costs two calls and a depth:d8 one nine, at
     `call_dollars()` each.  So with k depth:d1 tasks run first and the cap at k × 2 calls plus
     four and a half calls: the first depth:d1 episode fits under the cap with its reservation

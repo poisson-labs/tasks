@@ -1,26 +1,26 @@
 """Reading a card beside the published ones, frozen as tests: `calibration.comparable` and
 `calibration.render_side_by_side`.
 
-The invariants are FD4.5 and FD4.6 of the front door's plan (spec §9.6), with the ruling the session
-prompt carries: a card for a plan no published card covers compares nothing it cannot compare.
+The invariants, with the decision the card's build was given: a card for a plan no published card
+covers compares nothing it cannot compare.
 
-- **FD4.5** `comparable` answers with the first field of `_COMPARABLE` two cards differ in, and
+- `comparable` answers with the first field of `_COMPARABLE` two cards differ in, and
   says whether they measured one model.  The published cards are comparable with each other.  A
   first look never is, by design: its seed list is not the published one.
-- **FD4.6** `render_side_by_side` keys cards by a label, so a run and the published card of the
+- `render_side_by_side` keys cards by a label, so a run and the published card of the
   same model can sit side by side, which the published page (`render_combined_document`, one card
   per model) refuses; it pools nothing, and it refuses cards `comparable` says differ.
 
-**A defect in the plan, reported.**  The plan's FD4.5 says a first look's answer against either
-published card is the seed-list hash.  The spec (§9.6) says the answer is the first field of
+**Two readings of the design, and which holds.**  One said a first look's answer against either
+published card is the seed-list hash.  The other says the answer is the first field of
 `_COMPARABLE` that differs, and the generator hash comes first in that tuple; since the knobs'
-shared base moved the generator (K1.11), both published cards are on another generator than any
+shared base moved the generator, both published cards are on another generator than any
 run, so the first field is the generator hash today, and the seed-list hash once the new cards
-land.  The spec wins: the test reads the order from `_COMPARABLE` and the provenance blocks, and
+land.  The second holds: the test reads the order from `_COMPARABLE` and the provenance blocks, and
 checks the seed-list hash is among the fields that differ.
 
-Shapes decided here, where the spec leaves them open
-----------------------------------------------------
+Shapes decided here, where the design leaves them open
+------------------------------------------------------
 
 **1. `comparable(a, b)` returns a `Comparison`**: `field` (the first field they differ in, or
 `None`), `reason` (one line saying it in words, `None` when comparable), `same_model` (the two
@@ -67,7 +67,7 @@ def arms(artifact: Any) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# FD4.5 comparable
+# comparable
 # ---------------------------------------------------------------------------
 
 
@@ -128,7 +128,7 @@ def test_fd4_5_a_card_at_another_generator_version_is_not_comparable(
 
 
 # ---------------------------------------------------------------------------
-# FD4.6 side by side
+# side by side
 # ---------------------------------------------------------------------------
 
 

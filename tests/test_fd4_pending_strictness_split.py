@@ -1,10 +1,10 @@
-"""Pending a yes/no (`evidence/front-door-fd4-a/rulings.md`, yes/no 2): a card of leaky arms, or of
+"""Pending a decision: a card of leaky arms, or of
 the train split, is not comparable with a card of strict arms on the eval split.
 
 An arm's id names neither its strictness nor its split, and no field of `_COMPARABLE` holds them,
 so two cards whose blocks agree on every field it lists can still score another predicate (a
 leaky arm passes an overshoot) or be other tasks (the train split's).  Read side by side, the
-numbers would look comparable and are not: the ruling that a card compares nothing it cannot
+numbers would look comparable and are not: the decision that a card compares nothing it cannot
 compare.  `comparable` names a field for them; which is the build's.  The control is two runs
 of one strict plan.
 """

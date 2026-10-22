@@ -1,23 +1,23 @@
 """What each outcome means, frozen as tests: `poisson_tasks.outcomes`.
 
-The invariant is FD4.11 of the front door's plan (spec §4.5): the keys of `outcomes.MEANING` are
+The invariant: the keys of `outcomes.MEANING` are
 exactly `tasks.OUTCOMES`, one plain sentence each, held outside `tasks.py`, whose bytes are part
 of every task id.
 
-Shapes decided here, where the spec leaves them open
-----------------------------------------------------
+Shapes decided here, where the design leaves them open
+------------------------------------------------------
 
 **1. `describe(verdict)` takes a `tasks.Verdict` or a label**, and gives the sentence of the
-verdict's strict label: what the episode did.  A leaky task's own label calls an overshoot
-`passed`, and the sentence for `passed` says the model stopped at the goal, which it did not; what
-`verify` prints as its verdict word for a leaky task is FD5's.  A label outside the vocabulary is
-a `ValueError` of one line naming it.
+verdict's strict label: what the episode did.  A leaky task's own label calls an overshoot `passed`,
+and the sentence for `passed` says the model stopped at the goal, which it did not; what `verify`
+prints as its verdict word for a leaky task is for the `test_fd5_*` tests.  A label outside the
+vocabulary is a `ValueError` of one line naming it.
 
 **2. A sentence is plain**: one line, no internal identifier (`tests.helpers.INTERNAL`), and no
 two labels share one.
 
-`verify`, which prints these sentences, is FD5's: what it prints, and its exit codes, are FD5's
-Session A's to pin.
+`verify`, which prints these sentences, is the command's: what it prints, and its exit codes, are
+for the `test_fd5_*` tests to pin.
 """
 
 from __future__ import annotations

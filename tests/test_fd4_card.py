@@ -1,34 +1,33 @@
 """A run's card, frozen as tests: `calibration.card_from_run` and `calibration.card_verdict`.
 
-The invariants are FD4.2, FD4.3, FD4.8, FD4.9, FD4.10 and FD4.12 of the front door's plan (spec
-§9.1 to §9.5), with the rulings that reach the card:
-- **a run whose every episode ran and one failed is resumable, not complete** (FD3 Session A's
-  yes/no 2, ruled 2026-10-05), and its tally keeps the failure; so its card says what is owed and
+The invariants are a run's card's, with the decisions that reach the card:
+- **a run whose every episode ran and one failed is resumable, not complete** (decided
+  2026-10-05), and its tally keeps the failure; so its card says what is owed and
   never reads as a finished result;
-- **an episode the cap cut short is not a failure** (FD3 Session A's yes/no 4, ruled 2026-10-05):
+- **an episode the cap cut short is not a failure** (decided 2026-10-05):
   it is owed again, and the card counts no instrument failure for it;
 - **the cost and time columns already on the published cards stay as they are**: a run's card
   carries the published renderer's every line, the claims block inserted and nothing changed.
 
 Every folder is made by the run engine against the fixture model (`tests/fd4_support.py`).
 
-Shapes decided here, where the spec leaves them open
-----------------------------------------------------
+Shapes decided here, where the design leaves them open
+------------------------------------------------------
 
 **1. `card_from_run(folder, *, serving=None)` returns a `RunCard`**: `records` (every arm's
 `records_from_run`, in the plan's arm order), `tally` (per arm id, the instrument tally the arm's
 folder kept, `{}` for an arm with none), and, unless the verdict refuses, `artifact`, `document`
 and `claims`; a refused card has `None` for those three, because nothing but the records may be
-written for it (spec §4.4).  `card_from_run` writes nothing and opens no socket: writing `card/`
-is the command's (FD5).
+written for it.  `card_from_run` writes nothing and opens no socket: writing `card/`
+is the command's (the `test_fd5_*` tests).
 
 **2. The plan is read from the folder's `plan.json`**, the model's prices with it; the card is
 measured under `Provenance.for_plan` of that plan.  A priced plan's rates are its price and the
 rates' date its `read_on`.  A model of the `ollama` or `vllm` provider is `self_served` at the
-plan's endpoint, with what `serving` (a `providers.server_facts` mapping) says the server
-reported, and nothing reported when `serving` is not given: the folder holds no server facts, and
-the card must not open a socket to read them (CAL19).  Any other model is `hosted` at the
-endpoint's host and port.  When and whether the command reads the server's facts is FD5's.
+plan's endpoint, with what `serving` (a `providers.server_facts` mapping) says the server reported,
+and nothing reported when `serving` is not given: the folder holds no server facts, and the card
+must not open a socket to read them (CAL19).  Any other model is `hosted` at the endpoint's host and
+port.  When and whether the command reads the server's facts is for the `test_fd5_*` tests.
 
 **3. `CardVerdict`** has `word` (`"ok"` or `"refused"`), `model`, `partial`, `owed`, `incomplete`,
 `not_run` and `refused`.  `owed` is every attempt the design asks for that the card holds no
@@ -43,7 +42,7 @@ and prints no row for it.  `refused` is `(arm id, gate)` with gate `"instrument"
 back later says what its first line said: it gives the verdict `card_from_run` gave for the same
 artifact, and it refuses an artifact whose cell is over its own gate (an artifact written by
 something else, for `card --check`, by the shares the cells already carry).  `card --check`
-recomputes "an existing card folder, or a calibration bundle `.zip`" (spec §4.4), and neither
+recomputes "an existing card folder, or a calibration bundle `.zip`", and neither
 holds the run's `plan.json`; so what a card needs to say what it says (the arms the plan asked
 for, whether the run was resumed) is carried in its artifact, which recomputes from its records
 and its own stored provenance and tally, and its incomplete flags count scored attempts.
@@ -52,17 +51,17 @@ and its own stored provenance and tally, and its incomplete flags count scored a
 the plan's are refused in one line.
 
 **6. Not a run folder, or a run that recorded nothing**, is a `ValueError` of one line naming the
-folder (spec §4.4's exit 1).  A run whose episodes all failed is not empty: it is refused.
+folder (exit 1).  A run whose episodes all failed is not empty: it is refused.
 
 **7. The card's dollars are its scored attempts'** (the published cards' rule); the ledger holds
-what the run paid beyond them.  The plan's FD4.12 says the two are equal, which holds only when
-every paid episode was scored: reported as a defect in the plan.
+what the run paid beyond them.  The design said the two are equal, which holds only when
+every paid episode was scored.
 
 `test_fd4_9_a_field_declared_not_sent_is_on_the_card_as_not_sent` is green by construction after
 its first assertion (the existing renderer prints a declared field as it is); its first assertion,
 the card's decoding is the plan's as declared, is what it holds.
 
-Not covered here, and named for FD5's Session A: the verdict lines' words and layout (spec §9.3),
+Not covered here, and left to the `test_fd5_*` tests: the verdict lines' words and layout,
 the files `card` writes and their names (a card folder needs its tally beside its records for
 `--check` to recompute it), what it writes for a refused card, `--print`, `--check`'s exit 4, and
 the exit codes.
@@ -120,7 +119,7 @@ def figure_rows(document: str, arm: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# the verdict (FD4.3) and the two rulings
+# the verdict and the two decisions
 # ---------------------------------------------------------------------------
 
 
@@ -146,7 +145,7 @@ def test_fd4_3_a_finished_run_is_an_ok_card_with_nothing_owed(fd4_runs: RunFolde
 def test_fd4_3_a_run_with_a_failed_episode_is_a_partial_card_that_says_what_is_owed(
     fd4_runs: RunFolders,
 ) -> None:
-    """The ruling: every episode ran and one failed, so the folder is resumed, not complete.  The
+    """The decision: every episode ran and one failed, so the folder is resumed, not complete.  The
     card is not refused (one failure in 52 attempts is under the instrument threshold), and it
     must not read as finished: it is partial, owes the one attempt, marks the cell incomplete,
     and counts the failure."""
@@ -196,7 +195,7 @@ def test_fd4_3_the_resumed_run_is_finished_and_its_tally_keeps_the_failure(
 def test_fd4_3_an_episode_the_cap_cut_short_is_owed_and_is_not_a_failure(
     fd4_runs: RunFolders,
 ) -> None:
-    """The ruling: the cap cut the first depth:d8 episode short.  Its calls are in the ledger;
+    """The decision: the cap cut the first depth:d8 episode short.  Its calls are in the ledger;
     it is in no trace file and no tally.  On the card it is owed, depth:d8 is not run, and no cell
     counts an instrument failure, so nothing is refused on the cap's account."""
     made = fd4_runs["cut"]
@@ -221,9 +220,9 @@ def test_fd4_3_an_episode_the_cap_cut_short_is_owed_and_is_not_a_failure(
 
 
 def test_fd4_3_a_level_the_run_left_part_way_is_an_incomplete_cell(fd4_runs: RunFolders) -> None:
-    """Spec §9.3's own example: the cap stopped the run after one depth:d3 task of several.  The
-    cell is there and marked incomplete, with the tasks it holds; the attempts it never reached are
-    owed, exactly what a resume would run; nothing is listed as not run."""
+    """The card design's own example: the cap stopped the run after one depth:d3 task of several.
+    The cell is there and marked incomplete, with the tasks it holds; the attempts it never reached
+    are owed, exactly what a resume would run; nothing is listed as not run."""
     made = fd4_runs["partial"]
     first, second = arm_ids(made)
     assert made.result.stop_reason == "spend_cap"
@@ -322,7 +321,7 @@ def test_fd4_card_from_run_only_reads_the_folder(
 
 
 # ---------------------------------------------------------------------------
-# the card is measured under the plan (FD4.2, FD4.8, FD4.9, FD4.12)
+# the card is measured under the plan
 # ---------------------------------------------------------------------------
 
 
@@ -374,9 +373,9 @@ def test_fd4_12_the_card_holds_every_arms_records_and_the_runs_dollars(
 def test_fd4_12_the_cards_dollars_are_its_scored_attempts_and_the_ledger_holds_the_rest(
     fd4_runs: RunFolders, scenario: str, more: bool
 ) -> None:
-    """The plan's FD4.12 says the card's dollars equal the run's ledger; that holds only when every
+    """The design said the card's dollars equal the run's ledger; that holds only when every
     episode the run paid for was scored.  The card's dollars are its scored attempts' calls (the
-    published cards' rule, CAL15, and the ruling that the cost columns stay as they are); an
+    published cards' rule, CAL15, and the decision that the cost columns stay as they are); an
     episode the cap cut short or one that failed was paid for and is in the ledger, not on the
     card (reported as a defect in the plan)."""
     made = fd4_runs[scenario]
@@ -446,7 +445,7 @@ def test_fd4_8_a_model_the_user_serves_is_self_served_on_its_card(
 
 
 # ---------------------------------------------------------------------------
-# the document (FD4.10)
+# the document
 # ---------------------------------------------------------------------------
 
 

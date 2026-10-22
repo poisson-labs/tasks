@@ -1,7 +1,7 @@
-"""Pending a yes/no (`evidence/front-door-fd4-a/rulings.md`, yes/no 3): a plan with some of its
+"""Pending a decision: a plan with some of its
 levels on a published card is covered.
 
-The ruling says a card for a plan no published card covers says so plainly.  This reads "no
+The decision says a card for a plan no published card covers says so plainly.  This reads "no
 published card covers" as "no published card holds a cell of any of the plan's arms": a plan of
 depth 3 and depth 4 is covered, by its depth-3 level, and its card does not carry the
 `not_covered` line, though its depth-4 level is on no published card (side by side, only depth 3
