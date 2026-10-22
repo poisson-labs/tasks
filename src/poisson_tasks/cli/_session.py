@@ -858,9 +858,9 @@ class Session:
             self.write("  no episode of this arm ended; run finishes it", "yellow")
             return
         options = []
-        for index, (label, calls, reply, _) in enumerate(episodes, 1):
+        for label, calls, reply, _ in episodes:
             said = f'  "{reply}"' if reply else ""
-            options.append((f"{index:>2}  {label:<14} {calls:>3} calls{said}", ""))
+            options.append((f"{label:<14} {calls:>3} calls{said}", ""))
         chosen = self.ui.choice(None, "Which episode?", options, 0)
         self._open_episode(*episodes[chosen])
 
