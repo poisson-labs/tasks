@@ -54,7 +54,7 @@ Shapes decided here, where the tests leave them open
   moment of failure.  Its config is `run_config_for`'s, which differs from the
   documented command in exactly the seed list, `-r` and the declared sampling (CAL21), and
   its checkpoint is the wheel's own `traces.jsonl` plus `resume.load` (CAL23).
-* **`run_cell` is `run_arm` for any design** (FD3): the seeds, the attempts and the decoding
+* **`run_cell` is `run_arm` for any design**: the seeds, the attempts and the decoding
   are the caller's instead of the published design's, and everything else is the same
   runner, the same run folder name and the same config, so `run_arm` is `run_cell` with
   `seed_list(spec)`, `N` and `DECODING`.  A decoding field declared `"not sent"` is left out
@@ -185,7 +185,7 @@ __all__ = [
     "run_cell",
     "RunOutcome",
     "records_from_run",
-    # cards for any plan (FD4)
+    # cards for any plan
     "card_from_run",
     "RunCard",
     "card_verdict",
@@ -314,7 +314,7 @@ _KNOBS = (_DEPTH, _DISTRACTOR)
 # otherwise never show.
 _REPLAY_CHECKED = ("similarity", "faults", "history", "block", "arguments", "shape", "spread")
 _REPLAY_MISMATCH = "replay_mismatch"
-# The own-tools provenance kind, and the keys its block carries (own-tools spec §9).
+# The own-tools provenance kind, and the keys its block carries.
 _OWN_KIND = "own"
 _OWN_TOOLS_KEYS = (
     "kind", "name", "tools", "source_format", "file_digest", "intents", "flows", "generator",
@@ -799,7 +799,7 @@ class Provenance:
     """True when some of the run's attempts were made by a later run of its folder than others;
     absent otherwise, so a block for the published design keeps its bytes."""
     tools: _Mapping[str, _Any] | None = None
-    """The own-tools provenance kind (own-tools spec §9): `kind` `own`, the set's `name`, its
+    """The own-tools provenance kind: `kind` `own`, the set's `name`, its
     usable `tools` count, its `source_format`, the file's `file_digest`, the tools that have an
     intent (`intents`, sorted names), the number of declared `flows` and the own-tools
     `generator` label.  A block for the built-in tasks has none, and `as_dict` leaves it out,
@@ -1383,7 +1383,7 @@ def _pair_rows(
 ) -> list[dict[str, _Any]]:
     """One row per model, knob and adjacent pair of plain levels (CAL10 to CAL12), over the
     whole axis and never a chosen pair.  On a user's own tools, each level against the knob's
-    first (own-tools spec §6.3), through `own.card.against_first`."""
+    first, through `own.card.against_first`."""
     rows: list[dict[str, _Any]] = []
     models = sorted({model for _, model in cells})
     if provenance.tools is not None:
@@ -1706,7 +1706,7 @@ def render_document(artifact: Artifact, *, claims: bool = False) -> str:
     if own:
         from poisson_tasks.own import card as _own_card
 
-        # Own-tools spec §9: the first lines, before anything else the card says.
+        # On own tools, the first lines come before anything else the card says.
         lines += [_own_card.first_lines(prov.tools or {}), ""]
     lines += [
         f"Rendered from the calibration artifact for poisson-tasks {prov.package_version} "
@@ -1782,7 +1782,7 @@ def render_document(artifact: Artifact, *, claims: bool = False) -> str:
         lines += ["", f"### {knob}", "", header, rule]
         lines += [_level_row(cell, k_values) for cell in rows]
     if not own:
-        # Own tools have no control arms (ruled 2026-10-13, yes/no 8).
+        # Own tools have no control arms (decided 2026-10-13).
         lines += [
             "",
             INSTRUMENT_TABLE_HEADING,
@@ -1904,7 +1904,7 @@ def render_document(artifact: Artifact, *, claims: bool = False) -> str:
         said = _own_card.bite(rows_against_first)
         lines += [f"- {line}" for line in said.values()] or [
             "- No knob has two levels on this card, so none is read against its first."]
-        # Every knob stays available on own tools (ruled 2026-10-13 23:26); each carries the
+        # Every knob stays available on own tools (decided 2026-10-13 23:26); each carries the
         # knob probe's status on each probe model, said apart from the per-set table above.
         knobs_here = list(dict.fromkeys(
             spec.knob for cell in artifact.cells
@@ -2729,7 +2729,7 @@ def run_cell(
     budget: _Mapping[str, _Any] | None = None,
 ) -> RunOutcome:
     """One arm's cell for any design: `run_arm` with the seeds, attempts and decoding given
-    instead of the published design's (FD3).  `run_arm(spec, ...)` is `run_cell` with
+    instead of the published design's.  `run_arm(spec, ...)` is `run_cell` with
     `seed_list(spec)`, `N` and `DECODING`: the same runner, the same run folder name under
     `output_dir`, the same config apart from the design, resumable and capped the same way."""
     config = _cell_config(
@@ -3177,7 +3177,7 @@ def render_combined_document(artifacts: _Sequence[Artifact]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# cards for any plan (FD4): a run's card, its verdict and its claims, and reading it beside
+# cards for any plan: a run's card, its verdict and its claims, and reading it beside
 # the published cards
 # ---------------------------------------------------------------------------
 
@@ -3474,7 +3474,7 @@ def card_verdict(artifact: Artifact) -> CardVerdict:
     )
 
 
-# ---- the claims (FD4.4) ---------------------------------------------------------------------
+# ---- the claims ------------------------------------------------------------------------------
 
 
 @_functools.cache
@@ -3646,7 +3646,7 @@ _OWN_LINES = (
 
 
 def _own_claims(artifact: Artifact, model: str) -> Claims:
-    """What an own-tools card means and does not claim (own-tools spec §9): its lines are
+    """What an own-tools card means and does not claim: its lines are
     `_OWN_LINES`, every one that applies, `stale` against the own-tools generator, and the
     self-served and resumed lines as on any card; none of the published cards' comparisons."""
     from poisson_tasks.own import generator as _own_generator
@@ -3710,7 +3710,7 @@ def _claims_block(artifact: Artifact) -> list[str]:
     return out
 
 
-# ---- reading a card beside the published ones (FD4.5, FD4.6) -------------------------------
+# ---- reading a card beside the published ones ------------------------------------------------
 
 
 def _bare(model: str) -> str:

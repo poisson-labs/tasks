@@ -1,10 +1,10 @@
 """The knob probe: whether each new knob makes tasks harder, per model.
 
-The probe is pre-registered in the knobs spec, in its section on the probes, and this module builds
-exactly what that section states.  Seven knobs are read at their base and their top level, four of
-them with a control arm too, on sixty eval-split tasks that no published card measures, two attempts
-at each, for gpt-5-nano and for Qwen3-8B, on the frozen generator.  Here are the probe's design, its
-phase 1 gate, its analysis and its outcomes, and the driver of the gpt-5-nano run
+The probe was pre-registered in the knobs' design, in its section on the probes, and this module
+builds exactly what that section states.  Seven knobs are read at their base and their top level,
+four of them with a control arm too, on sixty eval-split tasks that no published card measures, two
+attempts at each, for gpt-5-nano and for Qwen3-8B, on the frozen generator.  Here are the probe's
+design, its phase 1 gate, its analysis and its outcomes, and the driver of the gpt-5-nano run
 (`python -m poisson_tasks.knob_probe`).  Qwen3-8B's run is the Colab notebook's probe design
 (`calibration_run`'s `--design knob-probe`), which takes its design and its gates from here.  None
 of it is a command of the command-line tool.
@@ -218,8 +218,8 @@ KNOBS: tuple[Knob, ...] = (
     Knob("shape", "shape:w1", "shape:w4", "shape:w1+len(w4)"),
     Knob("spread", "spread:p1", "spread:p4"),
 )
-"""The seven knobs in the spec's table order.  Depth is not re-probed: both cards show it moves
-pass rates."""
+"""The seven knobs in the order the probe's design lists them.  Depth is not re-probed: both cards
+show it moves pass rates."""
 BASES: tuple[str, ...] = tuple(knob.base for knob in KNOBS)
 TOPS: tuple[str, ...] = tuple(knob.top for knob in KNOBS)
 CONTROLS: tuple[str, ...] = tuple(knob.control for knob in KNOBS if knob.control)
@@ -272,7 +272,8 @@ KEY_VAR = "MODEL_API_KEY"
 CONCURRENCY = 128
 """Episodes in flight at once: the calibration runner's own default, which both cards ran at."""
 ESTIMATE_DOLLARS = 1.67
-"""The spec's estimate for 2,160 gpt-5-nano episodes, from the published per-call figures."""
+"""The probe's planned estimate for 2,160 gpt-5-nano episodes, from the published per-call
+figures."""
 
 FROZEN_GENERATOR_HASH = _run.EXPECTED_GENERATOR_HASH
 """The generator frozen when information spread merged.  The probe runs on it and on no other."""
@@ -495,7 +496,7 @@ def _seed_counts(rows: _Sequence[_cal.EpisodeRecord]) -> dict[int, int]:
 def _measures(
     rows: _Sequence[_cal.EpisodeRecord], rates: _Mapping[str, _Any] | None
 ) -> dict[str, _Any]:
-    """Strict pass@1, the primary measure, and what the spec reports beside it: leaky, the
+    """Strict pass@1, the primary measure, and what the probe reports beside it: leaky, the
     no-call share, gave up after a fault, cost and time.  Each a figure the cards compute."""
     kept = _cal.scored(rows)
     out: dict[str, _Any] = {"scored": len(kept)}

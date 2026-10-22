@@ -1,4 +1,4 @@
-"""The session's load screen (spec §16.10, ruled B1 to B3 on 2026-10-20): the Poisson distribution
+"""The session's load screen (decided 2026-10-20): the Poisson distribution
 at lambda = 4 as one row of eighth blocks, flat cobalt, with "poisson labs" bold beside it and
 "tasks" bold with the version dim beneath, in the terminal's foreground.  26 columns by 2 rows,
 its own narrow form; below its own width, and with `--plain` or `TERM=dumb`, the one line
@@ -16,7 +16,7 @@ SKY = "#15AABF"
 NAME = "poisson labs"
 GAP = "  "
 WIDTH = len(MARK) + len(GAP) + len(NAME)
-"""The banner's own width, 26: below it, the one line (ruled 2026-10-20)."""
+"""The banner's own width, 26: below it, the one line (decided 2026-10-20)."""
 
 
 def _version() -> str:

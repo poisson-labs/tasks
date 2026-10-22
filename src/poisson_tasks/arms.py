@@ -141,7 +141,7 @@ def describe_pins(report: _PinReport) -> str:
 # recipes
 # ---------------------------------------------------------------------------
 
-# The knobs the knob probe shipped (Tasks spec K-P3): each made tasks harder on at least one of the
+# The knobs the knob probe shipped: each made tasks harder on at least one of the
 # two models it ran on, and easier at the top on neither.  Depth and the distractor dial are on the
 # published cards and need no probe.  The other four probe knobs did not ship: they stay in the
 # generator and their arms work, and they reach no recipe.  `knob_status()` says what each knob did
@@ -188,7 +188,7 @@ class Recipe:
         return len(self.arms) * self.tasks_per_level * self.attempts
 
 
-# Spec section 17.2: the name, what it asks, each knob with the levels it takes, the tasks per
+# A recipe holds the name, what it asks, each knob with the levels it takes, the tasks per
 # level and the attempts.  `card` is the published cards' design and is built apart.
 _ROWS: tuple[tuple[str, str, tuple[tuple[str, str], ...], int, int], ...] = (
     ("first-look", "where does depth start to hurt?", (("depth", _THREE),), 10, 1),
@@ -262,7 +262,7 @@ def _recipe(
 
 
 def recipe_table(shipped: _Iterable[str]) -> _Mapping[str, Recipe]:
-    """The recipes of spec section 17.2 with `shipped` as the knobs the probe has shipped.
+    """The recipes of the recipe table with `shipped` as the knobs the probe has shipped.
 
     A recipe is offered when it uses only the published cards' knobs (depth and the distractor
     dial), or when at least one of its other knobs has shipped; the arms of a knob that has not

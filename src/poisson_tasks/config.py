@@ -20,7 +20,7 @@ tokenizer.  Resolving a plan needs the published design (`calibration`), and so 
 own copy of the declared decoding, of model A's name and rates, and of the design's sixty tasks
 and five attempts.  The tests hold each equal to the published card's.
 
-**Your own tools** (own-tools spec §8): a settings file with an `[own]` table makes its tasks on
+**Your own tools**: a settings file with an `[own]` table makes its tasks on
 the user's tools.  `[own]` holds `file`, `format`, `name`, `read`, `write`, `[own.intents]` and
 `[[own.flow]]`, read into `OwnConfig`, and every one of its settings has an `init` flag of its own
 (`OWN_INIT_FLAGS`, beside `INIT_FLAGS`).  Reading the file stays pure: what needs the tool file
@@ -101,7 +101,7 @@ _OWN_KNOBS = ("similarity", "faults", "history", "block", "arguments", "spread",
 _OWN_FORMATS = ("auto", "openai", "mcp", "openapi")
 _OWN_GENERATOR_VERSION = "own-1"
 OWN_LIST_FILE = "tools.mcp.json"
-"""Where `init --mcp-command` saves the listed tools, beside the settings file (spec §8.2)."""
+"""Where `init --mcp-command` saves the listed tools, beside the settings file."""
 _STRICTNESSES = ("strict", "leaky")
 _FIRST_LOOK_LEVELS = (1, 3, 8)
 _SEED_SPACE = 2**32
@@ -293,7 +293,7 @@ class OutputConfig:
 
 @dataclasses.dataclass(frozen=True)
 class OwnConfig:
-    """The `[own]` table (own-tools spec §8.2): the tool file (relative to the settings file),
+    """The `[own]` table: the tool file (relative to the settings file),
     its format (`auto` decides by shape), the set's name (`None`: the file's stem), the tools
     declared read and write, the intents as `(tool, text)` pairs in the file's order, and the
     flows as `(from, field, to, param)`."""
@@ -829,7 +829,7 @@ class _Reader:
         )
 
     def own_measure(self, preset: str, given: Mapping[str, Any]) -> MeasureConfig:
-        """`custom` beside `[own]` (ruled 2026-10-13, yes/no 22, and 2026-10-13 23:26: every knob):
+        """`custom` beside `[own]` (decided 2026-10-13, and at 23:26 that day for every knob):
         the knob is one of own tools' eight, its levels whole numbers, and there are no control
         arms; whether this set reaches the knob and its levels is the plan's to say."""
         knob = "depth"
@@ -992,7 +992,7 @@ class _Reader:
             tasks=self.text("output.tasks", self.need("output.tasks"), "a folder's name"),
         )
 
-    # -- your own tools (own-tools spec §8.2) ----------------------------------
+    # -- your own tools ---------------------------------------------------------
 
     def tool_names(self, key: str) -> tuple[str, ...]:
         """A list of tool names, none empty and none repeated; `[]` when the key is not set."""
@@ -1408,8 +1408,8 @@ OWN_INIT_FLAGS: tuple[InitFlag, ...] = (
     InitFlag("--own-intent", "own.intents", "pairs", None),
     InitFlag("--own-flow", "own.flow", "flows", None),
 )
-"""The own-tools flags (own-tools spec §8.1), a table of their own beside `INIT_FLAGS` (ruled
-2026-10-13, yes/no 23): `--own-read`, `--own-write`, `--own-intent TOOL=TEXT` and `--own-flow
+"""The own-tools flags, a table of their own beside `INIT_FLAGS` (decided 2026-10-13):
+`--own-read`, `--own-write`, `--own-intent TOOL=TEXT` and `--own-flow
 FROM.FIELD:TO.PARAM` repeat, each occurrence one entry.  `--mcp-command CMD` is `init`'s own: it
 lists the server's tools into `tools.mcp.json` and sets `--own-file` to that."""
 
@@ -1775,7 +1775,7 @@ def equivalent_init_command(config: ProjectConfig, *, prog: str) -> list[str]:
     command += ["--runs-dir", output.runs, "--tasks-dir", output.tasks]
     own = config.own
     if own is not None:
-        # The listed tools are kept, never the command that listed them (yes/no 26): with
+        # The listed tools are kept, never the command that listed them: with
         # `--mcp-command` the file is the saved list, and the command says `--own-file`.
         command += ["--own-file", own.file, "--own-format", own.format]
         if own.name is not None:
@@ -1811,7 +1811,7 @@ class Plan:
     decoding: Mapping[str, Any]
     max_model_calls: int
     own: Mapping[str, Any] | None = None
-    """On a user's own tools (own-tools spec §8): `file` (absolute), `format`, `name`, `read`,
+    """On a user's own tools: `file` (absolute), `format`, `name`, `read`,
     `write`, `intents` (tool to text, the file's order), `flows` (`from`, `field`, `to`, `param`
     mappings), `file_digest`, `source_format` and `tools` (the usable count); `None` otherwise."""
 
@@ -1872,7 +1872,7 @@ def _own_plan(config: ProjectConfig, root: str | os.PathLike[str] | None) -> tup
 
 
 def _own_arms(config: ProjectConfig, toolset: Any, flows: Any) -> tuple[ArmSpec, ...]:
-    """The arms of the recipe, or of the custom knob, on this set (own-tools spec §8.1 as ruled:
+    """The arms of the recipe, or of the custom knob, on this set (as decided:
     a recipe is offered when the set reaches one of its shipped knobs; `card` never; `custom`
     takes any knob the set reaches, at levels it reaches, in the knob's order of levels)."""
     measure = config.measure

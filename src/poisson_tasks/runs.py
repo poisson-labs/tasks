@@ -1,26 +1,26 @@
 """Runs: what a plan will cost, the folder it runs in, and the run itself, with its cap, its
 ledger, Ctrl-C, the start-up watchdog and the failure-streak stop.
 
-The library side of `poisson-tasks run` (spec §8).  The CLI shows the estimate, asks, and prints
+The library side of `poisson-tasks run`.  The CLI shows the estimate, asks, and prints
 the result; everything it shows comes from here.  `tests/test_fd3_*.py` say what each name does.
 
-**The order a run takes** (spec §8.1): `config.resolve_plan`, then `find_run`, then the free key
+**The order a run takes**: `config.resolve_plan`, then `find_run`, then the free key
 check (`providers.check_key`), then `estimate`; nothing is sent to the model before `run_plan`.
 
-**The estimate** (spec §8.2) is read from the published cards' records: the card whose records
+**The estimate** is read from the published cards' records: the card whose records
 name the plan's model (matched without its `@revision`), else model A's, or the one `reference`
 names.  The cards are the ones `cards.published()` lists, by their model's short name: inside
 the installed package, and in a checkout the `calibration/` folder beside its source.  This
 module keeps no table of them.
 
-**The run folder** (spec §8.5) is `runs/<preset>-<model>/`, then `-2`, `-3`, with no hash in its
+**The run folder** is `runs/<preset>-<model>/`, then `-2`, `-3`, with no hash in its
 name.  It holds `plan.json` (the resolved plan and its `plan_hash`, by which the folder that holds
 a plan is found), `spend.jsonl` (the ledger: one line per episode that ended), `run.log`, and one
 wheel run folder per arm, named as `calibration.run_arm` names it (`depth-d1/`).  `find_run` only
 reads: whether a folder is complete is read off the whole, well-formed `ok` rows of each arm's
 `traces.jsonl`, never by asking the wheel's resume, which rewrites the file.
 
-**The cap is a bound** (spec §8.4): the final spend is at most the cap plus the cost of the model
+**The cap is a bound**: the final spend is at most the cap plus the cost of the model
 calls in flight when it was reached.  Model calls pass through verifiers' interception server in
 the run's own process (`EvalClient.get_response`), so the run checks the cap before each call,
 and the bound is c calls at concurrency c.  Before an episode is dispatched, the measured spend
@@ -34,12 +34,12 @@ that died while writing it, is dropped when the ledger is opened, and every whol
 bytes.  A run in flight is accounted call by call, and the ledger's total plus the calls in flight
 is what the cap is checked against, so the cap holds the folder's total across every `run`.
 
-**Ctrl-C** (spec §8.5): the first interrupt stops dispatching and gives the episodes in flight up
+**Ctrl-C**: the first interrupt stops dispatching and gives the episodes in flight up
 to 10 seconds to finish and be recorded; a second stops at once, and `run_plan` then raises
 `KeyboardInterrupt` once nothing it started is running.  Both reach the run through the event
 loop's own signal handler, installed for the run's length when the run is in the main thread.
 
-**Stops** (spec §8.7): the spend or token cap; the provider out of credit; five episodes in a row
+**Stops**: the spend or token cap; the provider out of credit; five episodes in a row
 failed before any was scored, and a run whose every episode failed is never done; and no model
 call and no finished episode within the watchdog's limit, which stops the run and whatever it
 started, quoting the last lines of `run.log`.
@@ -54,15 +54,15 @@ tasks' item codes hold `-pro`, as every `sk-proj-` key does).  A run of twelve o
 the secret part is the key's: no text a run makes for itself holds one by chance, so a trace line
 that holds one anywhere else is masked there too, string by string, and stays JSON.
 
-**The machine** (spec §8.6): the harness's environment carries `PIP_REQUIRE_VIRTUALENV=1` and
+**The machine**: the harness's environment carries `PIP_REQUIRE_VIRTUALENV=1` and
 `UV_NO_MODIFY_PATH=1`, set in this process for the run's length.  This process's soft limit on
 open files is raised as far as the hard limit allows for the run's length too, and a run that
 needs more open files than that is refused before anything is written (`_open_files`).
 
-**A plan on the user's own tools** (own-tools spec §8, §11) runs the same way: its eval config
+**A plan on the user's own tools** runs the same way: its eval config
 names the taskset `poisson-tasks-own` and carries the plan's `own` whole, its `plan.json` holds
 `own`, its task hashes are the own export's, and its estimate scales the published card's
-per-call figures by each task's block over the built-in block (ruled 2026-10-13, yes/no 28).
+per-call figures by each task's block over the built-in block (decided 2026-10-13).
 """
 
 from __future__ import annotations
@@ -108,9 +108,9 @@ _LOG_FILE = "run.log"
 _TRACES_FILE = calibration.TRACES_FILE
 _NOT_SENT = "not sent"
 _GRACE_SECONDS = 10.0
-"""How long the first Ctrl-C lets the episodes in flight finish (spec §8.5)."""
+"""How long the first Ctrl-C lets the episodes in flight finish."""
 _STREAK = 5
-"""Failed episodes in a row, before any was scored, that stop a run (spec §8.7)."""
+"""Failed episodes in a row, before any was scored, that stop a run."""
 _LOG_TAIL_LINES = 20
 _MASK = "****"
 _MASKED_RUN = 4
@@ -123,7 +123,7 @@ _EPS = 1e-12
 
 
 # ---------------------------------------------------------------------------
-# the estimate (spec §8.2)
+# the estimate
 # ---------------------------------------------------------------------------
 
 
@@ -151,7 +151,7 @@ class Estimate:
 
 
 def _published() -> dict[str, Path]:
-    """The published cards' folders by their short names (ruled 2026-10-03, spec §4.4), as
+    """The published cards' folders by their short names (decided 2026-10-03), as
     `cards.published()` lists them."""
     return {card.name: card.folder for card in cards.published()}
 
@@ -274,13 +274,13 @@ def estimate(plan: Plan, *, reference: str | None = None) -> Estimate:
 def _own_estimate(
     plan: Plan, name: str, records: Sequence[Any], rates: Mapping[str, float] | None, episodes: int
 ) -> Estimate:
-    """The estimate of a plan on the user's own tools (own-tools spec §8.1; ruled 2026-10-13,
-    yes/no 28): per model call, the published card's mean figures over all its records (prompt,
-    cached input and completion tokens, each summed and divided by the card's model calls); per
-    task, its reference turns (the reference calls and the reply) times those figures, the prompt
-    and the cached input scaled by the task's block tokens over the built-in block's (the tools of
-    `depth:d1` at the first published seed, both as JSON in the reference tokenizer), the output
-    not scaled; the dollars at the plan's prices; summed over the plan's tasks and attempts."""
+    """The estimate of a plan on the user's own tools (decided 2026-10-13): per model call, the
+    published card's mean figures over all its records (prompt, cached input and completion tokens,
+    each summed and divided by the card's model calls); per task, its reference turns (the reference
+    calls and the reply) times those figures, the prompt and the cached input scaled by the task's
+    block tokens over the built-in block's (the tools of `depth:d1` at the first published seed,
+    both as JSON in the reference tokenizer), the output not scaled; the dollars at the plan's
+    prices; summed over the plan's tasks and attempts."""
     from poisson_tasks.arms import arm_from_id
     from poisson_tasks.tasks import generate
     from poisson_tasks.tokenizer import count_tokens
@@ -325,7 +325,7 @@ def _own_estimate(
 def _reservation(plan: Plan, spec: ArmSpec) -> tuple[float, int]:
     """What one episode of `spec` is reserved before any episode of the folder has been seen:
     the published card's 95th percentile of the arm's episodes, in dollars at the plan's prices
-    (zero without a price) and in tokens (spec §8.4).  Without the card's records (an install
+    (zero without a price) and in tokens.  Without the card's records (an install
     the cards do not ship in yet) nothing is reserved, which `run.log` says; the cap's bound
     still holds, call by call."""
     try:
@@ -347,7 +347,7 @@ def _reservation(plan: Plan, spec: ArmSpec) -> tuple[float, int]:
 
 
 # ---------------------------------------------------------------------------
-# the run folder (spec §8.5)
+# the run folder
 # ---------------------------------------------------------------------------
 
 
@@ -584,7 +584,7 @@ def find_run(
 
 
 # ---------------------------------------------------------------------------
-# the ledger (spec §8.4)
+# the ledger
 # ---------------------------------------------------------------------------
 
 
@@ -662,7 +662,7 @@ class SpendLedger:
 
 
 # ---------------------------------------------------------------------------
-# the eval config (spec §8.9)
+# the eval config
 # ---------------------------------------------------------------------------
 
 
@@ -672,7 +672,7 @@ def verifiers_config(plan: Plan, arm: ArmSpec) -> dict[str, Any]:
     the key's variable's name, the declared decoding without its "not sent" fields, the turn cap
     and `push = false`.  `run_plan` runs each arm with this config, apart from `run.*`,
     `output_dir` and `max_concurrent`.  On a plan on the user's own tools the taskset is
-    `poisson-tasks-own` and its config carries the plan's `own` whole (own-tools spec §11)."""
+    `poisson-tasks-own` and its config carries the plan's `own` whole."""
     taskset: dict[str, Any] = {
         "id": calibration.TASKSET_ID,
         "arm": dataclasses.asdict(arm),
@@ -719,7 +719,7 @@ def _arm_config(plan: Plan, arm: ArmSpec, folder: Path, concurrency: int) -> Any
 
 
 # ---------------------------------------------------------------------------
-# the run (spec §8.3 to §8.7)
+# the run
 # ---------------------------------------------------------------------------
 
 
@@ -908,7 +908,7 @@ def _add(into: dict[str, int], figures: Mapping[str, int]) -> None:
 
 class _Meter:
     """The cap, checked against measured spend: the ledger's total plus every call the
-    episodes in flight have made, call by call (spec §8.4)."""
+    episodes in flight have made, call by call."""
 
     def __init__(
         self,
@@ -1045,7 +1045,7 @@ def _metered_client(meter: _Meter, state: _State) -> Iterator[None]:
 
 @contextlib.contextmanager
 def _harness_environment() -> Iterator[None]:
-    """The harness's environment for the run's length (spec §8.6): pip kept to a virtualenv, so
+    """The harness's environment for the run's length: pip kept to a virtualenv, so
     the bootstrap takes uv's installer every time, and that installer told not to edit shell
     start-up files."""
     saved = {name: os.environ.get(name) for name in ("PIP_REQUIRE_VIRTUALENV", "UV_NO_MODIFY_PATH")}

@@ -1,5 +1,5 @@
 """The pretty style: the same facts in the same order as the plain style, drawn with Rich, with
-questionary for `init`'s two menus (rule L16, ruled 2026-10-13).
+questionary for `init`'s two menus (rule L16, decided 2026-10-13).
 
 Colour has four meanings and no others: green, the command did what was asked (`ok`, `done`,
 `passed`); yellow, it stopped short or cannot say (`stopped`, `refused`, `note:`); red, an
@@ -8,7 +8,7 @@ neither good nor bad (`plan`) is bold with no colour, and a number is never colo
 terminal's sixteen named colours, bold and dim are used, so the user's theme decides the shades.
 A command printed for the user to copy is never hard-wrapped.  Questions and progress stay on
 stderr, and a live display is removed when the work ends.  A table too wide for the terminal
-moves a unit every cell repeats into its header, with nothing dropped (the look's item 27).
+moves a unit every cell repeats into its header, with nothing dropped.
 
 `poisson_tasks.cli.main` makes this renderer only when the switch allows it (stdout and stderr
 both terminals, `NO_COLOR` unset or empty, `CI` unset, `TERM` not `dumb`, a UTF-8 stdout, and
@@ -481,7 +481,7 @@ def _natural_width(table: Table, width: int) -> int:
 def levels_table(cells: Sequence[Mapping[str, Any]], *, width: int) -> Any:
     """The card's levels for a terminal `width` columns wide.  When the table with its units in
     every cell (`10 tasks × 1 attempt`) would be wider than the terminal, the units move into the
-    header (`tasks × attempts`) and the figures stay (the look's item 27); when even that is
+    header (`tasks × attempts`) and the figures stay; when even that is
     wider, the levels are printed as the plain style prints them, one wrapped line each, so
     nothing is cut."""
     table = _levels_table(cells, units_in_cells=True)
@@ -508,7 +508,7 @@ def levels_table(cells: Sequence[Mapping[str, Any]], *, width: int) -> Any:
 class _Progress:
     """One bar per arm and one summary line, drawn on stderr and removed when the run ends, so
     what stays on screen is the plan and then the verdict.  Each arm's passes are counted from
-    its `traces.jsonl` as lines are appended (the look's item 20)."""
+    its `traces.jsonl` as lines are appended."""
 
     def __init__(self, ui: Pretty, *, total: int, arms: Sequence[tuple[str, int, int]],
                  folder: str) -> None:

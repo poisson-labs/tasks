@@ -173,7 +173,7 @@ def _add_setting_flags(parser: Parser) -> None:
 
 
 def _common(parser: Parser, *, top: bool) -> None:
-    """The flags every verb takes, before or after the verb (spec §4.0).  On a verb they are
+    """The flags every verb takes, before or after the verb.  On a verb they are
     set only when given, so a value given before the verb survives."""
     default: Any = None if top else argparse.SUPPRESS
     parser.add_argument("--config", metavar="PATH", default=default,

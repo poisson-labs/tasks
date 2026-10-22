@@ -1,4 +1,4 @@
-"""`verify`: judge an answer with the task's own verifier, with no model (spec §4.5).
+"""`verify`: judge an answer with the task's own verifier, with no model.
 
 `--self-check` checks the task's own answers: the reference solution passes under both
 strictnesses and each wrong answer the task ships with earns the outcome it is named for.

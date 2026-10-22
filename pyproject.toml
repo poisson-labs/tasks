@@ -30,7 +30,7 @@ classifiers = [
 #
 # Rich draws the command's output on a terminal, questionary draws init's menus, and
 # prompt_toolkit reads the guided session's prompt; all three are ordinary dependencies, not an
-# extra (ruled 2026-10-13 and 2026-10-20). The floors were measured, not guessed: the pretty
+# extra (decided 2026-10-13 and 2026-10-20). The floors were measured, not guessed: the pretty
 # style's tests pass on Rich 11.0.0, the lowest version verifiers itself allows, and on 12.0.0,
 # 12.6.0, 13.0.0, 13.4.2, 13.9.4, 14.0.0 and 15.0.0, but Rich draws a Markdown table as a table
 # only from 13.4.2 (11.0.0 to 13.3.0 print the pipes as text), which the session's card view
@@ -107,7 +107,7 @@ Issues = "https://github.com/poisson-labs/tasks/issues"
 
 [tool.hatch.build.targets.wheel]
 # `poisson_tasks_own` is the own-tools taskset's top-level module: verifiers 0.3.1 finds a
-# taskset by a top-level module only (ruled 2026-10-13, O2 Session A's yes/no 1).
+# taskset by a top-level module only (decided 2026-10-13).
 packages = ["src/poisson_tasks", "src/poisson_tasks_own"]
 # The encoding file is fetched after installation, never shipped: see NOTICE.
 exclude = ["data/*.tiktoken"]

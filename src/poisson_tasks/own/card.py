@@ -1,17 +1,16 @@
 """The card on a user's own tools: its first lines, beside a published card, each level against
-the first, the knob probe's statuses beside that table, and the set's own near-duplicates (spec
-§6.3 as ruled, §9).
+the first, the knob probe's statuses beside that table, and the set's own near-duplicates.
 
 An own-tools card is never pooled with a published card: `beside_published` prints the two
 documents whole under the line `DIFFERENT_TASKS`, and refuses a published card of another
-model.  On own tools each knob is read against its first level (knobs spec §11.2), every knob
-on strict pass@1 (yes/no 29: a user's write has no stage past its goal, so there is no
+model.  On own tools each knob is read against its first level, every knob on strict pass@1
+(a user's write has no stage past its goal, so there is no
 overshoot and what leaky accepts is collateral); a pair saturated on the same side is excluded,
 with no delta.  A knob "made your tasks harder" when a level is called different from the first
-under the two-clause rule with a lower rate (yes/no 30).  The near-duplicate census reports the
+under the two-clause rule with a lower rate.  The near-duplicate census reports the
 closest pair of names by edit distance over the longer length and the closest pair of
-descriptions by one less the share of words in common, descriptively (yes/no 31).  Every knob
-stays available on own tools (Taylor's ruling of 2026-10-13 23:26): each carries its measured
+descriptions by one less the share of words in common, descriptively.  Every knob stays
+available on own tools (decided 2026-10-13 23:26): each carries its measured
 status on each probe model, read only from `arms.knob_status()` (`probe_statuses`), and the card
 states it beside its own per-set table with `PROBE_SENTENCE`, which says the statuses come from
 the built-in tasks on two models while the table is measured on the user's own tools.
@@ -78,7 +77,7 @@ class AgainstFirst:
 
 
 def first_lines(tools: _Mapping[str, _Any]) -> str:
-    """Spec §9's first lines, from the own-tools provenance kind."""
+    """The own-tools card's first lines, from the own-tools provenance kind."""
     count = int(tools["tools"])
     words = _FORMAT_WORDS.get(str(tools["source_format"]), "a tool file")
     return (

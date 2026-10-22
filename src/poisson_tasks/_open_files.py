@@ -1,4 +1,4 @@
-"""Room for the files a run holds open, made at the run's start (ruled 2026-10-15).
+"""Room for the files a run holds open, made at the run's start (decided 2026-10-15).
 
 A run holds files open in proportion to the episodes it has in flight: each episode's harness
 program and tool server are processes of their own, read through pipes, and its model calls and

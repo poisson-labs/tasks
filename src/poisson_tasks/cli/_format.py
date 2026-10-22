@@ -26,7 +26,7 @@ def _significant(value: float, digits: int) -> float:
 
 def dollars(value: float) -> str:
     """A measured amount: `$1.00`, or two significant digits below $0.10 (`$0.021`, `$0.0052`),
-    the look's item 13."""
+    the same in every verb."""
     if value <= 0:
         return "$0.00"
     if value >= 0.0995:

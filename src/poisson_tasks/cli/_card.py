@@ -1,4 +1,4 @@
-"""`card`: what each level was worth, from a run (spec §4.4 and §9).
+"""`card`: what each level was worth, from a run.
 
 From a run folder (by default the settings file's newest run) it builds the card through the
 library and writes `card/`: the records, the artifact, the document and the instrument tallies,
@@ -9,7 +9,7 @@ here.  `--published` recomputes the cards shipped with the package, named by the
 `--page` writes the one page for every published card.  A card on the user's own tools (its
 provenance carries the own-tools kind) is put beside the published card of the same model through
 `own.card.beside_published`, the two documents whole under the line that says the tasks differ,
-and nothing is pooled (own-tools spec §9).
+and nothing is pooled.
 """
 
 from __future__ import annotations
@@ -259,7 +259,7 @@ def _run_card(ctx: Context) -> Result:
         document.append(Part("beside the published cards", kind, side_by_side))
     # The comparison is named only where it works.  The published cards were measured by an earlier
     # build of the generator, so a card on the built-in tasks is refused beside them in this
-    # release (FD5 Session B's item 6); a card on your own tools stands beside the published card
+    # release; a card on your own tools stands beside the published card
     # of its model, and is refused in one line when no published card measured that model.
     return Result(
         schema=SCHEMA, verdict="ok", sentence=sentence, rows=rows, document=document,
@@ -349,8 +349,8 @@ def _published_measured(artifact: Any) -> bool:
 
 
 def _own_beside_published(artifact: Any) -> str:
-    """An own-tools card beside the published card of its model, each whole, nothing pooled
-    (own-tools spec §9); a refusal in one line when no published card measured that model."""
+    """An own-tools card beside the published card of its model, each whole, nothing pooled;
+    a refusal in one line when no published card measured that model."""
     from poisson_tasks.own import card as own_card
 
     reasons = []
@@ -380,7 +380,7 @@ def _note_in(document: str) -> str | None:
 
 def _depth_note(document: str, cells: list[dict[str, Any]]) -> str | None:
     """The published cards' own note on depth when the card's depth arms include the ladder's
-    top level (the look's item 19): at the top level strict cannot fail by overshooting, so
+    top level: at the top level strict cannot fail by overshooting, so
     depth is read on leaky.  Taken from the card's own document when it carries the note (a
     card with the whole axis), else from the published card's document, which a card with
     fewer levels does not render; never typed here."""

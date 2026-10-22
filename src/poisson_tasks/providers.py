@@ -71,7 +71,7 @@ __all__ = [
     "fetch_tokenizer",
 ]
 
-# The six outcomes of a key check (spec §7.3).
+# The six outcomes of a key check.
 NOT_SET = "not set"
 ACCEPTED = "accepted"
 REFUSED = "refused"

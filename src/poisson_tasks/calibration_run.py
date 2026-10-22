@@ -1830,7 +1830,7 @@ def _fetch_wheel(pin: ServePin, wheel: _pathlib.Path) -> None:
 
 def cmd_install_vllm(venv: _pathlib.Path, *, dry_run: bool, pin: ServePin = QWEN3_8B) -> int:
     """The pinned vLLM in a virtualenv of its own, so its pins cannot collide with the
-    wheel's or the notebook's (spec 2.5): the release's wheel, checked against its sha256
+    wheel's or the notebook's: the release's wheel, checked against its sha256
     before it is installed, with the PyTorch build for the same CUDA.
 
     Run again, it keeps a finished install and never repeats it; the check still runs, and

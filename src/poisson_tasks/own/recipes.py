@@ -1,18 +1,17 @@
 """What is offered on a user's own tools: every knob the set reaches, the knobs that shipped
-leading the recipes (spec §6.3 as ruled, §8.1; knobs spec §17.4).
+leading the recipes.
 
-Every knob stays available on own tools in launch one (Taylor's ruling of 2026-10-13 23:26, which
-withdrew §6.3's sentence that a knob which did not ship is not offered): `offered_knobs` is every
-knob of spec §6.1 the set reaches a level of, within the set's limits, whatever `arms.SHIPPED_KNOBS`
-holds.  The recipes still lead with the knobs that shipped: `shipped_knobs` is the offered knobs
-that are depth, which the published cards measured and needs no probe, or in the shipped list,
-read from `arms.SHIPPED_KNOBS` at call time when the caller gives none.  A recipe is offered when
-one of its knobs is in that lead, and runs the arms of those knobs only, each knob's levels chosen
-as the built-in recipe chooses them (every level, the first and last, or the first, middle and
-last) over the levels this set reaches (yes/no 18); `card`, the published design, is never offered
-on own tools (yes/no 19).  The default recipe is `tool-choice` when it is offered, else the first
-offered in the table's order, else none (yes/no 20).  `tests/test_o2_knobs.py` and
-`tests/test_o2c_every_knob.py` pin this.
+Every knob stays available on own tools in launch one (decided 2026-10-13 23:26, which withdrew the
+earlier design's rule that a knob which did not ship is not offered): `offered_knobs` is every knob
+the set reaches a level of, within the set's limits, whatever `arms.SHIPPED_KNOBS` holds.  The
+recipes still lead with the knobs that shipped: `shipped_knobs` is the offered knobs that are depth,
+which the published cards measured and needs no probe, or in the shipped list, read from
+`arms.SHIPPED_KNOBS` at call time when the caller gives none.  A recipe is offered when one of its
+knobs is in that lead, and runs the arms of those knobs only, each knob's levels chosen as the
+built-in recipe chooses them (every level, the first and last, or the first, middle and last) over
+the levels this set reaches; `card`, the published design, is never offered on own tools.  The
+default recipe is `tool-choice` when it is offered, else the first offered in the table's order,
+else none.  `tests/test_o2_knobs.py` and `tests/test_o2c_every_knob.py` pin this.
 """
 
 from __future__ import annotations
@@ -40,8 +39,8 @@ def _shipped(shipped: _Sequence[str] | None) -> tuple[str, ...]:
 
 def offered_knobs(toolset: _Any, *, flows: _Sequence[_Any] = (),
                   shipped: _Sequence[str] | None = None) -> tuple[str, ...]:
-    """The knobs offered on this set: every knob it reaches a level of, in spec §6.1's order.
-    `shipped` is taken for the callers that pass it and narrows nothing (ruled 2026-10-13
+    """The knobs offered on this set: every knob it reaches a level of, in the knobs' order.
+    `shipped` is taken for the callers that pass it and narrows nothing (decided 2026-10-13
     23:26); what shipped leads the recipes, `shipped_knobs`."""
     del shipped
     return tuple(

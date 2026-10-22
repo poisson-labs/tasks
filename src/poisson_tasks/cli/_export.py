@@ -1,4 +1,4 @@
-"""`export`: write the configs another runner reads (spec §4.6 and §8.9).
+"""`export`: write the configs another runner reads.
 
 One target: `--to verifiers`, one eval config per arm, each the one `run` uses for that arm,
 written as JSON (TOML cannot carry a plain arm's missing control arm), and the command that

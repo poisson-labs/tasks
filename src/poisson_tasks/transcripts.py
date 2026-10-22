@@ -1,7 +1,7 @@
 """An agent's attempt at a task, read from a file into the turns the verifier judges.
 
 `poisson-tasks verify --transcript FILE` takes one attempt in one of three forms, told apart by
-shape and refused when ambiguous (spec §4.5):
+shape and refused when ambiguous:
 
 - **OpenAI chat messages**: a JSON list of messages with roles, the assistant's carrying
   `tool_calls` and each tool's reply carrying `tool_call_id`.  The sampled calls are ordered as

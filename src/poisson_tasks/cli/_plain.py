@@ -1,5 +1,5 @@
 """The plain style: text only, no escape sequence, standard library only.  The contract the
-tests and the docs pin (rule L16, ruled 2026-10-13).
+tests and the docs pin (rule L16, decided 2026-10-13).
 
 It falls back to ASCII when a stream cannot encode the glyphs (`·`, `–`, `×`).  Writing to a
 terminal, it wraps its own long lines at the terminal's width with a hanging indent, never
@@ -31,7 +31,7 @@ STATUS_WORDS = {"ok": "ok", "bad": "not ok", "note": "note", "refused": "refused
 """`doctor`'s row words (G14): a check that passed, information, a tool not used, a check that
 failed."""
 COMMAND_WIDTH = 78
-"""Where a command to copy is broken before a flag, in every style (the look's item 24)."""
+"""Where a command to copy is broken before a flag, in every style."""
 
 
 def encodable(stream: Any) -> bool:
@@ -71,8 +71,7 @@ def continued_command(
 
 
 class _Progress:
-    """One line rewritten in place on a terminal, and a new line at each tenth otherwise
-    (spec §8.3)."""
+    """One line rewritten in place on a terminal, and a new line at each tenth otherwise."""
 
     def __init__(self, ui: PlainUI, total: int) -> None:
         self.ui = ui
@@ -309,7 +308,7 @@ class PlainUI:
         validate: Callable[[str], str | None] | None = None,
     ) -> str:
         """Ask for a line.  `shown` is the bracketed default when it differs from the value; a
-        hint goes above the answer line (the look's item 10)."""
+        hint goes above the answer line."""
         bracket = f"[{shown if shown is not None else default}] " if default is not None else ""
         self.err()
         head = f"{number}. {question}" if number is not None else f"   {question}"

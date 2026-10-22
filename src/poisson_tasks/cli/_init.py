@@ -1,4 +1,4 @@
-"""`init`: the guided setup (spec §4.1, §6 and §7.3).
+"""`init`: the guided setup.
 
 Fetches the tokenizer file first if it is missing (with consent), asks the questions in plain
 words, one at a time, each with its default in brackets, writes the settings file once and
@@ -8,7 +8,7 @@ time from stdin.  Every answer becomes one of the library's own flags, so the fi
 `config.config_from_init_args` writes for them, and a flag the library refuses is refused in
 its words, exit 2.
 
-**Your own tools** (own-tools spec §8.1, amended by spec §16.11's G7): the first question asks
+**Your own tools** (changed with the guided session): the first question asks
 what to test, a model on the built-in tasks or on your own tools; your own tools then asks for
 the file before any recipe, and the built-in recipes' menu has no own-tools entry.  Questions
 are numbered as asked, 1 to n.
@@ -75,7 +75,7 @@ KNOBS = (
 
 def _measures() -> list[tuple[str, str, str]]:
     """Question 6's entries: the recipes offered on the built-in tasks in `arms.RECIPES`' order,
-    then own tools, then choosing the knob yourself (own-tools spec §8.1, knobs spec §17.4)."""
+    then own tools, then choosing the knob yourself."""
     fixed = {name: (label, note) for name, label, note in MEASURES}
     out: list[tuple[str, str, str]] = []
     for name, recipe in arms.RECIPES.items():
@@ -179,7 +179,7 @@ def init(ctx: Context) -> Result:
             settings, found, check, own_setup = _dialogue(ctx, settings, present)
         elif args.mcp_command is not None or _given(settings, "--own-file") is not None:
             # --yes on your own tools: the file (or the listed server) read and summarised,
-            # the set's default recipe when none is given (own-tools spec §8.1 as ruled)
+            # the set's default recipe when none is given
             if args.mcp_command is not None:
                 settings = _list_server(ctx, settings, consent=True)
             own_setup = _read_own(ctx, settings)
@@ -292,7 +292,7 @@ def _key_words(made: Any, found: Any, check: bool | None) -> str:
 
 
 # ---------------------------------------------------------------------------
-# the dialogue (spec §6.1)
+# the dialogue
 # ---------------------------------------------------------------------------
 
 
@@ -512,7 +512,7 @@ def _dialogue(
 
 
 # ---------------------------------------------------------------------------
-# your own tools (own-tools spec §8.1)
+# your own tools
 # ---------------------------------------------------------------------------
 
 
@@ -571,8 +571,8 @@ def _read_own(ctx: Context, settings: list[tuple[str, str | None]]) -> _OwnSetup
 
 
 def _say_summary(ctx: Context, setup: _OwnSetup) -> None:
-    """One summary line, then each refusal (own-tools spec §8.1), and the sentence on depth
-    and shape when no flow is declared (§6.2)."""
+    """One summary line, then each refusal, and the sentence on depth and shape when no flow
+    is declared."""
     from poisson_tasks.own.generator import UNAVAILABLE_WITHOUT_FLOWS
 
     ui = ctx.ui
@@ -596,7 +596,7 @@ def _list_server(
 ) -> list[tuple[str, str | None]]:
     """Start the MCP server `--mcp-command` names, once, to list its tools into
     `tools.mcp.json` beside the settings file, and point `--own-file` at that file; the
-    command is kept nowhere (ruled 2026-10-13, yes/nos 25 and 26)."""
+    command is kept nowhere (decided 2026-10-13)."""
     from poisson_tasks import own
 
     command = str(ctx.args.mcp_command)
@@ -630,8 +630,8 @@ def json_tools(listed: bytes) -> list[Any]:
 
 
 def _default_recipe(setup: _OwnSetup) -> str:
-    """The set's default recipe, or a refusal in one line naming what is missing (ruled
-    2026-10-13, yes/nos 20 and 21, narrowed 2026-10-13 23:26)."""
+    """The set's default recipe, or a refusal in one line naming what is missing (decided
+    2026-10-13, narrowed at 23:26 that day)."""
     from poisson_tasks.own import recipes
 
     found = recipes.default_recipe(setup.toolset, flows=setup.flows)
@@ -711,7 +711,7 @@ def _own_dialogue(
     setup = _read_own(ctx, answers)
     _say_summary(ctx, setup)
 
-    # the tools of unknown effect, one question each, in the file's order (yes/no 24)
+    # the tools of unknown effect, one question each, in the file's order
     declared = set(_every(answers, "--own-read")) | set(_every(answers, "--own-write"))
     for tool in setup.unknown:
         if tool in declared:
