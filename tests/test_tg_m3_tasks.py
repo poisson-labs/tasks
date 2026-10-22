@@ -650,7 +650,7 @@ def test_sf8_generation_imports_no_network_no_model_and_no_verifiers():
     assert "proofload" not in source.lower()
     assert {"poisson_tasks"} & seen or any(
         n.startswith("poisson_tasks") for n in seen
-    ), "TG-M3 reaches TG-M1 and TG-M2 by import, and mints neither's literals"
+    ), "tasks.py reaches engine.py and knobs.py by import, and mints neither's literals"
 
 
 def test_sf9_tg_m1_and_tg_m2_literals_are_cited_and_not_re_minted():
@@ -669,7 +669,7 @@ def test_sf9_tg_m1_and_tg_m2_literals_are_cited_and_not_re_minted():
             for const in ast.walk(node.value) if node.value is not None else ():
                 if isinstance(const, ast.Constant) and isinstance(const.value, int):
                     minted.add(const.value)
-    assert L_OBS not in minted, f"L_obs ({L_OBS}) is TG-M1's; cite it, do not re-mint it"
+    assert L_OBS not in minted, f"L_obs ({L_OBS}) is engine.py's; cite it, do not re-mint it"
     assert BAND_LO not in minted and BAND_HI not in minted
     assert DEPTH_LEVELS[-1] not in minted or "levels" in source
 

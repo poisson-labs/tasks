@@ -86,8 +86,8 @@ def frozen(what: str) -> str:
     """The one message: what moved, that the generator is frozen, and what a deliberate change
     must update."""
     return (
-        f"{what}: the built-in generator is frozen at {FROZEN_GENERATOR_HASH} (K8, 2026-10-09; "
-        "spec Knobs §12.2).  A change to tasks.py, surface.py or knobs.py is a ruling, and a "
+        f"{what}: the built-in generator is frozen at {FROZEN_GENERATOR_HASH} (since "
+        "2026-10-09).  A change to tasks.py, surface.py or knobs.py needs a decision, and a "
         "deliberate one updates FROZEN_GENERATOR_HASH in tests/test_frozen_generator.py, "
         "calibration_run.EXPECTED_GENERATOR_HASH, and the content digests of every knob whose "
         "tasks it moves, in the kept file that holds them (tests/test_k4_kept.py to "

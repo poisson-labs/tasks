@@ -183,7 +183,7 @@ def plain(value: object) -> object:
 def test_the_own_tools_generator_hash_is_the_recorded_one() -> None:
     assert generator().generator_hash() == OWN_GENERATOR_HASH, (
         "the own-tools generator's hash moved: a hashed module changed; record the new hash here"
-        " and in the session's record, with the digests of the tasks that moved"
+        " and in the change's record, with the digests of the tasks that moved"
     )
 
 
