@@ -2,6 +2,10 @@
 
 This page is for working on the package itself: cloning it, running its tests, and the few rules the repository keeps. If you only want to use it, [the README](README.md) is the page for that.
 
+## How to help
+
+Anyone can open an [issue](https://github.com/poisson-labs/tasks/issues): a bug, a question or an idea. Pull requests come from invited collaborators. To help, open an issue first.
+
 ## Set up a checkout
 
 Python 3.11 to 3.13 on macOS or Linux. From a clone:

@@ -196,6 +196,8 @@ Not claimed:
 
 ## Contributing
 
+Anyone can open an [issue](https://github.com/poisson-labs/tasks/issues). Pull requests come from invited collaborators; to help, open an issue first.
+
 [CONTRIBUTING.md](https://github.com/poisson-labs/tasks/blob/main/CONTRIBUTING.md) covers setting up a checkout, the tests and the rules the repository keeps. The changes are in [CHANGELOG.md](https://github.com/poisson-labs/tasks/blob/main/CHANGELOG.md), and the third-party material is itemised in [NOTICE](https://github.com/poisson-labs/tasks/blob/main/NOTICE).
 
 ## Citation
