@@ -1,19 +1,19 @@
-"""Pending a yes/no: what `run` prints when every episode ran and some failed.
+"""Pending a decision: what `run` prints when every episode ran and some failed.
 
-FD3 Session A's yes/no 2, ruled yes 2026-10-05: such a run ends `done`, exit 0, and its folder is
-resumed, not complete (pinned in `tests/test_fd5_run.py`).  Spec §8.7 leaves the line to FD5 ("what
-the done line says for it … is FD5's") and gives, for a run with nothing owed, `done  30 of 30
-episodes, $0.021 spent` and `next: poisson-tasks card`.  Read beside a run that owes episodes, that
-line says every episode was kept, which is not so: the spec's example is right only when nothing
-is owed.
+Decided yes 2026-10-05: such a run ends `done`, exit 0, and its folder is resumed, not complete
+(pinned in `tests/test_fd5_run.py`).  The design leaves the line to the command ("what the done line
+says for it … is the command's") and gives, for a run with nothing owed,
+`done  30 of 30 episodes, $0.021 spent` and `next: poisson-tasks card`.  Read beside a run that owes
+episodes, that line says every episode was kept, which is not so: the design's example is right only
+when nothing is owed.
 
-**Recommended yes:** the done line of a run that owes episodes says how many of the plan's
+**Recommended:** the done line of a run that owes episodes says how many of the plan's
 episodes were kept, out of how many, and how many failed and are owed again
 (`done  29 of 30 episodes kept; 1 failed and is owed again, $0.021 spent`); it never says `N of N`
 then; and its first `next:` command is the run again, which runs only the owed ones.  A card can
 still be made (it is partial).
 
-**A no** drops this file's commit; the done line is then the build's choice.
+**If it is declined**, this file's commit is dropped; the done line is then the build's choice.
 """
 
 from __future__ import annotations

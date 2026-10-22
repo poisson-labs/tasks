@@ -1,28 +1,25 @@
 """What the command does in a fresh interpreter, frozen as tests.
 
-The invariants are FD5.1's second half, FD5.8's question order, FD5.10, FD5.11, FD5.12, FD5.17's
-fetch and FD5.21 of the front door's plan (spec §1.2 items 8 and 15, §3, §4.1, §4.7, §6.1, §8.1,
-rules L4 and L16):
-- **FD5.1** in a fresh interpreter, every verb's `--help`, the top-level help and `--version`
+The invariants, with rules L4 and L16:
+- in a fresh interpreter, every verb's `--help`, the top-level help and `--version`
   import no `verifiers`, open no socket, and work without the tokenizer file;
-- **FD5.21** with the tokenizer file absent, every command that needs it prints one `error:` line
+- with the tokenizer file absent, every command that needs it prints one `error:` line
   and a `next:` line, `<prog> doctor --fix`, exit 1, with no traceback; `init` still works, up to
   its fetch, and `doctor` says it is not ready, naming the file and the fix;
-- **FD5.8** the tokenizer question comes first, and in a pseudo-terminal the questions' order and
-  defaults are spec §6.1's; with the file fetched first, the cap's default is made from the plan's
-  estimate;
-- **FD5.17** `doctor --fix` fetches the tokenizer file and changes nothing else; a package folder
+- the tokenizer question comes first, and in a pseudo-terminal the questions' order and defaults are
+  the dialogue's; with the file fetched first, the cap's default is made from the plan's estimate;
+- `doctor --fix` fetches the tokenizer file and changes nothing else; a package folder
   the user cannot write is said, naming the file, with no traceback, by `doctor --fix` and by
   `init`;
-- **FD5.10** a library call that raises `RuntimeError` gives one line naming a log file that holds
+- a library call that raises `RuntimeError` gives one line naming a log file that holds
   the traceback, exit 3; `--debug` prints the traceback too;
-- **FD5.11** a closed stdout pipe, and `PYTHONIOENCODING=ascii`, give no traceback;
-- **FD5.12** `python -m poisson_tasks` gives the same stdout and exit code as the console script,
+- a closed stdout pipe, and `PYTHONIOENCODING=ascii`, give no traceback;
+- `python -m poisson_tasks` gives the same stdout and exit code as the console script,
   over a corpus.
 
-A copy of the package without its tokenizer file is put first on `PYTHONPATH` (FD2's way): the
-copy's `poisson_tasks` is the one imported.  A fetch never leaves the machine: the child serves
-this checkout's file in place of `tiktoken`'s download (`tests/fd5_child.py`).
+A copy of the package without its tokenizer file is put first on `PYTHONPATH` (as the `test_fd2_*`
+tests do): the copy's `poisson_tasks` is the one imported.  A fetch never leaves the machine: the
+child serves this checkout's file in place of `tiktoken`'s download (`tests/fd5_child.py`).
 
 Shapes decided here
 -------------------
@@ -30,7 +27,7 @@ Shapes decided here
 **1. The console script** is what pip writes for `poisson-tasks = "poisson_tasks.cli:main"`:
 `sys.argv[0]` the script's path, then `sys.exit(main())`.  So `main()` with no prog names the
 command as `python -m poisson_tasks` does.  Whether the `[project.scripts]` line lands with the
-command or with the packaging module is a yes/no; this test writes the wrapper itself.
+command or with the packaging module was left to a decision; this test writes the wrapper itself.
 
 **2. An unexpected failure's log** is a file the `error:` line names by its path; where it is
 kept is the build's.
@@ -94,7 +91,7 @@ def test_fd5_1_help_imports_no_verifiers_opens_no_socket_and_needs_no_tokenizer(
 
 
 # ---------------------------------------------------------------------------
-# FD5.21 no tokenizer
+# no tokenizer
 # ---------------------------------------------------------------------------
 
 
@@ -234,7 +231,7 @@ def test_fd5_17_a_package_folder_the_user_cannot_write_is_said_naming_the_file(
 
 
 # ---------------------------------------------------------------------------
-# FD5.8 the questions in a pseudo-terminal
+# the questions in a pseudo-terminal
 # ---------------------------------------------------------------------------
 
 
@@ -314,7 +311,7 @@ def test_fd5_8_in_a_terminal_the_questions_come_in_spec_6_1s_order_with_its_defa
     found = defaults(transcript)
     expected: list[Callable[[str], bool]] = [
         lambda d: d.lower() == "y/n",
-        lambda d: d == "1",  # G7 (FD9 Session A): built-in tasks or your own tools
+        lambda d: d == "1",  # added with the guided session: built-in tasks or your own tools
         lambda d: d == "1",
         lambda d: d == "gpt-5-nano-2025-08-07",
         lambda d: d == "OPENAI_API_KEY",
@@ -331,7 +328,7 @@ def test_fd5_8_in_a_terminal_the_questions_come_in_spec_6_1s_order_with_its_defa
 
 
 # ---------------------------------------------------------------------------
-# FD5.10 an unexpected failure
+# an unexpected failure
 # ---------------------------------------------------------------------------
 
 FAILING = {
@@ -387,7 +384,7 @@ def test_fd5_10_an_unexpected_failure_is_one_line_naming_a_log_and_exit_3(
 
 
 # ---------------------------------------------------------------------------
-# FD5.11 pipes and encodings
+# pipes and encodings
 # ---------------------------------------------------------------------------
 
 PIPED = [["--help"], ["doctor", "--offline"],
@@ -435,7 +432,7 @@ def test_fd5_11_an_ascii_only_stdout_gives_no_traceback_and_the_same_verdict(
 
 
 # ---------------------------------------------------------------------------
-# FD5.12 python -m is the console script
+# python -m is the console script
 # ---------------------------------------------------------------------------
 
 CORPUS = [["--help"], ["--version"], ["nope"], ["doctor", "--offline"],
@@ -482,8 +479,8 @@ def test_fd5_12_python_m_gives_the_console_scripts_stdout_and_exit_code(
 def test_fd5_18_a_published_card_that_no_longer_rebuilds_is_a_check_not_passed(
     prog: str, world: World, tmp_path: Path
 ) -> None:
-    """`card --published` recomputes each published card byte for byte (spec §4.4): one byte
-    changed in one card's `artifact.json` makes that check fail, exit 4 (spec §11.2: a check you
+    """`card --published` recomputes each published card byte for byte: one byte
+    changed in one card's `artifact.json` makes that check fail, exit 4 (a check you
     asked for did not pass); the other card, named alone, still passes."""
     from tests.fd5_support import cards
 
@@ -509,7 +506,7 @@ def test_fd5_18_a_published_card_that_no_longer_rebuilds_is_a_check_not_passed(
 def test_fd5_19_an_install_without_the_cards_shows_the_plan_and_says_why_no_estimate(
     prog: str, world: World, tmp_path: Path
 ) -> None:
-    """Ruled yes 2026-10-05 (FD3 Session A's yes/no 5): until the cards ship in the package, an
+    """Decided yes 2026-10-05: until the cards ship in the package, an
     install without them refuses the estimate in one line that says so; the plan is still
     shown."""
     root = package_copy(tmp_path / "copy", tokenizer=True)
@@ -525,8 +522,8 @@ def test_fd5_19_an_install_without_the_cards_shows_the_plan_and_says_why_no_esti
 def test_fd5_18_card_help_lists_the_published_cards_without_the_tokenizer(
     prog: str, world: World, tmp_path: Path
 ) -> None:
-    """FD5.1 and FD5.18 together: in an install with the published cards and no tokenizer file,
-    `card --help` lists every card's name, importing no `verifiers`."""
+    """The fresh interpreter and `card` together: in an install with the published cards and no
+    tokenizer file, `card --help` lists every card's name, importing no `verifiers`."""
     from tests.fd5_support import cards
 
     root = package_copy(tmp_path / "copy", cards=True)

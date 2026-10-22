@@ -1,18 +1,17 @@
 """`doctor`, frozen as tests.
 
-The invariant is FD5.17 of the front door's plan (spec §4.7 and §5.4; ruled 2026-10-04, FD2
-Session A's yes/no 3, which brings `fetch_tokenizer` here).  What needs a copy of the package
-(the tokenizer missing, `--fix`, a site-packages the user cannot write) is in
+The invariant is `doctor`'s (decided 2026-10-04, which brings `fetch_tokenizer` here).  What needs a
+copy of the package (the tokenizer missing, `--fix`, a site-packages the user cannot write) is in
 `tests/test_fd5_fresh.py`.
 - exit 0 when the environment is ready, verdict `ok`; exit 4 when it is not, verdict `not ready`,
   with the failing line naming what failed;
 - `--offline` opens no socket; without it, the key is checked with one free request and its line
   is the library's;
 - `--show-command` prints the `init --yes …` command that writes the settings file
-  (`config.equivalent_init_command`, FD1.10), and refuses, with the library's text, a file no
+  (`config.equivalent_init_command`), and refuses, with the library's text, a file no
   init command writes;
 - the `package` line names the folder the package was imported from, and a `note:` line warns
-  when that folder is outside the running environment (spec §4.7, F1's case; rule L4: a warning
+  when that folder is outside the running environment (rule L4: a warning
   is `note:`);
 - `fetch_tokenizer` returns the tokenizer file's path, and with the file in place fetches nothing.
 
@@ -21,7 +20,7 @@ Shapes decided here
 
 **1. A settings file `--config` names that is not there is refused**, exit 1.  What `doctor`
 says with no settings file at all is `tests/test_fd5_pending_doctor_without_config.py`'s, pending
-a yes/no.
+a decision.
 """
 
 from __future__ import annotations

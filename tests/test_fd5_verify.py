@@ -1,6 +1,6 @@
 """`verify`, frozen as tests.
 
-The invariant is FD5.15 of the front door's plan (spec §4.5, ruled 2026-10-03 on naming tasks):
+The invariant is `verify`'s (decided 2026-10-03 on naming tasks):
 - **one attempt, three forms, one verdict**: an agent's attempt given as OpenAI chat messages, as
   one row of a verifiers `traces.jsonl`, or as Tasks' own turns gives one verdict, the task's own
   verifier's; a file that could be read as two forms is refused, and so is one in none;
@@ -9,7 +9,7 @@ The invariant is FD5.15 of the front door's plan (spec §4.5, ruled 2026-10-03 o
 - **exit 4 follows a verdict that is not `passed`**, and the verdict word is the outcome label;
 - **a task is named by its arm and its place in the plan**, `verify --arm depth:d3 --task 7`, and
   by `--seed` only for a seed the user chose; every line that names a task says both;
-- the verdict's sentence is the library's (`outcomes.describe`, FD4.11), never typed in the
+- the verdict's sentence is the library's (`outcomes.describe`), never typed in the
   command, and `--hit-turn-limit` says the attempt was cut off when its form cannot say.
 
 The attempts are real: the fixture model plays a task's reference policy, and plays it one stage
@@ -23,7 +23,7 @@ Shapes decided here
 file's `seeds = [404, 55, 2121]` makes `--task 2` seed 55), and otherwise the published cards'
 sixty seeds.  `--tasks FILE` (a file `generate` wrote) counts in the file.
 
-**2. A refused transcript is exit 1** (spec §4.5: "a transcript in none of the three forms: exit 1,
+**2. A refused transcript is exit 1** (the design: "a transcript in none of the three forms: exit 1,
 naming the form expected"), one `error:` line.
 """
 

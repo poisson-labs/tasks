@@ -1,27 +1,27 @@
 """The pretty style and what it may not change, frozen as tests before it is built.
 
-Ruled 2026-10-13 (`evidence/cli-look-mockups/yes-nos.md`, every item yes): the pretty style is the
-standard look, drawn with Rich, with questionary for `init`'s two menus; the plain style is the
-contract every other FD5 test pins, and rule L16 is replaced.  Tasks' part only.
-- **L16, the conformance test** (§11.4): each invocation of a corpus is run both ways.  Piped,
+Decided 2026-10-13, for every part of the look: the pretty style is the standard look, drawn with
+Rich, with questionary for `init`'s two menus; the plain style is the contract every other
+`test_fd5_*` test pins, and rule L16 is replaced.  Tasks' part only.
+- **L16, the conformance test**: each invocation of a corpus is run both ways.  Piped,
   the pretty build equals the plain build byte for byte.  In a pseudo-terminal, with escape
   sequences removed, the first line carries the same verdict word and sentence, and the exit
   code matches.  `--json` is identical.
-- **Item 6, one switch, two states**: pretty runs only when stdout and stderr are both
+- **One switch, two states**: pretty runs only when stdout and stderr are both
   terminals, `NO_COLOR` is unset or empty, `CI` is unset, `TERM` is not `dumb`, stdout is UTF-8,
-  and neither `--json` nor **`--plain` (item 7)** was given; otherwise plain runs, byte for byte.
+  and neither `--json` nor **`--plain`** was given; otherwise plain runs, byte for byte.
   `NO_COLOR` turns off the whole pretty style, not only its colour.
-- **Item 2**: plain wraps its own long lines at the terminal's width, with a hanging indent, when
-  it is writing to a terminal, and never inside a question's bracketed default; piped output
-  stays one line per fact.
-- **Item 4**: `init`'s two menus are questionary's in the pretty style, and the file they write
-  is the one `init --yes` writes.
+- **Plain wraps on a terminal**: plain wraps its own long lines at the terminal's width, with a
+  hanging indent, when it is writing to a terminal, and never inside a question's bracketed default;
+  piped output stays one line per fact.
+- **questionary draws the menus**: `init`'s two menus are questionary's in the pretty style, and the
+  file they write is the one `init --yes` writes.
 - **L16's colours**: green for `ok`, `done` and `passed`; yellow for `stopped`, `refused` and
   `note:`; red for `error:` and `not ready`; a neutral verdict bold with no colour; a number
   never coloured; only the terminal's named colours.
 - **L16**: a command printed for the user to copy is never hard-wrapped.
-- **Item 27**: a table too wide for the terminal moves a unit every cell repeats into its header,
-  with nothing dropped.
+- **A wide table**: a table too wide for the terminal moves a unit every cell repeats into its
+  header, with nothing dropped.
 - **Item 24**: the equivalent `init --yes` command is printed broken before its flags with
   backslashes, in both styles, and still reads as one command.
 - **Item 14**: in the plain style each `doctor` line carries a status word.
@@ -296,7 +296,7 @@ def test_l16_json_is_identical_in_a_terminal_and_piped(name: str, world: World) 
 
 
 # ---------------------------------------------------------------------------
-# item 6 and item 7: one switch, two states
+# one switch, two states
 # ---------------------------------------------------------------------------
 
 CONDITIONS: dict[str, dict[str, Any]] = {
@@ -316,7 +316,7 @@ def test_item_6_each_condition_alone_gives_the_plain_style_byte_for_byte(
     condition: str, world: World
 ) -> None:
     """With one condition of the switch unmet, both streams are the plain build's on the same
-    streams (`--plain`, which wraps on a terminal as item 2 says), byte for byte, with no escape
+    streams (`--plain`, which wraps on a terminal as above), byte for byte, with no escape
     sequence: `NO_COLOR` turns off the whole style, `--plain` forces it."""
     settled(world)
     case = CONDITIONS[condition]
@@ -356,7 +356,7 @@ def test_item_6_with_every_condition_met_the_pretty_style_runs(world: World) -> 
 
 
 # ---------------------------------------------------------------------------
-# item 2: plain wraps on a terminal, not in a pipe
+# plain wraps on a terminal, not in a pipe
 # ---------------------------------------------------------------------------
 
 
@@ -394,7 +394,7 @@ def test_item_2_plain_wraps_long_lines_on_a_terminal_with_a_hanging_indent(
 
 
 # ---------------------------------------------------------------------------
-# item 4: questionary draws init's menus
+# questionary draws init's menus
 # ---------------------------------------------------------------------------
 
 
@@ -565,7 +565,7 @@ def test_item_27_a_table_too_wide_for_the_terminal_moves_its_units_into_the_head
 
 
 # ---------------------------------------------------------------------------
-# item 24, item 14, items 12 and 13: the plain style's own words
+# the plain style's own words
 # ---------------------------------------------------------------------------
 
 
@@ -575,8 +575,8 @@ def test_item_24_the_equivalent_command_is_printed_broken_before_its_flags(
     made = invoke(["init", "--yes", "--no-fetch", "--no-check-key"], prog=prog,
                   monkeypatch=monkeypatch)
     assert made.code == 0, made
-    # Retrofitted by ruling G15 (FD9 Session A): item 24 is amended; `init`'s closing screen names
-    # `doctor --show-command`, which prints the command broken before its flags.
+    # Retrofitted with the guided session: the rule on commands is amended; `init`'s closing screen
+    # names `doctor --show-command`, which prints the command broken before its flags.
     ran = invoke(["doctor", "--show-command"], prog=prog, monkeypatch=monkeypatch)
     assert ran.code == 0, ran
     lines = ran.out.splitlines()
@@ -649,7 +649,7 @@ def test_item_13_dollars_below_ten_cents_have_two_significant_digits(
 
 
 # ---------------------------------------------------------------------------
-# item 20: the pretty progress shows how many passed, per level
+# the pretty progress shows how many passed, per level
 # ---------------------------------------------------------------------------
 
 

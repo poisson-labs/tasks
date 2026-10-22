@@ -1,25 +1,25 @@
 """`init`, the guided setup, frozen as tests.
 
-The invariant is FD5.8 of the front door's plan (spec §4.1, §6.1, §6.2, §6.3 and §7.3), with what
-the recipes' module (R0) carried to it.  The question order in a pseudo-terminal, the tokenizer
-question coming first and `init` without the tokenizer are in `tests/test_fd5_fresh.py`.
-- **FD5.8** under `--yes` init never reads stdin, and on stdin that is not a terminal without
+The invariant is `init`'s, with what the recipes' module carried to it.  The question order in a
+pseudo-terminal, the tokenizer question coming first and `init` without the tokenizer are in
+`tests/test_fd5_fresh.py`.
+- under `--yes` init never reads stdin, and on stdin that is not a terminal without
   `--yes` it refuses before the first question; it refuses an existing file without `--force`
   and changes no byte of it; Ctrl-C at any question writes nothing; the equivalent command it
   prints writes the same file, byte for byte; no byte of a key is written or printed.
-- **The file is the library's** (spec P-2): the bytes `dump_config(config_from_init_args(flags,
+- **The file is the library's**: the bytes `dump_config(config_from_init_args(flags,
   expected_dollars=…))` give, the spend cap's default made from the plan's estimate when a price
-  is set and no cap is given (spec §6.1, ruled 2026-10-02).
-- **The key** (spec §4.1, §7.3): missing or refused at init's check is not a refusal: the file is
+  is set and no cap is given (decided 2026-10-02).
+- **The key**: missing or refused at init's check is not a refusal: the file is
   written and the key's line is the library's.  `--no-check-key` opens no socket; under `--yes`
   the key is checked with one free request.
-- **Recipes** (R0, spec Knobs §17.4): `--recipe` sets question 6 and `--measure` is its alias; a
+- **Recipes**: `--recipe` sets question 6 and `--measure` is its alias; a
   recipe not offered is refused in one line naming the recipe and the knobs it waits on (every
   recipe but `first-look` and `card` before the knob probe; `tool-choice` and
   `reading-and-filling` since it shipped faults, history and shape on 2026-10-14); `custom`
   offers depth and the distractor dial and no other knob.  Whether the command opens `custom` further is not this module's to decide: today's
   behaviour is pinned.
-- **The questions** (spec §6.1): with the defaults taken, choosing the published design at
+- **The questions**: with the defaults taken, choosing the published design at
   question 6 asks two questions fewer than the first look, and choosing the knob and levels
   yourself asks four more.
 
@@ -27,11 +27,11 @@ Shapes decided here
 -------------------
 
 **1. The dialogue is read a line at a time from stdin and asked on stderr**, so `init > file` in a
-terminal leaves the file holding only the result (spec §4.1: the dialogue goes to stderr).  A
+terminal leaves the file holding only the result (the dialogue goes to stderr).  A
 question answered with Enter takes its default.  Answers to a menu are its numbers.
 
 **2. Ctrl-C at a question ends the command with exit 130** and a `stopped` verdict line on
-stdout, and leaves the folder as it was (spec §4.1's error list).
+stdout, and leaves the folder as it was.
 """
 
 from __future__ import annotations
@@ -145,10 +145,10 @@ def test_fd5_8_an_existing_file_is_refused_unchanged_and_replaced_with_force(
 
 def _entries() -> dict[str, str]:
     """Question 6's entries, numbered from 1: the offered recipes in `arms.RECIPES`' order, then
-    choosing the knob yourself.  Retrofitted 2026-10-14 (O2 Session A's yes/no 32): the first-look,
+    choosing the knob yourself.  Retrofitted 2026-10-14, with own tools: the first-look,
     card and custom answers were "1", "2" and "3", the three entries of the menu before own tools
     took the place after the recipes and the knob probe shipped faults, history and shape.
-    Retrofitted 2026-10-20 by ruling G7 (FD9 Session A): your own tools is the first question's
+    Retrofitted 2026-10-20, with the guided session: your own tools is the first question's
     second answer, so it left this menu and custom is the entry after the recipes."""
     offered = [name for name, recipe in arms().RECIPES.items() if recipe.offered]
     return {"first-look": str(offered.index("first-look") + 1),
@@ -160,7 +160,7 @@ def test_fd5_8_ctrl_c_at_any_question_writes_nothing(
     measure: str, prog: str, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Enter at every question but the measure menu, which takes `measure`; Ctrl-C at the k-th,
-    for every k until the dialogue ends.  Retrofitted by ruling G7 (FD9 Session A): the first
+    for every k until the dialogue ends.  Retrofitted with the guided session: the first
     question, built-in tasks or your own tools, is answered first, with Enter."""
     asked = None
     for k in range(40):
@@ -182,9 +182,9 @@ def test_fd5_8_ctrl_c_at_any_question_writes_nothing(
 def test_fd5_8_the_published_design_asks_two_fewer_questions_and_custom_four_more(
     prog: str, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Spec §6.1: question 6's second answer skips the tasks and the attempts; its third asks
-    the knob, the levels, the control arms and the strictness.  Retrofitted by ruling G7 (FD9
-    Session A): the first question is answered first, with Enter."""
+    """Question 6's second answer skips the tasks and the attempts; its third asks the knob, the
+    levels, the control arms and the strictness.  Retrofitted with the guided session: the first
+    question is answered first, with Enter."""
     counts = {}
     for measure in _entries().values():
         stdin = Answers(["", "", "", "", "", measure])
@@ -201,7 +201,7 @@ def test_fd5_8_the_published_design_asks_two_fewer_questions_and_custom_four_mor
 
 BRANCHES = {
     # provider's answer, the answers after it, init's flags for the same file; retrofitted by
-    # ruling G7 (FD9 Session A): the first question, answered with Enter, comes before them
+    # the guided session: the first question, answered with Enter, comes before them
     "ollama": (["", "3"], ["--provider", "ollama"]),
     "vllm": (["", "4", "served-model"], ["--provider", "vllm", "--model", "served-model"]),
     "a-model-with-no-published-price": (["", "1", "gpt-other"], ["--model", "gpt-other"]),
@@ -212,7 +212,7 @@ BRANCHES = {
 def test_fd5_8_each_providers_questions_are_spec_6_1s(
     branch: str, prog: str, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Ruled 2026-10-02: the endpoint is asked only for vLLM and another endpoint; no price is
+    """Decided 2026-10-02: the endpoint is asked only for vLLM and another endpoint; no price is
     asked for Ollama and vLLM; a blank price moves the cap to tokens.  So, against OpenAI's eight
     questions with Enter at each: Ollama asks one fewer (no price), vLLM as many (the endpoint,
     and no price), and a model with no published price writes a file with no price and the
@@ -281,7 +281,7 @@ def test_fd5_8_the_file_is_the_librarys_and_the_equivalent_command_writes_it_aga
     if "--measure" in library:
         library[library.index("--measure")] = "--recipe"
     assert first.decode("utf-8") == library_file(library)
-    # Retrofitted by ruling G15 (FD9 Session A): the closing screen names `doctor --show-command`,
+    # Retrofitted with the guided session: the closing screen names `doctor --show-command`,
     # which prints the command, instead of printing it.
     shown = invoke(["doctor", "--show-command"], prog=prog, monkeypatch=monkeypatch)
     command = printed_command(shown.out, prog, "init")
@@ -367,7 +367,7 @@ def test_fd5_8_no_check_key_opens_no_socket_and_yes_checks_once(
 def test_fd5_8_the_dialogue_asks_before_the_key_check_and_takes_no(
     prog: str, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """With the key set, question 4 asks whether to check it (spec §6.1); answered no, nothing
+    """With the key set, question 4 asks whether to check it; answered no, nothing
     is sent."""
     with FixtureModel() as fixture:
         monkeypatch.setenv("OPENAI_BASE_URL", fixture.base_url)
@@ -377,7 +377,7 @@ def test_fd5_8_the_dialogue_asks_before_the_key_check_and_takes_no(
         invoke(["init"], prog=prog, monkeypatch=monkeypatch, stdin=unset)
         (world.work / "tasks.toml").unlink()
         monkeypatch.setenv("OPENAI_API_KEY", SENTINEL)
-        answers = ["", "", "", "", "n"]  # G7: the first question first (FD9 Session A)
+        answers = ["", "", "", "", "n"]  # the guided session's first question first
         stdin = Answers(answers)
         ran = invoke(["init"], prog=prog, monkeypatch=monkeypatch, stdin=stdin)
         assert ran.code == 0, ran
@@ -386,7 +386,7 @@ def test_fd5_8_the_dialogue_asks_before_the_key_check_and_takes_no(
 
 
 # ---------------------------------------------------------------------------
-# recipes (R0)
+# recipes
 # ---------------------------------------------------------------------------
 
 

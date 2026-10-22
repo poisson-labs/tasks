@@ -1,29 +1,28 @@
 """Exit codes, the shape of what the command prints, and `--json`, over a corpus: frozen as tests.
 
-The invariants are FD5.3, FD5.4, FD5.5, FD5.6 and FD5.9 of the front door's plan (spec §4.0,
-§11.1 rules L3, L4, L9, L11 and L13, and §11.2):
-- **FD5.3** each case of the corpus, an argv and a fixture state, exits with its code: 0 done, 1
+The invariants, from rules L3, L4, L9, L11 and L13 of `docs/cli-look.md` and the exit codes:
+- each case of the corpus, an argv and a fixture state, exits with its code: 0 done, 1
   refused, 2 the command line is wrong, 4 a check that did not pass;
-- **FD5.4** every stderr line is `error: …`, `note: …`, or a continuation or progress line
+- every stderr line is `error: …`, `note: …`, or a continuation or progress line
   indented two spaces; nothing holds a traceback, a Python repr or an internal id; and the
   `error:` line of a refusal the library makes is `error: ` and the library's own text for the
   same input, compared with the library, never with words;
-- **FD5.5** the first stdout line of a success is a verdict line, `^[a-z][a-z ]*  \\S`, whose word
+- the first stdout line of a success is a verdict line, `^[a-z][a-z ]*  \\S`, whose word
   is one of the verb's;
-- **FD5.6** every `next:` command starts with the prog under test;
-- **FD5.9** with `--json`, stdout is one strict JSON document whose first key is `schema`, then
+- every `next:` command starts with the prog under test;
+- with `--json`, stdout is one strict JSON document whose first key is `schema`, then
   `verdict` and `sentence` (rule L9), equal to the text's verdict line, with the same exit code.
 
-The mistakes round of spec §8.8 is in the corpus where it needs no model: a typo in an arm (as a
-flag and in the file), an empty seed list (both ways) and no key.  A refused key, Ctrl-C and its
-resume need the fixture model and are in `tests/test_fd5_run.py`.
+The mistakes round of the run's design is in the corpus where it needs no model: a typo in an arm
+(as a flag and in the file), an empty seed list (both ways) and no key.  A refused key, Ctrl-C and
+its resume need the fixture model and are in `tests/test_fd5_run.py`.
 
 Shapes decided here
 -------------------
 
 **1. A value given as a flag that the library refuses is a command line that is wrong: exit 2.**
-The same value in the settings file is a refusal: exit 1 (spec §11.2's two rows; spec §4.1 says
-it of init's flags).
+The same value in the settings file is a refusal: exit 1 (the exit-code table's two rows, and so
+for init's flags).
 
 **2. `--json` and a refusal.** When the text form prints nothing on stdout (an `error:` line
 only), `--json` prints nothing on stdout either; errors stay on stderr in text (L9).  When the text
@@ -182,7 +181,7 @@ def run_case(case: Case, prog: str, world: World, monkeypatch: pytest.MonkeyPatc
 
 
 # ---------------------------------------------------------------------------
-# FD5.3 exit codes, and FD5.4 to FD5.6 the shape of the output
+# exit codes, and the shape of the output
 # ---------------------------------------------------------------------------
 
 
@@ -227,7 +226,7 @@ def test_fd5_9_json_is_one_strict_document_with_the_texts_verdict_and_code(
 
 
 # ---------------------------------------------------------------------------
-# FD5.4 a library refusal is the library's own text
+# a library refusal is the library's own text
 # ---------------------------------------------------------------------------
 
 

@@ -1,14 +1,15 @@
-"""Pending a yes/no: a `next:` command carries the `--config` the user gave.
+"""Pending a decision: a `next:` command carries the `--config` the user gave.
 
-Rule L13 (spec §11.1): "A verb that has an obvious next step ends with `next: <exact command>`."
-The spec's examples are all for `tasks.toml` in the current folder.  A user who wrote their
+Rule L13: "A verb that has an obvious next step ends with `next: <exact command>`."
+The design's examples are all for `tasks.toml` in the current folder.  A user who wrote their
 settings elsewhere (`init --config experiments/a.toml`) and is told `next: poisson-tasks run` gets a
 command that does not find their file.
 
-**Recommended yes:** when `--config` was given, every `next:` command that reads the settings file
+**Recommended:** when `--config` was given, every `next:` command that reads the settings file
 carries it, as given.
 
-**A no** drops this file's commit: the `next:` lines are the spec's examples as written.
+**If it is declined**, this file's commit is dropped: the `next:` lines are the design's examples
+as written.
 """
 
 from __future__ import annotations

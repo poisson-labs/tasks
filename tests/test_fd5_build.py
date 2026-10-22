@@ -1,12 +1,12 @@
-"""What the build's mutation pass found no frozen test reads: pinned here (FD5 Session B).
+"""What the command's build's mutation pass found no frozen test reads: pinned here.
 
-- **item 19** (ruled 2026-10-13): a card whose depth arms include the ladder's top level carries
-  the published cards' own note on depth, taken from the card's document, never typed;
+- **the note on depth** (decided 2026-10-13): a card whose depth arms include the ladder's top level
+  carries the published cards' own note on depth, taken from the card's document, never typed;
 - **init's flags given twice**: the last one given counts, as the library's reader has it, so the
   command hands the flags to the library in the order typed;
 - **Ctrl-C outside a verb's own handling** (rule L6): an interrupt while `generate` makes its
   tasks is a stop, `stopped` on stdout and exit 130, with nothing written;
-- **`run` on Windows refuses before the tokenizer is looked for** (spec §4.3, "before anything
+- **`run` on Windows refuses before the tokenizer is looked for** ("before anything
   else"): with the tokenizer reported missing, the one line is still the platform's;
 - **`card` with no run of the settings file's plan** says so, naming the runs folder, and its
   next command is the run, rather than failing on a folder that is not there;

@@ -1,15 +1,14 @@
 """`generate`, frozen as tests.
 
-The invariants are FD5.14, FD5.15's last clause and FD5.20's second of the front door's plan (spec
-§4.2, §10.3 and P-2), with the contrast check spec §4.2 asks for:
-- **FD5.14** `generate`'s files are `generate`'s bundles: one file per arm, each line turning back
+The invariants, with the contrast check the design asks for:
+- `generate`'s files are `generate`'s bundles: one file per arm, each line turning back
   through `bundle_from_data` into the bundle `tasks.generate` returns for that arm and seed, in
   the plan's order; with `--print` the same lines go to stdout and nothing is written;
-- **FD5.15** `generate --show` names its task by its arm and its place in the plan, and by its
+- `generate --show` names its task by its arm and its place in the plan, and by its
   seed: `depth:d3 task 7 (seed …)`; with `--seed`, a seed the user chose, by the arm and the seed;
   it prints the task as a model sees it, its reference solution and the verdict on every wrong
   answer it ships with, and writes nothing;
-- **FD5.20** with the platform reported as Windows, `generate` still works;
+- with the platform reported as Windows, `generate` still works;
 - **the contrast** is checked through the pin ledger before anything is written: the ledger's line
   is the library's sentence (`arms.describe_pins` over `knobs.check_pins`), and a refused contrast
   is exit 1, nothing written, its line the library's refused sentence.
@@ -27,7 +26,7 @@ else `./tasks/` when the arms are given as flags.
 --levels L,…`, with `--tasks-per-level N` (the published seeds' first N, ten by default) or
 `--seeds S,…`, `--strictness`, `--generator-version`.
 
-**4. `--show` alone shows the arm's first task** (the look's yes/no 18 recommends it; not pinned
+**4. `--show` alone shows the arm's first task** (recommended for the look; not pinned
 here: every test names its task).
 """
 
@@ -276,15 +275,15 @@ def test_fd5_15_show_takes_one_arm(
 ) -> None:
     ran = invoke(["generate", "--arm", "depth:d1", "--arm", "depth:d3", "--show"], prog=prog,
                  monkeypatch=monkeypatch)
-    # Retrofitted by ruling G13 (FD9 Session A): no refusal; the first arm's task 1, and the other
-    # arm named.
+    # Retrofitted with the guided session (decided 2026-10-20): no refusal; the first arm's task 1,
+    # and the other arm named.
     assert ran.code == 0, ran
     assert "depth:d1" in ran.first and "depth:d3" in ran.out, ran
     assert error_lines(ran) == []
 
 
 # ---------------------------------------------------------------------------
-# FD5.20 on Windows
+# on Windows
 # ---------------------------------------------------------------------------
 
 
