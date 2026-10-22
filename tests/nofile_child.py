@@ -11,8 +11,8 @@ episodes, where to run, and where to write what happened:
 - `cell`: `calibration.run_cell`, the calibration runner's way in.
 
 The result holds what each way returned or raised, the soft limit seen at each finished episode
-(`library`), and the limits after.  SIGINT is set back to Python's handler first, as FD3's child
-does.
+(`library`), and the limits after.  SIGINT is set back to Python's handler first, as
+`tests/fd3_child.py` does.
 """
 
 from __future__ import annotations

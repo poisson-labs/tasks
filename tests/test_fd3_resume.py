@@ -1,15 +1,14 @@
 """Resume and Ctrl-C, frozen as tests: a stopped run loses nothing, and runs nothing twice.
 These protect the user's work.
 
-The invariants are FD3.7 and FD3.8 of the front door's plan (spec §8.5), with ruling 19
-(2026-10-02): the first interrupt stops dispatching and gives the episodes in flight up to 10
-seconds to finish and be recorded; a second stops at once.
-- **FD3.7** after an interrupt following k finished episodes, for several k, and one in the middle
+The invariants, with the decision of 2026-10-02 that the first interrupt stops dispatching and
+gives the episodes in flight up to 10 seconds to finish and be recorded; a second stops at once.
+- after an interrupt following k finished episodes, for several k, and one in the middle
   of an episode, a resume gives the same multiset of (task id, attempt) as an uninterrupted run;
   no episode runs twice, and the lines already kept are byte for byte the same;
-- **FD3.8** a SIGINT to a running `run_plan` process ends it with the interrupted verdict and the
-  ledger written; a second SIGINT ends it at once, and a later resume completes the run under
-  FD3.7; a torn last line is skipped or trimmed, as measured.
+- a SIGINT to a running `run_plan` process ends it with the interrupted verdict and the
+  ledger written; a second SIGINT ends it at once, and a later resume completes the run as
+  above; a torn last line is skipped or trimmed, as measured.
 
 **Measured** (`evidence/front-door-fd3-a/measurements/torn-line.txt`): the wheel's own `resume.load` skips a
 torn last line of `traces.jsonl` and owes that episode again (its own words: "a torn or
@@ -35,11 +34,11 @@ Shapes decided here
 **1. The interrupted verdict** is `RunResult.verdict == "stopped"` with `stop_reason ==
 "interrupted"`, returned by `run_plan` after the first SIGINT.  After a second SIGINT `run_plan`
 raises `KeyboardInterrupt` once it has stopped its episodes; the CLI maps both to exit 130
-(FD5).
+(the `test_fd5_*` tests).
 
 **2. "No episode runs twice"** is read off the fixture: the episodes a resume starts are exactly
 the ones the stopped run owed.  An episode cut short by the interrupt or the cap was not kept, so
-it is owed and run again as a fresh attempt (spec §8.5).
+it is owed and run again as a fresh attempt.
 """
 
 from __future__ import annotations
@@ -107,7 +106,7 @@ def assert_resumed_cleanly(
     plan: Any, folder: Path, *, kept_before: Counter[bytes], ledger_before: bytes,
     owed_before: int, started_by_resume: int, resumed: Any,
 ) -> None:
-    """FD3.7's three statements, after a resume ran a stopped run to its end."""
+    """The resume's three statements, after a resume ran a stopped run to its end."""
     assert (resumed.verdict, resumed.episodes_owed) == ("done", 0), resumed
     assert scored_tasks(plan, folder) == planned_tasks(plan), "not the uninterrupted multiset"
     after = kept_lines(plan, folder)
@@ -124,7 +123,7 @@ def assert_resumed_cleanly(
 
 
 # ---------------------------------------------------------------------------
-# FD3.7 resume after k episodes
+# resume after k episodes
 # ---------------------------------------------------------------------------
 
 
@@ -167,7 +166,7 @@ def test_fd3_7_a_resume_after_k_finished_episodes_gives_the_uninterrupted_run(
 
 
 # ---------------------------------------------------------------------------
-# FD3.8 Ctrl-C, in a process of its own
+# Ctrl-C, in a process of its own
 # ---------------------------------------------------------------------------
 
 
@@ -310,7 +309,7 @@ def test_fd3_8_a_second_interrupt_stops_at_once_and_a_resume_completes_the_run(
     tmp_path: Path, harness_env: Path, fixture_model: FixtureModel,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """FD3.7's interrupt in the middle of an episode, after some were kept.  depth:d1 then
+    """The resume's interrupt in the middle of an episode, after some were kept.  depth:d1 then
     depth:d8, two tasks each, two at a time, each call answered after three seconds.  Once both
     depth:d1 episodes are in the ledger and the depth:d8 ones have had a call answered, Ctrl-C
     twice: the run stops within a few seconds of the second, well before the ten the first allows

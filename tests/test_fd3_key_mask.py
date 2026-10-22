@@ -1,6 +1,7 @@
 """The run engine's key mask: the key where a provider can put it, and nothing else, frozen as tests.
 
-FD3.16, amended and ruled 2026-10-12 (`tests/keymask_support.py` states the rule).  The mask it
+The rule for `run.log` and the key, amended and decided 2026-10-12 (`tests/keymask_support.py`
+states the rule).  The mask it
 replaces rewrote every run of four characters of the key anywhere in a trace line: every OpenAI
 project key holds `-pro`, the tasks' item codes hold it too, and so about 95% of a probe run's
 trace lines were rewritten, a number masked broke the JSON, and a masked reply or argument failed

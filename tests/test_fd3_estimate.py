@@ -1,6 +1,6 @@
 """What a plan will cost, before anything is spent, frozen as tests: `runs.estimate`.
 
-The invariant is FD3.1 of the front door's plan (spec §8.2):
+The invariant is the run's estimate:
 - episodes = arms × seeds × attempts;
 - `calls_min` = Σ over the plan's tasks of each one's reference turns (its reference solution's
   tool calls plus a reply) × attempts;
@@ -19,17 +19,17 @@ Shapes decided here
 
 **1. `Estimate`'s fields** are `episodes`, `calls_min`, `calls_expected`, `calls_at_cap`,
 `tokens_expected`, `dollars_expected`, `source` and `same_model`.  `tokens_expected` is the plan's
-figure when there is no price (spec §8.2: "Without a price there is no dollar figure, only
+figure when there is no price (the design: "Without a price there is no dollar figure, only
 tokens"); tokens are prompt, cached input and completion tokens, as the card counts them.
 
-**2. `source` is the published card's short name**, `gpt-5-nano` or `qwen3-8b` (the names ruled
-on 2026-10-03, spec §4.4), and `same_model` says whether that card measured the plan's model.  The
+**2. `source` is the published card's short name**, `gpt-5-nano` or `qwen3-8b` (the names decided
+on 2026-10-03), and `same_model` says whether that card measured the plan's model.  The
 words the plan line prints ("from the published card for this model", "your model's usage will
 differ") are the CLI's, from these two fields.
 
 **3. The card for a plan's model** is the one whose records name that model, read without its
 `@revision` suffix: `gpt-5-nano-2025-08-07` is model A's card and `Qwen/Qwen3-8B` model B's.  Any
-other model is estimated from model A's card (spec §8.2), with `same_model` false.
+other model is estimated from model A's card, with `same_model` false.
 
 **4. A per-arm mean is over every record of that arm**, whatever its outcome: an episode that
 failed still made the calls it made and cost what it cost.  An arm is matched by its id
@@ -131,9 +131,9 @@ FIRST_LOOK = ("--provider", "openai", "--measure", "first-look", "--tasks-per-le
 
 
 def test_fd3_1_a_first_look_on_model_a_is_estimated_from_model_as_card() -> None:
-    """The spec's own example (§8.2): the first look against gpt-5-nano at the published price,
+    """The design's own example: the first look against gpt-5-nano at the published price,
     10 tasks per level and one attempt, is estimated from model A's card, for this model.  Its
-    structural figures are the spec's: at least 150 model calls, at most 960."""
+    structural figures are the design's: at least 150 model calls, at most 960."""
     plan = resolved(*FIRST_LOOK)
     estimate = runs().estimate(plan)
     assert_matches(estimate, plan, "gpt-5-nano")

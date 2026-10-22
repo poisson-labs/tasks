@@ -1,18 +1,19 @@
-"""Shared ground for FD3's tests: plans that run against the fixture model, the harness's
-environment, a run in a process of its own, and what a run leaves behind.  Frozen with them.
+"""Shared ground for the `tests/test_fd3_*.py` tests: plans that run against the fixture model, the
+harness's environment, a run in a process of its own, and what a run leaves behind.  Frozen with
+them.
 
 **The fixture model** (`tests/fixtures/model_server.py`) answers every model call with the same
 usage, so one call costs `call_dollars()` at `PRICE` and `CALL_TOKENS` tokens, and a task of depth
 d takes d + 1 calls.  So a test knows what a run spends without asking the code under test.
 
 **The harness's bootstrap.**  Before the first episode of every process, verifiers 0.3.1 runs
-`pip install --user uv`, or astral's installer when that pip refuses (spec §1.2 item 1), and
-`run` makes it refuse (FD3.13).  So that no test installs anything, `harness_env` puts a `pip`
-first on `PATH` that does nothing and succeeds; the bootstrap then finds the `uv` already on
-`PATH` (the CI job installs one).  `uv sync --script` still fetches the harness program's
-packages, or finds them in uv's cache: that is the harness's own documented fetch (plan §2 item
-4).  Nothing the tests themselves do leaves this machine: every run in this process is made
-inside `network_guard`, which refuses any connection that is not to loopback.
+`pip install --user uv`, or astral's installer when that pip refuses, and `run` makes it refuse.  So
+that no test installs anything, `harness_env` puts a `pip` first on `PATH` that does nothing and
+succeeds; the bootstrap then finds the `uv` already on `PATH` (the CI job installs one).
+`uv sync --script` still fetches the harness program's packages, or finds them in uv's cache: that
+is the harness's own documented fetch.  Nothing the tests themselves do leaves this machine: every
+run in this process is made inside `network_guard`, which refuses any connection that is not to
+loopback.
 
 **A run in a process of its own** (`start_child`, `tests/fd3_child.py`) is how a test sends
 Ctrl-C, gives the run a home of its own, or sees a bootstrap that hangs: the bootstrap runs once
@@ -162,7 +163,7 @@ def plan_from_spec(spec: Mapping[str, Any]) -> Any:
 
 
 def arm_dir(spec: Any) -> str:
-    """An arm's folder inside the run folder, as `run_arm` names it (spec §8.5's `depth-d1/`)."""
+    """An arm's folder inside the run folder, as `run_arm` names it (`depth-d1/`)."""
     return str(knobs().arm_id(spec)).replace("/", "-").replace(":", "-").replace("@", "-")
 
 

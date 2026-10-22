@@ -1,16 +1,15 @@
 """The run's cap and its ledger, frozen as tests: what `runs.run_plan` may spend, and what it
 writes down.  These protect the user's money.
 
-The invariants are FD3.4, FD3.5 and FD3.6 of the front door's plan (spec §8.3 and §8.4), with
-ruling 18 (2026-10-02) and the session prompt's restatement of it (the cap is a guaranteed bound):
-- **FD3.4** for fixed per-call usage, concurrency c in {1, 4, 8} and caps around the run's cost,
+The invariants, with the decision of 2026-10-02 that the cap is a guaranteed bound:
+- for fixed per-call usage, concurrency c in {1, 4, 8} and caps around the run's cost,
   the final spend is at most the cap plus the cost of the calls in flight when it was reached;
-- **FD3.5** the same for the token cap, with no price;
-- **FD3.6** one ledger line per finished episode; their sum is `RunResult.spend`, and equals the
+- the same for the token cap, with no price;
+- one ledger line per finished episode; their sum is `RunResult.spend`, and equals the
   card's cost at the same rates.
 
-**Which bound, and why: c calls, not c episodes.**  Measured (`evidence/front-door-fd3-a/measurements/relay.txt`
-in the vault): every model call an episode makes passes through verifiers'
+**Which bound, and why: c calls, not c episodes.**  Measured when the run engine was
+built: every model call an episode makes passes through verifiers'
 interception server, which runs inside the run's own process and makes the upstream request
 there (`EvalClient.get_response`; 8 of 8 and 22 of 22 calls counted in-process against the
 fixture's own count).  So the run can check the cap before each call, and the bound is the cost
@@ -18,19 +17,19 @@ of at most c calls: one call in flight per episode, c episodes at once.  The pla
 nine calls an episode, so a build that checks only between episodes overshoots by up to eight
 calls an episode in flight, which the bound refuses.
 
-**The caps are set where any run that keeps spec §8.4 can move.**  Before its first episode a
+**The caps are set where any run that keeps the cap's rule can move.**  Before its first episode a
 run reserves the estimate's 95th percentile, from model A's card at the plan's prices: at these
 prices about $0.117 and 10,600 tokens for a depth:d1 episode, about five times what the fixture
 charges.  So a cap below that may stop a run before its first call (the $0.05 rows, which then
 check only the bound and the stop), and every cap that asks for progress is above it.  After the
-first episode the reservation is the largest episode seen (spec §8.4), so a run with one episode
+first episode the reservation is the largest episode seen, so a run with one episode
 in flight stops within one episode of the cap (the "stopped well short" check, at concurrency 1).
 
 **What is spent is counted by the fixture, not by the code under test.**  Every call the fixture
 answers costs `call_dollars()` (one cent at these prices) and `CALL_TOKENS` tokens, whatever the
 run thinks it spent.
 
-Also pinned here, from spec §8.3 and §8.4:
+Also pinned here:
 - arms run in the plan's order, one after another: an uncapped run makes every call of its first
   arm before any of its second, and a cap that stops a run has started an arm only once every
   arm before it was whole;
@@ -69,7 +68,7 @@ the next line starts a line of its own.
 `episodes_done` (episodes kept and finished so far, counting the ones kept before), `episodes_total`
 and `spend` (the ledger's total so far).
 
-Not pinned: how the run reserves for calls in flight (spec §8.4 describes one way; the bound is
+Not pinned: how the run reserves for calls in flight (the design describes one way; the bound is
 the invariant), what it does with a call it refuses, and the time a run takes.
 """
 
@@ -147,7 +146,7 @@ def assert_kept_work_is_clean(plan: Any, folder: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# FD3.4 the spend cap
+# the spend cap
 # ---------------------------------------------------------------------------
 
 
@@ -205,7 +204,7 @@ def test_fd3_4_raising_the_cap_resumes_the_same_run_and_the_cap_is_on_its_total(
     tmp_path: Path, harness_env: Path, fixture_model: FixtureModel,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Spec §8.4: `run --spend-cap 2.00` resumes the run the cap stopped.  Run again at the same
+    """`run --spend-cap 2.00` resumes the run the cap stopped.  Run again at the same
     cap, it spends nothing past the bound: the cap holds the run's total, not each `run`'s."""
     plan = two_arms(fixture_model)
     call = call_dollars()
@@ -233,7 +232,7 @@ def test_fd3_4_raising_the_cap_resumes_the_same_run_and_the_cap_is_on_its_total(
 
 
 # ---------------------------------------------------------------------------
-# FD3.5 the token cap
+# the token cap
 # ---------------------------------------------------------------------------
 
 
@@ -275,7 +274,7 @@ def test_fd3_5_with_both_caps_the_first_reached_stops_the_run(
 
 
 # ---------------------------------------------------------------------------
-# FD3.6 the ledger
+# the ledger
 # ---------------------------------------------------------------------------
 
 

@@ -2,7 +2,7 @@
 they are held to, and a fixture model that quotes a key back where a provider can.  Frozen with
 them.
 
-**The rule** (FD3.16, amended and ruled 2026-10-12).  A key's public prefix, the one every key of
+**The rule** (amended and decided 2026-10-12).  A key's public prefix, the one every key of
 its kind starts with (`sk-proj-`), is not secret; what follows it is the secret part, and a
 secret part shorter than four characters is no secret part, so the whole key stands for it.  The
 secret part is looked for as written and JSON-escaped, once and twice.

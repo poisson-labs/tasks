@@ -1,34 +1,32 @@
 """What a run does to the machine, and what it writes down, frozen as tests.
 
-The invariants are FD3.12, FD3.13 and FD3.16 of the front door's plan (spec §8.5 and §8.6), with
-ruling 21 (2026-10-02) and ruling 45:
-- **FD3.12** with `HOME` a temporary folder, a run touches nothing outside the run folder except
+The invariants, with two decisions (one of 2026-10-02):
+- with `HOME` a temporary folder, a run touches nothing outside the run folder except
   `HOME/.cache/verifiers`, `HOME/.local/bin`, `HOME/.cache/uv`, one `/tmp/vf-port-<hex>` file per
   episode, and the files the measurement found the installer leaves;
-- **FD3.13** the harness's environment carries `PIP_REQUIRE_VIRTUALENV=1` and
-  `UV_NO_MODIFY_PATH=1`, each pinned only once the measurements show it does what spec §8.6 says;
-- **FD3.16** `run.log` holds `run`'s own progress lines, verifiers' log records and any traceback,
-  and never the key.  Amended, ruled 2026-10-12 (`tests/keymask_support.py` states the rule): no
+- the harness's environment carries `PIP_REQUIRE_VIRTUALENV=1` and
+  `UV_NO_MODIFY_PATH=1`, each pinned only once the measurements show it does what it is set for;
+- `run.log` holds `run`'s own progress lines, verifiers' log records and any traceback,
+  and never the key.  Amended, decided 2026-10-12 (`tests/keymask_support.py` states the rule): no
   four characters of the key's secret part in a row are in a text that can carry the key (the
   run's log, its result and every error its traces record), and no twelve in a row, the key's
   wherever they are, in any file of its folder or on either stream.
 
-**Measured** (`evidence/front-door-fd3-a/measurements/bootstrap/`
-and `installer/`), on macOS and on
+**Measured** when the run engine was built, on macOS and on
 Linux (python:3.11-slim, aarch64), each case in a throwaway `HOME`, with verifiers 0.3.1's own
 bootstrap command and uv's installer 0.12.23:
 - without `PIP_REQUIRE_VIRTUALENV`, an environment's script run by its path and a pipx-style `PATH`
   take `pip install --user uv` (uv lands in the user's site-packages, `~/.local/lib/...`, and
   `~/.local/bin`); an activated environment takes astral's installer.  With it set, all three
-  take astral's installer.  So the setting does what §8.6 says: the bootstrap's branch no longer
+  take astral's installer.  So the setting does what it is set for: the bootstrap's branch no longer
   depends on the first `pip` on `PATH`;
 - astral's installer leaves `~/.local/bin/uv`, `~/.local/bin/uvx` and `~/.config/uv/uv-receipt.json`
-  (the last is the file FD3.12 left open).  Run without `~/.local/bin` on `PATH`, it edits
-  `.profile`, `.bashrc`, `.bash_profile`, `.zshrc` and fish's config, and writes
-  `~/.local/bin/env` and `env.fish`; with `UV_NO_MODIFY_PATH=1` it edits and writes none of them.
-  So the setting does what §8.6 says.  (The bootstrap already puts `~/.local/bin` first on `PATH`,
-  and with it there the 0.12.23 installer edits nothing either; the setting holds that whatever
-  the installer's version does.)
+  (the last is the file the list above left open).  Run without `~/.local/bin` on `PATH`, it edits
+  `.profile`, `.bashrc`, `.bash_profile`, `.zshrc` and fish's config, and writes `~/.local/bin/env`
+  and `env.fish`; with `UV_NO_MODIFY_PATH=1` it edits and writes none of them.  So the setting does
+  what it is set for.  (The bootstrap already puts `~/.local/bin` first on `PATH`, and with it there
+  the 0.12.23 installer edits nothing either; the setting holds that whatever the installer's
+  version does.)
 
 **The machine check.**  The run is made in a process of its own whose `HOME`, working folder and
 `TMPDIR` are the test's, and an audit hook in it records every path that process opens for
@@ -37,13 +35,13 @@ environment it was started with and installs nothing), so nothing is installed a
 stays as it was; `uv` is the one on `PATH`, with its cache where this process keeps it
 (`UV_CACHE_DIR`), so the harness's packages are not fetched again.  Not covered here: `/tmp`,
 which other processes on this machine write to as well, so a file there cannot be told to be the
-run's; the clean-install check (FD7) watches it, on a machine running nothing else.
+run's; the clean-install check watches it, on a machine running nothing else.
 
-**Measured here, and not in FD3.12's list:** uv leaves one empty lock file, `uv-<16 hex>.lock`,
+**Measured here, and not in the list above:** uv leaves one empty lock file, `uv-<16 hex>.lock`,
 in `TMPDIR` for the harness's script environment, and keeps it (`uv sync --script` run twice on
-the prepared script, measurements/uv-lock.txt).  It is a file "uv writes for itself" (spec §8.5),
+the prepared script).  It is a file "uv writes for itself",
 so the test allows exactly that name, empty, in `TMPDIR`; adding it to the README's list and to
-FD7's machine check is a yes/no in `evidence/front-door-fd3-a/rulings.md`.
+the clean-install check's machine check was left to a decision.
 
 Shapes decided here
 -------------------
@@ -217,7 +215,7 @@ def test_fd3_13_the_bootstrap_runs_with_pip_kept_in_a_virtualenv_and_shell_files
 ) -> None:
     """The environment the harness's bootstrap was started with (its `pip` wrote it down).  The
     key is not in it: verifiers drops every variable whose name holds `API_KEY`, and the config
-    refuses any other name (spec §7.3)."""
+    refuses any other name."""
     assert machine_run["result"] is not None, machine_run["stderr"]
     text = machine_run["bootstrap_env"]
     assert text is not None, "the bootstrap never ran"
@@ -228,7 +226,7 @@ def test_fd3_13_the_bootstrap_runs_with_pip_kept_in_a_virtualenv_and_shell_files
 
 
 # ---------------------------------------------------------------------------
-# FD3.16 run.log
+# run.log
 # ---------------------------------------------------------------------------
 
 
@@ -239,7 +237,7 @@ def test_fd3_16_run_log_holds_the_runs_progress_and_verifiers_records_and_never_
     """The fixture refuses the key and quotes it back, whole and masked, as a provider's 401
     does; verifiers puts that answer in its warnings and on the trace.  None of it reaches the
     run's log, its result or the errors its traces record, and the key reaches no file of its
-    folder and neither stream (amended, ruled 2026-10-12)."""
+    folder and neither stream (amended, decided 2026-10-12)."""
     monkeypatch.setenv(KEY_VAR, SENTINEL)
     plan = make_plan(fixture_model.base_url, model="fixture-401", seeds=(404, 55))
     with records_of("verifiers") as captured:

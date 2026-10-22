@@ -1,8 +1,7 @@
 """Which folder a run goes in, and nothing spent before the run starts, frozen as tests:
 `runs.find_run`, and what is sent before `runs.run_plan` is called.
 
-The invariants are FD3.2 and FD3.3 of the front door's plan (spec §8.1 and §8.5), with the
-folder names ruled on 2026-10-03:
+The invariants, with the folder names decided on 2026-10-03:
 - the folder is `runs/<preset>-<model>/`, then `-2`, `-3` for `again` or for a changed plan, with
   no hash in its name; the model part is made folder-safe;
 - the folder that holds a plan is found by the `plan_hash` in each folder's `plan.json`, never by
@@ -11,7 +10,7 @@ folder names ruled on 2026-10-03:
   complete run makes no request; a changed plan gets a new folder, with the fields that changed;
 - until `run_plan` is called, the model has seen only the key check's free GET.
 
-And the ruling of 2026-09-30 carried into the runner (plan ruling 42, FD0.4 and FD0.5): a real
+And the decision of 2026-09-30 carried into the runner: a real
 run with no arm or no seeds refuses before anything is sent or written.
 
 Shapes decided here
@@ -23,11 +22,11 @@ and changes no byte of any it reads.  `run_plan` makes the folder and writes `pl
 
 **2. `changed` names the plan's fields** that differ from the folder named in `previous`, out of
 `arms`, `generator_version`, `seeds`, `attempts`, `model`, `base_url`, `decoding` and
-`max_model_calls`: the fields that move `plan_hash` (FD1.9), with an arm's generator version
+`max_model_calls`: the fields that move `plan_hash`, with an arm's generator version
 named on its own.  `previous` is the newest run folder in the runs folder, whatever its name (the
 one whose `plan.json` was written last), and `None` (with `changed` empty) when there is none.  So
 a changed model, which also changes the folder's name, is still told as "the model changed since
-runs/first-look-…" (spec §8.5).  `again` makes a new folder with `changed` empty and `previous`
+runs/first-look-…".  `again` makes a new folder with `changed` empty and `previous`
 `None`: nothing changed.
 
 **3. When more than one folder holds the plan** (a run and its `again`), the newest is the one
@@ -39,8 +38,8 @@ name that is not one folder's name, each with a `ValueError` of one line that na
 **5. A plan with no arm or no seeds** is a `ValueError` from `run_plan`, before the folder is made.
 
 Not pinned here: what a folder whose every episode ran, some of them failed, reports.  The
-wheel's own resume rule owes a failed episode again, so `resume`; that waits on a yes/no
-(`evidence/front-door-fd3-a/rulings.md`, yes/no 2) and is pinned in its own file,
+wheel's own resume rule owes a failed episode again, so `resume`; that waits on a decision
+and is pinned in its own file,
 `tests/test_fd3_pending_failed_episode.py`.
 """
 
@@ -101,7 +100,7 @@ def resolved(*flags: str) -> Any:
 
 
 def test_fd3_2_a_new_plan_gets_its_preset_and_model_as_the_folder_name(tmp_path: Path) -> None:
-    """Spec §8.5's own example, and `find_run` writes nothing."""
+    """The design's own example, and `find_run` writes nothing."""
     plan = resolved("--provider", "openai", "--measure", "first-look", "--tasks-per-level", "10")
     runs_dir = tmp_path / "runs"
     folder = runs().find_run(plan, runs_dir)
@@ -278,9 +277,9 @@ def test_fd3_2_a_folder_is_found_by_the_plan_in_it_and_not_by_its_name(
     tmp_path: Path, harness_env: Path, fixture_model: FixtureModel,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A folder the user renamed is still found.  And a custom plan of depth at 1, 3 and 8 is
-    the first look's plan (ruled 2026-10-03: the plan's identity leaves out the preset): it finds the first look's
-    folder, whatever the preset was called."""
+    """A folder the user renamed is still found.  And a custom plan of depth at 1, 3 and 8 is the
+    first look's plan (decided 2026-10-03: the plan's identity leaves out the preset): it finds the
+    first look's folder, whatever the preset was called."""
     plan = tiny(fixture_model, preset="first-look", seeds=(404, 55), attempts=2)
     folder = stopped_early(fixture_model, tmp_path, monkeypatch, plan)
     renamed = tmp_path / "my-first-try"
@@ -365,7 +364,7 @@ def test_fd3_3_until_run_plan_the_model_sees_only_the_key_checks_get(
     tmp_path: Path, harness_env: Path, fixture_model: FixtureModel,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Spec §8.1 steps 2 to 7, as `run` makes them: read the config and resolve the plan, find
+    """Steps 2 to 7 of a run, as `run` makes them: read the config and resolve the plan, find
     the folder, check the key, make the estimate, and write the eval configs `export` would.
     Before the run starts the fixture has had GETs and no POST, nothing is in the runs folder,
     and no socket has opened to anything but the fixture.  Then `run_plan` sends the calls."""

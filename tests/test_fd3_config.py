@@ -1,17 +1,17 @@
 """The configs a run hands to verifiers, frozen as tests: `run` and `export` agree, the
 calibration's runner is unchanged, and a decoding field declared "not sent" is never sent.
 
-The invariants are FD3.11, FD3.14 and FD3.17 of the front door's plan (spec §7.2, §8.3 and §8.9):
-- **FD3.11** for every arm of the three presets, and for a leaky custom arm and one at another
+The invariants:
+- for every arm of the three presets, and for a leaky custom arm and one at another
   generator version, the config `run_plan` resolves equals `verifiers_config(plan, arm)` after both
   go through verifiers' own loader; the exceptions are `run.*`, `output_dir` and `max_concurrent`;
-- **FD3.14** `run_arm` is unchanged: its existing tests stay green (they are in the suite), and
+- `run_arm` is unchanged: its existing tests stay green (they are in the suite), and
   `run_arm(spec, …)` equals `run_cell` under the card design;
-- **FD3.17** a decoding field declared `"not sent"` is absent from every request body the fake
+- a decoding field declared `"not sent"` is absent from every request body the fake
   server receives.
 
 **The config `run_plan` resolves** is the one the wheel's own `save_config` writes into each arm's
-folder, `configs/resolved/eval.json` (spec §8.5: each arm's folder is the wheel's run folder).
+folder, `configs/resolved/eval.json` (each arm's folder is the wheel's run folder).
 **Verifiers' own loader** is the one `eval` uses for `eval @ FILE`: `pydantic_config.cli` over
 `narrow_config(EvalConfig, ["@", FILE])`, which fills every default and applies the taskset's pins.
 Both sides go through it, so a field that only one side writes, or writes differently, shows.
@@ -24,8 +24,8 @@ is not only the defaults.
 Shapes decided here
 -------------------
 
-**1. `verifiers_config(plan, arm)`** returns a plain mapping that `eval @` reads, holding (spec
-§4.6 and §8.9) the taskset id `poisson-tasks`, the arm as its six-field mapping, the plan's seeds,
+**1. `verifiers_config(plan, arm)`** returns a plain mapping that `eval @` reads, holding the
+taskset id `poisson-tasks`, the arm as its six-field mapping, the plan's seeds,
 `num_rollouts` = attempts, the model, `client.base_url` and `client.api_key_var` (the variable's
 name, never a key), the declared decoding with "not sent" fields left out, `env.agent.max_turns` =
 the plan's turn cap, and `push = false`.  The token limit goes out as `max_completion_tokens`, as
@@ -65,8 +65,8 @@ from tests.fixtures.model_server import FixtureModel
 
 __all__ = ["fixture_model", "harness_env"]
 
-# The leaky arms and the arm at another generator version carry FD1's note that no published
-# card covers them, as a `UserWarning` from the export config; it is expected here.
+# The leaky arms and the arm at another generator version carry the export config's note that no
+# published card covers them, as a `UserWarning` from the export config; it is expected here.
 pytestmark = [needs_uv, pytest.mark.filterwarnings("ignore::UserWarning:poisson_tasks.export")]
 
 EXEMPT_PREFIXES = ("run.",)
@@ -111,7 +111,7 @@ def card_arm_ids() -> tuple[str, ...]:
 
 
 # ---------------------------------------------------------------------------
-# FD3.11 run and export agree
+# run and export agree
 # ---------------------------------------------------------------------------
 
 
@@ -179,7 +179,7 @@ def test_fd3_11_the_export_config_holds_the_plan(
 
 
 # ---------------------------------------------------------------------------
-# FD3.14 run_arm, through run_cell
+# run_arm, through run_cell
 # ---------------------------------------------------------------------------
 
 
@@ -251,7 +251,7 @@ def test_fd3_14_run_cell_runs_the_design_it_is_given(
 
 
 # ---------------------------------------------------------------------------
-# FD3.17 "not sent"
+# "not sent"
 # ---------------------------------------------------------------------------
 
 

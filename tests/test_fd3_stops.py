@@ -1,16 +1,16 @@
 """How a run stops when it cannot work, frozen as tests: the failure streak, the start-up
 watchdog and the provider out of credit, through `runs.run_plan`.
 
-The invariants are FD3.9, FD3.10 and FD3.15 of the front door's plan (spec §8.7), with ruling 20
-(2026-10-02: a 600-second start-up watchdog and a five-episode failure streak):
-- **FD3.9** a fixture answering 429 to every call stops the run after five episodes, with the first
+The invariants, with the decision of 2026-10-02 (a 600-second start-up watchdog and a
+five-episode failure streak):
+- a fixture answering 429 to every call stops the run after five episodes, with the first
   error's status and message in `first_error`, and the verdict is never done.  So does a toolset
   whose server never reports its port, with the launch poll shortened; its trace's `ToolsetError`
   text is the `first_error`.  A run in which every episode failed never returns done;
-- **FD3.10** with no model call and no finished episode within the watchdog's limit, the run
+- with no model call and no finished episode within the watchdog's limit, the run
   stops, quoting the last lines of `run.log`.  The limit is a parameter, 600 s by default and short
   here.  A launch failure reaches the failure streak before the default limit;
-- **FD3.15** the provider's 402, or a 429 naming quota or billing, still stops the run cleanly
+- the provider's 402, or a 429 naming quota or billing, still stops the run cleanly
   (`calibration._provider_exhausted`'s cases).
 
 **Measured** (`evidence/front-door-fd3-a/measurements/`): a 429 reaches the episode as verifiers' `ProviderError`
@@ -23,8 +23,8 @@ tool server's `PYTHONPATH` that acts only where `MCP_PORT_FILE` is set) and the 
 seconds by replacing verifiers' `_read_back_port` with the same loop, shorter.
 
 **The watchdog's run never makes a model call**: the harness's bootstrap hangs (a `pip` that
-sleeps), the case the watchdog is for, "stuck before its first model call for any other reason"
-(spec §8.7).  It runs in a process of its own, because the bootstrap runs once per process.
+sleeps), the case the watchdog is for, "stuck before its first model call for any other reason".
+It runs in a process of its own, because the bootstrap runs once per process.
 
 Shapes decided here
 -------------------
@@ -38,12 +38,12 @@ not pinned.
 
 **3. A run whose every episode failed** before any was scored stops as `"failure_streak"` even
 when it had fewer than five episodes: it is the same streak, cut short by the end of the plan.
-Once an episode has been scored, failures no longer stop the run (spec §8.7: "before any episode
+Once an episode has been scored, failures no longer stop the run ("before any episode
 is scored").
 
 **4. `log_tail`** on `RunResult` holds the quoted lines when the watchdog stops the run: lines of
 `run.log` as written, one after another, among them the arm the run was serving (the run writes
-its own progress there, FD3.16).
+its own progress there).
 
 **5. The watchdog's limit** is `run_plan`'s keyword `watchdog_seconds`, 600 by default.
 """
@@ -101,7 +101,7 @@ def outside(text: str, *parts: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# FD3.9 the failure streak
+# the failure streak
 # ---------------------------------------------------------------------------
 
 
@@ -212,7 +212,7 @@ def test_fd3_9_and_fd3_10_a_tool_server_that_never_starts_is_a_failure_streak_no
 
 
 # ---------------------------------------------------------------------------
-# FD3.10 the watchdog
+# the watchdog
 # ---------------------------------------------------------------------------
 
 
@@ -266,7 +266,7 @@ def test_fd3_10_a_run_stuck_before_its_first_model_call_stops_quoting_run_log(
 
 
 # ---------------------------------------------------------------------------
-# FD3.15 out of credit
+# out of credit
 # ---------------------------------------------------------------------------
 
 
@@ -279,7 +279,7 @@ def test_fd3_15_the_provider_out_of_credit_stops_the_run_at_once(
     monkeypatch: pytest.MonkeyPatch, model: str, status: str, words: str,
 ) -> None:
     """One episode at a time: the first one's answer stops the run, with no streak to wait for.
-    A plain rate limit is not this stop (FD3.9's 429 runs to its streak)."""
+    A plain rate limit is not this stop (the streak test's 429 runs to its streak)."""
     plan = make_plan(fixture_model.base_url, model=model, seeds=SEEDS[:6])
     _, result = run_here(plan, tmp_path, monkeypatch, concurrency=1)
     assert (result.verdict, result.stop_reason) == ("stopped", "provider_exhausted"), result
