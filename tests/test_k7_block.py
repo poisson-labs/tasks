@@ -1,7 +1,7 @@
 """What a task-shape block holds: sixteen tools, exactly the stage tools the width needs and reads,
 frozen as a test.
 
-The invariant is K7.2 of the knobs plan, from spec §14.3 and the ledger's N33: sixteen tools at
+It rests on the pin ledger's N33.  Sixteen tools at
 every width, holding exactly the stage tools the width needs (`w1`: the target ledger's stages 1 to
 4; `w2`: its stages 1 and 2; `w4`: stage 1 of the four ledgers), with reads to sixteen, so no tool
 can carry any target past its goal; the block's token count is reported, never refused (N33; the
@@ -16,7 +16,7 @@ target, its ledger's stage above its goal is not in the block, and no stage tool
 ledger is.  The control holds `w1`'s block.
 
 **2. Every tool is the engine's own**, shown under its own name with its own description and its
-own parameters, all required: the display map is the identity for shape (plan K1.8), and shape
+own parameters, all required: the display map is the identity for shape, and shape
 adds no parameter (that is argument difficulty's knob).
 
 **3. No overshoot control** at any width: no tool in the block carries a target past its goal, so no
@@ -41,7 +41,7 @@ from tests.k7_support import (
 def test_sixteen_tools_exactly_the_stage_tools_the_width_needs_and_reads() -> None:
     """Shapes 1 to 3.  Where the stage tools sit is the ledger's N2 (the right tools that two
     widths share sit in the same slot; `tests/test_k7_request.py`'s contrast) and, beyond it,
-    pending a yes/no (`tests/test_k7_pending_block.py`)."""
+    pending a decision (`tests/test_k7_pending_block.py`)."""
     for split, seeds in SPLITS:
         for seed in seeds:
             for arm_id in ARMS:

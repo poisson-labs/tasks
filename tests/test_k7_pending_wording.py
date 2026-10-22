@@ -1,8 +1,8 @@
-"""Pending a yes/no: how a task-shape request is worded.
+"""Pending a decision: how a task-shape request is worded.
 
-**This file waits on a yes/no** and is its own commit, so a "no" drops it whole.
+**This file waits on a decision** and is its own commit, so if it is declined it is dropped whole.
 
-Spec §14.3 names the template (`ledger-goals/v1`) and says it lists one line per goal; it gives no
+The design names the template (`ledger-goals/v1`) and says it lists one line per goal; it gives no
 words.  The frozen `tests/test_k7_request.py` holds each goal line to naming its target's record
 id, ledger and goal stage and no other, and the rest of the request to being the same at every
 width.  Recommended: B's own words, so the request differs from B's only where the knob needs it.

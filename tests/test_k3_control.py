@@ -1,6 +1,6 @@
 """The faults knob's control arm, `faults:f0+len(f4)`, frozen as tests.
 
-The invariant is K3.7 of the knobs plan, from spec §6.6.  The control is `faults:f0`'s task with
+The control is `faults:f0`'s task with
 read pairs seeded before the model's first move, of the history knob's kind (N24: a read tool in
 the block, answered `ok`, mutating nothing), whose reference tokens total `faults:f4`'s four fault
 pairs at the same seed within two (N26).  It seeds the fewest pairs whose reachable totals bracket
@@ -9,7 +9,7 @@ that total: three, at the sizes the card's seeds draw.
 Shapes decided here
 -------------------
 
-**1. Seeded as a depth control seeds** (spec §7.2, `tasks.py`'s seeded messages): the user's
+**1. Seeded as a depth control seeds** (`tasks.py`'s seeded messages): the user's
 instruction, then one assistant message per pair carrying one read call, each answered by its tool
 message; `seq_start` is the number of pairs plus one, and the reference runs from there.
 
@@ -22,7 +22,8 @@ tokens and four fault pairs 160 to 176, so two pairs cannot reach the total and 
 three pairs is what N26's band leaves, and the count is asserted to say so.
 
 **4. The control plans no failure**: a control plans its own level's failures, and f0's are none
-(`surface.fault_plan`, K1).  Its reference is `faults:f0`'s two calls, numbered from `seq_start`.
+(`surface.fault_plan`, from the knobs' shared base).  Its reference is `faults:f0`'s two calls,
+numbered from `seq_start`.
 
 """
 

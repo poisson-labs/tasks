@@ -1,6 +1,6 @@
 """The argument check in front of the engine, in the tool server and in `verify`, frozen as tests.
 
-The invariant is K6.3 of the knobs plan, from spec §14.2 and §12.1: `surface.py` requires every
+`surface.py` requires every
 stated value, exactly, on both stage calls, and refuses any unstated extra; a refused call answers
 `bad_args` in the engine's layout, changes nothing, advances the counter, and the engine sees only
 its two arguments.  `verify`, the tool server and the reference agree.  The episode run live on a

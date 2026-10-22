@@ -1,6 +1,6 @@
 """The history knob's kind: what is seeded, and what stays B, frozen as tests.
 
-The invariants are K4.2, K4.3 and K4.4 of the knobs plan, from spec §3.1, §7.2 and N24.  Every
+It rests on the pin ledger's N24.  Every
 seeded pair is a read tool in the block, answered `ok`, mutating nothing; the system prompt, the
 block, the instruction, the goal and the reference calls are equal across levels (N3, N4, N6),
 which is why history has its own branch in the generator's block rule and never knob R's
@@ -44,7 +44,7 @@ def other_fields(a: Any, b: Any) -> set[str]:
 
 
 def test_t0_is_b_in_every_field_but_its_id_and_pins() -> None:
-    """K4.4, at every card seed on both splits."""
+    """At every card seed on both splits."""
     for split, seeds in SPLITS:
         for seed in seeds:
             assert other_fields(history(0, seed, split), base(seed, split)) == {
@@ -56,7 +56,7 @@ def test_t0_is_b_in_every_field_but_its_id_and_pins() -> None:
 
 @pytest.mark.parametrize("level", LEVELS[1:])
 def test_a_level_above_zero_is_t0_but_its_seeded_prompt_and_numbering(level: int) -> None:
-    """K4.3 and shape 2: the block is B's, not knob R's designation, at every level."""
+    """Shape 2: the block is B's, not knob R's designation, at every level."""
     for split, seeds in SPLITS:
         for seed in seeds:
             t0 = history(0, seed, split)
@@ -84,7 +84,7 @@ def test_a_level_above_zero_is_t0_but_its_seeded_prompt_and_numbering(level: int
 def test_every_seeded_pair_is_a_read_in_the_block_the_engine_answers_ok_and_moves_nothing(
     level: int,
 ) -> None:
-    """K4.2 and shape 1, at every card seed on both splits; the ledger's N24 names no
+    """Shape 1, at every card seed on both splits; the ledger's N24 names no
     offender."""
     for split, seeds in SPLITS:
         for seed in seeds:

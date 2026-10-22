@@ -1,8 +1,8 @@
-"""Pending a yes/no: an empty value in a parameter the request did not state is refused.
+"""Pending a decision: an empty value in a parameter the request did not state is refused.
 
-**This file waits on a yes/no** and is its own commit, so a "no" drops it whole.
+**This file waits on a decision** and is its own commit, so if it is declined it is dropped whole.
 
-Spec §14.2: "An extra that the request did not state must be absent: inventing a value is wrong."
+The design: "An extra that the request did not state must be absent: inventing a value is wrong."
 A model often fills an optional text field with an empty string.  Read by "must be absent", an
 empty string sent for an unstated parameter is an extra that is present, and is refused; read by
 "inventing a value", it arguably invents nothing.  The frozen `tests/test_k6_check.py` tests an

@@ -1,8 +1,8 @@
-"""K9.6, outcomes, voids and stops, on made-up records of both models.
+"""The knob probe's outcomes, voids and stops, on made-up records of both models.
 
-The spec: a knob ships when it bites on at least one model and on neither is the top easier by the
-same rule; shape, whose rule is two-sided, ships when it bites on one, and says which width was
-harder.  It does not ship when it bites on neither or the top is easier on either, and a
+The probe's design: a knob ships when it bites on at least one model and on neither is the top
+easier by the same rule; shape, whose rule is two-sided, ships when it bites on one, and says which
+width was harder.  It does not ship when it bites on neither or the top is easier on either, and a
 wrong-direction result is read in the traces first.  An arm whose instrument rate is above 0.02 is
 void; a no-call share above 0.10 voids an arm only when its knob's base arm on the same model is
 above 0.10 too, and on a top arm alone it is the knob's effect, scored as failures.  A knob whose

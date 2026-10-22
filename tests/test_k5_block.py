@@ -1,6 +1,6 @@
 """The block-size knob's block: how many tools, in which slots, drawn from where, frozen as tests.
 
-The invariant is K5.1 of the knobs plan, from spec §14.1 and the ledger's N27 and N28.
+It rests on the pin ledger's N27 and N28.
 `block:kK` offers exactly K tools; the target ledger's two stage tools and six reads fill the
 first eight slots, in an order drawn from the block knob's own keyed draw, the same at every level;
 slots 8 and up follow a drawn order, the table's other reads first, then aliased read copies
@@ -16,7 +16,7 @@ Shapes decided here
 -------------------
 
 **1. The six reads of the first eight slots are the table's first six, in table order before the
-draw.**  Spec §14.1 says the k8 block is "the target ledger's two stage tools and six reads, in an
+draw.**  The design says the k8 block is "the target ledger's two stage tools and six reads, in an
 order drawn from the block knob's own PRF domain" and never which six.  The generator's rule for
 B's block decides it the same way (`tasks.py`: "the block's read tools are the table's first `n`
 reads, in table order, and the block is then permuted by the scenario's one slot draw"): drawing
@@ -24,24 +24,24 @@ the subset and the order would parameterise one arrangement twice, and the censu
 (`tests/test_k5_eval.py`) could no longer be stated as the size of what the arm can make.
 
 **2. One drawn order, read as far as the level goes: each level's block is the start of the next
-one's.**  Spec §14.1 says the k8 block "fills slots 0 to 7 at every level" and that more reads fill
+one's.**  The design says the k8 block "fills slots 0 to 7 at every level" and that more reads fill
 slots 8 and up "in a drawn order: first the table's other engine reads, then display-aliased read
 copies".  Read as one order, a level adds tools and changes nothing it already offered, which is
 "only that factor" for a knob whose factor is how many tools there are.  So k16's block is the
 first sixteen of k32's and of k64's, schema for schema.
 
-**3. "From the block knob's own PRF domain" is checked by what it protects**, as K2's draws were
-(`tests/test_k2_block.py`, shape 6): every level's scenario is B's (`tests/test_k5_fixed.py`), and
-the published tasks keep their content (`tests/test_k1_content.py`), so the draw took nothing from
-the scenario's.  What is pinned here is that it is a draw over the whole range: across the card
-seeds on both splits the first stage tool sits in each of the eight head slots, the ninth slot
-holds most of the table's other reads, the last slot of k64 holds many different copies, every
-copy is offered somewhere, and the two splits order a seed's block differently (the right tools'
-names set aside, since they carry the target ledger, which the scenario draws from the split
-anyway).  A draw that runs out of keyed bits before k64's last slot (a single 32-byte draw cannot
-order 46 copies after the head: about 2^393 orders) leaves its last slots to the decoding's
-fallback and fails the k64 clause.  An order read off the scenario's own slot digits, which moves
-no other task, is not observable here and is named in the mutation table.
+**3. "From the block knob's own PRF domain" is checked by what it protects**, as the similarity
+knob's draws were (`tests/test_k2_block.py`, shape 6): every level's scenario is B's
+(`tests/test_k5_fixed.py`), and the published tasks keep their content (`tests/test_k1_content.py`),
+so the draw took nothing from the scenario's.  What is pinned here is that it is a draw over the
+whole range: across the card seeds on both splits the first stage tool sits in each of the eight
+head slots, the ninth slot holds most of the table's other reads, the last slot of k64 holds many
+different copies, every copy is offered somewhere, and the two splits order a seed's block
+differently (the right tools' names set aside, since they carry the target ledger, which the
+scenario draws from the split anyway).  A draw that runs out of keyed bits before k64's last slot (a
+single 32-byte draw cannot order 46 copies after the head: about 2^393 orders) leaves its last slots
+to the decoding's fallback and fails the k64 clause.  An order read off the scenario's own slot
+digits, which moves no other task, is not observable here and is named in the mutation table.
 
 **4. The draw does not read the process**: a block task, the control's filler included, is the
 same in another process under another hash seed (G1).  An order built by iterating a set would
@@ -93,7 +93,7 @@ def test_the_first_eight_slots_are_the_right_tools_and_six_reads_the_same_at_eve
 
 
 def test_past_the_eighth_slot_the_other_reads_come_first_and_each_level_starts_the_next() -> None:
-    """Spec §14.1's order and shape 2: slots 8 and up hold the table's ten other reads before any
+    """The design's order and shape 2: slots 8 and up hold the table's ten other reads before any
     tool that is no engine tool, and each level's block is the start of the next level's."""
     others = set(READS[6:])
     for split, seeds in SPLITS:

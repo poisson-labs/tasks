@@ -1,9 +1,9 @@
-"""Pending a yes/no: a contrast that has lost a seed to instrument failures is not computed.
+"""Pending a decision: a contrast that has lost a seed to instrument failures is not computed.
 
 **The question.**  Δ is "paired over the 60 seeds", on scored episodes.  An arm that is not void
 (its instrument rate at most 0.02) can still lose both attempts at one seed to instrument
 failures, and then its scored episodes no longer cover the sixty: `paired_delta` refuses two
-cells with different seed sets.  The spec does not say what then.
+cells with different seed sets.  The design does not say what then.
 
 **Proposed: the contrast is not computed and the knob is undecided on that model**, with the
 reason, so it goes back for a decision.  **A no** pairs over the seeds both arms still hold

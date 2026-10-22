@@ -1,20 +1,20 @@
 """The information-spread knob's tasks keep their content, frozen as a test.
 
-Plan Knobs §2, as the session prompt states it for K8 Session B: the 840 published tasks keep
+As the knobs' design states it for the spread knob's build: the 840 published tasks keep
 their content (frozen `tests/test_k1_content.py`), and so do the similarity, faults, history,
 block, arguments and shape tasks (`tests/test_k4_kept.py` to `tests/test_k8_kept.py`).  Nothing
-held spread's: K8 Session A's tests pin its structure (four named reads of the base block's
+held spread's: the frozen `test_k8_*` tests pin its structure (four named reads of the base block's
 fourteen, the parts in the first reads listed, one fill per read, the reference's order, the
 server's and the replay's answers), not its content, and its mutation pass found three choices
 of the build that move every spread task and pass every frozen test, because which reads and
 fills a task draws could not be pinned before the build existed: the spelling of the domain the
 reads are drawn under, the spelling of the domain the fill is keyed under, and the order of the
-draw (its rows X1, X2 and X3).  Ruled 2026-10-09 (K8 Session A's yes/no 10, with the session's
-prompt): K8 Session B pins spread's content with digests, the way K8 Session A pinned shape's,
+draw (three rows of its mutation pass).  Decided 2026-10-09: the spread knob's build pins spread's
+content with digests, the way its frozen tests pinned shape's,
 in a file and a commit of their own, once the build is in.
 
 The digests are of every field but `task_id`, `generator_hash` and `pins`, which move with any
-edit to the generator's modules (K-P6's rule, as in `tests/test_k1_content.py`), per arm and
+edit to the generator's modules (the rule in `tests/test_k1_content.py`), per arm and
 split, at every level the generator can build (the card's three and 3 between them), at every
 card seed on the eval split and the first twelve on train (`tests/k4_support.py`).  Computed on
 the build, `k8-a` at `af67549`, the generator at

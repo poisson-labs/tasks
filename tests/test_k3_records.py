@@ -1,14 +1,13 @@
 """What a run's records say about the faults knob: gave up after a fault, the replay check, and the
 cell's figure, frozen as tests.
 
-The invariants are K3.8 and the replay half of K3.4 of the knobs plan, from spec §6.4 and §6.5, and
-the standing ruling of 2026-10-06 that the replay check takes in faults.  `records_from_run` fills
-the record's `gave_up_after_fault` from the trace: `True` when the episode received an `unavailable`
-from a tool and never called that tool again, `False` when it did not, and `None` on an arm that
-plans no failure, which the written line leaves out.  A faults cell gives the share of its scored
-episodes that gave up; it is printed and never gated.  On a faults arm `records_from_run` replays
-the calls that reached the tool server, with the plan applied, and labels a disagreement with the
-tool messages `replay_mismatch`, which scores nothing.
+The invariants, with the standing decision of 2026-10-06 that the replay check takes in faults.
+`records_from_run` fills the record's `gave_up_after_fault` from the trace: `True` when the episode
+received an `unavailable` from a tool and never called that tool again, `False` when it did not, and
+`None` on an arm that plans no failure, which the written line leaves out.  A faults cell gives the
+share of its scored episodes that gave up; it is printed and never gated.  On a faults arm
+`records_from_run` replays the calls that reached the tool server, with the plan applied, and labels
+a disagreement with the tool messages `replay_mismatch`, which scores nothing.
 
 The traces here are real `vf.Trace` objects in verifiers 0.3.1's shape, scored offline by the task
 and written by the wheel's own writer (`tests/k3_support.py`), with tool messages that are the tool
@@ -26,16 +25,16 @@ harness's own `error: ...` lines carry no status.
 
 **3. Giving up is judged per failure**: a tool that failed, was called again and failed again with
 no call after that was given up on.  Whether a later call the harness refused counts as calling the
-tool again is yes/no 2 of this session's filing, pinned in `tests/test_k3_pending_refused_retry.py`.
+tool again waits on a decision, pinned in `tests/test_k3_pending_refused_retry.py`.
 
 **4. The figure's names are `gave_up_after_fault_count` and `gave_up_after_fault_share`**, as
 `overshoot_count` and `overshoot_share` are named: the count of scored episodes that gave up and
 its share of the scored episodes that carry a value.  A cell whose records carry none (every cell
 of another knob, and both published cards) has neither key, so no published artifact moves.
 
-**5. Printing it is the card's.**  The card that prints a faults cell is K10's design (spec §11 and
-§12.1), so this file pins the figure and that nothing gates on it; where the card prints it is a
-ruling of this session's filing.
+**5. Printing it is the card's.**  The card that prints a faults cell is the card's redesign, so
+this file pins the figure and that nothing gates on it; where the card prints it is left to a
+decision.
 """
 
 from __future__ import annotations

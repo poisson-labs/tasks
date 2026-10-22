@@ -1,7 +1,7 @@
 """A faults episode run live through the `null` harness and the launched tool server, frozen as a
 test.
 
-The invariants are K3.3 and K3.4 of the knobs plan, from spec §6.2 and §6.4: a planned failure is
+The invariants: a planned failure is
 consumed only by a call that reaches the tool server; the harness's forwarding rule is measured
 here and pinned; the episode replays, in `verify` and in `records_from_run`'s replay check, to the
 observations the server sent; and a planted change to any of them is `replay_mismatch`.

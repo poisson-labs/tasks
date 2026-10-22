@@ -1,10 +1,10 @@
-"""Pending a yes/no: the census of an information-spread arm, and the named reads masked in its
+"""Pending a decision: the census of an information-spread arm, and the named reads masked in its
 fingerprint.
 
-Spec §14.4 does not say what `structure_space` counts for spread, nor whether the fingerprint reads
+The design does not say what `structure_space` counts for spread, nor whether the fingerprint reads
 the named reads (the frozen tests only require that the census takes every spread arm).  If the
 answer is yes, the fingerprint masks the slot that names the four reads whole, as it masks the
-goal lines of a shape task (ruled 2026-10-09), so replacing every slot that names a read's page by
+goal lines of a shape task (decided 2026-10-09), so replacing every slot that names a read's page by
 another task's moves nothing, whatever the slots are called: their pages are opaque keys, as a seeded read's
 page is, and which facet and item each names is a draw of the task's and not its structure; the
 parts are in the answers, which no first request holds.  Then the count is B's at every level:

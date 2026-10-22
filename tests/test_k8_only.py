@@ -1,12 +1,12 @@
 """Only the four named reads answer with parts, everywhere a task is answered: the tool server, and
 a run's replay, frozen as tests.
 
-The invariant is K8.3 of the knobs plan, from spec §14.4: `surface.py` answers exactly the four
+`surface.py` answers exactly the four
 named reads, matched on facet, item and page; every other read, the same read on another page
-included, is the engine's.  With it, Taylor's standing ruling for a knob that gains tasks: when a
+included, is the engine's.  With it, The standing decision for a knob that gains tasks: when a
 run's records are read, the calls that reached the tool server are replayed and a disagreement is
 `replay_mismatch`, which scores nothing; the tool server, `verify` and the run's replay agree.
-The stage-1 tool's description is K8.3's other half, held with the block in
+The stage-1 tool's description is the rule's other half, held with the block in
 `tests/test_k8_fixed.py`.
 
 Shapes decided here
@@ -18,7 +18,7 @@ one is made.  The engine answers every other read: the same tool and item on ano
 same tool and page with another item, and another named read's tool on this one's item and page,
 each with the catalogue's own value for the item and the facet.  At every level the generator can
 build, at six card seeds.  Whether a named read with any other argument object (a key more, a
-value in another case) is the engine's is pending a yes/no (`tests/test_k8_pending_exact.py`).
+value in another case) is the engine's is pending a decision (`tests/test_k8_pending_exact.py`).
 
 **2. The run's replay**: an episode whose tool messages are the server's answers (a read on another
 page first, the named reads in reverse order, one of them again, then the reference's two stage

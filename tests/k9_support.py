@@ -51,7 +51,7 @@ ARMS = (
     "arguments:a2+len(a8)",
     "shape:w1+len(w4)",
 )
-"""The eighteen arms of the spec's table, in the order it says they run, typed here and not
+"""The probe's eighteen arms, in the order its design says they run, typed here and not
 read from the module under test."""
 BASES, TOPS, CONTROLS = ARMS[:7], ARMS[7:14], ARMS[14:]
 

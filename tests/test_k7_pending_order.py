@@ -1,8 +1,8 @@
-"""Pending a yes/no: the order of a task-shape request's goal lines, and of its reference.
+"""Pending a decision: the order of a task-shape request's goal lines, and of its reference.
 
-**This file waits on a yes/no** and is its own commit, so a "no" drops it whole.
+**This file waits on a decision** and is its own commit, so if it is declined it is dropped whole.
 
-Spec §14.3 says the reference makes one call per turn and that `goal` keeps the first target; it
+The design says the reference makes one call per turn and that `goal` keeps the first target; it
 does not say in which order the request lists the targets or the reference advances them.  The
 frozen `tests/test_k7_calls.py` holds each target's own calls to stage order.  Recommended: one
 order for both.  The goal lines list the targets with the goal first (the target record in the

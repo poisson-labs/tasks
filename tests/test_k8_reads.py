@@ -1,7 +1,7 @@
 """Which reads an information-spread request names, and that it states no entry code, frozen as
 tests.
 
-The invariant is K8.1 of the knobs plan, from spec §14.4: the request (`ledger-spread/v1`) names the
+The request (`ledger-spread/v1`) names the
 same four (facet, item, page) reads at every level, drawn from the block's reads, and does not
 state the entry code (N35); the four reads come from their own PRF domain.
 
@@ -12,7 +12,7 @@ Shapes decided here
 tool the block holds, with exactly two arguments, a catalogue item and a page key the table holds.
 "Names four reads, by item, facet and page" is read as: each of the four is named on a line of the
 request of its own, a line that carries its facet as a word, its item and its page.  This is this
-file's reading, as K7's goal lines were; how a line is worded is pending a yes/no
+file's reading, as the shape knob's goal lines were; how a line is worded is pending a decision
 (`tests/test_k8_pending_wording.py`), and so is which reads may be drawn
 (`tests/test_k8_pending_reads.py`).  At every level, the card's three and the one between them
 the generator can build, the template is `ledger-spread/v1`, and exactly four lines of the request
@@ -20,21 +20,21 @@ name a catalogue item (no fifth read).  That the four are the same at every leve
 `tests/test_k8_fixed.py`'s (the request and the reference equal across levels); a check of its own
 here was removed before the freeze, catching nothing that one did not.
 
-**2. The request states no entry code, and says spec §14.4's two sentences**: the code is not in
+**2. The request states no entry code, and says the design's two sentences**: the code is not in
 double quotes in it, and it is not a word of it, apart from the words every spread request carries
-(spec §14.4's own sentence holds "part" and "parts", and `part` is one of the table's entry codes);
+(the design's own sentence holds "part" and "parts", and `part` is one of the table's entry codes);
 the sentences "The entry code is split across the answers of these four reads, in the order
-listed: join the parts. An answer that holds no part reads `none`." are in it once, as the spec
+listed: join the parts. An answer that holds no part reads `none`." are in it once, as the design
 prints them.
 
-**3. "Drawn from the block's reads, from their own PRF domain"** is read, as K6's and K7's draws
-were, as what it excludes: across the card seeds of a split, each of the four places takes more
-than one read tool, more than one item and more than one page; the four are not the block's first
-four reads in slot order at every seed (the scenario's slot draw); they are not a function of the
-target ledger (two seeds with the same target ledger name different reads); and at some card seed
-the two splits name different reads.  Which domain, and the order of the draw, cannot be pinned
-before the build exists: they are pinned by the content digests Session B adds as its own commit
-once the build is in (a yes/no of this filing).
+**3. "Drawn from the block's reads, from their own PRF domain"** is read, as the arguments and shape
+knobs' draws were, as what it excludes: across the card seeds of a split, each of the four places
+takes more than one read tool, more than one item and more than one page; the four are not the
+block's first four reads in slot order at every seed (the scenario's slot draw); they are not a
+function of the target ledger (two seeds with the same target ledger name different reads); and at
+some card seed the two splits name different reads.  Which domain, and the order of the draw, cannot
+be pinned before the build exists: they are pinned by the content digests the build adds as its own
+commit once the build is in (left to a decision).
 
 **4. G1**: a spread task is the same in another process, under two hash seeds.
 """

@@ -1,15 +1,15 @@
 """What the information-spread knob holds fixed: one task at every level but the answers, and the
-base task's fields the spec does not move, frozen as tests.
+base task's fields the design does not move, frozen as tests.
 
-The invariant is K8.4 of the knobs plan, from spec §14.4: the prompt, the block, the system prompt
-and the six tool calls the episode needs (four reads, two stage calls) are equal across levels
-(N35); only how the code is spread across the four answers changes.  With it, the session's
-standing ruling that every information-spread arm is the base task plus only what the spec says
-this knob changes: spec §14.4's task is B, but the request does not state the entry code and names
-four reads instead, and the stage-1 tool's description, "requires the entry code stated in the
-request", which would be false here, says through the display map that the code is assembled from
-the named reads (K8.3's second half; spec §3.3).  Spread has no control arm (spec §14.4, N15 as
-ruled): the request and the calls are the same at every level, so there is no length to hold.
+The prompt, the block, the system prompt and the six tool calls the episode needs (four reads, two
+stage calls) are equal across levels (N35); only how the code is spread across the four answers
+changes.  With it, the standing decision that every information-spread arm is the base task plus
+only what the design says this knob changes: the design's task is B, but the request does not state
+the entry code and names four reads instead, and the stage-1 tool's description, "requires the entry
+code stated in the request", which would be false here, says through the display map that the code
+is assembled from the named reads (the second half of `tests/test_k8_only.py`'s rule).  Spread has
+no control arm (N15 as decided): the request and the calls are the same at every level, so there is
+no length to hold.
 
 Shapes decided here
 -------------------
@@ -19,12 +19,12 @@ levels and the one between them the generator can build are equal in every field
 the task id, the pins and the reference observations; and the observations differ only in the
 named reads' answers (`tests/test_k8_parts.py` holds what those are).
 
-**2. B in every field the spec does not move**: the seed and split, the scenario, `seq_start` (no
+**2. B in every field the design does not move**: the seed and split, the scenario, `seq_start` (no
 spread arm seeds a history), the initial and the expected records, the goal, the system prompt,
 the verifier, the engine hash and the generator hash.  The block is B's, tool for tool and slot for
 slot, but the target ledger's first stage tool, whose description is the display map's for a
-spread arm (`surface.display_map`): the engine's own with "stated in the request" replaced by spec
-§14.4's "assembled from the reads named in the request".
+spread arm (`surface.display_map`): the engine's own with "stated in the request" replaced by the
+design's "assembled from the reads named in the request".
 Every line of B's request but the one that states the entry code is a line of the spread request,
 in B's order.  The reference's stage calls are B's two, with B's arguments, and each answers as the
 engine answers it at its place in the reference; its other calls are the four named reads
@@ -44,7 +44,7 @@ from poisson_tasks.tasks import scenario_for
 from tests.k3_support import SPEC
 from tests.k8_support import LEVELS, SPLITS, base, entry_code, names, request, spread
 
-# Spec §14.4: the stage-1 tool's description, "requires the entry code stated in the request",
+# The design: the stage-1 tool's description, "requires the entry code stated in the request",
 # says "requires the entry code assembled from the reads named in the request" for spread arms.
 STATED = "stated in the request"
 ASSEMBLED = "assembled from the reads named in the request"

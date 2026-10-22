@@ -1,7 +1,7 @@
 """How an information-spread episode is judged, and the ledger over the knob's arms, frozen as
 tests.
 
-Spec §14.4: stage 1 accepts only the exact code (the engine's own check), so the final records say
+The design: stage 1 accepts only the exact code (the engine's own check), so the final records say
 whether the parts were joined right; a model that batches the four reads in one turn needs four
 model calls at every level.  The ledger's rows for spread (N1 to N8, N11, N12 and N35) hold over
 the knob's arms, and generation refuses a contrast that breaks one.  G4 is the generator's own
@@ -25,7 +25,7 @@ record never leaves stage 0.
 
 **3. The contrast**: a test that the four levels are one contrast the ledger refuses nowhere and
 reports nothing on was written and removed before the freeze: no deliberate bug failed it that
-another K8 test did not (the ledger's rows for spread are each held field by field in
+another `test_k8_*` test did not (the ledger's rows for spread are each held field by field in
 `tests/test_k8_fixed.py`, `tests/test_k8_parts.py` and `tests/test_k8_reads.py`, and
 `generate_contrast` raises on a refused contrast, so its flag could not fail).
 """

@@ -1,12 +1,11 @@
 """What the argument-difficulty knob holds fixed: B plus the stated values and nothing else, its
 control a2 plus a filler, frozen as tests.
 
-The invariant is K6.4 of the knobs plan, from spec §3.1 and §14.2: the scenario, the block (N4),
-the system prompt and the reference call sequence are equal across levels.  Spec §3.1 names a2, the
-knob's base level, as B (`distractor:r0@k16`) with the eight-parameter schema, and spec §14.2 says
-what a level changes: the request states `A - 2` values and both stage calls carry them; the control
-`arguments:a2+len(a8)` holds a2's request plus a neutral filler at its end (spec §3.6: where N3 does
-not look, and the filler words keep it neutral).
+The scenario, the block (N4), the system prompt and the reference call sequence are equal across
+levels.  The design names a2, the knob's base level, as B (`distractor:r0@k16`) with the
+eight-parameter schema, and says what a level changes: the request states `A - 2` values and both
+stage calls carry them; the control `arguments:a2+len(a8)` holds a2's request plus a neutral filler
+at its end (where N3 does not look, and the filler words keep it neutral).
 
 Shapes decided here
 -------------------

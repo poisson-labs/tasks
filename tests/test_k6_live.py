@@ -1,7 +1,7 @@
 """An arguments episode run live through the `null` harness and the launched tool server, on a fake
 endpoint, frozen as a test.
 
-The invariant is K6.3 of the knobs plan, from spec §14.2: the argument check answers a missing,
+The argument check answers a missing,
 wrong or invented value `bad_args` in the engine's layout, changes nothing and advances the counter,
 and `verify`, the tool server and the reference agree, by replay on a fake endpoint.
 
@@ -22,7 +22,7 @@ message and `verify`'s verdict agrees with the recorded reward; and `verify` on 
 gives `passed` with no format clause.  A planted change to any of the five tool messages is
 `replay_mismatch`.
 
-**3. This is also Taylor's standing ruling for a knob that gains tasks**: when a run's records are
+**3. This is also The standing decision for a knob that gains tasks**: when a run's records are
 read, the calls that reached the tool server are replayed against the engine and a disagreement is
 `replay_mismatch`, which scores nothing.  For this knob the server answers in front of the engine,
 so the replay must apply the same check, or it disagrees with the clean run above; and a replay

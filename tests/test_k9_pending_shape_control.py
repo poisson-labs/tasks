@@ -1,4 +1,4 @@
-"""Pending a yes/no: shape's control clause is read on the point difference against 0.15.
+"""Pending a decision: shape's control clause is read on the point difference against 0.15.
 
 **The question.**  Shape bites when `w1 - w4` meets the two-sided rule "and the control
 `w1+len(w4)` differs from `w1` by less than that".  "That" can be read as 0.15 on the point

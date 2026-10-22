@@ -1,8 +1,7 @@
 """The faults knob's tasks: the plan, the answer, the system prompt and the reference, frozen as
 tests.
 
-The invariants are K3.1, K3.2, K3.5 and K3.6 of the knobs plan, from spec §6.2, §6.3 and §3.1.  A
-faults arm is B -- `distractor:r0@k16`'s task, two chained stage calls in a sixteen-tool block --
+A faults arm is B -- `distractor:r0@k16`'s task, two chained stage calls in a sixteen-tool block --
 plus one system-prompt sentence at every level, and at level F the first ceil(F/2) calls to the
 first stage tool and the first floor(F/2) calls to the second answer `unavailable`.  The reference
 solution makes each planned failure and the same call again after it.
@@ -10,13 +9,13 @@ solution makes each planned failure and the same call again after it.
 Shapes decided here
 -------------------
 
-**1. The sentence is spec §6.3's, word for word, backticks included, on a line of its own after
-B's system prompt.**  The spec gives the sentence and says it is added; B's prompt is four lines,
-so the sentence is a fifth.  The backticks are kept because the spec prints them inside the quoted
+**1. The sentence is the design's, word for word, backticks included, on a line of its own after
+B's system prompt.**  The design gives the sentence and says it is added; B's prompt is four lines,
+so the sentence is a fifth.  The backticks are kept because the design prints them inside the quoted
 sentence, and they mark `unavailable` as the status word the line carries.
 
 **2. A faults arm differs from B in nothing the knob does not need.**  `faults:f0` is B field for
-field but `arm_id`, `task_id`, `pins` and the system prompt (spec §3.1).  A level above 0 is
+field but `arm_id`, `task_id`, `pins` and the system prompt.  A level above 0 is
 `faults:f0` field for field but those three, the reference calls and observations, and the
 negative controls, which are built from the reference.  The control is `faults:f0` but those three,
 the prompt (its seeded pairs), `seq_start` and the reference observations (their `seq` moves);
@@ -28,7 +27,7 @@ arguments, as many times as it is planned to fail, plus once: "the same call can
 **4. A planned failure is the engine's own line.**  `seq` is the next number, the status is
 `unavailable` in the status field, the payload is the table's error payload, and the line is the
 table's `L_obs` bytes.  It is rendered from the table's layout (`EngineSpec.layout`); `surface`
-imports nothing private from the engine (spec §3.4), checked by reading its source.
+imports nothing private from the engine, checked by reading its source.
 """
 
 from __future__ import annotations
@@ -67,13 +66,13 @@ SURFACE = Path(surface.__file__)
 
 
 def planned(level: int) -> tuple[int, int]:
-    """Spec §6.2's table: the first stage takes the odd failure."""
+    """The design's table: the first stage takes the odd failure."""
     return math.ceil(level / 2), level // 2
 
 
 @pytest.mark.parametrize("level", LEVELS)
 def test_the_reference_makes_each_planned_failure_and_then_the_same_call_again(level: int) -> None:
-    """K3.1 and K3.6, at every card seed on both splits: the calls, the statuses, the numbering,
+    """At every card seed on both splits: the calls, the statuses, the numbering,
     the plan `surface.fault_plan` gives for the arm's id and the reference's tools, the ledger's
     N25, and a reference one call per planned failure longer than B's."""
     first_fails, second_fails = planned(level)
@@ -102,7 +101,7 @@ def test_the_reference_makes_each_planned_failure_and_then_the_same_call_again(l
 
 
 def test_a_planned_failure_is_one_engine_line_that_changes_nothing() -> None:
-    """K3.2: every `unavailable` line of `faults:f4` at the card seeds is the table's layout at
+    """Every `unavailable` line of `faults:f4` at the card seeds is the table's layout at
     its `seq`, `L_obs` bytes, inside N8's token band.  At `faults:f1` the first right call alone
     moves no record, in `verify` and in the tool server, whose next call meets the record where
     it was."""
@@ -141,7 +140,7 @@ def other_fields(a: Any, b: Any) -> set[str]:
 
 
 def test_every_faults_arm_is_b_with_one_sentence_and_the_retries_it_plans() -> None:
-    """K3.5 and spec §3.1, at twelve card seeds on both splits (shape 2)."""
+    """At twelve card seeds on both splits (shape 2)."""
     for split in ("eval", "train"):
         for seed in CARD_SEEDS[:12]:
             b = base(seed, split)

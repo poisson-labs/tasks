@@ -1,21 +1,22 @@
-"""What K6 leaves alone: the block-size knob's tasks keep their content, frozen as a test.
+"""What the arguments knob leaves alone: the block-size knob's tasks keep their content, frozen as
+a test.
 
-Plan Knobs §2, as the session prompt states it for K6: the 840 published tasks keep their content
+As the knobs' design states it for the arguments knob: the 840 published tasks keep their content
 (frozen `tests/test_k1_content.py`), and so do the similarity, faults, history and block tasks the
 knob modules before this one built.  Similarity's and faults' are held by the frozen
 `tests/test_k4_kept.py`, history's by the frozen `tests/test_k5_kept.py`.  Nothing held block's:
-K5's tests pin its structure (the first eight slots, the reads before the copies, the copies'
-names and answers, the census), not its content, and K5 Session B found two changes that move every
-block task, the copies listed in another order before the draw and the order's domain respelled,
-which no frozen test sees (its yes/no 3).  Ruled 2026-10-08, in K6 Session A's prompt: K6 Session
-A pins block's content with digests, the way K5 Session A pinned history's, in a file and a commit of
-their own.
+the `test_k5_*` tests pin its structure (the first eight slots, the reads before the copies, the
+copies' names and answers, the census), not its content, and the block-size knob's build found two
+changes that move every block task, the copies listed in another order before the draw and the
+order's domain respelled, which no frozen test sees.  Decided 2026-10-08: the arguments knob's
+frozen tests pin block's content with digests, the way the block-size knob's pinned history's, in
+a file and a commit of their own.
 
 The digests are of every field but `task_id`, `generator_hash` and `pins`, which move with any edit
-to the generator's modules (K-P6's rule, as in `tests/test_k1_content.py`), per arm and split, at
-every card level and the control, at every card seed on the eval split and the first twelve on
-train (`tests/k4_support.py`).  Computed on `main` at `044ecfa` (K5 merged) before any K6 edit.
-It passes on that tree by design.
+to the generator's modules (the rule in `tests/test_k1_content.py`), per arm and split, at every
+card level and the control, at every card seed on the eval split and the first twelve on train
+(`tests/k4_support.py`).  Computed on `main` at `044ecfa` (the block-size knob merged) before any
+edit for arguments.  It passes on that tree by design.
 """
 
 from __future__ import annotations

@@ -1,6 +1,6 @@
 """Counting the calls a fault plan is keyed on, in the tool server and in `verify`, frozen as tests.
 
-The invariants are K3.3 and K3.4 of the knobs plan, from spec §6.2 and §6.4.  A planned failure is
+A planned failure is
 keyed on how many times the episode has called that tool, whatever the arguments, counting only
 calls that reach the tool server.  The tool server and `verify` both apply the plan through one
 function, `surface.apply_planned(state, counts, call, plan) -> (state, counts, observation)`, so the
@@ -18,7 +18,7 @@ episode in `tests/test_k3_live.py` pins the harness's half; this file pins `veri
 tool server run in this process, with each refused call kept out of the server as the harness keeps
 it out.
 
-**2. The episodes.**  Each one below is a pattern spec §6.2 and plan K3.4 name, written as calls
+**2. The episodes.**  Each one below is a pattern the design names, written as calls
 (the right first and second stage calls, the first stage call with arguments the engine refuses, the
 first stage call with arguments that are not an object, and a read in the block), with what the
 server answers each call it receives and the verdict `verify` gives.  Each verdict is one a build
@@ -26,10 +26,11 @@ that counted the calls another way would get wrong: by position on the reference
 per tool, only calls whose arguments the engine accepts, calls the harness refused, or the read.
 
 **3. The seam is `poisson_tasks.surface.apply_planned`, read through the module** by the tool server,
-by `verify` and by `records_from_run`'s replay check, as K1 made `display_map` the seam for names.
+by `verify` and by `records_from_run`'s replay check, as the knobs' shared base made
+`display_map` the seam for names.
 Only a replaced function shows that none of the three applies a plan of its own: under one that
 ignores the plan, all three answer as if the arm planned nothing.  The replacement passes any
-further argument through, so a build may hand the function more than spec §6.4's four: the frozen
+further argument through, so a build may hand the function more than the design's four: the frozen
 `tests/test_tg_m4_export.py::test_ts3_concurrent_calls_are_numbered_without_a_gap_or_a_repeat`
 watches the tool server's engine step as `export._apply`, under the toolset's lock, so the server
 has to give the engine step it calls by that name.

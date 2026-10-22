@@ -1,4 +1,4 @@
-"""Pending a yes/no: gpt-5-nano's episodes run through the run engine's arm runner.
+"""Pending a decision: gpt-5-nano's episodes run through the run engine's arm runner.
 
 **The question.**  The probe runs "through the calibration path (`run_arm`'s body)", and the
 driver "takes a dollar cap ... use the run engine's cap and ledger where they fit; do not write a

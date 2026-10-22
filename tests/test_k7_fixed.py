@@ -1,11 +1,11 @@
 """What the task-shape knob holds fixed: the base task's fields it does not move, and its control
 `w1` plus a filler, frozen as tests.
 
-Spec §14.3: fixed at every width are four stage calls and a reply, the scenario and the block's
+The design: fixed at every width are four stage calls and a reply, the scenario and the block's
 size; what moves is how the four calls are arranged, so the targets, the block's composition (its
-token count reported, N33), the request's goal lines (N34) and the reference.  Spec §3.1 names
-`w1` the knob's base, because shape has four stage calls at every width where B has two; spec
-§3.6 puts the control's filler at the end of the request, where N3 does not look.
+token count reported, N33), the request's goal lines (N34) and the reference.  The design names
+`w1` the knob's base, because shape has four stage calls at every width where B has two; the
+design puts the control's filler at the end of the request, where N3 does not look.
 
 Shapes decided here
 -------------------
@@ -14,8 +14,8 @@ Shapes decided here
 both splits: the seed and split, the scenario, `seq_start` (no shape arm seeds a history), the
 initial records, the verifier, the engine hash and the generator hash.  The system prompt is held
 equal across the widths by the ledger's N3 (`tests/test_k7_request.py`'s contrast); whether it is
-B's, whose "Make one tool call per turn" sits beside the batching spec §14.3 measures, waits on a
-yes/no (`tests/test_k7_pending_system_prompt.py`).  The fields that move are the id, the pins,
+B's, whose "Make one tool call per turn" sits beside the batching the design measures, waits on a
+decision (`tests/test_k7_pending_system_prompt.py`).  The fields that move are the id, the pins,
 the tools, the request and its template and slots, the expected records and the goal, the
 reference calls and observations and the negative controls; each is held by its own test file
 (`tests/test_k7_calls.py`, `test_k7_block.py`, `test_k7_request.py`, `test_k7_verdict.py`).

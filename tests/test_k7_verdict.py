@@ -1,13 +1,13 @@
 """How a task-shape episode is judged: every target, through the targets `verify` reads, frozen as
 tests.
 
-The invariant is K7.4 of the knobs plan, from spec §14.3 and plan K1.9: every target is in the
+Every target is in the
 expected final state; a mutation of a record that is not a target is collateral; G4 passes at every
 width; `w2` generates no `collateral_mutation` control, because no call in its block can mutate a
-non-target (as stage 8 has no overshoot control); and K7.5's first half, an episode that makes
-`w4`'s four calls in one turn passes.  Spec §14.3 also says `goal` keeps the first target and the
-fingerprint adds the target list for shape arms only; the plan's K7 does not carry that clause,
-and the spec wins.
+non-target (as stage 8 has no overshoot control); and an episode that makes
+`w4`'s four calls in one turn passes.  The design also says `goal` keeps the first target and the
+fingerprint adds the target list for shape arms only; the knob's plan does not carry that clause,
+and the design's wording holds.
 
 Shapes decided here
 -------------------
@@ -16,7 +16,7 @@ Shapes decided here
 not verify as `passed`, strict and leaky (its own gate), `tests/test_k7_calls.py` holds the targets
 to exactly the width's, and shape 3 below verifies the reference batched.  A test of the
 reference, and of the reference less each target's last call, was written and removed before
-the freeze: no deliberate bug failed it that another K7 test did not.
+the freeze: no deliberate bug failed it that another `test_k7_*` test did not.
 
 **2. Collateral**: at `w1` and `w4`, the reference followed by a first-stage call on a record of a
 ledger the block can reach that is not a target (the decoy in the target ledger) is
@@ -27,7 +27,7 @@ named for (a build may add controls, each named for its label).
 
 **3. Batching**: the reference's calls grouped by stage, every target's first stage in one turn,
 then every second and so on (`w4` one turn of four, `w2` two of two, `w1` four of one), then a
-reply, is `passed`: spec §14.3's two, three and five model calls.
+reply, is `passed`: the design's two, three and five model calls.
 
 **4. The fingerprint's target list**: a shape task's fingerprint moves when its targets' goal
 stages move in its expected records, and at `w4` when one of the other ledgers is swapped for one

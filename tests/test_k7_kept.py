@@ -1,21 +1,22 @@
-"""What K7 leaves alone: the argument-difficulty knob's tasks keep their content, frozen as a test.
+"""What the shape knob leaves alone: the argument-difficulty knob's tasks keep their content,
+frozen as a test.
 
-Plan Knobs §2, as the session prompt states it for K7: the 840 published tasks keep their content
+As the knobs' design states it for the shape knob: the 840 published tasks keep their content
 (frozen `tests/test_k1_content.py`), and so do the similarity, faults, history, block and arguments
 tasks the knob modules before this one built.  Similarity's and faults' are held by the frozen
 `tests/test_k4_kept.py`, history's by the frozen `tests/test_k5_kept.py`, block's by the frozen
-`tests/test_k6_kept.py`.  Nothing held arguments': K6's tests pin its structure (the eight
-parameters, the stated values, the check, the request's form), not its content, and K6 Session B
-found two changes that move every arguments task, the six parameter names in another order and the
-values' domain respelled, which no frozen test sees (its mutation rows X6 and X7).  Ruled
-2026-10-08, in K7 Session A's prompt: K7 Session A pins arguments' content with digests, the way K6
-Session A pinned block's, in a file and a commit of their own.
+`tests/test_k6_kept.py`.  Nothing held arguments': the `test_k6_*` tests pin its structure (the
+eight parameters, the stated values, the check, the request's form), not its content, and the
+arguments knob's build found two changes that move every arguments task, the six parameter names in
+another order and the values' domain respelled, which no frozen test sees (two rows of its mutation
+pass).  Decided 2026-10-08: the shape knob's frozen tests pin arguments' content with digests, the
+way the arguments knob's pinned block's, in a file and a commit of their own.
 
 The digests are of every field but `task_id`, `generator_hash` and `pins`, which move with any edit
-to the generator's modules (K-P6's rule, as in `tests/test_k1_content.py`), per arm and split, at
-every card level and the control, at every card seed on the eval split and the first twelve on
-train (`tests/k4_support.py`).  Computed on `main` at `1c618ad` (K6 merged) before any K7 edit.
-It passes on that tree by design.
+to the generator's modules (the rule in `tests/test_k1_content.py`), per arm and split, at every
+card level and the control, at every card seed on the eval split and the first twelve on train
+(`tests/k4_support.py`).  Computed on `main` at `1c618ad` (the arguments knob merged) before any
+edit for shape.  It passes on that tree by design.
 """
 
 from __future__ import annotations

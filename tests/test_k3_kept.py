@@ -1,13 +1,15 @@
-"""What K3 leaves alone: the similarity knob's tasks keep their content, frozen as a test.
+"""What the faults knob leaves alone: the similarity knob's tasks keep their content, frozen as a
+test.
 
-Plan Knobs §2, as the session prompt states it for K3: the 840 published tasks keep their content
-(frozen `tests/test_k1_content.py`), and so do the similarity tasks K2 built.  No published card
-measures similarity, so nothing else holds them: the K2 tests pin their structure, not their bytes,
+As the knobs' design states it for the faults knob: the 840 published tasks keep their content
+(frozen `tests/test_k1_content.py`), and so do the similarity tasks.  No published card measures
+similarity, so nothing else holds them: the `test_k2_*` tests pin their structure, not their bytes,
 and a change to a draw they share with faults would pass them.
 
 The digests are of every field but `task_id`, `generator_hash` and `pins`, which move with any edit
-to the generator's modules (K-P6's rule, as in `tests/test_k1_content.py`), at every card seed, per
-level and split, computed on `main` at `596eeaa` (K2 merged) before any K3 edit.  It passes on that
+to the generator's modules (the rule in `tests/test_k1_content.py`), at every card seed, per
+level and split, computed on `main` at `596eeaa` (the similarity knob merged) before any edit for
+faults.  It passes on that
 tree by design.
 """
 

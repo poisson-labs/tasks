@@ -1,7 +1,7 @@
-"""Pending a yes/no: a named read answers with its part only when its arguments are exactly the
+"""Pending a decision: a named read answers with its part only when its arguments are exactly the
 read's.
 
-Spec §14.4 says `surface.py` answers the four reads "when the call names the read's facet, item and
+The design says `surface.py` answers the four reads "when the call names the read's facet, item and
 page exactly; every other read, the same read on another page included, is the engine's"; it does
 not say what a call naming them with something more, or in another case, is.  If the answer is yes,
 a named read's tool called with any argument object other than exactly its item and its page is

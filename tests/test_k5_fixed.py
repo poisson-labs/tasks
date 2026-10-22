@@ -1,9 +1,9 @@
 """What the block-size knob holds fixed: everything but the block, frozen as a test.
 
-The invariant is K5.4 of the knobs plan, from spec §3.1 and §14.1: the prompt, the system prompt
-(but the control's filler), the scenario and the reference calls are equal across levels, and K1.1
-still holds for every published task (frozen `tests/test_k1_content.py`).  Spec §3.1 lists block
-size among the knobs that measure departures from one base task, B (`distractor:r0@k16`).
+The prompt, the system prompt (but the control's filler), the scenario and the reference calls are
+equal across levels, and every published task keeps its content (frozen `tests/test_k1_content.py`).
+The design lists block size among the knobs that measure departures from one base task, B
+(`distractor:r0@k16`).
 
 Shapes decided here
 -------------------

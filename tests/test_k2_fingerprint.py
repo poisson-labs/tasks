@@ -1,23 +1,24 @@
 """The similarity knob's structural fingerprint and census, frozen as tests.
 
-The invariant is K2.8 of the knobs plan, from spec §5.4 and §5.7: G15's fingerprint masks the
+The invariant: G15's fingerprint masks the
 ledger numbers for similarity arms and is unchanged for every other knob, and `structure_space`
 counts each level's structures and clears G16's floor at the card's N, 60.
 
 Shapes decided here
 -------------------
 
-**1. What the mask keeps.**  Spec §5.4 masks the numbers in the tools' names and descriptions "as
-it masks the record id"; spec §5.7 counts "the kept positions" among the structures.  Both hold
+**1. What the mask keeps.**  The design masks the numbers in the tools' names and descriptions "as
+it masks the record id", and counts "the kept positions" among the structures.  Both hold
 only if the digits are masked and **which places each number shares with the target's** is kept,
 so a lookalike one digit off in the last place and one off in the first are different structures
-(the reference tokenizer splits `4417` as `441` and `7`, so the two read differently, spec §5.3),
+(the reference tokenizer splits `4417` as `441` and `7`, so the two read differently),
 while two tasks whose numbers differ but share the same places are one.  The ledger number slot
 is opaque, as the record id and the entry code are.  How a masked number is written is the
 build's.
 
 **2. Unchanged for every other knob** is pinned as digests: the fingerprints of the published
-design's fourteen arms at the card's sixty seeds, taken on `main` before K2 (`6089e79`), one
+design's fourteen arms at the card's sixty seeds, taken on `main` before the similarity knob
+(`6089e79`), one
 digest per arm over its sixty fingerprints in seed order.
 
 **3. The census here is the floor.**  Each level's count clears `100 * N**2` at N = 60, and sixty
@@ -25,7 +26,7 @@ tasks of a level collide with probability under 0.005, as `test_g16_3` asks of t
 the sixty card tasks of each level are in fact pairwise distinct.  At s0 every lookalike shares
 no place, so that distinctness rests on the scenario's draw and the block's composition alone,
 both fixed before this knob's own draws; at s1 to s3 the shared places add to it.  The exact
-count waits on a yes/no and is pinned in `tests/test_k2_pending_census.py`.
+count waits on a decision and is pinned in `tests/test_k2_pending_census.py`.
 """
 
 from __future__ import annotations
@@ -56,7 +57,7 @@ from tests.k2_support import (
 N_CARD = 60
 FLOOR = 100 * N_CARD**2
 
-# Shape 2: on `main` 6089e79, before K2.
+# Shape 2: on `main` 6089e79, before the similarity knob.
 MAIN_FINGERPRINTS = {
     "depth:d1": "ddcacf19159fe796e58a178cf0a1ea902292caf631ec766c01b441b2e8c95de0",
     "depth:d2": "79e9592ead52a458bdabfb0845659cebf645f231c094d751faf7b9411953f03f",

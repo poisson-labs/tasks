@@ -1,6 +1,6 @@
 """The history knob's size: the seeded pairs total the level, frozen as tests.
 
-The invariants are K4.1 and K4.5 of the knobs plan, from spec §7.2 and N23.  A history arm is B
+It rests on the pin ledger's N23.  A history arm is B
 with read pairs seeded after the user's instruction, as the depth controls seed them; the pairs'
 reference tokens (tool name, compact arguments, observation: N9's unit) total the level T; the
 count is `round(T / m)`, with `m` the median reachable read-pair total in the block, and the
@@ -13,8 +13,8 @@ Shapes decided here
 
 **1. The total is pinned exactly, not within N23's +/- 2.**  The read pair's reachable totals
 are consecutive, so a search that converges lands on T; a total off by one or two is a search
-that stuck or stopped early, which K4.5 ("the search never exhausts its steps at any card level")
-rules out.  Measured on the reference: residual 0 at every card seed on both splits at every
+that stuck or stopped early, which the design ("the search never exhausts its steps at any card
+level") rules out.  Measured on the reference: residual 0 at every card seed on both splits at every
 level, as the code audit found over ten seeds.  The ledger's band is the contrast's tolerance,
 not the generator's target.
 
@@ -55,7 +55,7 @@ TIME_BUDGET_SECONDS = 600.0
 
 @pytest.mark.parametrize("level", LEVELS[1:])
 def test_the_seeded_pairs_total_the_level_exactly_from_round_t_over_m(level: int) -> None:
-    """K4.1 at every card seed on the eval split and twelve on train: `round(T / m)` pairs,
+    """At every card seed on the eval split and twelve on train: `round(T / m)` pairs,
     whose tokens total T exactly; `seq_start` the pairs plus one; the ledger's N23 reads the
     same total."""
     for split, seeds in SPLITS:
@@ -69,7 +69,7 @@ def test_the_seeded_pairs_total_the_level_exactly_from_round_t_over_m(level: int
 
 
 def test_the_top_level_generates_for_the_sixty_card_seeds_in_bounded_time() -> None:
-    """K4.5: `history:t2400` afresh at every card seed, the search converging every time (shape
+    """`history:t2400` afresh at every card seed, the search converging every time (shape
     1), within the stated budget (shape 3)."""
     spec = arm_from_id(arm(2400))
     start = time.perf_counter()

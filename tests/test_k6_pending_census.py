@@ -1,9 +1,9 @@
-"""Pending a yes/no: the census of an arguments arm is B's, and the stated values are masked.
+"""Pending a decision: the census of an arguments arm is B's, and the stated values are masked.
 
-**This file waits on a yes/no** and is its own commit, so a "no" drops it whole.
+**This file waits on a decision** and is its own commit, so if it is declined it is dropped whole.
 
 `structure_space` must take every arm `eval` takes (the frozen `tests/test_k6_eval.py` holds it to),
-and spec §14.2 does not say what it counts for argument difficulty.  Recommended: B's count, the
+and the design does not say what it counts for argument difficulty.  Recommended: B's count, the
 target ledger times the order of B's sixteen slots, at every level and the control.  An arguments
 arm's block is B's at every level, its schema the same at every level (`tests/test_k6_schema.py`),
 and which parameters a level states is the level's.  The stated values are opaque words the model

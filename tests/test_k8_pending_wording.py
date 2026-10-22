@@ -1,20 +1,20 @@
-"""Pending a yes/no: how an information-spread request is worded, and its slots.
+"""Pending a decision: how an information-spread request is worded, and its slots.
 
-Spec §14.4 names the template (`ledger-spread/v1`), says the request names four reads by item, facet
+The design names the template (`ledger-spread/v1`), says the request names four reads by item, facet
 and page, gives its two sentences ("The entry code is split across the answers of these four
 reads, in the order listed: join the parts. An answer that holds no part reads `none`."), and says
 the request describes the answer's shape; it gives no other words.  If the answer is yes, the
 request is B's first three lines, then `The four reads:`, then one line per named read in the
 listed order, `<n>. the <facet> field of catalogue item "<item>" on page "<page>"` (the facet as
 the engine's own read describes it, the item and the page in double quotes as B quotes the record
-id), then the spec's two sentences on one line, then `Each answer's payload is its part, a full
+id), then the design's two sentences on one line, then `Each answer's payload is its part, a full
 stop, then filler.`, then B's last line with the code taken out: `Open with the joined entry code;
 each later stage needs what the stage before returned.`  The slots are B's but the entry code, in
 B's order, and then the four read lines in a slot of the knob's own, `named_reads`.  Dropped if the
 answer is no: the words and the slots are then the build's, inside the frozen tests (four reads
-named, each on its own line; spec §14.4's sentences; no entry code stated; every line of B's but
-the code's kept), and nothing then pins that the request describes the answer's shape, which spec
-§14.4 asks for in no words of its own.
+named, each on its own line; the design's sentences; no entry code stated; every line of B's but
+the code's kept), and nothing then pins that the request describes the answer's shape, which the
+design asks for in no words of its own.
 """
 
 from __future__ import annotations

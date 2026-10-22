@@ -1,18 +1,18 @@
-"""Pending a yes/no: the census of a task-shape arm, and the goal lines masked in the fingerprint.
+"""Pending a decision: the census of a task-shape arm, and the goal lines masked in the fingerprint.
 
-**This file waits on a yes/no** and is its own commit, so a "no" drops it whole.
+**This file waits on a decision** and is its own commit, so if it is declined it is dropped whole.
 
 `structure_space` must take every arm `eval` takes (the frozen `tests/test_k7_eval.py` holds it to),
-and spec §14.3 does not say what it counts for task shape.  The goal lines name record ids, which
+and the design does not say what it counts for task shape.  The goal lines name record ids, which
 G15's fingerprint masks, beside ledgers and stages, which the block, the goal and the target list
-(spec §14.3; the frozen `tests/test_k7_verdict.py`) already show.  Recommended: the fingerprint
-masks the knob's own slot, `goal_lines`, whole, as it masks the argument knob's stated values
-(ruled 2026-10-08), so nothing in it is structure twice and no record id is structure at all.  Then
-the count is B's (the target ledger times the order of sixteen distinct tools) at `w1` and `w2`,
-whose blocks hold one ledger's tools, and on the control (a lower bound, as for every control); and
-at `w4` B's times the choice of the three other ledgers among the eleven (165), each set of four
-first-stage tools taking every order of the sixteen slots.  If the answer is no, the count and
-whether the fingerprint reads the goal lines are the build's, and this file is dropped.
+(the frozen `tests/test_k7_verdict.py`) already show.  Recommended: the fingerprint masks the knob's
+own slot, `goal_lines`, whole, as it masks the argument knob's stated values (decided 2026-10-08),
+so nothing in it is structure twice and no record id is structure at all.  Then the count is B's
+(the target ledger times the order of sixteen distinct tools) at `w1` and `w2`, whose blocks hold
+one ledger's tools, and on the control (a lower bound, as for every control); and at `w4` B's times
+the choice of the three other ledgers among the eleven (165), each set of four first-stage tools
+taking every order of the sixteen slots.  If the answer is no, the count and whether the fingerprint
+reads the goal lines are the build's, and this file is dropped.
 """
 
 from __future__ import annotations

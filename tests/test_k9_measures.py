@@ -1,8 +1,8 @@
-"""K9.7, what is reported beside the primary measure.
+"""The knob probe: what is reported beside the primary measure.
 
-The spec: the primary measure is strict pass@1 per arm; leaky, the no-call share, gave up after a
-fault, cost and time are reported beside it; `faults:f0` against `history:t0` (the same task but
-one system sentence) is reported as a check and decides nothing.  Concurrency is recorded.  Each
+The probe's design: the primary measure is strict pass@1 per arm; leaky, the no-call share, gave up
+after a fault, cost and time are reported beside it; `faults:f0` against `history:t0` (the same task
+but one system sentence) is reported as a check and decides nothing.  Concurrency is recorded.  Each
 figure is the cards' own arithmetic (`calibration`), so it is checked against that.
 """
 

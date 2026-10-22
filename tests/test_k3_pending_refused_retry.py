@@ -1,12 +1,12 @@
-"""Pending a yes/no: a retry the harness refused still counts as calling the tool again.
+"""Pending a decision: a retry the harness refused still counts as calling the tool again.
 
-Spec §6.5's figure is the share of episodes that "received an `unavailable` from a tool and never
+The design's figure is the share of episodes that "received an `unavailable` from a tool and never
 called that tool again".  A model that meets a planned failure and calls the same tool again with
 arguments the `null` harness cannot parse has not given up: it tried, and failed to write the call.
 So a later sampled call by the tool's name counts as calling it again whether or not the harness
 forwarded it, and the record says `False`.  The other reading counts only calls that reached the
-tool server, as the plan's own counting does (spec §6.2), and says `True`.  Dropped if the answer
-is no; the build is then free to choose, and the filing records its choice.
+tool server, as the plan's own counting does, and says `True`.  Dropped if it is declined; the
+build is then free to choose, and records its choice.
 """
 
 from __future__ import annotations

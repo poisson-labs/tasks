@@ -1,6 +1,6 @@
-"""Pending a yes/no: the cap is counted at the published card's rates for gpt-5-nano.
+"""Pending a decision: the cap is counted at the published card's rates for gpt-5-nano.
 
-**The question.**  The run engine's cap counts dollars from tokens at a price.  The spec's spend
+**The question.**  The run engine's cap counts dollars from tokens at a price.  The design's spend
 estimate uses gpt-5-nano's published per-call figures with no cache discount; it names no price.
 
 **Proposed:** the rates the published card declares and was billed at, read from its artifact

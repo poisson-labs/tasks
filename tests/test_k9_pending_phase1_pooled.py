@@ -1,4 +1,4 @@
-"""Pending a yes/no: phase 1's full gate reads the seven base arms pooled.
+"""Pending a decision: phase 1's full gate reads the seven base arms pooled.
 
 **The question.**  "The existing `plumbing_gate` applies in full to the seven base arms."  It can
 be called once on their 21 episodes together (at least 11 of 21 reach their structural minimum,

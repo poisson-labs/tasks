@@ -1,4 +1,4 @@
-"""Pending a yes/no: where the key is read from, and a key check that cannot check.
+"""Pending a decision: where the key is read from, and a key check that cannot check.
 
 **The question.**  The driver "loads it from .env at run time without printing it, and stops with
 one line saying where it looked if it is missing or refused".  Which file, which variable, and

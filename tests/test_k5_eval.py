@@ -1,22 +1,22 @@
 """Block size opened: the generator, `eval`, the census, the levels it cannot build, and what stays
 shut, frozen as tests.
 
-Taylor's standing rulings: once a knob has tasks, the `eval` command takes its arms, the published
+The standing decisions: once a knob has tasks, the `eval` command takes its arms, the published
 cards' table answers for the knob so that no arm raises a `KeyError`, and an arm no published card
 covers gets the one note saying so.  The three knobs still unbuilt (arguments, shape, spread) stay
 refused by the generator and by `eval`; that is the frozen
 `tests/test_k2_eval.py::test_the_six_knobs_without_tasks_stay_refused_beside_similarity`, whose list
-of arms loses its two block arms in this session's retrofit commit (a ruling).  `tasks.toml` and
-`init` do not offer block size before its probe (spec K-P3).
+of arms loses its two block arms in this knob's retrofit commit (a decided retrofit).  `tasks.toml`
+and `init` do not offer block size before its probe.
 
 Shapes decided here
 -------------------
 
 **1. Every block arm is on no published card**, the control included: neither card measured block
-size.  `eval` takes each card level and the control with the one plain note (one `UserWarning`,
-one line, naming the arm by its id; `tests/test_fd1_export_arm.py`).  The control is the arm that
-would raise the `KeyError` K1 Session B found if the table read a control pair for a knob it does
-not hold; the note shows it does not.  The note's words are not pinned.
+size.  `eval` takes each card level and the control with the one plain note (one `UserWarning`, one
+line, naming the arm by its id; `tests/test_fd1_export_arm.py`).  The control is the arm that would
+raise the `KeyError` the shared base's build found if the table read a control pair for a knob it
+does not hold; the note shows it does not.  The note's words are not pinned.
 
 **2. Levels the card does not measure.**  `eval` takes any block level from 8 to 64, the ends of
 the knob's candidate levels.  Three it takes between them (9, 20, 50) are held to the rule the
@@ -31,7 +31,7 @@ of k64's block).  At k8 that is 483,840, which clears G16's floor of 360,000 at 
 stands only if the draw reaches every order it counts, which is why `tests/test_k5_block.py` holds
 the last slot of k64 to many different copies.
 
-The level past which a block cannot be built is pinned in its own file, pending a yes/no
+The level past which a block cannot be built is pinned in its own file, pending a decision
 (`tests/test_k5_pending_upper_bound.py`).
 """
 

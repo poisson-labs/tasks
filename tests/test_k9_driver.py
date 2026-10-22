@@ -1,6 +1,6 @@
-"""K9.3, K9.4 and K9.6 end to end: the gpt-5-nano driver against the fake model, at no cost.
+"""The knob probe end to end: the gpt-5-nano driver against the fake model, at no cost.
 
-The spec and the plan: the driver runs the eighteen arms in order through the calibration path,
+The probe's design: the driver runs the eighteen arms in order through the calibration path,
 phase 1 first; if phase 1 fails the probe stops and reports what it spent.  The frozen
 generator's hash and the seed list's hash are written into the run folder before the first paid
 call, and the driver refuses to run if the generator hash is not the frozen one.  It takes a

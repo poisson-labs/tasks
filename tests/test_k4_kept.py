@@ -1,16 +1,17 @@
-"""What K4 leaves alone: the similarity and faults knobs' tasks keep their content, frozen as tests.
+"""What the history knob leaves alone: the similarity and faults knobs' tasks keep their content,
+frozen as tests.
 
-Plan Knobs §2, as the session prompt states it for K4: the 840 published tasks keep their content
-(frozen `tests/test_k1_content.py`), and so do the similarity tasks K2 built and the faults tasks
-K3 built.  No published card measures either, so nothing else holds their bytes: the K2 and K3
+As the knobs' design states it for the history knob: the 840 published tasks keep their content
+(frozen `tests/test_k1_content.py`), and so do the similarity and faults tasks built before it.  No
+published card measures either, so nothing else holds their bytes: the `test_k2_*` and `test_k3_*`
 tests pin their structure, not their content, and a change to a draw or a seeding rule they share
 with history would pass them.
 
 The digests are of every field but `task_id`, `generator_hash` and `pins`, which move with any edit
-to the generator's modules (K-P6's rule, as in `tests/test_k1_content.py`), at every card seed, per
-arm and split, computed on `main` at `71ab1df` (K3 merged) before any K4 edit.  It passes on that
-tree by design.  The eight similarity digests equal the ones K3 Session A took on `596eeaa`: K3
-moved nothing of similarity's.
+to the generator's modules (the rule in `tests/test_k1_content.py`), at every card seed, per
+arm and split, computed on `main` at `71ab1df` (the faults knob merged) before any edit for
+history.  It passes on that tree by design.  The eight similarity digests equal the ones taken on
+`596eeaa` for the faults knob (`tests/test_k3_kept.py`): faults moved nothing of similarity's.
 """
 
 from __future__ import annotations
