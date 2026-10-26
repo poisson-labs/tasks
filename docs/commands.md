@@ -366,6 +366,8 @@ How a run ends:
 | no model call and no finished episode in 600 seconds | `stopped  no model call and no finished episode within 600 s: ...` | 3 |
 | Ctrl-C | `stopped  interrupted: ... kept`, then `next: poisson-tasks run` | 130 |
 
+A run writes into its folder, `runs/<preset>-<model>/`: `plan.json` (the plan and its hash, by which the folder is found again), `spend.jsonl` (one line for each episode that ended), `run.log`, one folder of traces per arm, and `produced_by.jsonl`, what produced the run, written before its first request: the package and verifiers versions, the generator's hash (and on your own tools the own-tools generator's and your tool file's contract hash), the plan's hash and its seeds. A resume adds a line to it; a run with nothing left to do adds none. `--json` carries the line the run wrote as `produced_by`, or `null`. A folder started with another generator or another tool contract than this install and the file give now holds other tasks, so a resume of it is refused before anything is spent, naming the two hashes: `error: runs/first-look-gpt-5-nano was started with another generator than this install's (b460964dc153 there, 1a2b3c4d5e6f here), so its tasks are not the ones this install makes; finish it with poisson-tasks 0.2.0, or move the folder aside to run the plan from the start`. Another package version alone is not refused.
+
 An episode that ran and failed for a reason that is not the model's (an API error, a timeout) is owed again and counted apart; a run of which every episode failed never exits 0. A run that is refused before anything is spent exits 1 with one line: the key is not set or refused, the model is not found, the endpoint cannot be reached, a setting is wrong, the tokenizer file is missing, or the estimate is above the cap. `run` does not work on Windows, and says so.
 
 A plan, without sending anything:
@@ -444,6 +446,21 @@ A card from a run that was stopped is built from what ran, and every level that 
 
 `--published` rebuilds the cards that ship with the package from their own records, checks each against its stored artifact byte for byte, and says whether it is current for this install. It is free. `--check PATH` does the same for a card folder or a calibration bundle `.zip`; exit 4 means a difference. `--page` writes the one page for every published card. The result names its run in a `run` row (the folder, the dollars spent from its ledger, episodes kept of total) and, when there is something to say, how it stands beside the published cards in one row: on the built-in tasks under a model a published card measured, `measured on an earlier build of the generator, so this release does not set them side by side`; on your own tools, `different tasks, so none of its figures reads against theirs`. `--compare published` reads the card already written (no `--force`), prints that verdict first as one line, `different  ...`, writes `card/compare.md` (your own-tools card beside the published card of its model, each whole, pooling nothing; on the built-in tasks the earlier-build sentence alone) and prints neither card; exit 0. `card` never ends by suggesting it.
 
+The result's `made with` row, right after `run`, says what produced the run as the run recorded it, and `--json` carries the record as `produced_by` (`null` for a run made before poisson-tasks 0.2.0); [reading-a-card.md](reading-a-card.md) says what each hash covers.
+
+`--compare OTHER_RUN` puts this run's card beside another run's, given by its folder, and decides on what produced each. The first answer that applies is the one given:
+
+1. both runs recorded what produced them and a generator differs: `different`, naming both hashes, because their tasks differ and a shift between them is not the model's alone;
+2. both recorded, and the tool contract differs (on your own tools): `different`, naming both contract hashes;
+3. both recorded, one contract, but the file's bytes differ: `different`, since tasks are drawn from the file's bytes;
+4. no level is on both: `different`;
+5. a run recorded nothing (made before poisson-tasks 0.2.0) and the task ids differ on a level both hold: `different`, saying that whether its tools or generator changed is not known;
+6. the two were measured another way (the seeds, the attempts, the decoding, the strictness, the split): `different`, saying which;
+7. both recorded and the task ids still differ: `different`, since their `[own]` settings differ;
+8. otherwise `ok`: they measured the same tasks the same way, with one `note:` when only the package or verifiers version differs, or when a run recorded nothing but its task ids match.
+
+A task id is a hash over every field of the task, the generator's hash and the tool file's digest among them, so equal ids are the same tasks. `card/compare.md` in this run's folder starts with a table, **What produced each**, one row per recorded value with both runs' values and the rows that differ marked; for `ok` the two cards follow side by side, and for `different` the verdict line comes first and both cards' documents follow whole, with no figure of one set beside the other's. Nothing is written into the other run's folder, and neither card is printed. Exit 0 for `ok` and `different`, 1 when a card is refused or the other folder is not a run folder (`error: OTHER is not a run folder: it holds no plan.json`), and 2 when it names this run's own folder. `--json` carries `verdict`, `sentence`, `note`, `changed` (the recorded values that differ), `a` and `b` (each run's `folder` and `produced_by`) and `wrote`.
+
 <!-- docs-check: run -->
 ```bash
 poisson-tasks card --published
@@ -491,8 +508,8 @@ options:
   --page              write the one page for every published card, plus this
                       run's card when it was measured the same way
   --out FILE          with --page: where to write it (default: calibration.md)
-  --compare WHAT      put this run's card beside the published ones: --compare
-                      published
+  --compare WHAT      put this run's card beside the published ones (--compare
+                      published) or beside another run's (--compare OTHER_RUN)
   --check PATH        recompute a card folder, or a calibration bundle .zip,
                       from its records and compare it with its artifact; exit
                       4 on any difference
@@ -504,6 +521,7 @@ examples:
   poisson-tasks card --published
   poisson-tasks card --published gpt-5-nano
   poisson-tasks card --print
+  poisson-tasks card runs/first-look-my-model --compare runs/first-look-my-model-2
 ```
 
 ## verify
@@ -581,7 +599,7 @@ examples:
 
 ## export
 
-Writes the plan's tasks as configs another runner reads. There is one target now, `--to verifiers`: one eval config for every arm, `eval-<arm>.json`, holding the taskset, the arm, the seeds, the model, the endpoint, the name of the key's variable (never the key) and the decoding, with `push` off. It prints, for each file, the command that runs it, with verifiers' `eval` by its absolute path in this environment, so that the shell's own `eval` builtin cannot take its place ([verifiers-export.md](verifiers-export.md) says why that matters). `export` reads no key and opens no socket, and refuses to replace files that are already there unless you pass `--force`.
+Writes the plan's tasks as configs another runner reads. There is one target now, `--to verifiers`: one eval config for every arm, `eval-<arm>.json`, holding the taskset, the arm, the seeds, the model, the endpoint, the name of the key's variable (never the key) and the decoding, with `push` off. It prints, for each file, the command that runs it, with verifiers' `eval` by its absolute path in this environment, so that the shell's own `eval` builtin cannot take its place ([verifiers-export.md](verifiers-export.md) says why that matters). Beside the configs it writes `produced_by.json`: what produces the plan's tasks (the package and verifiers versions, the generator's hash, on your own tools the own-tools generator's and your tool file's contract hash, the plan's hash and its seeds), with no time in it, so two exports of one plan write the same bytes; `--json` carries it as `produced_by`. The configs carry nothing of it: they are what `run` sends. `export` reads no key and opens no socket, and refuses to replace files that are already there unless you pass `--force`.
 
 Run that way, `eval` runs what `run` runs for the arm, without what `run` adds: the plan, the spend cap, the tally of failures that are not the model's, the stop when the account is out of credit, the stop for a streak of failures, and the watchdog. It also exits 0 when every episode errored. So each printed command calls the model and spends money with no cap and no estimate, and `export` says so in the line above them.
 

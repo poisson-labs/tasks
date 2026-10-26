@@ -101,7 +101,7 @@ Every dial stays in play: all nine have tasks and work from the command line. On
 
 ## What a card says, and what it does not
 
-A card says, for each level of each knob you ran: strict pass@1 with its 95% interval (a bootstrap that resamples tasks), leaky pass@1, how often the model carried the record past the goal, the calls and tokens and dollars an episode cost, and which pairs of adjacent levels differ (a pair is called different only when the paired interval excludes zero and the gap is at least 0.15). It names the model, where it was served, the generator it was made with and every setting it depends on. It refuses to publish a level where more than 10% of attempts made no tool call at all, because that measures whether the model starts, not how hard the level is.
+A card says, for each level of each knob you ran: strict pass@1 with its 95% interval (a bootstrap that resamples tasks), leaky pass@1, how often the model carried the record past the goal, the calls and tokens and dollars an episode cost, and which pairs of adjacent levels differ (a pair is called different only when the paired interval excludes zero and the gap is at least 0.15). It names the model, where it was served, and what produced it: the package version, the generator's hash, your tool file's contract hash on your own tools, the plan and its seeds, so a change between two cards can be traced to a changed tool contract or generator rather than the model. It refuses to publish a level where more than 10% of attempts made no tool call at all, because that measures whether the model starts, not how hard the level is.
 
 A card does not claim:
 
@@ -157,7 +157,7 @@ Across the 12 pairs of adjacent levels, the models agree on none and disagree on
 - `poisson-tasks init`: ask what to test, and write `tasks.toml`; spends nothing.
 - `poisson-tasks generate`: make the plan's tasks with no model and no network, or show one task in full.
 - `poisson-tasks run`: show the plan and its cost, ask, then run the tasks against the model.
-- `poisson-tasks card`: build the card from a run, or rebuild the published cards.
+- `poisson-tasks card`: build the card from a run, or rebuild the published cards, or compare two runs.
 - `poisson-tasks verify`: judge an answer with the task's own verifier, with no model. In this release `verify` refuses a tasks file made on your own tools, in one line: `error: <file> holds tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`. It refuses `--arm` in a folder set up for your own tools the same way: `error: tasks.toml puts the tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`.
 - `poisson-tasks export`: write the configs another runner reads (verifiers).
 - `poisson-tasks doctor`: say whether this environment is ready, and what to do if not.

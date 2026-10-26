@@ -15,7 +15,7 @@ The published cards were measured like this; a card from your run is measured th
 - **Turn limit.** An episode ends after 32 model calls, the taskset's own default. An episode that reaches it is scored `turn_limit`, the model's failure, and the card prints the cap in its provenance. The `gpt-5-nano` run predates the default and had no limit; its longest episode was 18 calls, so its card is what it would be under the cap.
 - **Stopping.** A run stops on whichever comes first: its token budget, its wall-clock limit, or the provider saying the account is out of credit. A stopped run keeps every episode already paid for and marks the cell incomplete; it never quietly publishes a smaller sample.
 - **Resuming.** A run that is interrupted and resumed serves the same tasks, each with its full number of attempts, none run twice and none skipped. It does not reproduce the interrupted attempts byte for byte, because the decoding is not deterministic.
-- **Staleness.** A card is pinned to the generator it was made with: a hash over the bytes of the generator's source files. When those files change, the tasks change and the card is stale. It is not regenerated automatically; a card whose generator hash differs from the installed package's says so.
+- **Staleness.** A card is pinned to the generator it was made with: a hash over the bytes of the generator's source files. When those files change, the tasks change and the card is stale. It is not regenerated automatically; a card whose generator hash differs from the installed package's says so. On a card from a run, the generator it was made with is the one the run recorded before its first request (below); a run made before poisson-tasks 0.2.0 recorded none, and its card is read against the generator of the install that built the card.
 
 ## The columns
 
@@ -64,6 +64,30 @@ On both published models the distractor knob (the decoy-tools dial) does not mak
 - **Ordering** asks whether pass@1 is non-increasing across the whole axis, on strict and, for depth, on leaky.
 - **Provenance** lists everything a number depends on: the package version, the engine, generator and vocabulary hashes, the seed list's hash, the harness and verifiers version, the model and where it was served (for a locally served model, the serving stack, its version and flags, the GPU and the weights' exact revision), the decoding, the budget, the turn limit, the run's concurrency when it recorded one, and every threshold above.
 
+## What produced it
+
+A run records what produced it before its first request, in a file in its folder, `produced_by.jsonl`, and its card says it in two places: a `made with` row in the result, right after the `run` row, with each hash cut to its first 12 characters, and a section of `card.md`, **What produced it**, with the full hashes. `card --json` and the card's `artifact.json` carry the same record as `produced_by`. For a run on the built-in tasks the row reads like this (the numbers are the run's):
+
+```text
+made with  poisson-tasks 0.2.0 · generator b460964dc153 · plan 1f2e3d4c5b6a (first-look) · 10 seeds, list 2061672b2321
+```
+
+On your own tools it also names the own-tools generator and your tool file's contract (`own-tools generator 22c8ac690458 · tool spec a2d89128c189 (an OpenAI tools file)`). Each hash says one thing:
+
+- **poisson-tasks and verifiers**: the versions installed when the run started. A resume with another version adds a line to the file, and the row reads `poisson-tasks 0.2.0, resumed with 0.2.1`. A version alone changes no task.
+- **generator**: the built-in generator's hash, over its version label and the bytes of its source files. It moves when the generator changes, and then every task changes. On your own tools it is still recorded, so you can see it did not move either.
+- **own-tools generator**: on your own tools, the hash over the bytes of the modules that make tasks on them. It moves when they change.
+- **tool spec**: on your own tools, your tool file's contract hash: the SHA-256 of the file as canonical JSON. Whitespace, key order and JSON against YAML do not move it; any change to a tool, a description or a value does. The file's own SHA-256, which any byte moves, is recorded beside it. [own-tools.md](own-tools.md) shows how to recompute both.
+- **domain and vocabulary** (in `card.md`): the mock domain's table and the table record ids are made of. Neither changes in this release.
+- **plan**: the plan's hash, which covers its levels, seeds, attempts, model, endpoint, decoding and turn limit (and on your own tools every `[own]` setting), with the preset's name beside it. It moves with the model, so another model on the same tasks has another plan hash.
+- **seeds**: how many, and the hash of the seed list in the order they run.
+
+**A card can be newer than its run.** The card's first paragraph names the install that built the card; the record names the one that ran the episodes. When the two differ, the record is the one to trust for what produced the numbers, and the card is stale when the generator the run recorded is not this install's.
+
+**Runs made before poisson-tasks 0.2.0 recorded none of this.** Their cards read `not recorded: the run was made before poisson-tasks 0.2.0`, and a run started before 0.2.0 and resumed with it reads `not recorded: the run was started before poisson-tasks 0.2.0 (resumed with 0.2.0)`, since what produced its first episodes is not known. The two published cards carry no record either, and `card --published` shows nothing new for them.
+
+`card --compare OTHER_RUN` reads two runs on these records and sets their figures side by side only when they measured the same tasks the same way; [commands.md](commands.md) gives its answers.
+
 ## What a card says it means, and what it does not claim
 
 A card from a run ends with two short pieces of text. The first says what the card is: the model, where it was served, how many tasks per level with how many attempts at each, how a rate is read and how two levels are called different. The second is a list of what it does not claim; every line that applies is there.
@@ -75,7 +99,7 @@ A card from a run ends with two short pieces of text. The first says what the ca
 - No published card covers this plan: none holds any of its levels, so nothing here can be read beside a published figure. *(a plan that holds no level a published card holds)*
 - Its model was served by its user: how it was served is not pinned beyond what the server reported, so a later run of the same weights served differently is not the same measurement. *(a model on Ollama, vLLM or another endpoint you serve)*
 - The distractor knob is experimental: it did not make tasks harder for either calibrated model. *(a card that holds the decoy-tools dial)*
-- It is pinned to the generator it was made with, which is not the one this install has, so it is stale. *(a card from another build of the generator)*
+- It is pinned to the generator it was made with, which is not the one this install has, so it is stale. *(a card from another build of the generator: the one its run recorded, when it recorded one)*
 - Some of its attempts were made by a later run of its folder: a resumed attempt is a fresh attempt, not a copy of the one it replaces. *(a run that was interrupted and resumed)*
 
 A card on your own tools carries other lines, which [own-tools.md](own-tools.md) gives. A card that includes the top depth level also carries the note on how depth is read, above.

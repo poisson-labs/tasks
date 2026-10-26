@@ -98,6 +98,8 @@ Each of these runs calls the model and spends money with no cap; poisson-tasks r
 
 Each printed command is `eval` by its absolute path in the environment `poisson-tasks` is installed in, such as `/home/you/.venvs/tasks/bin/eval @ export/eval-depth-d1.json`.
 
+Beside the configs it writes `produced_by.json`: what produces the plan's tasks, the package and verifiers versions, the generator's hash, the plan's hash and its seeds (on your own tools also the own-tools generator's hash and your tool file's contract hash), the same record a run writes before its first request. The configs carry none of it, so verifiers reads them as before.
+
 **`eval` is also a shell builtin.** In bash and zsh the bare word `eval` runs the shell's own `eval`, which takes its arguments for a command and runs that, so `eval poisson-tasks ...` does not reach verifiers at all. That is why the command above is `uv run eval ...`, and why the commands `export` prints name the program by its path.
 
 <!-- docs-check: run -->

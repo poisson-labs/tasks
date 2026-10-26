@@ -48,7 +48,7 @@ Type checks and lint, which CI runs too:
 
 Each module was built against tests written before it, and the suite is not edited to suit a build. Comments and docstrings in a test file may be corrected; assertions may not. A frozen test that looks wrong is a question for the maintainers, not an edit. [`tests/conftest.py`](tests/conftest.py) is outside that freeze and holds the skip for the tests that need Proofload.
 
-The generator's three source files (`tasks.py`, `surface.py` and `knobs.py`) are frozen until the published cards are measured again: their bytes are in the generator hash, so an edit moves every task id and makes both published cards stale. `engine.py` and the vocabulary table do not change either. A test regenerates the 840 tasks of each published card, and every knob's kept tasks, and compares them with the recorded ones; it is the first thing to run after touching anything near them.
+The generator's three source files (`tasks.py`, `surface.py` and `knobs.py`) are frozen until the published cards are measured again: their bytes are in the generator hash, so an edit moves every task id and makes both published cards stale. `engine.py` and the vocabulary table do not change either. What a run records about what produced it is computed in `provenance.py`, which no module in either generator's hash imports, so recording it moves no task. A test regenerates the 840 tasks of each published card, and every knob's kept tasks, and compares them with the recorded ones; it is the first thing to run after touching anything near them.
 
 ## Build the wheel
 
