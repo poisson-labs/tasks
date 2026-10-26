@@ -250,7 +250,7 @@ cf8af7f03f9931e506b7ba9a67ad16386c55be943bc2eb31e1f97e1d0b659157
 
 The hash covers the whole file you gave, not only the tools Tasks kept from it: the file is the contract you bring and version, so a change Tasks does not read, such as a refused tool, an `info.version` or a server URL, moves it too.
 
-**A reformatted file keeps its contract hash and still gives other tasks.** Tasks draws every task from the file's bytes, so the same tools with other whitespace give other tasks, with other ids. `card --compare` between two such runs says so: they share one tool contract, but the file was rewritten without changing it, so their tasks differ, and no figure of one is set beside the other's.
+**A reformatted file keeps its contract hash and still gives other tasks.** Tasks draws every task from the file's bytes, so the same tools with other whitespace give other tasks, with other ids. `card --compare` between two such runs says so: they share one tool contract, but the file was reformatted, and tasks are drawn from the file's bytes, so their tasks differ, and no figure of one is set beside the other's.
 
 ## `verify`, `export` and `doctor` on your tools
 

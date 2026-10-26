@@ -452,7 +452,7 @@ The result's `made with` row, right after `run`, says what produced the run as t
 
 1. both runs recorded what produced them and a generator differs: `different`, naming both hashes, because their tasks differ and a shift between them is not the model's alone;
 2. both recorded, and the tool contract differs (on your own tools): `different`, naming both contract hashes;
-3. both recorded, one contract, but the file's bytes differ: `different`, since tasks are drawn from the file's bytes;
+3. both recorded, one contract, but the file was reformatted (its bytes differ): `different`, since tasks are drawn from the file's bytes;
 4. no level is on both: `different`;
 5. a run recorded nothing (made before poisson-tasks 0.2.0) and the task ids differ on a level both hold: `different`, saying that whether its tools or generator changed is not known;
 6. the two were measured another way (the seeds, the attempts, the decoding, the strictness, the split): `different`, saying which;

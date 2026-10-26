@@ -454,8 +454,8 @@ def compare(
         if ra["tool_file_sha256"] != rb["tool_file_sha256"]:
             return different(
                 f"{a} and {b} share one tool contract (tool spec "
-                f"{_short(ra['tool_spec_hash'])}), but the file was rewritten without changing "
-                "it, and tasks are drawn from the file's bytes, so their tasks differ")
+                f"{_short(ra['tool_spec_hash'])}), but the file was reformatted, and tasks are "
+                "drawn from the file's bytes, so their tasks differ")
     if not shared_arms:
         return different(f"{a} and {b} cannot be read side by side: no level is on both")
     ids_a, ids_b = task_ids
