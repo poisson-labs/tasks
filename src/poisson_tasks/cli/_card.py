@@ -265,7 +265,7 @@ def _run_card(ctx: Context) -> Result:
         rows.append(Bullets("what ran", ran))
     beside = _beside_words(made.artifact)
     if beside is not None:
-        rows.append(Row(beside[0], beside[1]))
+        rows.append(Row(beside[0], beside[1], apart=True))
     rows.append(Row("wrote", ", ".join(shown(path) for path in paths)))
     document = []
     if args.print:

@@ -16,11 +16,14 @@ from typing import Any
 
 @dataclasses.dataclass
 class Row:
-    """One `label  value` line.  `status` is `doctor`'s per-line word: `"ok"` or `"bad"`."""
+    """One `label  value` line.  `status` is `doctor`'s per-line word: `"ok"` or `"bad"`.
+    `apart` keeps a long label out of the column the other rows line up on: it takes two spaces
+    after it, and the other rows keep the width their own labels need."""
 
     label: str
     value: str
     status: str | None = None
+    apart: bool = False
 
 
 @dataclasses.dataclass

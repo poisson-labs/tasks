@@ -148,10 +148,13 @@ class PlainUI:
 
     def show(self, result: Result) -> None:
         self.out(f"{result.verdict}  {result.sentence}", indent=" " * (len(result.verdict) + 2))
-        labels = [row.label for row in result.rows if isinstance(row, Row)]
+        # a row that stands apart takes two spaces after its label and widens no other row
+        labels = [row.label for row in result.rows if isinstance(row, Row) and not row.apart]
         width = max((len(label) for label in labels), default=0)
         for row in result.rows:
-            if isinstance(row, Row):
+            if isinstance(row, Row) and row.apart:
+                self.out(f"  {row.label}  {row.value}", indent=" " * (len(row.label) + 4))
+            elif isinstance(row, Row):
                 if row.status is not None:
                     status = STATUS_WORDS.get(row.status, "not ok")
                     self.out(f"  {row.label:<{width}}  {status:<6}  {row.value}",
