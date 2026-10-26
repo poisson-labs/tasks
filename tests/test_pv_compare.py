@@ -189,14 +189,15 @@ def test_pv_13_a_version_alone_is_one_note(
 ) -> None:
     a = copy_run(fd4_runs["strict"].folder, world.tmp / "strict-run")
     b = copy_run(fd4_runs["strict_again"].folder, world.tmp / "strict-again-later")
-    rewrite_first_line(b, poisson_tasks_version="0.2.1")
+    later = "99.0.0"  # a version no install has, so b is always made with another one
+    rewrite_first_line(b, poisson_tasks_version=later)
     (line_a,), (line_b,) = record_lines(a), record_lines(b)
     document = same_tasks(a, b, monkeypatch)
     keys = both_recorded(a, b, document)
     assert "poisson_tasks_version" in keys and not set(keys) & {*GENERATOR_KEYS, *TOOL_KEYS}
     assert str(document["note"]).removeprefix("note: ") == (
         f"{a.name} was made with poisson-tasks {line_a['poisson_tasks_version']} and verifiers "
-        f"{line_a['verifiers_version']}, {b.name} with poisson-tasks 0.2.1 and verifiers "
+        f"{line_a['verifiers_version']}, {b.name} with poisson-tasks {later} and verifiers "
         f"{line_b['verifiers_version']}; the generator and the tasks are the same")
 
 

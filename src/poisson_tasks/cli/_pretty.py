@@ -93,15 +93,18 @@ class Pretty:
 
         def items(part: str, room: int) -> list[str]:
             # a value made of items joined by " · " breaks only between items, the separator
-            # ending the line; an item longer than the line is wrapped on its own
+            # ending the line; an item longer than the line is wrapped on its own.  A line another
+            # item may follow keeps room for the separator's mark
             lines: list[str] = []
-            for item in part.split(SEPARATOR):
-                if lines and len(lines[-1]) + len(SEPARATOR) + len(item) <= room:
+            parts = part.split(SEPARATOR)
+            for index, item in enumerate(parts):
+                mark = 0 if index == len(parts) - 1 else len(SEPARATOR.rstrip())
+                if lines and len(lines[-1]) + len(SEPARATOR) + len(item) + mark <= room:
                     lines[-1] += SEPARATOR + item
                     continue
                 if lines:
                     lines[-1] += SEPARATOR.rstrip()
-                lines += textwrap.wrap(item, room, break_long_words=False,
+                lines += textwrap.wrap(item, room - mark, break_long_words=False,
                                        break_on_hyphens=False) or [""]
             return lines
 
