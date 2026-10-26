@@ -2,6 +2,17 @@
 
 All notable changes to Poisson Tasks.
 
+## 0.2.1 (2026-10-27)
+
+### Fixes
+
+- **`card --check` and `card --published` say a card is current from what its run recorded.** `current` now agrees with the card's own stale line: it reads the generator the run recorded when the run recorded one, on the built-in tasks and on your own tools. Before, it read the generator hash in the card's block against the built-in generator, so a card built by a newer install than its run could say `current` while its stale line said it was stale, and every card on your own tools said not current. The published cards record no run and read as before.
+- **The coloured look keeps a `made with` row inside the terminal.** A line of a row made of items joined by ` · ` now leaves room for the ` ·` that ends it. Before, a line could run two columns past the terminal, which then broke it inside an item.
+
+### Tests
+
+- **What 0.2.0 built and no test held is now held:** a resume on your own tools refused when the run was started with another own-tools generator or on another tool contract; a run started before 0.2.0 and resumed writing one `resumed` line, its card saying it was started before 0.2.0 and resumed with this version; `run` refusing such a resume before the plan and its cost question; `card --check` reading `current` from the run's record; the `made with` row breaking only between its items; and the `beside the published cards` row leaving the label column as wide as the other rows need, in both looks.
+
 ## 0.2.0 (2026-10-26)
 
 ### Every card says what produced it
