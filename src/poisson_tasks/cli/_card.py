@@ -4,12 +4,15 @@ From a run folder (by default the settings file's newest run) it builds the card
 library and writes `card/`: the records, the artifact, the document and the instrument tallies,
 so `card --check` recomputes it as it recomputes a published one.  The verdict comes first and
 the card's own statement of what it means and what it does not claim is printed, never typed
-here.  `--published` recomputes the cards shipped with the package, named by their model;
-`--compare published` puts a run's card beside them, or says in one line why it cannot be;
-`--page` writes the one page for every published card.  A card on the user's own tools (its
-provenance carries the own-tools kind) is put beside the published card of the same model through
-`own.card.beside_published`, the two documents whole under the line that says the tasks differ,
-and nothing is pooled.
+here, after a `made with` row: what produced the run, as the run recorded it before its first
+request (`provenance`).  `--published` recomputes the cards shipped with the package, named by
+their model; `--compare published` puts a run's card beside them, or says in one line why it
+cannot be; `--compare OTHER_RUN` puts it beside another run's card when the two measured the same
+tasks the same way, and otherwise says which of what produced them changed, setting no figure
+beside another; `--page` writes the one page for every published card.  A card on the user's own
+tools (its provenance carries the own-tools kind) is put beside the published card of the same
+model through `own.card.beside_published`, the two documents whole under the line that says the
+tasks differ, and nothing is pooled.
 """
 
 from __future__ import annotations
@@ -162,29 +165,41 @@ def _gate_words(records: Any, tally: Any, arm: str, gate: str, prov: Any) -> str
             "run, not the model, is what it would measure")
 
 
-def _run_card(ctx: Context) -> Result:
-    args = ctx.args
-    folder = _folder(ctx)
-    from poisson_tasks import calibration
-
-    serving = None
+def _serving(folder: Path) -> Any:
+    """The server facts a run of a self-served model saved, or none."""
     saved = folder / "serving.json"
     if saved.is_file():
         try:
-            serving = json.loads(saved.read_text(encoding="utf-8"))
+            return json.loads(saved.read_text(encoding="utf-8"))
         except ValueError:
-            serving = None
+            return None
+    return None
+
+
+def _run_card(ctx: Context) -> Result:
+    args = ctx.args
+    folder = _folder(ctx)
+    from poisson_tasks import calibration, provenance
+
+    if args.compare is not None and args.compare != "published":
+        other = Path(args.compare)
+        if other.resolve() == folder.resolve():
+            raise Usage(f"--compare {args.compare} is this run's own folder; give another run's "
+                        "folder")
+        if not (other / "plan.json").is_file():
+            raise Refusal(f"{shown(other)} is not a run folder: it holds no plan.json")
     try:
-        made = calibration.card_from_run(folder, serving=serving)
+        made = calibration.card_from_run(folder, serving=_serving(folder))
     except ValueError as refused:
         raise Refusal(str(refused)) from None
     out = folder / "card"
     if args.compare is not None:
-        if args.compare != "published":
-            raise Usage(f'--compare takes "published", not "{args.compare}"')
         if made.artifact is None:
             raise Refusal(f"the card of {shown(folder)} is refused, so it cannot be compared")
+        if args.compare != "published":
+            return _compare_runs(ctx, folder, made, Path(args.compare))
         return _compare(ctx, folder, made)
+    record = provenance.read_run(folder)
     side_by_side = None
     verdict = made.verdict
     plan_text, model_name = _plan_words_of(folder)
@@ -209,7 +224,8 @@ def _run_card(ctx: Context) -> Result:
             schema=SCHEMA, verdict="refused", tone="warn", sentence="; ".join(reasons),
             rows=said, next=after, exit=1,
             data={"folder": str(folder), "refused": [list(pair) for pair in verdict.refused],
-                  "replies": [str(path) for path in replies], "wrote": [str(records_path)]},
+                  "replies": [str(path) for path in replies], "wrote": [str(records_path)],
+                  "produced_by": record},
         )
 
     assert made.artifact is not None and made.document is not None and made.claims is not None
@@ -237,7 +253,8 @@ def _run_card(ctx: Context) -> Result:
         sentence = f"partial card for {model_name}: {plan_text}; " + "; ".join(parts)
     else:
         sentence = f"card for {model_name}: {plan_text}"
-    rows: list[Any] = [Row("run", _run_words(folder)), Levels(cells)]
+    made_with = provenance.made_with(record, resumes=provenance.unrecorded_resumes(folder))
+    rows: list[Any] = [Row("run", _run_words(folder)), Row("made with", made_with), Levels(cells)]
     note = _depth_note(made.document, cells)
     if note is not None:
         rows.append(Row("about depth", note))
@@ -248,7 +265,7 @@ def _run_card(ctx: Context) -> Result:
         rows.append(Bullets("what ran", ran))
     beside = _beside_words(made.artifact)
     if beside is not None:
-        rows.append(Row(beside[0], beside[1]))
+        rows.append(Row(beside[0], beside[1], apart=True))
     rows.append(Row("wrote", ", ".join(shown(path) for path in paths)))
     document = []
     if args.print:
@@ -265,7 +282,8 @@ def _run_card(ctx: Context) -> Result:
         schema=SCHEMA, verdict="ok", sentence=sentence, rows=rows, document=document,
         data={"folder": str(folder), "model": model_name, "partial": verdict.partial,
               "owed": verdict.owed, "levels": cells, "meaning": made.claims.meaning,
-              "not_claimed": list(made.claims.not_claimed), "wrote": [str(p) for p in paths]},
+              "not_claimed": list(made.claims.not_claimed), "wrote": [str(p) for p in paths],
+              "produced_by": record},
     )
 
 
@@ -330,6 +348,65 @@ def _compare(ctx: Context, folder: Path, made: Any) -> Result:
     target.write_text(body, encoding="utf-8")
     return Result(schema=SCHEMA, verdict="different", tone="neutral", sentence=sentence,
                   rows=[Row("wrote", shown(target))], data={"wrote": [str(target)]})
+
+
+def _compare_runs(ctx: Context, folder: Path, made: Any, other: Path) -> Result:
+    """`--compare OTHER_RUN`: two runs read on what produced them (`provenance.compare`), one
+    verdict line, and this run's `compare.md`: for `ok` the record of each beside the other and
+    the two cards side by side; for `different` the line, the record of each and both cards'
+    documents whole, nothing pooled.  Nothing of the other run's is written."""
+    from poisson_tasks import calibration, provenance
+
+    try:
+        theirs = calibration.card_from_run(other, serving=_serving(other))
+    except ValueError as refused:
+        raise Refusal(str(refused)) from None
+    if theirs.artifact is None:
+        raise Refusal(f"the card of {shown(other)} is refused, so it cannot be compared")
+    names = (folder.name, other.name)
+    if names[0] == names[1]:
+        names = (shown(folder), shown(other))
+    mine, yours = made.artifact, theirs.artifact
+    records = (provenance.read_run(folder), provenance.read_run(other))
+    task_ids: tuple[dict[str, set[str]], dict[str, set[str]]] = ({}, {})
+    for ids, card in zip(task_ids, (made, theirs), strict=True):
+        for row in card.records:
+            ids.setdefault(str(row.arm_id), set()).add(str(row.task_id))
+    comparison = calibration.comparable(mine, yours)
+    reason = comparison.reason
+    if comparison.field == "tools" and mine.provenance.tools is not None and (
+            yours.provenance.tools is not None):
+        # Two cards on your own tools: their [own] settings are read through the task ids.
+        reason = None
+    answer = provenance.compare(names, records, task_ids, shared_arms=comparison.shared_arms,
+                                reason=reason)
+    table = "\n".join(provenance.table(names, records, answer.changed))
+    if answer.verdict == "ok":
+        body = table + "\n\n" + calibration.render_side_by_side(
+            {names[0]: mine, names[1]: yours})
+    else:
+        body = "\n".join([answer.sentence, "", table, "", f"## {names[0]}", "",
+                          str(made.document), f"## {names[1]}", "", str(theirs.document)])
+    out = folder / "card"
+    out.mkdir(parents=True, exist_ok=True)
+    if not (out / "artifact.json").is_file():
+        calibration.write_records(made.records, out / "episodes.jsonl")
+        calibration.write_artifact(mine, out / "artifact.json")
+        (out / "card.md").write_text(made.document, encoding="utf-8")
+    target = out / "compare.md"
+    target.write_text(body, encoding="utf-8")
+    rows: list[Any] = []
+    if answer.note is not None:
+        rows.append(Row("note", answer.note.removeprefix("note: ")))
+    rows.append(Row("wrote", shown(target)))
+    return Result(
+        schema=SCHEMA, verdict=answer.verdict, tone="good" if answer.verdict == "ok" else "neutral",
+        sentence=answer.sentence, rows=rows,
+        data={"note": answer.note, "changed": list(answer.changed),
+              "a": {"folder": str(folder), "produced_by": records[0]},
+              "b": {"folder": str(other), "produced_by": records[1]},
+              "wrote": [str(target)]},
+    )
 
 
 def _published_measured(artifact: Any) -> bool:

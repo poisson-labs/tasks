@@ -118,7 +118,7 @@ def test_fd5_16_each_file_is_the_runs_config_through_verifiers_reader(
     folder = world.work / "export"
     suffix = suffix_of(folder)
     assert sorted(p.name for p in folder.iterdir()) == sorted(
-        f"eval-{arm_dir(spec)}{suffix}" for spec in plan.arms)
+        [*(f"eval-{arm_dir(spec)}{suffix}" for spec in plan.arms), "produced_by.json"])
     for spec in plan.arms:
         path = folder / f"eval-{arm_dir(spec)}{suffix}"
         written = read(path)

@@ -219,6 +219,39 @@ What it does not claim, every line that applies:
 
 The card's result names its run (the folder, the dollars spent, episodes kept of total) and says in one row how it stands beside the published cards: `different tasks, so none of its figures reads against theirs`. `poisson-tasks card --compare published` reads the card already written (no `--force` needed), prints that verdict in one line, `different  ...`, and writes `card/compare.md`, which holds your card beside the published card of the same model when one measured it, each whole and pooling nothing; it prints neither card. `card` never suggests the comparison on your tools, since the verdict is already on the screen. In the guided session, `replies` lists the episodes of the arm where the model broke most, each with its outcome and last reply, and opens one: every call with its arguments and the simulated answer, and the model's last reply, read from the run's own traces.
 
+## Your tool file's contract hash
+
+Every run on your tools records, before its first request, two hashes of your file beside the generators' ([reading-a-card.md](reading-a-card.md) shows where the card prints them). The file's own hash is the SHA-256 of its bytes, the digest `init` shows. The **contract hash** is the SHA-256 of what the file says, written one fixed way, so that two files that say the same thing have the same contract hash however they are laid out:
+
+1. Read the file's bytes. They must still have the digest the plan was made with, or `run` and `export` refuse, as for any changed file.
+2. Parse them as Tasks parses a tool file: as JSON, or else as YAML.
+3. Write what was parsed in JSON's own terms: a YAML date or time becomes its ISO text (`2026-10-26`), and a key that is not text becomes its JSON text (an OpenAPI document's unquoted `200:` becomes `"200"`). A value JSON cannot carry (NaN, an infinity, binary data, a set, or two keys that become one, such as `200` and `"200"`) is refused in one line that names the place, and nothing is spent or written.
+4. Write it as JSON with the keys sorted, no spaces, the text as UTF-8 and no escapes for characters beyond ASCII.
+5. Take the SHA-256 of those bytes, in lower-case hex, with nothing added in front.
+
+For a JSON file that is three lines of Python, with nothing of this package; on the file of the first run above it gives the same value as `poisson_tasks.provenance.tool_spec_hash`:
+
+<!-- docs-check: run -->
+```python
+import hashlib, json
+doc = json.loads(open("tools.json", "rb").read())
+print(hashlib.sha256(json.dumps(doc, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")).hexdigest())
+
+from poisson_tasks import provenance
+print(provenance.tool_spec_hash(open("tools.json", "rb").read()))
+```
+<!-- docs-check: output -->
+```
+cf8af7f03f9931e506b7ba9a67ad16386c55be943bc2eb31e1f97e1d0b659157
+cf8af7f03f9931e506b7ba9a67ad16386c55be943bc2eb31e1f97e1d0b659157
+```
+
+**What does not move it:** whitespace and indentation, the order of the keys in any object, JSON against YAML for the same document, `é` against `é`, and a YAML date against the same text in quotes. **What moves it:** any change to a string (one character of a description is enough), the order of a list, a value added or removed, and a number's type (`1` and `1.0` are two values). Text is hashed as it was written, with no Unicode normalisation, so an `é` written as one character and as `e` with an accent are two contracts.
+
+The hash covers the whole file you gave, not only the tools Tasks kept from it: the file is the contract you bring and version, so a change Tasks does not read, such as a refused tool, an `info.version` or a server URL, moves it too.
+
+**A reformatted file keeps its contract hash and still gives other tasks.** Tasks draws every task from the file's bytes, so the same tools with other whitespace give other tasks, with other ids. `card --compare` between two such runs says so: they share one tool contract, but the file was reformatted, and tasks are drawn from the file's bytes, so their tasks differ, and no figure of one is set beside the other's.
+
 ## `verify`, `export` and `doctor` on your tools
 
-In this release `poisson-tasks verify` refuses a tasks file made on your own tools, in one line (`error: <file> holds tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`), and `--arm` in a folder set up for your tools the same way (`error: tasks.toml puts the tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`). A run on your tools is judged by that replay, and its card reports it. `export --to verifiers` writes eval configs that name the taskset `poisson-tasks-own` and carry your set whole, so verifiers' own `eval` can run them; [verifiers-export.md](verifiers-export.md) describes the command. `doctor` also says when the newest run on the same tool file carries another digest than the file has now, because the tasks changed. A changed file changes every task's id, so the next run on it starts a new run folder and says why.
+In this release `poisson-tasks verify` refuses a tasks file made on your own tools, in one line (`error: <file> holds tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`), and `--arm` in a folder set up for your tools the same way (`error: tasks.toml puts the tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`). A run on your tools is judged by that replay, and its card reports it. `export --to verifiers` writes eval configs that name the taskset `poisson-tasks-own` and carry your set whole, so verifiers' own `eval` can run them; [verifiers-export.md](verifiers-export.md) describes the command. Beside them it writes `produced_by.json`: what produces the plan's tasks, with both generators' hashes and your file's contract hash and file hash, and the configs carry nothing of it. `doctor` also says when the newest run on the same tool file carries another digest than the file has now, because the tasks changed. A changed file changes every task's id, so the next run on it starts a new run folder and says why.

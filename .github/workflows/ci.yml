@@ -74,7 +74,8 @@ jobs:
                    if got != os.environ[f"{name.upper().replace('-', '_')}_GENERATOR_HASH"]]
           sys.exit(f"the {' and '.join(moved)} generator hash moved" if moved else 0)
           EOF
-      # The thirteen files that hold every knob's content digests and the published tasks'. One
+      # The thirteen files that hold every knob's content digests and the published tasks', and
+      # the one that holds the frozen files' bytes and the tool file's contract hash. One
       # process takes about four minutes, most of it making the history and block knobs' tasks,
       # which each process caches for the tests after it. So three processes run side by side,
       # each knob with its kept file: history, block, and everything else. While they run, the
@@ -89,7 +90,7 @@ jobs:
                tests/test_k0_published_concurrency.py
                tests/test_k3_kept.py tests/test_k4_kept.py tests/test_k5_kept.py tests/test_k6_kept.py
                tests/test_k7_kept.py tests/test_k8_kept.py tests/test_k8b_kept.py
-               tests/test_o2b_kept.py)
+               tests/test_o2b_kept.py tests/test_pv_canonical.py)
           history=(tests/test_frozen_generator.py tests/test_k5_kept.py
                    -k "test_k5_kept or (test_frozen_generator and history)")
           block=(tests/test_frozen_generator.py tests/test_k6_kept.py

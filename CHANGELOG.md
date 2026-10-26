@@ -2,6 +2,21 @@
 
 All notable changes to Poisson Tasks.
 
+## 0.2.0 (2026-10-26)
+
+### Every card says what produced it
+
+- **A card names what made its numbers**, so a change between two cards can be traced to a changed tool contract or a changed generator rather than to the model. Asked for on the launch post.
+- **The run records it before its first request**, in a new file in the run folder, `produced_by.jsonl`: the package and verifiers versions, the generator's hash (and on your own tools the own-tools generator's hash), the hash of your tool file's contract, the plan's hash and its seeds. A resume adds a line. `plan.json` is unchanged, so every run folder is found and resumed as before.
+- **The tool file's contract hash** is the SHA-256 of the file as canonical JSON: keys sorted, no spaces, UTF-8. Whitespace, key order, and JSON against YAML for the same document do not change it; any change to a tool, a description or a value does. It is computed from the file you gave, with no domain prefix, so you can recompute it yourself; `docs/own-tools.md` shows how.
+- **The card shows it**: a `made with` row in the result, a `What produced it` section in `card.md` with the full hashes, and `produced_by` in `card --json` and in the card's `artifact.json`. `card --check` rebuilds a card that carries it byte for byte.
+- **`card --compare` takes another run's folder.** When the two runs measured the same tasks the same way it sets the cards side by side in `card/compare.md`, with one note when only the package or verifiers version differs. When a generator or the tool contract changed it says which, with both hashes, and sets no figure beside another, since the tasks differ: the line says the shift between them is not the model's alone. `--compare published` is unchanged.
+- **A resume is refused when the run was started with another generator or tool contract than this install's**, in one line, before anything is spent: its tasks are not the ones this install makes.
+- **`export --to verifiers` writes `produced_by.json`** beside its configs; the configs are unchanged.
+- **Runs made before 0.2.0 recorded none of this**, and their cards say `not recorded`; they are read, carded and resumed as before. The two published cards are unchanged, byte for byte, and say the same.
+- **No task moved.** The generator is unchanged, so every seed gives the task it gave in 0.1.0, with the same id.
+- **A card written by 0.2.0 is checked with 0.2.0 or later**; `card --check` in 0.1.0 does not know its new field.
+
 ## 0.1.0 (2026-10-22)
 
 ### The guided session

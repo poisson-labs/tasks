@@ -45,6 +45,8 @@ MARK = {"ok": ("✓", "green"), "bad": ("✗", "bold red"), "warn": ("!", "yello
         "note": ("·", "dim"), "refused": ("!", "yellow")}
 WIDTH = 104
 """The widest the pretty style draws, so a wide terminal does not stretch its lines."""
+SEPARATOR = " · "
+"""What joins the items of a row such as `run` or `made with`: a line breaks only here."""
 
 
 def make_console(stream: Any, *, stderr: bool = False) -> Console:
@@ -84,9 +86,24 @@ class Pretty:
                 return False
             return len(row.label) + 4 + (3 if marked else 0) + len(row.value) <= width
 
+        # a row that stands apart takes two spaces after its label and widens no other row
         labels = [row.label for row in result.rows if isinstance(row, (Row, Bullets))
-                  and one_line(row)]
+                  and one_line(row) and not (isinstance(row, Row) and row.apart)]
         label_width = max((len(label) for label in labels), default=0)
+
+        def items(part: str, room: int) -> list[str]:
+            # a value made of items joined by " · " breaks only between items, the separator
+            # ending the line; an item longer than the line is wrapped on its own
+            lines: list[str] = []
+            for item in part.split(SEPARATOR):
+                if lines and len(lines[-1]) + len(SEPARATOR) + len(item) <= room:
+                    lines[-1] += SEPARATOR + item
+                    continue
+                if lines:
+                    lines[-1] += SEPARATOR.rstrip()
+                lines += textwrap.wrap(item, room, break_long_words=False,
+                                       break_on_hyphens=False) or [""]
+            return lines
 
         def emit(prefix: Text, value: str, indent: int, style: str = "") -> None:
             # wrapped at spaces, never inside a path, a URL or a quoted value; a word longer
@@ -94,6 +111,9 @@ class Pretty:
             room = max(10, width - indent)
             lines: list[str] = []
             for part in value.split("\n"):
+                if SEPARATOR in part and len(part) > room:
+                    lines += items(part, room)
+                    continue
                 lines += textwrap.wrap(part, room, break_long_words=False,
                                        break_on_hyphens=False) or [""]
             first = Text.assemble(prefix, (lines[0], style))
@@ -115,7 +135,8 @@ class Pretty:
                     mark, style = MARK.get(row.status or "ok", MARK["ok"])
                     prefix.append(mark, style=style)
                     prefix.append("  ")
-                prefix.append(row.label.ljust(label_width), style="dim")
+                prefix.append(row.label if row.apart else row.label.ljust(label_width),
+                              style="dim")
                 prefix.append("  ")
                 value = row.value.replace(", ", "\n") if row.label == "wrote" else row.value
                 emit(prefix, value, len(prefix.plain), "bold" if row.status == "bad" else "")

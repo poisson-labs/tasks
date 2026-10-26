@@ -205,6 +205,35 @@ print(own.summary(reading).splitlines()[0])
 
 `own.summary` counts what the file says. The command's summary counts the set after what you declared in `tasks.toml`: `own.apply_effects(reading.toolset, read=[...], write=[...])` is the set it counts, and a tool you declared as a read is a read there.
 
+## What produced a run
+
+`poisson_tasks.provenance` holds what a run records about what produced it ([reading-a-card.md](reading-a-card.md) says what each value covers):
+
+- `tool_spec_hash(data)` is a tool file's contract hash, from its bytes: the SHA-256 of the file as canonical JSON. A value JSON cannot carry is a `ValueError` of one line naming its place. [own-tools.md](own-tools.md) gives the rule.
+- `produced_by(plan)` is the record a run of a `config.Plan` by this install writes, as a dict with the same keys every time; a key that does not apply is `None`.
+- `read_run(folder)` is what a run folder recorded, as a card reads it (with `resumed_with`, the later versions that resumed it), or `None` for a run that recorded nothing.
+
+<!-- docs-check: run -->
+```python
+from poisson_tasks import provenance
+
+compact = b'{"tools":[{"name":"get_order","description":"Look up one order."}]}'
+spaced = b'{\n  "tools": [\n    {"description": "Look up one order.", "name": "get_order"}\n  ]\n}\n'
+as_yaml = b"tools:\n  - name: get_order\n    description: Look up one order.\n"
+print(provenance.tool_spec_hash(compact))
+print(provenance.tool_spec_hash(spaced) == provenance.tool_spec_hash(as_yaml))
+try:
+    provenance.tool_spec_hash(b'{"tools": [{"name": "get_order", "limit": NaN}]}')
+except ValueError as refused:
+    print(refused)
+```
+<!-- docs-check: output -->
+```
+ee4cbdecd4814e38f8686b3bee522affbd4830b73963648374e659d5beb2c856
+True
+/tools/0/limit holds NaN, which JSON cannot carry; write it as JSON would
+```
+
 ## The examples, as source to read
 
 The repository's `examples` folder holds four short programs that use the library. They are not installed with the package; read them, and copy what you need. Each takes `--help`, and a mistaken argument gets one line.

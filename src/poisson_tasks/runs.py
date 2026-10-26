@@ -15,10 +15,12 @@ module keeps no table of them.
 
 **The run folder** is `runs/<preset>-<model>/`, then `-2`, `-3`, with no hash in its
 name.  It holds `plan.json` (the resolved plan and its `plan_hash`, by which the folder that holds
-a plan is found), `spend.jsonl` (the ledger: one line per episode that ended), `run.log`, and one
-wheel run folder per arm, named as `calibration.run_arm` names it (`depth-d1/`).  `find_run` only
-reads: whether a folder is complete is read off the whole, well-formed `ok` rows of each arm's
-`traces.jsonl`, never by asking the wheel's resume, which rewrites the file.
+a plan is found), `spend.jsonl` (the ledger: one line per episode that ended), `run.log`,
+`produced_by.jsonl` (what produced the run: one line per segment that dispatched episodes, written
+before its first request; `provenance` says what it holds), and one wheel run folder per arm,
+named as `calibration.run_arm` names it (`depth-d1/`).  `find_run` only reads: whether a folder
+is complete is read off the whole, well-formed `ok` rows of each arm's `traces.jsonl`, never by
+asking the wheel's resume, which rewrites the file.
 
 **The cap is a bound**: the final spend is at most the cap plus the cost of the model
 calls in flight when it was reached.  Model calls pass through verifiers' interception server in
@@ -733,7 +735,9 @@ class RunResult:
     started; `episodes_run` this call ran to their end and recorded; `episodes_owed` a resume
     would still run.  `spend` and `tokens` are the run folder's totals from its ledger (`spend`
     is `None` without a price).  `first_error` carries the first failed episode's status and the
-    provider's own words; `log_tail` the lines of `run.log` the watchdog quotes."""
+    provider's own words; `log_tail` the lines of `run.log` the watchdog quotes.  `produced_by`
+    is the record this call wrote to `produced_by.jsonl`, less `at` and `segment`, or `None` when
+    it wrote none (nothing was owed)."""
 
     verdict: str
     stop_reason: str | None
@@ -744,6 +748,7 @@ class RunResult:
     tokens: int
     first_error: str | None = None
     log_tail: str | None = None
+    produced_by: Mapping[str, Any] | None = None
 
 
 def _secret_forms(key: str) -> list[str]:
@@ -1163,6 +1168,10 @@ def run_plan(
     `ValueError`, before anything is written.  A run that needs more open files than this process
     can have is refused before anything is written too, with an `OSError` of one line naming the
     number and how to raise the limit; otherwise the soft limit is raised for the run's length.
+    A resume of a folder started with another generator or tool contract than this install's is
+    a `ValueError` of one line before anything is written (`provenance.check_resume`); else the
+    segment's line goes to `produced_by.jsonl` before its first request, and a segment with
+    nothing owed writes none.
     """
     if not plan.arms or not plan.seeds:
         raise ValueError("a run needs at least one arm and one seed")
@@ -1172,6 +1181,11 @@ def run_plan(
     at_once = min(max(1, int(concurrency)), len(plan.seeds) * plan.attempts)
     _open_files.check(at_once)
     path = Path(folder.path)
+    from poisson_tasks import provenance
+
+    record = provenance.produced_by(plan)
+    provenance.check_resume(path, record)
+    segment = provenance.segment(path)
     path.mkdir(parents=True, exist_ok=True)
     if _read_plan(path) is None:
         _write_plan(path, plan)
@@ -1187,6 +1201,7 @@ def run_plan(
                 watchdog_seconds=float(watchdog_seconds),
                 scrub=scrub,
                 handler=handler,
+                record=(record, segment),
             )
         )
 
@@ -1201,7 +1216,10 @@ async def _run(
     watchdog_seconds: float,
     scrub: _Scrub,
     handler: logging.Handler,
+    record: tuple[Mapping[str, Any], str],
 ) -> RunResult:
+    from poisson_tasks import provenance
+
     ledger = SpendLedger(path, price=plan.model.price)
     total = _total(plan)
     kept_before = _kept(plan, path)
@@ -1216,6 +1234,8 @@ async def _run(
             spend=ledger.total_dollars,
             tokens=ledger.total_tokens,
         )
+    # what produced the run, before the segment's first request
+    provenance.write_segment(path, record[0], record[1])
     spend_cap = caps.get("spend_usd")
     token_cap = caps.get("tokens")
     meter = _Meter(
@@ -1306,6 +1326,7 @@ async def _run(
         tokens=ledger.total_tokens,
         first_error=state.first_error,
         log_tail=_tail(path / _LOG_FILE) if state.stop_reason == "watchdog" else None,
+        produced_by=dict(record[0]),
     )
 
 
