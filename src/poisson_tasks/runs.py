@@ -17,10 +17,10 @@ module keeps no table of them.
 name.  It holds `plan.json` (the resolved plan and its `plan_hash`, by which the folder that holds
 a plan is found), `spend.jsonl` (the ledger: one line per episode that ended), `run.log`,
 `produced_by.jsonl` (what produced the run: one line per segment that dispatched episodes, written
-before its first request, `provenance` says what it holds), and one wheel run folder per arm, named
-as `calibration.run_arm` names it (`depth-d1/`).  `find_run` only
-reads: whether a folder is complete is read off the whole, well-formed `ok` rows of each arm's
-`traces.jsonl`, never by asking the wheel's resume, which rewrites the file.
+before its first request; `provenance` says what it holds), and one wheel run folder per arm,
+named as `calibration.run_arm` names it (`depth-d1/`).  `find_run` only reads: whether a folder
+is complete is read off the whole, well-formed `ok` rows of each arm's `traces.jsonl`, never by
+asking the wheel's resume, which rewrites the file.
 
 **The cap is a bound**: the final spend is at most the cap plus the cost of the model
 calls in flight when it was reached.  Model calls pass through verifiers' interception server in
@@ -736,8 +736,8 @@ class RunResult:
     would still run.  `spend` and `tokens` are the run folder's totals from its ledger (`spend`
     is `None` without a price).  `first_error` carries the first failed episode's status and the
     provider's own words; `log_tail` the lines of `run.log` the watchdog quotes.  `produced_by`
-is the record this call wrote to `produced_by.jsonl`, less `at` and `segment`, or `None` when it
-wrote none (nothing was owed)."""
+    is the record this call wrote to `produced_by.jsonl`, less `at` and `segment`, or `None` when
+    it wrote none (nothing was owed)."""
 
     verdict: str
     stop_reason: str | None

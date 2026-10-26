@@ -3419,9 +3419,9 @@ def card_from_run(
     else: per arm of its plan, in the plan's order, `records_from_run` over the arm's folder and
     the arm's instrument tally; then the artifact under `Provenance.for_plan` of that plan,
     with what the run recorded of what produced it (`provenance.read_run`) when it recorded
-    that, its verdict, its claims and its document with the claims block.  It only reads the folder,
-    and opens no socket: a self-served model's server facts come from `serving` or are not
-    recorded.  A cell over a gate refuses the card: records and tally only, and the verdict
+    that, its verdict, its claims and its document with the claims block.  It only reads the
+    folder, and opens no socket: a self-served model's server facts come from `serving` or are
+    not recorded.  A cell over a gate refuses the card: records and tally only, and the verdict
     names the cell and the gate.  Not a run folder, or a run that recorded no episode, is a
     `ValueError` of one line naming the folder."""
     folder = _pathlib.Path(folder)
@@ -3603,9 +3603,9 @@ def card_claims(artifact: Artifact) -> Claims:
     tasks per level than they have (`small_sample`); not measured as they were
     (`not_comparable`); a model the user serves (`self_served`); a distractor cell
     (`distractor`); a generator other than the package's, the one the run recorded when it
-    recorded one (`stale`); attempts from a later run
-    of the folder (`resumed`); no published card holding any of its levels (`not_covered`).
-    The first line, that it is one model's result and ranks nothing, needs no condition."""
+    recorded one (`stale`); attempts from a later run of the folder (`resumed`); no published
+    card holding any of its levels (`not_covered`).  The first line, that it is one model's
+    result and ranks nothing, needs no condition."""
     prov = artifact.provenance
     models = sorted({str(cell["model"]) for cell in artifact.cells})
     model = models[0] if models else str(prov.models[0]["id"])

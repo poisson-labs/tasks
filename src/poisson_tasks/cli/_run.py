@@ -3,9 +3,9 @@
 The order of events: the platform, the tokenizer file, the settings file and the
 plan, the key's presence, the run folder, the free key check, the tasks and their contrast, what
 produces them against what started the folder, the plan on stdout, the question on stderr, then
-the run.  Nothing costs money before the run.  A
-plan expected to cost more than its cap is refused before the question, with a cap that would
-let it finish; a dry run shows the plan and stops.
+the run.  Nothing costs money before the run.  A plan expected to cost more than its cap is
+refused before the question, with a cap that would let it finish; a dry run shows the plan and
+stops.
 """
 
 from __future__ import annotations
