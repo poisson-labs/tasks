@@ -3,9 +3,10 @@
 The checklist every release of `poisson-tasks` follows, in order. It was written from the 0.2.0
 release and is followed as written; a step that changes is changed here first.
 
-Two people's work, kept apart. The **preparer** builds, checks and tags on their own machine and
-pushes nothing. The **release owner** runs the three hand-off blocks: the upload, the tag push with
-the GitHub release, and the site's changelog entry. Nothing is uploaded that the preparer has not
+Two people's work, kept apart. The **preparer** builds, checks and tags on their own machine; they
+push a branch for review, and never `main`, a tag or a file to PyPI. The **release owner** merges
+the branch and runs the three hand-off blocks: the upload, the tag push with the GitHub release, and
+the site's changelog entry. Nothing is uploaded that the preparer has not
 checked, and the checks are read again after the upload.
 
 Below, `X.Y.Z` is the release, `P.Q.R` the release before it, `<checkout>` the repository's main
@@ -16,8 +17,9 @@ for zsh.
 
 ## 1. Before the build
 
-- [ ] Everything the release holds is merged into `main` on GitHub. The preparer pushes nothing
-  to `main`.
+- [ ] Everything the release holds is merged into `main` on GitHub, by the release owner. The
+  preparer may build and check the branch's tip first; the release itself is built again from
+  `origin/main` after the merge (step 2), and its hashes must equal the tip's.
 - [ ] `CHANGELOG.md` opens with `## X.Y.Z (YYYY-MM-DD)`, dated the UTC day the upload is expected
   to land. A patch release's section holds fixes and tests only.
 - [ ] `pyproject.toml` says `version = "X.Y.Z"`.
