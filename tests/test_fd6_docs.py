@@ -4,10 +4,10 @@
   `card` lines, in that order, then the platform line.  Every link in the README, images included,
   is an absolute `https` link, because the README is the PyPI page too.  The two kinds of user are
   named right after the first screen.
-- **Plain words.**  The README, `docs/` (but the two standards, `repo-hygiene.md` and
-  `cli-look.md`), `CHANGELOG.md` and the text of a card carry no internal identifier: the pattern
-  of `tests/test_cal_plain_words.py` (`tests.helpers.INTERNAL`, which those frozen tests are not
-  edited for) and the other kinds `OTHER` names.  The pin ledger's row ids stand only beside
+- **Plain words.**  The README, `docs/` (but the three standards, `repo-hygiene.md`,
+  `cli-look.md` and `releasing.md`), `CHANGELOG.md` and the text of a card carry no internal
+  identifier: the pattern of `tests/test_cal_plain_words.py` (`tests.helpers.INTERNAL`, which
+  those frozen tests are not edited for) and the other kinds `OTHER` names.  The pin ledger's row ids stand only beside
   their names: in the ledger table of `docs/knobs-and-arms.md`, or after the word "row".
 - **Markers.**  Every fenced `bash`, `console` and `python` block in the README, `docs/` and
   `CONTRIBUTING.md` carries a docs-check marker on the line before it, and a marker
@@ -27,8 +27,10 @@
   was `Unreleased` until then.)
 - **The look.**  `docs/cli-look.md` is the look in words that fit any of the lab's three tools.
 
-The docs set is the design's, with the own-tools page.  `docs/commands.md` holds each
-command's help, which this file holds equal to what the command prints.
+The docs set is the design's, with the own-tools page and the release checklist,
+`docs/releasing.md` (retrofitted for 0.2.1: a standard, so the README need not link it).
+`docs/commands.md` holds each command's help, which this file holds equal to what the command
+prints.
 """
 
 from __future__ import annotations
@@ -47,11 +49,11 @@ DOCS = REPO / "docs"
 README = REPO / "README.md"
 CHANGELOG = REPO / "CHANGELOG.md"
 CONTRIBUTING = REPO / "CONTRIBUTING.md"
-STANDARDS = ("repo-hygiene.md", "cli-look.md")
+STANDARDS = ("repo-hygiene.md", "cli-look.md", "releasing.md")
 DOC_SET = {
     "calibration.md", "cli-look.md", "commands.md", "config.md", "knobs-and-arms.md",
-    "own-tools.md", "proofload.md", "python.md", "reading-a-card.md", "repo-hygiene.md",
-    "the-task.md", "verifiers-export.md",
+    "own-tools.md", "proofload.md", "python.md", "reading-a-card.md", "releasing.md",
+    "repo-hygiene.md", "the-task.md", "verifiers-export.md",
 }
 LINKED_FROM_README = DOC_SET - set(STANDARDS)
 BASE = "https://github.com/poisson-labs/tasks/blob/main/"
@@ -63,7 +65,7 @@ def checked_files() -> list[Path]:
 
 
 def user_files() -> list[Path]:
-    """What a user reads: the README, `docs/` but the two standards, and the changelog."""
+    """What a user reads: the README, `docs/` but the three standards, and the changelog."""
     return [README, *sorted(p for p in DOCS.glob("*.md") if p.name not in STANDARDS), CHANGELOG]
 
 
