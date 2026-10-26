@@ -106,9 +106,10 @@ def published(root: Path | None = None) -> tuple[PublishedCard, ...]:
 def recompute(card: PublishedCard) -> Recomputed:
     """`card` rebuilt from its records, under the provenance its `artifact.json` recorded and
     with its tally, and compared byte for byte with that file as `write_artifact` writes one.
-    `current` reads the recorded generator hash against the package's.  A card whose files no
-    longer give the same artifact is not identical; a cell its records now refuse (over a gate,
-    or two models in one) is the rebuild's own `ValueError`."""
+    `current` is the card's stale line read the other way: the generator its run recorded, else
+    its block's, against this install's.  A card whose files no longer give the same artifact is
+    not identical; a cell its records now refuse (over a gate, or two models in one) is the
+    rebuild's own `ValueError`."""
     # Imported here, not at the top: `calibration` loads the tokenizer file when it is imported,
     # and `published()` must list the cards' names without it (`card --help`).
     from poisson_tasks import calibration
@@ -128,7 +129,7 @@ def recompute(card: PublishedCard) -> Recomputed:
     )
     return Recomputed(
         identical=calibration._artifact_text(artifact) == committed,
-        current=stored["provenance"]["generator_hash"] == calibration._package_generator_hash(),
+        current="stale" not in calibration.card_claims(artifact).flags,
         records=len(records),
         artifact=artifact,
     )
