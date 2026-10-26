@@ -80,8 +80,8 @@ Write a value that varies (a path, a duration, a date) as `…` in the output bl
 
 ## Words in the docs
 
-The README, `docs/` (but the two standards, `repo-hygiene.md` and `cli-look.md`) and `CHANGELOG.md` are for users. They carry no internal identifiers, no decision ids and no names of work sessions; "knob", "arm" and "level" are each explained where they first appear, and a number is shown with its unit. The pin ledger's row ids (`N1` to `N35`) appear only beside their names. A test reads the files with the same pattern the card text is held to.
+The README, `docs/` (but the three standards, `repo-hygiene.md`, `cli-look.md` and `releasing.md`) and `CHANGELOG.md` are for users. They carry no internal identifiers, no decision ids and no names of work sessions; "knob", "arm" and "level" are each explained where they first appear, and a number is shown with its unit. The pin ledger's row ids (`N1` to `N35`) appear only beside their names. A test reads the files with the same pattern the card text is held to.
 
 ## Commits and history
 
-Commits are signed and have plain, human-written messages. Devlogs and working notes live outside the repository. [`docs/repo-hygiene.md`](docs/repo-hygiene.md) is the lab's standard for what a public repository holds and never holds, and [`docs/cli-look.md`](docs/cli-look.md) is the look every command of the lab's tools keeps.
+Commits are signed and have plain, human-written messages. Devlogs and working notes live outside the repository. [`docs/repo-hygiene.md`](docs/repo-hygiene.md) is the lab's standard for what a public repository holds and never holds, [`docs/cli-look.md`](docs/cli-look.md) is the look every command of the lab's tools keeps, and [`docs/releasing.md`](docs/releasing.md) is the checklist every release follows.
