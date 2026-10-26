@@ -25,6 +25,8 @@ for zsh.
 - [ ] `pyproject.toml` says `version = "X.Y.Z"`.
 - [ ] If the test count changed, the README's sentence on the suite gives the whole suite's count
   on the commit being released.
+- [ ] The gates ran after the version was raised, in a venv where the checkout was installed
+  again (`pip install -e .`), since some tests read the installed version.
 - [ ] The gates passed on that commit: `ruff check .`, `mypy`, the generator-hash step of the fast
   lane, the frozen generator and digest tests, and the docs tests. The whole suite ran when the
   change touched more than one line of code.
