@@ -76,6 +76,7 @@ __all__ = [
     "resolve_plan",
     "plan_hash",
     "plan_toolset",
+    "plan_tool_bytes",
     "plan_flows",
     "own_file_path",
     "OWN_LIST_FILE",
@@ -2044,6 +2045,18 @@ def plan_toolset(plan: Plan) -> Any:
     if own is None:
         raise ValueError("this plan is on the built-in tasks, not on your tools")
     tools = importlib.import_module("poisson_tasks.own")
+    data = plan_tool_bytes(plan)
+    reading = tools.read_tools(data, format=str(own["format"]), name=str(own["name"]))
+    return tools.apply_effects(reading.toolset, read=list(own["read"]), write=list(own["write"]))
+
+
+def plan_tool_bytes(plan: Plan) -> bytes:
+    """The bytes of the tool file a plan on own tools was made from, read again and refused
+    (`ValueError`) when they no longer have the digest the plan carries.  A plan with no `own`
+    is a `ValueError`."""
+    own = plan.own
+    if own is None:
+        raise ValueError("this plan is on the built-in tasks, not on your tools")
     path = str(own["file"])
     try:
         with open(path, "rb") as file:
@@ -2056,8 +2069,7 @@ def plan_toolset(plan: Plan) -> Any:
             f"the tool file {path} has changed since the plan was made (sha256 {digest[:12]}, "
             f"the plan's {str(own['file_digest'])[:12]}): its tasks changed, so make the plan again"
         )
-    reading = tools.read_tools(data, format=str(own["format"]), name=str(own["name"]))
-    return tools.apply_effects(reading.toolset, read=list(own["read"]), write=list(own["write"]))
+    return data
 
 
 def plan_flows(plan: Plan) -> tuple[Any, ...]:

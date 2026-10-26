@@ -120,6 +120,7 @@ from collections.abc import Sequence as _Sequence
 from typing import Any as _Any
 from typing import cast as _cast
 
+from poisson_tasks import provenance as _provenance
 from poisson_tasks.arms import DEFAULT_GENERATOR_VERSION as _DEFAULT_GENERATOR_VERSION
 from poisson_tasks.arms import arm_from_id as _arm_from_id
 from poisson_tasks.engine import EngineSpec as _EngineSpec
@@ -804,8 +805,27 @@ class Provenance:
     intent (`intents`, sorted names), the number of declared `flows` and the own-tools
     `generator` label.  A block for the built-in tasks has none, and `as_dict` leaves it out,
     so every published block keeps its bytes."""
+    produced_by: _Mapping[str, _Any] | None = None
+    """What produced the run, as the run recorded it before its first request
+    (`provenance.read_run`): every key of `provenance.KEYS` and `resumed_with`.  The block's
+    other fields are what the install that built the card reads.  A run that recorded none, and
+    every published block, has none, and `as_dict` leaves it out."""
 
     def __post_init__(self) -> None:
+        if self.produced_by is not None:
+            if not isinstance(self.produced_by, _Mapping):
+                raise ValueError(f"produced_by is a mapping, or absent: {self.produced_by!r}")
+            _require_keys(self.produced_by, _provenance.KEYS, "produced_by")
+            if self.produced_by["schema"] != _provenance.SCHEMA:
+                raise ValueError(
+                    f"produced_by is {self.produced_by['schema']!r}, not "
+                    f"{_provenance.SCHEMA!r}, so this install cannot read it"
+                )
+            if self.produced_by["seed_list_hash"] != self.seed_list_hash:
+                raise ValueError(
+                    f"produced_by names the seed list {self.produced_by['seed_list_hash']} and "
+                    f"the block {self.seed_list_hash}: the record is of another run"
+                )
         if self.tools is not None:
             if not isinstance(self.tools, _Mapping) or self.tools.get("kind") != _OWN_KIND:
                 found = dict(self.tools).get("kind") if isinstance(self.tools, _Mapping) else None
@@ -917,6 +937,9 @@ class Provenance:
         if out.get("tools") is None:
             # A block for the built-in tasks has no own-tools kind: its bytes stay.
             out.pop("tools", None)
+        if out.get("produced_by") is None:
+            # Nor does a block whose run recorded nothing of what produced it.
+            out.pop("produced_by", None)
         return out
 
     def rates_for(self, model: str) -> _Mapping[str, _Any] | None:
@@ -1689,7 +1712,9 @@ def _depth_stop_note(axis: _Sequence[int]) -> str:
     )
 
 
-def render_document(artifact: Artifact, *, claims: bool = False) -> str:
+def render_document(
+    artifact: Artifact, *, claims: bool = False, resumes: _Sequence[str] = ()
+) -> str:
     """`docs/calibration.md`: rendered from the artifact and never typed (CAL17).  Every
     sentence is a single-model difficulty claim; nothing here ranks models or claims a
     rank statistic (CAL13, CAL14).
@@ -1697,7 +1722,9 @@ def render_document(artifact: Artifact, *, claims: bool = False) -> str:
     With `claims`, the document also carries the card's claims block (`_claims_block`): what
     ran when the card is partial, what the card means and what it does not claim, after the
     provenance.  A run's card is rendered that way; the published page is not, and every line
-    of this rendering is in the other, in order."""
+    of this rendering is in the other, in order.  `resumes` are the package versions that
+    resumed a run started before it could record what produced it, which its artifact cannot
+    say."""
     prov = artifact.provenance
     own = prov.tools is not None
     k_values = list(prov.k_values)
@@ -2019,7 +2046,7 @@ def render_document(artifact: Artifact, *, claims: bool = False) -> str:
         else:
             lines.append(f"- {model_id} hosted at {entry.get('endpoint_host')}")
     if claims:
-        lines += _claims_block(artifact)
+        lines += _claims_block(artifact, resumes=resumes)
     return "\n".join(lines) + "\n"
 
 
@@ -3391,7 +3418,8 @@ def card_from_run(
     """The card of the run folder `folder`, built from what the run left in it and nothing
     else: per arm of its plan, in the plan's order, `records_from_run` over the arm's folder and
     the arm's instrument tally; then the artifact under `Provenance.for_plan` of that plan,
-    its verdict, its claims and its document with the claims block.  It only reads the folder,
+    with what the run recorded of what produced it (`provenance.read_run`) when it recorded
+    that, its verdict, its claims and its document with the claims block.  It only reads the folder,
     and opens no socket: a self-served model's server facts come from `serving` or are not
     recorded.  A cell over a gate refuses the card: records and tally only, and the verdict
     names the cell and the gate.  Not a run folder, or a run that recorded no episode, is a
@@ -3423,6 +3451,9 @@ def card_from_run(
     prov = Provenance.for_plan(plan, serving={name: entry}, rate_read_date=read_on)
     if _resumed(folder, plan):
         prov = _dc.replace(prov, resumed=True)
+    record = _provenance.read_run(folder)
+    if record is not None:
+        prov = _dc.replace(prov, produced_by=record)
     refused = tuple(
         (arm, gate) for (arm, _), rows in cells.items()
         if (gate := _gate(rows, tallies[(arm, name)], prov)) is not None
@@ -3441,7 +3472,9 @@ def card_from_run(
     artifact = build_artifact(cells, prov, tally=tallies)
     return RunCard(
         records=tuple(records), tally=tally, artifact=artifact,
-        document=render_document(artifact, claims=True), claims=card_claims(artifact),
+        document=render_document(
+            artifact, claims=True, resumes=_provenance.unrecorded_resumes(folder)),
+        claims=card_claims(artifact),
         verdict=card_verdict(artifact),
     )
 
@@ -3553,6 +3586,14 @@ _LINE_RESUMED = (
 )
 
 
+def _recorded_generator(prov: Provenance, key: str) -> str:
+    """The generator a card is pinned to: the one its run recorded (`key` of `produced_by`)
+    when it recorded one, else the block's, which the install that built the card read."""
+    if prov.produced_by is not None:
+        return str(prov.produced_by[key])
+    return prov.generator_hash
+
+
 def card_claims(artifact: Artifact) -> Claims:
     """What the card means and what it does not claim, rendered from the artifact.
 
@@ -3561,7 +3602,8 @@ def card_claims(artifact: Artifact) -> Claims:
     condition, read from the block and the cells against the published cards' blocks: fewer
     tasks per level than they have (`small_sample`); not measured as they were
     (`not_comparable`); a model the user serves (`self_served`); a distractor cell
-    (`distractor`); a generator other than the package's (`stale`); attempts from a later run
+    (`distractor`); a generator other than the package's, the one the run recorded when it
+    recorded one (`stale`); attempts from a later run
     of the folder (`resumed`); no published card holding any of its levels (`not_covered`).
     The first line, that it is one model's result and ranks nothing, needs no condition."""
     prov = artifact.provenance
@@ -3580,7 +3622,7 @@ def card_claims(artifact: Artifact) -> Claims:
         flags.add("self_served")
     if any((spec := _spec_for(arm)) is not None and spec.knob == _DISTRACTOR for arm in arms):
         flags.add("distractor")
-    if prov.generator_hash != _package_generator_hash():
+    if _recorded_generator(prov, "builtin_generator_hash") != _package_generator_hash():
         flags.add("stale")
     if prov.resumed:
         flags.add("resumed")
@@ -3658,7 +3700,7 @@ def _own_claims(artifact: Artifact, model: str) -> Claims:
         flags.add("own_word_match")
     if any(dict(entry).get("kind") == "self_served" for entry in prov.serving.values()):
         flags.add("self_served")
-    if prov.generator_hash != _own_generator.generator_hash():
+    if _recorded_generator(prov, "own_generator_hash") != _own_generator.generator_hash():
         flags.add("stale")
     if prov.resumed:
         flags.add("resumed")
@@ -3680,10 +3722,11 @@ def _own_claims(artifact: Artifact, model: str) -> Claims:
     return Claims(meaning=meaning, not_claimed=tuple(lines), flags=frozenset(flags))
 
 
-def _claims_block(artifact: Artifact) -> list[str]:
+def _claims_block(artifact: Artifact, *, resumes: _Sequence[str] = ()) -> list[str]:
     """The lines a run's card carries after its provenance: what ran, when the card is partial
-    (what it owes, the levels not run, the levels incomplete); what it means; what it does not
-    claim.  An insertion: the published renderer's lines are not touched."""
+    (what it owes, the levels not run, the levels incomplete); what produced it, as the run
+    recorded it (`provenance.section`); what it means; what it does not claim.  An insertion:
+    the published renderer's lines are not touched."""
     verdict = card_verdict(artifact)
     claims = card_claims(artifact)
     prov = artifact.provenance
@@ -3705,6 +3748,8 @@ def _claims_block(artifact: Artifact) -> list[str]:
             f"over {cells[arm]['S_observed']} of {cells[arm]['S_declared']} tasks."
             for arm in verdict.incomplete
         ]
+    record = None if prov.produced_by is None else dict(prov.produced_by)
+    out += _provenance.section(record, resumes=resumes)
     out += ["", "## What this card means", "", claims.meaning, "", "## What it does not claim", ""]
     out += [f"- {line}" for line in claims.not_claimed]
     return out
