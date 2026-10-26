@@ -13,7 +13,7 @@ The invariants:
   byte; a run with no record reads as not recorded, and its card is a 0.1.0 card;
 - the card is stale when the generator the run recorded is not this install's;
 - `export --to verifiers` writes `produced_by.json` for the plan beside configs that do not change;
-- on your own tools, a changed tool contract, or a file rewritten without changing it, is named
+- on your own tools, a changed tool contract, or a file reformatted without changing it, is named
   when two runs are compared, and no figure is set beside another.
 
 The built-in run folders are the scenarios of `tests/fd4_support.py`, copied before anything is
@@ -380,8 +380,8 @@ def test_pv_14_own_tools_a_changed_contract_or_a_rewritten_file_is_named(
          ["tool_spec_hash", "tool_file_sha256"]),
         ("own-rewritten-file", {"tool_file_sha256": rewritten},
          "{a} and {b} share one tool contract (tool spec "
-         f"{MCP_SPEC[:12]}), but the file was rewritten without changing it, and tasks are drawn "
-         "from the file's bytes, so their tasks differ",
+         f"{MCP_SPEC[:12]}), but the file was reformatted, and tasks are drawn from the file's "
+         "bytes, so their tasks differ",
          ["tool_file_sha256"]),
     )
     for name, edit, sentence, keys in cases:
