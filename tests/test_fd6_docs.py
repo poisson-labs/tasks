@@ -490,18 +490,22 @@ def declared_version() -> str:
     return str(tomllib.loads((REPO / "pyproject.toml").read_text("utf-8"))["project"]["version"])
 
 
+FIRST_RELEASE = "## 0.1.0 (2026-10-22)"
+
+
 def unreleased() -> str:
-    """The release's section: from its heading to the next `## ` heading.  (The name is the
-    frozen one; the section was `Unreleased` until the 0.1.0 release.)"""
+    """The 0.1.0 release's section, found by its heading: from the heading to the next `## `
+    heading.  (The name is the frozen one; the section was `Unreleased` until the 0.1.0 release,
+    and the newest section until a later release was added above it.)"""
     text = CHANGELOG.read_text("utf-8")
-    start = RELEASE_HEADING.search(text).start()  # type: ignore[union-attr]
+    start = re.search(rf"^{re.escape(FIRST_RELEASE)}$", text, re.M).start()  # type: ignore[union-attr]
     nxt = re.search(r"^## ", text[start + 3:], re.M)
     return text[start:start + 3 + nxt.start()] if nxt else text[start:]
 
 
 def test_fd6_9_the_changelog_has_one_unreleased_section_that_covers_the_three_pieces() -> None:
     text = CHANGELOG.read_text("utf-8")
-    assert len(RELEASE_HEADING.findall(text)) == 1
+    assert len(RELEASE_HEADING.findall(text)) >= 1
     assert not re.search(r"^## Unreleased\b", text, re.M)
     section = unreleased().lower()
     for needle in ("poisson-tasks", "your own tools", "knob probe", "wheel", "verify"):
@@ -510,8 +514,9 @@ def test_fd6_9_the_changelog_has_one_unreleased_section_that_covers_the_three_pi
 
 def test_fd6_9_the_changelog_says_it_is_unreleased_and_names_no_version_it_has_not_got() -> None:
     text = CHANGELOG.read_text("utf-8")
-    (version, _date), = RELEASE_HEADING.findall(text)
-    assert version == declared_version()
+    versions = [version for version, _date in RELEASE_HEADING.findall(text)]
+    assert versions[0] == declared_version()
+    assert len(versions) == len(set(versions)), versions
     head = text[:RELEASE_HEADING.search(text).start()]  # type: ignore[union-attr]
     assert "not been released" not in head and "unreleased" not in head.lower()
     headings = re.findall(r"^### .*$", unreleased(), re.M)
