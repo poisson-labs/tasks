@@ -339,7 +339,8 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
         "artifact and the document, and prints the verdict, a line per level, and the card's "
         "plain statement of what it means and what it does not claim.",
         ["card", "card runs/first-look-my-model", "card --published",
-         "card --published " + (names[0] if names else "gpt-5-nano"), "card --print"],
+         "card --published " + (names[0] if names else "gpt-5-nano"), "card --print",
+         "card runs/first-look-my-model --compare runs/first-look-my-model-2"],
     )
     p.add_argument("run", metavar="RUN", nargs="?", default=None,
                    help="a run folder (default: the settings file's newest run)")
@@ -354,7 +355,8 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
     p.add_argument("--out", metavar="FILE", default=None,
                    help="with --page: where to write it (default: calibration.md)")
     p.add_argument("--compare", metavar="WHAT", default=None,
-                   help="put this run's card beside the published ones: --compare published")
+                   help="put this run's card beside the published ones (--compare published) "
+                        "or beside another run's (--compare OTHER_RUN)")
     p.add_argument("--check", metavar="PATH", default=None,
                    help="recompute a card folder, or a calibration bundle .zip, from its records "
                         "and compare it with its artifact; exit 4 on any difference")

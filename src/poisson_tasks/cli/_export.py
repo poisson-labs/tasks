@@ -2,8 +2,11 @@
 
 One target: `--to verifiers`, one eval config per arm, each the one `run` uses for that arm,
 written as JSON (TOML cannot carry a plain arm's missing control arm), and the command that
-runs it, with verifiers' `eval` by absolute path.  It reads no key and opens no socket: a config
-that would send a key over plain http to another machine is refused before anything is written.
+runs it, with verifiers' `eval` by absolute path.  Beside them, `produced_by.json`: what produces
+the plan's tasks (`provenance.produced_by`), with no time in it, so two exports of one plan write
+the same bytes.  The configs carry nothing of it, since they are what `run` sends.  It reads no
+key and opens no socket: a config that would send a key over plain http to another machine is
+refused before anything is written.
 """
 
 from __future__ import annotations
@@ -65,11 +68,16 @@ def export(ctx: Context) -> Result:
         raise Refusal(str(refused)) from None
     plan = resolve(settings, settings_root(ctx))
     folder = Path(args.out) if args.out is not None else Path(ctx.config_path).parent / "export"
-    from poisson_tasks import runs
+    from poisson_tasks import provenance, runs
 
     paths = [folder / f"eval-{arm_folder(spec)}.json" for spec in plan.arms]
-    refuse_overwrite(paths, args.force, ctx, "export", "--to", "verifiers")
+    record_path = folder / "produced_by.json"
+    refuse_overwrite([*paths, record_path], args.force, ctx, "export", "--to", "verifiers")
     program = _eval_path()
+    try:
+        record = provenance.produced_by(plan)
+    except ValueError as refused:
+        raise Refusal(str(refused)) from None
     folder.mkdir(parents=True, exist_ok=True)
     commands = []
     for spec, path in zip(plan.arms, paths, strict=True):
@@ -78,11 +86,14 @@ def export(ctx: Context) -> Result:
         path.write_text(json.dumps(mapping, indent=2, ensure_ascii=False) + "\n",
                         encoding="utf-8")
         commands.append(f"{program} @ {shown(path)}")
+    record_path.write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n",
+                           encoding="utf-8")
     return Result(
         schema=SCHEMA, verdict="ok",
         sentence=f"wrote {_format.plural(len(paths), 'verifiers config')}, one per arm: "
                  f"{plan_words(plan)}",
         rows=[Row("note", LEAVES_OUT)],
         document=[Part(SPENDS.format(run=ctx.command('run')), "lines", commands)],
-        data={"files": [str(path) for path in paths], "commands": commands},
+        data={"files": [str(path) for path in paths], "commands": commands,
+              "produced_by": record},
     )

@@ -1,8 +1,9 @@
 """`run`: show the plan and its cost, ask, then run the tasks against the model.
 
 The order of events: the platform, the tokenizer file, the settings file and the
-plan, the key's presence, the run folder, the free key check, the tasks and their contrast, the
-plan on stdout, the question on stderr, then the run.  Nothing costs money before the run.  A
+plan, the key's presence, the run folder, the free key check, the tasks and their contrast, what
+produces them against what started the folder, the plan on stdout, the question on stderr, then
+the run.  Nothing costs money before the run.  A
 plan expected to cost more than its cap is refused before the question, with a cap that would
 let it finish; a dry run shows the plan and stops.
 """
@@ -184,6 +185,16 @@ def run(ctx: Context) -> Result:
             report = knobs.check_pins(group)
             if report.refused:
                 raise Refusal(arms.describe_pins(report))
+
+    # a folder started with another generator or tool contract than this install's holds
+    # other tasks, so it is not resumed
+    from poisson_tasks import provenance
+
+    try:
+        provenance.check_resume(Path(folder.path), provenance.produced_by(plan),
+                                name=shown(folder.path))
+    except ValueError as refused:
+        raise Refusal(str(refused)) from None
 
     # the plan
     kept, total = _kept_and_total(plan, folder)
@@ -415,7 +426,7 @@ def _resume_command(ctx: Context, folder: Any) -> str:
 
 
 def _done(ctx: Context, plan: Any, folder: Any, kept: int, total: int, owed: int,
-          dollars: float | None, tokens: int) -> Result:
+          dollars: float | None, tokens: int, produced_by: Any = None) -> Result:
     spent = _spent_words(dollars) if dollars is not None else f", {_format.count(tokens)} tokens"
     if owed:
         owed_words = _format.plural(owed, "failed and is owed again",
@@ -430,7 +441,8 @@ def _done(ctx: Context, plan: Any, folder: Any, kept: int, total: int, owed: int
         schema=SCHEMA, verdict="done", sentence=sentence,
         rows=[Row("folder", shown(folder.path))], next=nexts,
         data={"folder": folder.name, "episodes_kept": kept, "episodes_total": total,
-              "episodes_owed": owed, "spend": dollars, "tokens": tokens},
+              "episodes_owed": owed, "spend": dollars, "tokens": tokens,
+              "produced_by": produced_by},
     )
 
 
@@ -440,11 +452,12 @@ def _ended(ctx: Context, plan: Any, folder: Any, result: Any, total: int) -> Res
     spent = result.spend
     tokens = result.tokens
     if result.verdict == "done":
-        return _done(ctx, plan, folder, kept, total, result.episodes_owed, spent, tokens)
+        return _done(ctx, plan, folder, kept, total, result.episodes_owed, spent, tokens,
+                 result.produced_by)
     reason = result.stop_reason
     data = {"folder": folder.name, "stop": reason, "episodes_kept": kept,
             "episodes_total": total, "episodes_owed": result.episodes_owed, "spend": spent,
-            "tokens": tokens}
+            "tokens": tokens, "produced_by": result.produced_by}
     rows: list[Any] = [Row("folder", shown(folder.path))]
     document = []
     nexts = []
