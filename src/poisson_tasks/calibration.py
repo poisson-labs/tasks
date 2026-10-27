@@ -3561,7 +3561,7 @@ _LINE_NOT_COMPARABLE = (
 )
 _LINE_EARLIER_BUILD = (
     "It cannot be read beside the published cards in this release: they were measured on an "
-    "earlier build of the generator, and the next release measures them again on the current one."
+    "earlier build of the generator, and a later release measures them again on the current one."
 )
 _LINE_NOT_COVERED = (
     "No published card covers this plan: none holds any of its levels, so nothing here can "
