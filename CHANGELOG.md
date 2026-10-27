@@ -2,6 +2,17 @@
 
 All notable changes to Poisson Tasks.
 
+## 0.2.2 (2026-10-27)
+
+### Fixes
+
+- **`init` refuses a key that would go over plain http to another machine, in one line.** With a key variable named and a `--base-url` that is plain `http` and not loopback, `init` now exits 1 with an `error:` line and a `next:` line that is the command as typed plus `--allow-plain-http-key`, writes nothing and opens no connection. Before, it stopped with exit 3, as an unexpected failure, whenever it checked the key: with the key set, and with the key unset, which it checks even under `--no-check-key`. The guided setup now says the refusal at its key question and refuses after the last one.
+- **A card no longer promises that the next release measures the published cards again.** The line on a card that cannot be read beside the published cards, because they were measured on an earlier build of the generator, and `init`'s note on the published card now say a later release measures them again. Neither 0.2.0 nor 0.2.1 did.
+
+### Tests
+
+- **`init`'s plain-http refusal is held**: under `--yes` with and without `--no-check-key`, with the key set, and after the guided setup. Each case checks the exit code, the `error:` and `next:` lines, that nothing is written and that no connection is opened, beside loopback and `https` endpoints that write the file as before.
+
 ## 0.2.1 (2026-10-27)
 
 ### Fixes
