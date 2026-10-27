@@ -94,7 +94,7 @@ A card from a run ends with two short pieces of text. The first says what the ca
 
 - It is one model's result on these tasks: it ranks no models, and it says nothing about another model or about tasks other than these. *(always)*
 - With fewer than the published 60 tasks per level, the intervals are wide and most pairs of levels will read too small to call; that is the design's resolution, not evidence that the levels are the same. *(a card with fewer tasks per level than the published cards)*
-- It cannot be read beside the published cards in this release: they were measured on an earlier build of the generator, and the next release measures them again on the current one. *(a card made by another build of the generator than theirs: in this release, every card from a run)*
+- It cannot be read beside the published cards in this release: they were measured on an earlier build of the generator, and a later release measures them again on the current one. *(a card made by another build of the generator than theirs: in this release, every card from a run)*
 - It is not comparable with the published cards: it was not measured the same way, so none of its figures reads against theirs. *(a card measured differently from them in another way, such as its decoding or its strictness)*
 - No published card covers this plan: none holds any of its levels, so nothing here can be read beside a published figure. *(a plan that holds no level a published card holds)*
 - Its model was served by its user: how it was served is not pinned beyond what the server reported, so a later run of the same weights served differently is not the same measurement. *(a model on Ollama, vLLM or another endpoint you serve)*
