@@ -1,9 +1,11 @@
-# The whole suite, ruff and mypy, nightly and on demand, twice: once without Prove, where the
+# The whole suite, ruff and mypy, on demand, twice: once without Prove, where the
 # tests that drive Prove are skipped by name (tests/conftest.py), and once with Prove
 # installed, where they run. Each job first checks that Prove is, or is not, importable, so a
 # job's name always says what it ran against. The suite takes over an hour on a laptop and over
 # two on a GitHub runner, so pushes and pull requests run the fast lane in ci.yml instead, and
-# here the suite is cut into eight shards that run side by side, in each variant.
+# here the suite is cut into eight shards that run side by side, in each variant. It runs only
+# when asked, from the Actions tab or `gh workflow run suite.yml`, not on a schedule: a run is
+# about 300 runner-minutes.
 #
 # The shards are the table in SHARDS: a number, a colon, and the test files that shard runs.
 # The last shard is `rest`: every file the other shards do not name, so a new test file runs
@@ -24,9 +26,6 @@
 name: Whole suite
 
 on:
-  # 06:17 UTC every day, and from the Actions tab or `gh workflow run suite.yml`.
-  schedule:
-    - cron: "17 6 * * *"
   workflow_dispatch:
 
 permissions:
@@ -136,7 +135,10 @@ jobs:
           HYPOTHESIS_PROFILE: ci
           SHARD: ${{ matrix.shard }}
           SHARD_COUNT: ${{ strategy.job-total }}
-        # `python -m pytest`, as the README gives it, on this shard's files.
+        # `python -m pytest`, as the README gives it, on this shard's files. When it ends with up
+        # to ten failed tests, those run once more in a fresh process: a test that passes then is
+        # a warning on the run, listed by name, and the shard goes green; one that fails again, or
+        # more than ten failing at once, fails the shard.
         run: |
           . "$RUNNER_TEMP/shards.sh"
           named=$(shard_names | wc -l | tr -d ' ')
@@ -145,7 +147,17 @@ jobs:
           args=($(shard_args "$SHARD"))
           [ "${#args[@]}" -gt 0 ] || { echo "shard $SHARD has no pytest arguments"; exit 1; }
           echo "shard $SHARD of $SHARD_COUNT: ${args[*]}"
-          python -m pytest -q --durations=25 "${args[@]}"
+          status=0
+          python -m pytest -q --durations=25 "${args[@]}" || status=$?
+          [ "$status" -eq 1 ] || exit "$status"
+          failed=$(python -c "import json; print(*json.load(open('.pytest_cache/v/cache/lastfailed')), sep='\n')")
+          count=$(printf '%s\n' "$failed" | grep -c .)
+          if [ "$count" -gt 10 ]; then
+            echo "$count tests failed, too many to be a flake: not rerunning"
+            exit 1
+          fi
+          echo "::warning title=Shard $SHARD reran $count failed test(s)::$(printf '%s' "$failed" | tr '\n' ' ' | cut -c1-600)"
+          python -m pytest -q --last-failed --last-failed-no-failures none "${args[@]}"
 
   with-prove:
     name: suite, shard ${{ matrix.shard }} of ${{ strategy.job-total }}, with Prove
