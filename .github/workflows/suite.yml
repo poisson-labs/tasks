@@ -1,10 +1,26 @@
 # The whole suite, ruff and mypy, nightly and on demand, twice: once without Prove, where the
 # tests that drive Prove are skipped by name (tests/conftest.py), and once with Prove
 # installed, where they run. Each job first checks that Prove is, or is not, importable, so a
-# job's name always says what it ran against. The suite takes over an hour, so pushes and pull
-# requests run the fast lane in ci.yml instead.
+# job's name always says what it ran against. The suite takes over an hour on a laptop and over
+# two on a GitHub runner, so pushes and pull requests run the fast lane in ci.yml instead, and
+# here the suite is cut into eight shards that run side by side, in each variant.
 #
-# Third-party actions are pinned to a commit, with the release it is in beside it.
+# The shards are the table in SHARDS: a number, a colon, and the test files that shard runs.
+# The last shard is `rest`: every file the other shards do not name, so a new test file runs
+# in it with no change here. To move a file to another shard, move its path between lines. A
+# second job in each variant, `ruff, mypy and the shards`, collects the whole suite and each
+# shard's tests and fails unless every test id is in exactly one shard: a gap or an overlap is
+# an error, as in the fast lane's digest step. Each shard also checks that the matrix below
+# and the table name the same shards.
+#
+# The table was balanced from the per-file times of a whole-suite run on 2026-10-26: about ten
+# minutes of tests per shard on a laptop. A runner took 117 minutes for the 78 the laptop took,
+# 1.5 times as long, and its slowest stretches 2.4 times as long, so a shard is a quarter of an
+# hour to 25 minutes there, and its timeout is 60.
+#
+# Third-party actions are pinned to a commit, with the release it is in beside it. The steps
+# the jobs share are written once, in the first job that has them, and repeated in the others
+# by YAML alias (`*name`).
 name: Whole suite
 
 on:
@@ -16,65 +32,137 @@ on:
 permissions:
   contents: read
 
+env:
+  SHARDS: |
+    1: tests/test_frozen_generator.py tests/test_fd3_resume.py tests/test_tg_m5_scripted.py
+       tests/test_fd9_verbs.py tests/test_fd6f1_card_next.py tests/test_fd4_published.py
+       tests/test_fd4_pending_published_page.py tests/test_k0_published_concurrency.py
+       tests/test_k1_hash.py tests/test_k3_kept.py tests/test_k4_kept.py tests/test_k5_kept.py
+       tests/test_k6_kept.py tests/test_k7_kept.py tests/test_k8_kept.py tests/test_k8b_kept.py
+       tests/test_o2b_kept.py tests/test_pv_canonical.py
+    2: tests/test_k9_driver.py tests/test_k5_block.py tests/test_fd3_folders.py
+    3: tests/test_fd9_session.py tests/test_o2d_look.py tests/test_tg_m5_standalone.py
+       tests/test_k9_outcomes.py
+    4: tests/test_fd5_run.py tests/test_fd3_stops.py tests/test_fd6_wheel.py tests/test_fd5_init.py
+       tests/test_fd3_machine.py
+    5: tests/test_cal_qwen_prep.py tests/test_fd5_fresh.py tests/test_fd6f2_card_line.py
+       tests/test_fd3_key_mask.py tests/test_o2_run.py
+    6: tests/test_k9_regate.py tests/test_k9_notebook.py tests/test_check3_fixes.py
+       tests/test_fd5_card.py tests/test_o2_verdict.py
+    7: tests/test_fd3_cap.py tests/test_fd5_look.py tests/test_fd4_card.py tests/test_nofile.py
+       tests/test_o1_mcp_command.py
+    8: rest
+
 jobs:
   without-prove:
-    name: suite, ruff and mypy, without Prove
+    name: suite, shard ${{ matrix.shard }} of ${{ strategy.job-total }}, without Prove
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
+    strategy: &shard-matrix
+      # A red shard does not stop the others, so one run shows every red test.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     defaults:
       run:
+        # `bash`, so a command on the left of a pipe that fails fails the step.
+        shell: bash
         working-directory: tasks
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - &checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           path: tasks
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+      - &setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.11"
       # The `null` harness launches its program through uv, and the tests that run it skip
       # when uv is missing. This is the uv the suite is known green on.
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+      - &setup-uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
         with:
           version: "0.11.14"
           enable-cache: false
-      - name: Install
+      - &install-without-prove
+        name: Install
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install -e ".[dev]"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
-      - name: Fetch the reference tokenizer's encoding file
+      - &fetch-encoding
+        name: Fetch the reference tokenizer's encoding file
         run: python -m poisson_tasks.fetch_encoding
-      - name: Prove is not installed
+      - &prove-not-installed
+        name: Prove is not installed
         run: python -c "import importlib.util, sys; sys.exit(importlib.util.find_spec('proofload') is not None)"
-      - name: Ruff
-        run: ruff check .
-      - name: Mypy
-        run: mypy
-      # `python -m pytest`, as the README gives it. A bare `pytest` collects the same tests,
-      # because pyproject.toml's pytest table puts the repository root on the import path.
-      - name: Tests
-        run: python -m pytest -q
-        # The same property-test examples on every run, so a red run is reproducible.
+      # The functions that read the table: the shard numbers, a shard's files, and the pytest
+      # arguments of a shard, which for `rest` are `--ignore` for every file another shard names.
+      - &shard-helpers
+        name: The shard helpers
+        run: |
+          cat > "$RUNNER_TEMP/shards.sh" <<'EOF'
+          shard_names() {
+            printf '%s\n' "$SHARDS" | sed -n 's/^\([0-9][0-9]*\):.*$/\1/p'
+          }
+          shard_files() {
+            printf '%s\n' "$SHARDS" | awk -v want="$1" '
+              /^[0-9]+:/ { cur = $1; sub(/:$/, "", cur); $1 = "" }
+              cur == want { for (i = 1; i <= NF; i++) if ($i != "") print $i }'
+          }
+          shard_args() {
+            local files n f
+            files=$(shard_files "$1")
+            if [ -z "$files" ]; then
+              echo "shard $1 names no files" >&2
+              return 1
+            elif [ "$files" = rest ]; then
+              for n in $(shard_names); do
+                if [ "$n" != "$1" ]; then
+                  for f in $(shard_files "$n"); do echo "--ignore=$f"; done
+                fi
+              done
+              echo tests
+            else
+              echo "$files"
+            fi
+          }
+          EOF
+      - &shard-tests
+        name: Tests
         env:
+          # The same property-test examples on every run, so a red run is reproducible.
           HYPOTHESIS_PROFILE: ci
+          SHARD: ${{ matrix.shard }}
+          SHARD_COUNT: ${{ strategy.job-total }}
+        # `python -m pytest`, as the README gives it, on this shard's files.
+        run: |
+          . "$RUNNER_TEMP/shards.sh"
+          named=$(shard_names | wc -l | tr -d ' ')
+          [ "$named" = "$SHARD_COUNT" ] || { echo "the table names $named shards and the matrix runs $SHARD_COUNT"; exit 1; }
+          shard_names | grep -qx "$SHARD" || { echo "the table has no shard $SHARD"; exit 1; }
+          args=($(shard_args "$SHARD"))
+          [ "${#args[@]}" -gt 0 ] || { echo "shard $SHARD has no pytest arguments"; exit 1; }
+          echo "shard $SHARD of $SHARD_COUNT: ${args[*]}"
+          python -m pytest -q --durations=25 "${args[@]}"
 
   with-prove:
-    name: suite, ruff and mypy, with Prove
+    name: suite, shard ${{ matrix.shard }} of ${{ strategy.job-total }}, with Prove
     # Prove is not public, so this job checks it out with a read-only token kept in the
     # PROVE_READ_TOKEN secret, which a fork does not have; there this job is skipped.
     if: github.repository == 'poisson-labs/tasks'
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
+    strategy: *shard-matrix
     defaults:
       run:
+        shell: bash
         working-directory: tasks
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          path: tasks
-          persist-credentials: false
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - *checkout
+      - &checkout-prove
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           repository: poisson-labs/prove
           # The Prove commit the suite is known green against; moved deliberately, never floating.
@@ -82,30 +170,93 @@ jobs:
           token: ${{ secrets.PROVE_READ_TOKEN }}
           path: prove
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
-        with:
-          python-version: "3.11"
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
-        with:
-          version: "0.11.14"
-          enable-cache: false
+      - *setup-python
+      - *setup-uv
       # The order the README gives: Prove from its checkout, then this package.
-      - name: Install
+      - &install-with-prove
+        name: Install
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install -e ../prove
           .venv/bin/python -m pip install -e ".[dev]"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
-      - name: Fetch the reference tokenizer's encoding file
-        run: python -m poisson_tasks.fetch_encoding
-      - name: Prove is installed
+      - *fetch-encoding
+      - &prove-installed
+        name: Prove is installed
         run: python -c "import proofload; print('proofload', proofload.__version__, proofload.__file__)"
-      - name: Ruff
+      - *shard-helpers
+      - *shard-tests
+
+  # The shards are only the suite if together they hold every test, once. This collects the
+  # whole suite and each shard's tests, which runs none of them, and compares the test ids; it
+  # also holds the ruff and mypy runs the shards no longer carry. Collecting differs between the
+  # variants only if a test module skips itself at import, so it is checked in both.
+  cover-without-prove:
+    name: ruff, mypy and the shards, without Prove
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+        working-directory: tasks
+    steps:
+      - *checkout
+      - *setup-python
+      - *setup-uv
+      - *install-without-prove
+      - *fetch-encoding
+      - *prove-not-installed
+      - &ruff
+        name: Ruff
         run: ruff check .
-      - name: Mypy
+      - &mypy
+        name: Mypy
         run: mypy
-      - name: Tests
-        run: python -m pytest -q
-        # The same property-test examples on every run, so a red run is reproducible.
-        env:
-          HYPOTHESIS_PROFILE: ci
+      - *shard-helpers
+      - &shards-cover-the-suite
+        name: The shards hold exactly the suite
+        run: |
+          . "$RUNNER_TEMP/shards.sh"
+          ids() { python -m pytest -q -p no:cacheprovider --collect-only "$@" | grep '^tests/.*::' | sort; }
+          ids tests > "$RUNNER_TEMP/all.ids"
+          pids=""
+          for n in $(shard_names); do
+            shard_args "$n" > "$RUNNER_TEMP/shard-$n.args"
+            ( ids $(cat "$RUNNER_TEMP/shard-$n.args") > "$RUNNER_TEMP/shard-$n.ids" ) & pids="$pids $!"
+          done
+          failed=0
+          for pid in $pids; do wait "$pid" || failed=1; done
+          for n in $(shard_names); do
+            echo "shard $n: $(wc -l < "$RUNNER_TEMP/shard-$n.ids" | tr -d ' ') tests"
+          done
+          cat "$RUNNER_TEMP"/shard-*.ids | sort > "$RUNNER_TEMP/split.ids"
+          echo "$(wc -l < "$RUNNER_TEMP/all.ids" | tr -d ' ') tests in the suite, $(wc -l < "$RUNNER_TEMP/split.ids" | tr -d ' ') in the shards"
+          if ! diff "$RUNNER_TEMP/all.ids" "$RUNNER_TEMP/split.ids" > "$RUNNER_TEMP/split.diff"; then
+            echo "in the suite but in no shard: $(grep -c '^<' "$RUNNER_TEMP/split.diff")"
+            echo "in more than one shard:       $(grep -c '^>' "$RUNNER_TEMP/split.diff")"
+            head -n 40 "$RUNNER_TEMP/split.diff"
+            failed=1
+          fi
+          exit "$failed"
+
+  cover-with-prove:
+    name: ruff, mypy and the shards, with Prove
+    if: github.repository == 'poisson-labs/tasks'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+        working-directory: tasks
+    steps:
+      - *checkout
+      - *checkout-prove
+      - *setup-python
+      - *setup-uv
+      - *install-with-prove
+      - *fetch-encoding
+      - *prove-installed
+      - *ruff
+      - *mypy
+      - *shard-helpers
+      - *shards-cover-the-suite
