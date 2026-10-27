@@ -5,7 +5,7 @@
 GET https://pypi.org/pypi/poisson-tasks/json and .../VERSION/json must be 200, the project must hold VERSION as its latest
 version, with a wheel and an sdist, each with the sha256 passed in (the hashes of the files built), not yanked.  Prints the
 metadata PyPI shows (Requires-Python, classifiers, project URLs, dependencies) and writes the raw JSON of the release to
-OUT_DIR/pypi-json-VERSION.json.  Exit 0 only when every check held.
+OUT_DIR/pypi-json-<VERSION>.json.  Exit 0 only when every check held.
 """
 import json
 import sys
