@@ -132,6 +132,8 @@ select = ["E", "F", "W", "I", "UP", "B"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["I", "E501", "E702", "B905"]
+# The release checks (docs/releasing.md) are scripts run by hand, one per step, not package code.
+"scripts/release/*" = ["E501", "E731", "E741"]
 
 [tool.mypy]
 python_version = "3.11"
