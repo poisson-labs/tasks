@@ -52,7 +52,7 @@ PUBLISHED_MODEL = "gpt-5-nano-2025-08-07"
 PUBLISHED_PRICE_SHOWN = "0.05, 0.005, 0.40 — read 2026-09-25; check them"
 PUBLISHED_NOTE = (
     "This one has a published card. It was measured on an earlier build of the generator, so a "
-    "card from your run cannot be read beside it in this release; the next release measures it "
+    "card from your run cannot be read beside it in this release; a later release measures it "
     "again on the current generator."
 )
 MEASURES = (
