@@ -27,3 +27,9 @@ The `PATH` line is required: the adapter and its tests shell out to `proofload`.
 The example writes a pre-registration, builds a registry module from it under its own hash, writes a Proofload sweep spec, and runs three real `proofload sweep` processes, one per arm, driven by the reference policy: the one that plays each task correctly. It then reads the stored episodes back and prints their outcomes, and runs a `proofload diff` of the two depth arms. Every episode comes back `passed`, and the depth arms differ in turns: 2 at `d1`, 4 at `d3`. That is the point of the scripted path: the instrument is exercised with the model taken out, so a later failure is a model's and not the instrument's.
 
 It takes a few seconds and writes about 80 KB under `examples/proofload_sweep/example-store`, which git ignores. Delete that folder to start over. [The example](https://github.com/poisson-labs/tasks/blob/main/examples/proofload_sweep/run.py) is source to read; [python.md](python.md) lists the others.
+
+## Registrations, and the horizon
+
+A study run down this route is registered before it runs: which levels of a knob it sweeps is written down in advance, and is not a property of the generator. `poisson_tasks.adapter.validate_preregistration` checks a registration, and takes depth and the decoy-tools dial only. A sweep of a knob without its control arm is refused, rather than letting the study run.
+
+A registration's **horizon** is the largest `max_turns` over its arms (`spec.max_turns(slack)`, [knobs-and-arms.md](knobs-and-arms.md)), and it is checked rather than declared: `validate_preregistration` recomputes it and refuses a document that states a different number. The horizon is what Proofload uses to cut an episode short, so a wrong one would silently truncate the deepest arm.
