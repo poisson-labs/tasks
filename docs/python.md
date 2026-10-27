@@ -35,11 +35,30 @@ dab5794b7cd35eaefc337817fbcd61efbd5e8db27d3203f04dcf06867ec8a3d4
 passed
 ```
 
-`verify(bundle, turns, ended_with_reply, turn_limit_hit, fmt)` is a pure function of those five arguments. Its label is one of ten, in this order of precedence: `verifier_error`, `replay_mismatch`, `api_error`, `wall_timeout`, `malformed_call`, `turn_limit`, `overshoot`, `wrong_state`, `collateral_mutation`, `passed`. Every episode is judged strict and leaky at once (`strict_label` and `leaky_pass`). [The task](the-task.md) describes the domain and the verdicts.
+`generate(arm, seed)` returns a `TaskBundle`. The fields a user reads:
+
+| field | what |
+|---|---|
+| `task_id` | a digest over everything below; two equal ids are the same task |
+| `arm_id` | which arm generated it, e.g. `depth:d3` |
+| `seed`, `split` | the draw. `eval` and `train` draw record ids from disjoint word lists, so no eval task can equal a train task |
+| `system_prompt`, `prompt` | what the model is shown. `prompt` is a string on a plain arm, and a message list on a control arm, which seeds history |
+| `tools` | the tool block, as JSON schemas, in the order the model sees them |
+| `goal` | `(class, record_id, stage)` -- what counts as done |
+| `reference_calls`, `reference_observations` | one correct solution, and what the domain returns for it |
+| `negative_controls` | wrong answers, keyed by the outcome each should earn |
+| `verifier` | the strictness this task is judged under |
+| `pins` | the pin-ledger measurements taken off this bundle (see [knobs-and-arms.md](knobs-and-arms.md)) |
+| `engine_hash`, `generator_hash` | what produced it. A task whose hashes differ from the ones a card recorded is not the task that card measured |
+
+`initial_state` and `expected_final_state` are the ledger before and after, as sorted
+`(class, record_id, stage, token)` rows.
+
+`verify(bundle, turns, ended_with_reply, turn_limit_hit, fmt)` returns a `Verdict`, and is a pure function of those five arguments: no clock, no network, no model. (A sixth, optional `spec`, names the mock domain's table; leave it out and the package's own is used.) Its `label` is one of ten: `passed` when the ledger ends exactly at the goal with nothing else moved and the episode ended with a reply, and otherwise the first of `malformed_call`, `turn_limit`, `overshoot`, `wrong_state` and `collateral_mutation` that matches. `verifier_error`, `replay_mismatch`, `api_error` and `wall_timeout` are assigned by whatever ran the episode, never by `verify`. Every episode is judged strict and leaky at once (`strict_label` and `leaky_pass`). [The task](the-task.md) describes the domain and the verdicts.
 
 `poisson_tasks.outcomes.describe(label)` gives each label's plain sentence, the one `verify` and the cards print.
 
-`poisson-tasks verify` does the same from the command line, with a task's own answers or an attempt of yours (see [commands.md](commands.md)). In this release it refuses a tasks file made on your own tools, in one line (`error: <file> holds tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`), and refuses `--arm` in a folder set up for your own tools the same way.
+`poisson-tasks verify` does the same from the command line, with a task's own answers or an attempt of yours ([commands.md](commands.md) has its refusals). In this release it refuses tasks made on your own tools, which verify does not judge on its own yet: a run's card judges those, by replay.
 
 ## Arms by their id
 
@@ -62,7 +81,7 @@ depth:d3
 leaky
 ```
 
-An id that is not written the way `arm_id` writes it (`bogus:d1`, or `depth:d03` for `depth:d3`) is refused in one line that names what is wrong. The level is not judged here: the settings file and the export config refuse a level the generator cannot make, and take a level that is legitimate but on no published card, such as `depth:d4`, with a note that no card measured it.
+An id that is not written the way `arm_id` writes it (`bogus:d1`, or `depth:d03` for `depth:d3`) is refused in one line that names what is wrong. The level is not judged here. The settings file takes only the levels the published cards measured; the export config takes any level the generator can make, and warns when no published card measured it, as for `depth:d4`.
 
 ## A contrast, held to the pin ledger
 
@@ -92,9 +111,9 @@ A contrast that breaks a row is refused before any model runs: `report.refused` 
 
 A task's id is a hash of the task, the generator's source and a short label, the generator version. Change any of them and the id changes. Two labels give the same prompt, tools, goal and reference solution, and different ids.
 
-- The command and the settings file use the package's default label, `arms.DEFAULT_GENERATOR_VERSION`, and never ask. `poisson-tasks generate --generator-version` and `[tasks] generator_version` set another, for a library user who needs to reproduce tasks made under another label; the plan then says that the tasks match no published card.
-- Both published cards were measured at label `"0"`, on an earlier build of the generator. The tasks they hold regenerate today with the same text, and with other ids, so `card --published` says each card is *not current for this install*, and a run's card cannot be read beside them. The next release measures the cards again on the current generator.
-- The examples use `"0"`, to match the label the cards carry.
+- The command and the settings file use the package's default label, `arms.DEFAULT_GENERATOR_VERSION`, and never ask. `poisson-tasks generate --generator-version` and `[tasks] generator_version` set another, for a library user who needs to reproduce tasks made under another label.
+- Both published cards were measured at label `"0"`, on an earlier build of the generator: their generator hash is that build's at `"0"`. The tasks they hold regenerate today with the same text, and with other ids, so `card --published` says each card is *not current for this install*, and a run's card cannot be read beside them. A later release measures the cards again on the current generator.
+- The examples use `"0"`, to match the label the cards carry. The export compares an arm with the arms a user gets today, at the default label, so an `ExportTaskset` at `"0"` warns that no published card covers it as given; neither label gives the cards' own ids under today's generator.
 
 ## Handing tasks to another runner
 
@@ -174,6 +193,10 @@ ships: bites on gpt-5-nano; bites on Qwen3-8B
 ('faults', 'history', 'shape')
 ```
 
+## Measuring a model
+
+`poisson-tasks run` and `poisson-tasks card` are built on four functions of `poisson_tasks.calibration`: `run_arm` runs one cell (one arm, one model), `records_from_run` turns a finished run folder into per-episode records, `build_artifact` computes every figure from them under a `Provenance` block, and `render_document` renders the card. `build_artifact` is where a card's refusals are enforced ([reading-a-card.md](reading-a-card.md) lists them).
+
 ## Your own tools
 
 `own.read_tools` reads an OpenAI tools file, an MCP tool list or an OpenAPI document (as bytes) into one form, refusing in one line each what it cannot use. [own-tools.md](own-tools.md) describes what to do with the result.
@@ -236,11 +259,10 @@ True
 
 ## The examples, as source to read
 
-The repository's `examples` folder holds four short programs that use the library. They are not installed with the package; read them, and copy what you need. Each takes `--help`, and a mistaken argument gets one line.
+The repository's `examples` folder holds three short programs that use the library. They are not installed with the package; read them, and copy what you need. Each takes `--help`, and a mistaken argument gets one line.
 
 | file | what it shows |
 |---|---|
 | [`examples/one_task.py`](https://github.com/poisson-labs/tasks/blob/main/examples/one_task.py) | one task, its reference solution, and the verdict on every answer it ships with (`poisson-tasks generate --show` and `verify --self-check` do the same from the command line) |
 | [`examples/a_contrast.py`](https://github.com/poisson-labs/tasks/blob/main/examples/a_contrast.py) | the arms of a knob and the pin ledger over them, and a contrast the ledger refuses |
 | [`examples/calibration_card.py`](https://github.com/poisson-labs/tasks/blob/main/examples/calibration_card.py) | a published card recomputed from its records (`poisson-tasks card --published` does the same) |
-| [`examples/proofload_sweep/run.py`](https://github.com/poisson-labs/tasks/blob/main/examples/proofload_sweep/run.py) | the scripted path through Proofload; see [proofload.md](proofload.md) |

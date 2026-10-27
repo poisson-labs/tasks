@@ -5,7 +5,7 @@ v1 taskset: the task data, the task with its reward, the tool server, and a fini
 over a declared list of seeds. Everything on this page is against `verifiers==0.3.1`, which
 is the version the package pins.
 
-**The taskset id is `poisson-tasks`.** It is the distribution's name, and the wheel resolves
+**The taskset id is `poisson-tasks`.** It is the distribution's name, and verifiers resolves
 it to the package itself, which exports the taskset and its environment. `import
 poisson_tasks` does not import `verifiers`: the two are exported lazily, and only `eval` (or
 whoever asks for them by name) pays for the import.
@@ -63,7 +63,7 @@ half a cent. **`reward 0.67` is the model's score, not a fault in the run**: all
 episodes completed (`err 0.00`, every rollout `agent_completed`), and one of the three ended
 without the model calling a single tool, which scores 0 under `strict` as it should. Two of
 three at `depth:d3` is a measurement of `gpt-5-nano`, and what a level is worth is the
-calibration card's subject, not this page's: see [the calibration guide](reading-a-card.md).
+calibration card's subject, not this page's: see [Reading a card](reading-a-card.md).
 
 Paths are elided above; nothing else is. That run predates the turn limit described below,
 which is why its limits line reads "no turn cap"; a run today shows the 32-call cap there.
@@ -73,7 +73,7 @@ child process, and if it dies during startup -- a config it refuses, a missing d
 the parent keeps waiting: no top-level error, no non-zero exit, and `traces.jsonl` stays 0
 bytes. Measured 2026-09-22: ~15 minutes to a manual interrupt, with nothing printed. A run
 that has produced no trace after a minute or two is worth interrupting; the reason is in the
-run's own `logs/attempt_1/eval.log`, under the env server's traceback. This is the wheel's
+run's own `logs/attempt_1/eval.log`, under the env server's traceback. This is verifiers'
 behaviour, not this taskset's, and it is reported upstream.
 
 ## With the `poisson-tasks` command
@@ -154,8 +154,8 @@ the module shuffles. A seed that appears twice is refused: two tasks would carry
 | `MEASURED_HARNESS` | `"null"` |
 
 `bundle_from_data(task_from_bundle(b).data) == b`, and it stays equal after the data has
-crossed the JSON wire a launched tool server hands it over. That is the round trip the
-adapter relies on to get its bundle back from a finished trace.
+crossed the JSON wire a launched tool server hands it over. That round trip is how a
+finished trace gives back the task it ran.
 
 ## The signals
 
@@ -171,8 +171,9 @@ stored trace can be rescored with no environment at all.
   prompt-supplied assistant messages are not counted: a control arm's seeded history is not
   the model's work.
 
-`ExportTask.validate(None)` re-checks that the reference solution passes under *both*
-strictnesses, and returns `False` for a bundle whose reference falls short. Generation
+`await ExportTask.validate(None)` (a coroutine, as verifiers defines it) re-checks that the
+reference solution passes under *both* strictnesses, and gives `False` for a bundle whose
+reference falls short. Generation
 already refuses such a bundle; this is where the export says so.
 
 ## The harness the numbers were measured under
@@ -195,7 +196,7 @@ environment pins `agent.harness.id` to `null`, `agent.runtime.type` to `subproce
 `agent.max_turns` to 32, and nothing else. **A harness named on the command line still wins**
 (`--env.agent.harness.id bash`), and a run under it is outside the pin ledger, as above.
 
-**An episode ends after 32 model calls.** The wheel sets no turn limit of its own, so a model
+**An episode ends after 32 model calls.** verifiers sets no turn limit of its own, so a model
 that never stops would keep calling tools until its context filled, costing tokens on every
 call, and the run would report the end as a setup failure. At 32 calls the episode stops as
 `max_turns` and is scored `turn_limit`: the model's own failure, named as one. The number is
@@ -205,34 +206,28 @@ anywhere from 24 to 50 changes 1 episode in 900, so the cap binds only an episod
 not stop. It shows in the run's saved config, and `--env.agent.max-turns N` overrides it; a
 run with another cap is not comparable with the calibration cards.
 
-**`eval` needs `--no-push` to stay local.** Without it a finished run is pushed to the
-verifiers hub. Nothing in a generated task is secret, but a pilot's runs are pre-registered
-and a pushed run is a published one.
+**`eval` needs `--no-push` to stay local.** Without it verifiers uploads a finished run to
+the Prime Intellect platform, to the private Evaluations tab of the account that
+`$PRIME_API_KEY` or `prime login` names. The configs `poisson-tasks export` writes have
+`push` off.
 
-## The tool server
+## Reading a trace
 
-`ExportTask.toolsets(config)` returns a fresh `DomainToolset` on every call: tool servers
-are launched per rollout, and two rollouts of one task must not share a record or a
-counter. `setup_task` builds the engine state from the task data -- `seq_start` included,
-which is why a depth control's first live observation is not numbered 1.
-
-Two things about the server are worth knowing if you are reading a trace:
+Each rollout gets a tool server of its own, so two rollouts of one task share no record and
+no counter. Two things about the server are worth knowing if you are reading a trace:
 
 * **The advertised block is the bundle's, exactly** -- the names in slot order, the
   descriptions, and the parameter schemas as written, with no `<server>_` prefix on the
-  names. FastMCP would otherwise derive a schema of its own from the body's signature.
+  names.
 * **A call that fails its own schema still reaches the engine.** It comes back as the
-  engine's numbered `bad_args` line and the counter advances, because the engine is total
-  and every call is numbered. A call refused before the body would leave the live counter
-  trailing a replay of the same calls, and everything after it would differ.
-
-The module runs as `__main__` (`python -m poisson_tasks.export`), which is how the wheel
-launches a task-scoped tool server as a child process.
+  engine's numbered `bad_args` line and the counter advances, because every call is
+  numbered; that keeps a replay of the same calls in step with the live run. A depth
+  control's seeded history is numbered too, so its first live line is not numbered 1.
 
 ## What this export does not do
 
-* It does not import Proofload, and nothing here needs Proofload installed.
-* It does not decide a format check. The reward's verdict is the state predicate; a
-  `malformed_call` label comes from the serving pin's own parser, on the adapter's side.
+* It does not decide a format check on the model's raw text. The reward's verdict is the
+  state the ledger ends in; whether the raw text was a readable tool call is the serving
+  stack's parser's to say.
 * It does not pin the model, the endpoint or the sampling: those are the command line's,
   and the saved config records what was used.
