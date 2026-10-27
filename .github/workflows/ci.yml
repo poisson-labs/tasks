@@ -2,7 +2,8 @@
 # installed. Each job first checks that Prove is, or is not, importable, so a job's name always
 # says what it ran against. It runs ruff, mypy, the two generator hashes, the digest and
 # published-content tests, and a wheel built from the tree, installed fresh and started on a
-# terminal. The whole suite takes over an hour, so it runs in suite.yml, nightly and on demand.
+# terminal; the job without Prove then runs the docs' marked blocks from that wheel. The whole
+# suite takes over an hour, so it runs in suite.yml, nightly and on demand.
 #
 # The steps both jobs share are written once, in the first job, and repeated in the second by
 # YAML alias (`*name`).
@@ -221,6 +222,13 @@ jobs:
 
           sys.exit(f"{len(failed)} failed: " + "; ".join(failed) if failed else 0)
           EOF
+      # Every `docs-check: run` block of the README and docs/ (CONTRIBUTING.md gives the markers),
+      # from the wheel: each page in a folder and a HOME of its own, the paid blocks against the
+      # fixture model with a made-up key, and each output block compared with what its block
+      # printed. Here only, since the docs are written for an install without Prove. The export
+      # page's `uv run eval` needs PyPI.
+      - name: The docs' blocks, from the wheel
+        run: python scripts/docs_blocks.py --venv "$RUNNER_TEMP/wheel"
 
   with-prove:
     name: fast lane, with Prove

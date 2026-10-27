@@ -61,7 +61,7 @@ The wheel is built with hatchling from the working tree, and a test builds it an
 
 ## The docs are checked
 
-Every fenced `bash`, `console` and `python` block in the README, in `docs/` and in this file carries a marker on the line before it, and a test fails when one does not. The markers say how each block should be checked; what checks them today is narrower. A test holds that every marker is well formed and sits on a block. A test runs each command's `--help` and compares it with the help blocks in `docs/commands.md`, and one compares the settings file `init` writes with the TOML block in `docs/config.md`. Nothing yet runs the other `run` blocks or compares their output blocks, so a change to what a command prints is checked against its page by hand: run each block from a wheel built from the commit, in file order, in a folder of its own, and compare. A marker is a comment:
+Every fenced `bash`, `console` and `python` block in the README, in `docs/` and in this file carries a marker on the line before it, and a test fails when one does not. The markers say how each block is checked. A test holds that every marker is well formed and sits on a block. A test runs each command's `--help` and compares it with the help blocks in `docs/commands.md`, and one compares the settings file `init` writes with the TOML block in `docs/config.md`. [`scripts/docs_blocks.py`](scripts/docs_blocks.py) runs every `run` block of the README and `docs/` from the wheel built from the commit, each page in a folder of its own with a HOME of its own and its blocks in file order, and compares each output block with what the block before it printed. CI runs it on every push and pull request, in the fast lane's job without Prove. A marker is a comment:
 
 ```text
 <!-- docs-check: run -->                           run it; it must exit 0
@@ -77,6 +77,18 @@ Every fenced `bash`, `console` and `python` block in the README, in `docs/` and 
 ```
 
 Write a value that varies (a path, a duration, a date) as `…` in the output block, so the page says honestly what varies.
+
+To run the blocks yourself, install a wheel built from your tree in a venv of its own and point the script at it. It runs on the checkout's venv, since it reads the blocks with the marker test's own parser, and puts the checkout's tokenizer file into the wheel's venv when it is not there. The export page's `uv run eval` needs `uv` on the PATH and PyPI.
+
+<!-- docs-check: skip reason="builds and installs a wheel from a checkout, then runs the docs' own blocks" -->
+```bash
+.venv/bin/pip wheel . --no-deps --wheel-dir dist
+python3.11 -m venv <wheel venv>
+<wheel venv>/bin/pip install dist/poisson_tasks-*.whl
+.venv/bin/python scripts/docs_blocks.py --venv <wheel venv>
+```
+
+It prints each block's exit and each output block's lines that differ, and exits 1 when any block did not hold.
 
 ## Words in the docs
 
