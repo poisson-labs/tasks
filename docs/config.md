@@ -13,15 +13,9 @@ poisson-tasks init --yes --no-check-key --provider openai --recipe first-look
 <!-- docs-check: output -->
 ```
 ok  wrote tasks.toml: depth at 1, 3 and 8, 10 tasks each, against gpt-5-nano-2025-08-07
-  tokenizer  …
-  key        …
-  the same setup, without questions:
-    poisson-tasks init --yes --provider openai --model gpt-5-nano-2025-08-07 \
-      --base-url https://api.openai.com/v1 --api-key-env OPENAI_API_KEY \
-      --price 0.05,0.005,0.4 --price-read-on 2026-09-25 --recipe first-look \
-      --tasks-per-level 10 --attempts 1 --temperature 1.0 --top-p 1.0 \
-      --reasoning-effort low --max-tokens 2048 --spend-cap 1.0 \
-      --max-model-calls 32 --concurrency 8 --runs-dir runs --tasks-dir tasks
+  tokenizer       …
+  key             …
+  as one command  poisson-tasks doctor --show-command prints it
 next: poisson-tasks run
 ```
 
@@ -79,7 +73,7 @@ tasks = "tasks"
 
 ## Every key
 
-An unknown key or table is refused with the nearest one it could be (`"dpeth" is not a knob; did you mean "depth"?`), and a value that is out of range is refused with the line it is on:
+An unknown key or table is refused with the line it is on, and with the nearest one it could be when one is near (`[tasks] "per_levle" is not a setting; did you mean "per_level"?`); a value that is out of range is refused the same way:
 
 ```text
 error: tasks.toml line 28: [tasks] per_level is 61; it must be from 1 to 60
@@ -96,10 +90,10 @@ The settings file's version, `1`. A file written by a newer Poisson Tasks is ref
 | `provider` | the kind of endpoint | `openai`, `anthropic` (through Anthropic's OpenAI-compatible endpoint), `ollama`, `vllm`, `openai-compatible` |
 | `name` | the model's name as the endpoint spells it | text; the default depends on the provider |
 | `base_url` | the endpoint | a URL that starts with `http://` or `https://` |
-| `api_key_env` | the NAME of the variable that holds the key | a variable's name that contains `API_KEY` (the harness keeps such a variable from the program under test), or `""` for a model that needs no key |
+| `api_key_env` | the NAME of the variable that holds the key | a variable's name that contains `API_KEY`, or `""` for a model that needs no key. verifiers starts each episode's program in a process of its own and leaves every variable whose name contains `API_KEY` out of its environment, so a key named this way never reaches the program under test |
 | `allow_plain_http_key` | send the key over plain `http` to another machine | `true` or `false`; the default is `false`, and a key is never sent in the clear to a host that is not on this machine |
 
-`init` reads `OPENAI_BASE_URL` from your shell for the `openai` provider, and says so.
+`init` reads `OPENAI_BASE_URL` from your shell for the `openai` provider, and says so when it asks its questions.
 
 ### `[model.price]`
 
@@ -119,14 +113,14 @@ Dollars per million tokens, from your provider's price page: `input`, `cached_in
 | `card` | the published cards' design: depth and the decoy-tools dial at every level, with their control arms | 60, 5 |
 | `custom` | the knob and levels you name | yours |
 
-`tool-choice` (similarity and block) and `reading-and-filling` (spread and arguments) are recipes that wait on knobs the knob probe did not ship; the file refuses them, naming the knobs. The knobs themselves stay available (see [the README](https://github.com/poisson-labs/tasks/blob/main/README.md) for what was found).
+`tool-choice` (similarity and block) and `reading-and-filling` (spread and arguments) are recipes that wait on knobs the knob probe did not ship; the file refuses them, naming the knobs. The knobs themselves stay available ([knobs-and-arms.md](knobs-and-arms.md) says what the probe found).
 
 With `preset = "custom"`:
 
 | key | what it is | allowed |
 |---|---|---|
 | `knob` | the dial | `depth`, or `distractor` (experimental); on your own tools any knob the set reaches |
-| `levels` | the levels to run | a list of whole numbers; a level that no published card measured runs with a note saying so |
+| `levels` | the levels to run | a list of the levels the published cards measured: 1, 2, 3, 5 and 8 for depth, 0, 2, 4, 8 and 14 for the decoy-tools dial; on your own tools, the levels the set reaches |
 | `controls` | add the control arms | `true` or `false` |
 | `strictness` | what counts as a pass | `strict` or `leaky`; leaky tasks carry other ids than strict ones, so they cannot sit beside the published cards |
 
@@ -139,7 +133,7 @@ With `preset = "custom"`:
 | `per_level` | how many tasks at each level | 1 to 60. It takes the first `n` of the published cards' sixty seeds, so a first look runs the same tasks the cards measured |
 | `seeds` | the tasks' seeds | a list of whole numbers, instead of `per_level` |
 | `attempts` | how many attempts at each task | 1 or more; more than one shows pass@k. The published cards use 5 |
-| `generator_version` | the label that enters every task id | leave it unset; another version moves every task id, and the plan says so |
+| `generator_version` | the label that enters every task id | leave it unset; another version moves every task id, so the tasks are none a published card measured |
 
 The `card` preset is the published cards' design, so it refuses a `per_level` or `attempts` that is not that design's (60 and 5), and refuses `seeds`.
 

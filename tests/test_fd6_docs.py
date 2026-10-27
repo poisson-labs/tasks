@@ -29,6 +29,10 @@
 
 The docs set is the design's, with the own-tools page and the release checklist,
 `docs/releasing.md` (retrofitted for 0.2.1: a standard, so the README need not link it).
+Retrofitted for the docs rewrite after 0.2.1, as ruled on 2026-10-26: the set gains
+`docs/published-cards.md`, which holds the published cards' per-level lines the README held
+(the test that renders them reads that page now); and `docs/proofload.md`, a maintainer's page
+for an optional route, is no longer linked from the README, while staying under plain words.
 `docs/commands.md` holds each command's help, which this file holds equal to what the command
 prints.
 """
@@ -52,10 +56,10 @@ CONTRIBUTING = REPO / "CONTRIBUTING.md"
 STANDARDS = ("repo-hygiene.md", "cli-look.md", "releasing.md")
 DOC_SET = {
     "calibration.md", "cli-look.md", "commands.md", "config.md", "knobs-and-arms.md",
-    "own-tools.md", "proofload.md", "python.md", "reading-a-card.md", "releasing.md",
-    "repo-hygiene.md", "the-task.md", "verifiers-export.md",
+    "own-tools.md", "proofload.md", "published-cards.md", "python.md", "reading-a-card.md",
+    "releasing.md", "repo-hygiene.md", "the-task.md", "verifiers-export.md",
 }
-LINKED_FROM_README = DOC_SET - set(STANDARDS)
+LINKED_FROM_README = DOC_SET - set(STANDARDS) - {"proofload.md"}
 BASE = "https://github.com/poisson-labs/tasks/blob/main/"
 
 
@@ -574,7 +578,8 @@ def test_the_readmes_pictures_are_pngs_in_the_repo_and_its_badges_are_this_packa
 def test_the_readme_lists_each_published_cards_levels_as_the_code_renders_them() -> None:
     from poisson_tasks import calibration, cards
 
-    text = README.read_text("utf-8")
+    # retrofitted for the docs rewrite after 0.2.1: the lines moved from the README to this page
+    text = (DOCS / "published-cards.md").read_text("utf-8")
     for card in cards.published():
         lines = calibration.render_readme_lines(cards.recompute(card).artifact).strip().splitlines()
         assert len(lines) >= 10

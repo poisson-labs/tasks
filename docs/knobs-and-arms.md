@@ -40,13 +40,15 @@ they are arranged, and its base is its one-chain width).
 | `spread` | how many tool answers the entry code is split across | `1, 2, 4` | `spread:p4` | none |
 
 A level outside a knob's candidates can still be an arm (`history:t12800`); a level the
-knob's design has no task for cannot, and `ArmSpec` refuses it: a similarity level outside
+knob has no task for cannot, and `ArmSpec` refuses it: a similarity level outside
 0 to 3, a negative faults or history level, a block under 8 or over 258 (the two tools the
 task needs and every read name the table can make), an arguments level outside 2 to 8, a
 shape width other than 1, 2 or 4, a spread level outside 1 to 4.
 
-`levels(knob)` returns the candidate levels. Which of them a study actually sweeps is a
-pre-registration decision, not a property of the generator.
+`levels(knob)` returns the candidate levels; which of them a run measures is up to its recipe
+or its settings file ([config.md](config.md)). The names on this page that are not
+commands (`levels`, `ArmSpec`, `arm_id`, `check_pins`, `measure_pins`, `PinReport`) are in
+`poisson_tasks.knobs`.
 
 ### What the knob probe measured
 
@@ -63,9 +65,9 @@ when it bites on at least one model and is easier at the top on neither.
 
 `faults`, `history` and `shape` shipped (`arms.SHIPPED_KNOBS`), and the recipes that measure
 them are offered. The other four did not ship, and are labelled *Available · retested in v2*:
-every knob stays in the generator and on the command line, and its arms work whether or not it
-shipped. These are two models, measured once, and the four are retested in v2, on current
-models. The table, with every
+a later release measures them again, on current models, and until then they work but are not
+shown to make tasks harder. Every knob stays in the generator and on the command line, and its
+arms work whether or not it shipped. These are two models, measured once. The table, with every
 contrast, is `poisson_tasks.arms.knob_status()`. In each cell Δ is the base arm's strict pass@1
 minus the top arm's, with its interval; "control" is the control arm's minus the top arm's; for
 `shape`, "length control" is the base's minus the length control's.
@@ -82,9 +84,9 @@ minus the top arm's, with its interval; "control" is the control arm's minus the
 
 ### Three things about how the probe ran
 
-Three things about how the probe ran are disclosed wherever its outcome is published. Each is short; the numbers are the records' own.
+Three things about how the probe ran are disclosed wherever its outcome is published. Each is short; the numbers are the records' own. The probe ran in two phases on each model: phase 1, one attempt at each of three tasks on every one of its eighteen arms, checked that the run worked before the full measurement, phase 2, was spent.
 
-**1. Phase 1's check changed after its first result (gpt-5-nano).** As registered, phase 1
+**1. Phase 1's check changed after its first result (gpt-5-nano).** As written before the run, phase 1
 stopped the probe if any base-arm episode made no tool call, and gpt-5-nano's first phase 1 stopped
 on 1 of 21 (the model asked for the record id in plain text; nothing on our side failed). After
 seeing that, on 2026-10-13, the check was changed to the published cards' own rule: stop when more
@@ -96,7 +98,7 @@ the same folder within the same $4.00 cap. Qwen3-8B's phase 1 passed under the f
 on macOS's limit on open files, with its first arm, `similarity:s0`, in flight. The limit was
 raised and the run resumed. Episodes in flight at the crash failed on our side, so that arm was
 void (instrument rate 0.104; every other arm 0.000) and was run once more, as the
-pre-registration allows once for a cause on our side. The void attempt is kept. In all, gpt-5-nano
+probe's rules, written before it ran, allow once for a cause on our side. The void attempt is kept. In all, gpt-5-nano
 cost $1.5981 of the $4.00 cap.
 
 **3. More time for Qwen3-8B.** The Qwen3-8B run on Colab reached its two-hour allowance with 14
@@ -131,20 +133,14 @@ ArmSpec(knob, level, control, strictness, split, generator_version)
 `control` holds the level being stood in for, so it must be higher than `level`; an arm
 spec that cannot be rendered cannot be built, and the constructor raises.
 
-**A sweep of a knob without its control arm is a pre-registration error**, and
-`validate_preregistration` refuses the registration rather than letting the study run.
-
 ## Turn budgets
 
 `spec.reference_turns` is the minimum: the calls the arm needs, plus the reply turn.
 Depth *d* needs *d* + 1; faults level *f* needs 3 + *f*, one more call per failure; shape
 needs 5 at every width and spread 7 at every level; every other arm needs 3.
-`spec.max_turns(slack)` adds the slack constant a study chooses.
-
-A registration's **horizon** is the largest `max_turns` over its arms, and it is checked
-rather than declared: `validate_preregistration` recomputes it and refuses a document
-that states a different number. The horizon is what Proofload uses to cut an episode
-short, so a wrong one silently truncates the deepest arm.
+`spec.max_turns(slack)` adds a slack you choose. A run of `poisson-tasks` caps every episode
+at 32 model calls instead, four times the deepest task's minimum ([verifiers-export.md](verifiers-export.md)
+says why).
 
 ## The pin ledger
 
@@ -161,7 +157,7 @@ Thirty rows: N1 to N13, then N19 to N35 for the seven newer knobs. Every row is 
 | N5 | the block's token count | `distractor` -- **reported**, not refused |
 | N6 | the user prompt: its template and its slot token counts, leaving out the slot that is the knob (the goal stage for `depth`, the stated values for `arguments`, the goal lines for `shape`) | every knob |
 | N7 | the overlap between the prompt's words and the tool names | every knob -- **reported**, not refused, for `shape` |
-| N8 | the observation size | every knob; checked by the engine's own tests |
+| N8 | the observation size | every knob |
 | N9 | the seeded history, as a token band over the contrast | `depth` controls |
 | N10 | the serving pin: model, revision, vLLM version, sampling | at run time |
 | N11 | verifier strictness | at run time |
@@ -197,15 +193,3 @@ growth beside whatever they refuse. The distinction matters and is why a report 
 `violations` and `reported` apart rather than one boolean: a block's token count *should*
 move with the distractor level or the block size, so it is a number to record, not a
 failure.
-
-## A gap that is closed
-
-No record-id word is a substring of any tool name: both 256-word lists are checked against all
-112 names. It was not always so. An earlier vocabulary carried six words that some tool name
-contains, and four of them -- `city`, `disc`, `grad`, `port` -- made row N7, which compares
-the prompt's words with the tool names, refuse a decoy-tools contrast that held the `r14` arm,
-the one level whose block keeps no read tool at all. The row is measured by substring over the
-user instruction's tokens, the record id is in the instruction, and the id is an injective
-function of the task seed, so a seed whose first word was one of the four had no way out.
-Depth was unaffected at every level throughout. The current vocabulary draws the lists
-disjoint from every tool name, which closes it outright, and a test holds it.

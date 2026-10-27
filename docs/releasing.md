@@ -14,9 +14,12 @@ checkout (the one that holds `.env`), and `<release worktree>` the fresh worktre
 check scripts are in `scripts/release/`; each step names the one it runs and says what it checks.
 They read three settings from the environment: `RELEASE_ENV_FILE` (the `.env` with the model key
 and the upload tokens, which they read for the scans and never print), `RELEASE_TOKENIZER` (the
-tokenizer file, by default the checkout's `src/poisson_tasks/data/o200k_base.tiktoken`) and, for
-the installs, `RELEASE_PY311`, `RELEASE_PY312` and `RELEASE_PY313` (by default `python3.11` to
-`python3.13` on the PATH). Commands are for zsh, run from the release worktree.
+tokenizer file; by default the copy in the repository the script runs from, which in the release
+worktree is not there, so step 5 names the main checkout's) and, for the installs,
+`RELEASE_PY311`, `RELEASE_PY312` and `RELEASE_PY313` (by default `python3.11` to `python3.13` on
+the PATH). Two more have defaults that rarely need changing: `RELEASE_PYTHON`, the Python 3.11
+that runs the checks of steps 5 and 6 (default `python3.11`), and `PYPI_MATRIX_DIR`, the folder
+under `<scratch>` the installs of step 11 write to (default `matrix`). Commands are for zsh, run from the release worktree.
 
 ## 1. Before the build
 
@@ -26,7 +29,7 @@ the installs, `RELEASE_PY311`, `RELEASE_PY312` and `RELEASE_PY313` (by default `
 - [ ] `CHANGELOG.md` opens with `## X.Y.Z (YYYY-MM-DD)`, dated the UTC day the upload is expected
   to land. A patch release's section holds fixes and tests only.
 - [ ] `pyproject.toml` says `version = "X.Y.Z"`.
-- [ ] If the test count changed, the README's sentence on the suite gives the whole suite's count
+- [ ] If the test count changed, CONTRIBUTING's sentence on the suite gives the whole suite's count
   on the commit being released.
 - [ ] The gates ran after the version was raised, in a venv where the checkout was installed
   again (`pip install -e .`), since some tests read the installed version.
@@ -85,7 +88,7 @@ it calls.
 
 <!-- docs-check: skip reason="the release checks read the keys file" -->
 ```bash
-RELEASE_ENV_FILE=<checkout>/.env zsh scripts/release/release_checks.sh X.Y.Z <release worktree> P.Q.R <P.Q.R dist> <P.Q.R commit> <scratch> <evidence>
+RELEASE_ENV_FILE=<checkout>/.env RELEASE_TOKENIZER=<checkout>/src/poisson_tasks/data/o200k_base.tiktoken zsh scripts/release/release_checks.sh X.Y.Z <release worktree> P.Q.R <P.Q.R dist> <P.Q.R commit> <scratch> <evidence>
 ```
 
 - [ ] `uvx twine@7.0.0 check --strict dist/*` passes on both files.
@@ -167,8 +170,10 @@ worktree of its own once the tag is made, and holds three things, each committed
 - the changelog entry, `src/content/changelog/tasks-X-Y-Z.md`, in the form of the entries before
   it. A release gets a changelog entry and no News post;
 - the site's copy of these docs, from the release commit:
-  `python3 scripts/sync_docs.py --only tasks --commit tasks=<release commit>`. It copies `docs/`,
-  the README and this changelog, and leaves out this page and `repo-hygiene.md`;
+  `python3 scripts/sync_docs.py --only tasks --commit tasks=<release commit>`. It copies the docs
+  pages the site's `PUBLISH` list names, the README's user sections (not its Contributing,
+  Citation and Licence) and this changelog, and prints every other file under `docs/` it leaves
+  out; a new user page is added to that list on purpose;
 - the tool page's version: `src/data/tasks-release.json` names `X.Y.Z`, its date and the release
   commit. The page links that version's changelog entry and refuses to build when the entry is
   missing, or when the docs were copied from another commit.

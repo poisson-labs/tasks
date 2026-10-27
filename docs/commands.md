@@ -6,7 +6,7 @@ Every verb takes `--config PATH` (the settings file; `tasks.toml` in the current
 
 ## How a command ends
 
-The first line a verb prints on standard output is a verdict line: a word, two spaces and a sentence (`ok  card for gpt-5-nano-2025-08-07: ...`). Detail follows, and the last line, when there is an obvious next step, is `next: <the command>`. A problem is one line on standard error that starts with `error:` and says what to do; an unexpected failure prints one line that names a log file, and the traceback goes to that file (`--debug` prints it too).
+The first line a verb prints on standard output is a verdict line: a word, two spaces and a sentence (`ok  card for gpt-5-nano-2025-08-07: ...`). Detail follows, and the last line, when there is an obvious next step, is `next: <the command>`. A problem is an `error:` line on standard error that says what to do, followed by a `next:` line when there is a command to run; an unexpected failure prints one line that names a log file, and the traceback goes to that file (`--debug` prints it too).
 
 | code | meaning |
 |---|---|
@@ -21,7 +21,7 @@ The first line a verb prints on standard output is a verdict line: a word, two s
 
 ## Two renderings
 
-Every result is drawn one of two ways. The pretty rendering uses colour and a live display, and runs only when both standard output and standard error are terminals, `NO_COLOR` is unset or empty, `CI` is unset, `TERM` is not `dumb`, standard output is UTF-8, and neither `--json` nor `--plain` was given. Everywhere else, and always when you ask with `--plain`, the plain rendering runs: text only, the same facts in the same order. This page shows the plain rendering. [The look](cli-look.md) says more.
+Every result is drawn one of two ways. The pretty rendering uses colour and a live display, and runs only when both standard output and standard error are terminals, `NO_COLOR` is unset or empty, `CI` is unset, `TERM` is not `dumb`, standard output is UTF-8, and neither `--json` nor `--plain` was given. Everywhere else, and always when you ask with `--plain`, the plain rendering runs: text only, the same facts in the same order. This page shows the plain rendering.
 
 ## poisson-tasks
 
@@ -97,7 +97,7 @@ Every action is one of the seven verbs' command lines, run through the same pars
 
 Ctrl-C at a question inside a step stops that step as the command does (nothing written) and the session returns to its prompt; during a run it is the run's own interrupt, and step 1 is then the resume; at the prompt it clears the line, and twice on an empty line it leaves. `quit` and Ctrl-D leave the same way. Leaving at the prompt exits 0. An unexpected failure inside an action is its one `error:` line, and the session stays open; one in the session itself exits 3.
 
-On a terminal with `--plain`, `NO_COLOR` or `TERM=dumb` the session opens in the plain look: numbered menus answered by typing, a plain prompt, no escape sequence, the same facts in the same order. Under `NO_COLOR` the banner is its text alone; with `--plain` and `TERM=dumb`, and below 26 columns, it is the one line `Poisson Labs  tasks <version>`.
+On a terminal with `--plain`, `NO_COLOR` or `TERM=dumb` the session opens in the plain look: numbered menus answered by typing, a plain prompt, no escape sequence, the same facts in the same order. Under `NO_COLOR` the banner is its text alone; with `--plain`, with `TERM=dumb`, or below 26 columns, it is the one line `Poisson Labs  tasks <version>`.
 
 ## init
 
@@ -363,7 +363,7 @@ How a run ends:
 | the cap | `stopped  the spend cap: ...`, then `next: poisson-tasks run --spend-cap ...` | 3 |
 | the provider is out of credit | `stopped  the provider says the account is out of credit ...` | 3 |
 | the first five episodes all fail | `stopped  the first 5 episodes all failed before the model answered: ...` | 3 |
-| no model call and no finished episode in 600 seconds | `stopped  no model call and no finished episode within 600 s: ...` | 3 |
+| no model call and no finished episode in the first 600 seconds | `stopped  nothing happened: no model call and no finished episode before the start-up watchdog fired; ...` | 3 |
 | Ctrl-C | `stopped  interrupted: ... kept`, then `next: poisson-tasks run` | 130 |
 
 A run writes into its folder, `runs/<preset>-<model>/`: `plan.json` (the plan and its hash, by which the folder is found again), `spend.jsonl` (one line for each episode that ended), `run.log`, one folder of traces per arm, and `produced_by.jsonl`, what produced the run, written before its first request: the package and verifiers versions, the generator's hash (and on your own tools the own-tools generator's and your tool file's contract hash), the plan's hash and its seeds. A resume adds a line to it; a run with nothing left to do adds none. `--json` carries the line the run wrote as `produced_by`, or `null`. A folder started with another generator or another tool contract than this install and the file give now holds other tasks, so a resume of it is refused before anything is spent, naming the two hashes: `error: runs/first-look-gpt-5-nano was started with another generator than this install's (b460964dc153 there, 1a2b3c4d5e6f here), so its tasks are not the ones this install makes; finish it with poisson-tasks 0.2.0, or move the folder aside to run the plan from the start`. Another package version alone is not refused.
@@ -442,7 +442,7 @@ examples:
 
 Builds the card from a run folder: a line for every level (strict pass@1 with its 95% interval, leaky pass@1, overshoot, and the tasks and attempts behind them), what the card means, and what it does not claim. It writes `card.md`, `artifact.json`, `episodes.jsonl` and `tallies.json` into the run's `card/` folder, and refuses to replace a card that is already there unless you pass `--force`. [reading-a-card.md](reading-a-card.md) explains every column.
 
-A card from a run that was stopped is built from what ran, and every level that did not finish is marked. A level where more than 10% of attempts made no tool call is not published, and neither is its card: it would measure whether the model starts, not how hard the level is. That refusal exits 1, says that those attempts answered in text instead of calling a tool, names each level's `traces.jsonl` in the run folder, where the replies are, and ends with the command that shows the task they answered.
+A card from a run that was stopped is built from what ran, and every level that did not finish is marked. A level where more than 10% of attempts made no tool call is not published, and neither is its card: it would measure whether the model starts, not how hard the level is. A level where more than 2% of attempts failed for a reason that is not the model's refuses the card the same way. That refusal exits 1, says that those attempts answered in text instead of calling a tool, names each level's `traces.jsonl` in the run folder, where the replies are, and ends with the command that shows the task they answered.
 
 `--published` rebuilds the cards that ship with the package from their own records, checks each against its stored artifact byte for byte, and says whether it is current for this install. It is free. `--check PATH` does the same for a card folder or a calibration bundle `.zip`; exit 4 means a difference. `--page` writes the one page for every published card. The result names its run in a `run` row (the folder, the dollars spent from its ledger, episodes kept of total) and, when there is something to say, how it stands beside the published cards in one row: on the built-in tasks under a model a published card measured, `measured on an earlier build of the generator, so this release does not set them side by side`; on your own tools, `different tasks, so none of its figures reads against theirs`. `--compare published` reads the card already written (no `--force`), prints that verdict first as one line, `different  ...`, writes `card/compare.md` (your own-tools card beside the published card of its model, each whole, pooling nothing; on the built-in tasks the earlier-build sentence alone) and prints neither card; exit 0. `card` never ends by suggesting it.
 
@@ -530,7 +530,7 @@ Runs the verifier a task was generated with, with no model. With `--self-check` 
 
 The verdict word is the outcome itself (`passed`, `overshoot`, `wrong_state`, ...). `verify` exits 0 when the verdict is `passed` and 4 otherwise, so a script can gate on it.
 
-In this release `verify` refuses a tasks file made on your own tools, in one line, and exits 1: `error: <file> holds tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`. It refuses `--arm` in a folder set up for your own tools the same way, and exits 1: `error: tasks.toml puts the tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`. A run on your own tools is judged by that replay, and its card reports it; judging a single own-tools task with `verify` comes in a later release. Each of those refusals ends with a `next:` line that is a complete command: `card` when the folder holds a run, else `generate --show`. With nothing to judge, or no task named, `verify` refuses with `next: poisson-tasks verify --self-check --arm <the plan's first arm> --task 1`.
+In this release `verify` refuses a tasks file made on your own tools, in one line, and exits 1: `error: <file> holds tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`. It refuses `--arm` in a folder set up for your own tools the same way, and exits 1: `error: tasks.toml puts the tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`. A run on your own tools is judged by that replay, and its card reports it; judging a single own-tools task with `verify` comes in a later release. The `--arm` refusal ends with a `next:` line that is a complete command: `card` when the folder holds a run, else `generate --show`. With nothing to judge, or no task named, `verify` refuses with `next: poisson-tasks verify --self-check --arm <the plan's first arm> --task 1`.
 
 <!-- docs-check: run -->
 ```bash
@@ -612,7 +612,7 @@ poisson-tasks export --to verifiers | head -n 4
 ok  wrote 3 verifiers configs, one per arm: depth at 1, 3 and 8, 10 tasks each
   note  run that way, eval leaves out what run adds (the plan, the instrument tally, the out-of-credit stop, the failure-streak stop and the watchdog), and it exits 0 when every episode errored
 
-run each with. Each of these runs calls the model and spends money with no cap; poisson-tasks run is the way with a cap.
+Each of these runs calls the model and spends money with no cap; poisson-tasks run is the way with a cap.
 ```
 
 <!-- docs-check: run -->

@@ -9,7 +9,7 @@ bytes on every run, process and platform. An **arm** is one setting of one dial 
 the seed picks which task of that arm. [knobs-and-arms.md](knobs-and-arms.md) lists
 the knobs.
 
-`poisson-tasks generate --show` prints all of this for one task. Read that beside this page.
+`poisson-tasks generate --arm depth:d3 --show` prints all of this for one task. Read that beside this page.
 
 ## The domain
 
@@ -37,64 +37,63 @@ A call that is wrong -- an unknown tool, an absent record, a bad token, a stage 
 not ready -- returns a status word saying so and **changes nothing**. The domain never
 half-applies a call.
 
-Beside the stage tools the block holds **read tools** (`lookup_region`, `scan_capacity`,
-...). They answer questions about a catalogue and mutate nothing. They are what the
-distractor knob adds and removes.
+Beside the stage tools a task needs, the block holds **read tools** (`lookup_region`,
+`scan_capacity`, ...), which answer questions about a catalogue and mutate nothing. The
+decoy-tools dial (`distractor`) puts decoys in their place: stage tools of other ledger
+classes, so at its top level the block holds the two tools the task needs, fourteen
+decoys and no read tool.
 
-## What a bundle carries
+## What a task carries
 
-`generate(arm, seed)` returns a `TaskBundle`. The fields a user reads:
+Generating a task gives one object holding all of it: what the model is shown (the system
+prompt, the request and the tool block, in the order the model sees it), the goal, one
+correct solution with what the domain returns for each call, the wrong answers the task
+ships with, each keyed by the outcome it should earn, the ledger before and after, and the
+hashes that say what produced it. Two tasks with equal ids are the same task.
+[python.md](python.md) lists its fields.
 
-| field | what |
-|---|---|
-| `task_id` | a digest over everything below; two equal ids are the same task |
-| `arm_id` | which arm generated it, e.g. `depth:d3` |
-| `seed`, `split` | the draw. `eval` and `train` draw record ids from disjoint word lists, so no eval task can equal a train task |
-| `system_prompt`, `prompt` | what the model is shown. `prompt` is a string on a plain arm, and a message list on a control arm, which seeds history |
-| `tools` | the tool block, as JSON schemas, in the order the model sees them |
-| `goal` | `(class, record_id, stage)` -- what counts as done |
-| `reference_calls`, `reference_observations` | one correct solution, and what the domain returns for it |
-| `negative_controls` | wrong answers, keyed by the outcome each should earn |
-| `verifier` | the strictness this task is judged under |
-| `pins` | the pin-ledger measurements taken off this bundle (see [knobs-and-arms.md](knobs-and-arms.md)) |
-| `engine_hash`, `generator_hash` | what produced it. A run whose hashes differ from the pre-registration's is a different instrument |
-
-`initial_state` and `expected_final_state` are the ledger before and after, as sorted
-`(class, record_id, stage, token)` rows.
+The request is one string, or a list of messages when the arm seeds earlier conversation
+into it: the history dial above level 0, and the depth and faults control arms.
 
 ## The verdict
 
-`verify(bundle, turns, ended_with_reply, turn_limit_hit, fmt)` returns a `Verdict`. It is
-a pure function of those five things: no clock, no network, no model.
+The verdict on an episode is reached from the task and the episode alone: no clock, no
+network, no model.
 
-The outcome vocabulary is closed and **ordered**. The first label that matches wins, so
-a run that both made a malformed call and ended in the wrong state is `malformed_call`:
+The outcome vocabulary is closed. Four of the labels are conditions the instrument reports,
+assigned by whatever ran the episode, and never the model's fault:
 
 | outcome | what happened |
 |---|---|
-| `verifier_error` | the verifier could not reach a verdict. An instrument condition, never a model's fault |
+| `verifier_error` | the verifier could not reach a verdict |
 | `replay_mismatch` | the harness's record of the episode does not replay to the state it claims |
 | `api_error` | the serving stack failed |
 | `wall_timeout` | the episode ran out of wall clock |
-| `malformed_call` | a call the parser or the block rejects (see the four clauses below) |
-| `turn_limit` | the turn budget ran out |
+
+The other six are what the model did. An episode that ends with the ledger exactly at the
+goal, nothing else moved, and a final reply is `passed`, whatever happened on the way.
+Otherwise the first of these that matches is the label, so an episode that both made a
+malformed call and ended in the wrong state is `malformed_call`:
+
+| outcome | what happened |
+|---|---|
+| `passed` | the goal, nothing else, and a final reply |
+| `malformed_call` | a call the parser or the block rejects (see the clauses below) |
+| `turn_limit` | the turn budget ran out before the model replied |
 | `overshoot` | the record went past the goal stage |
 | `wrong_state` | the episode ended with the ledger somewhere other than the goal |
 | `collateral_mutation` | the goal was reached, but something else moved too |
-| `passed` | the goal, and nothing else |
-
-The first four are conditions the instrument reports; the rest are what the model did.
-`verify` itself never returns `replay_mismatch`, `api_error` or `wall_timeout` -- those
-are assigned by whatever ran the episode, because its five arguments cannot see them.
 
 **The format check** has four clauses. Clause 1 is about the raw text the model emitted
 and needs the serving stack's own parser, so it is checked per model rather than here.
-Clauses 2 to 4 are checked at the call level and are what the `malformed_call_clause_*`
-controls exercise: a call naming a tool outside the block, a call missing a required
-argument, and a call carrying an argument the schema does not allow.
+Clauses 2 to 4 are checked on each call, and are what the `malformed_call_clause_*` wrong
+answers exercise: a call whose arguments are not a JSON object (clause 2), a call naming a
+tool outside the block (clause 3), and a call whose arguments the tool's schema rejects,
+with one missing, one it does not list, or a value that is not a string (clause 4; every
+argument of the built-in tools is a string).
 
 **Strict and leaky.** A strict verifier passes an episode only if the ledger ends exactly
-at the goal with nothing else touched. A leaky verifier passes it if the goal record
-reached the goal stage, whatever else moved. A bundle carries one strictness; the verdict
-reports both, as `strict_label` and `leaky_pass`, so a run can be read either way without
-being generated twice.
+at the goal with nothing else touched, and the model ended with a reply. A leaky verifier
+passes it if the goal record reached the goal stage, whatever else moved. A task carries
+one strictness; the verdict reports both, so a run can be read either way without the
+tasks being generated twice.
