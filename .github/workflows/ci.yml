@@ -1,9 +1,13 @@
-# The fast lane, on every push and pull request, twice: once without Prove and once with Prove
-# installed. Each job first checks that Prove is, or is not, importable, so a job's name always
-# says what it ran against. It runs ruff, mypy, the two generator hashes, the digest and
-# published-content tests, and a wheel built from the tree, installed fresh and started on a
-# terminal; the job without Prove then runs the docs' marked blocks from that wheel. The whole
-# suite takes over an hour, so it runs in suite.yml, on demand.
+# The fast lane, on every pull request and every push to main, twice: once without Prove and
+# once with Prove installed. Each job first checks that Prove is, or is not, importable, so a
+# job's name always says what it ran against. It runs ruff, mypy, the two generator hashes, the
+# digest and published-content tests, and a wheel built from the tree, installed fresh and
+# started on a terminal; the job without Prove then runs the docs' marked blocks from that
+# wheel. The whole suite takes over an hour, so it runs in suite.yml, on demand.
+#
+# A branch runs once, on its pull request and not again on its push, and a new push to the pull
+# request cancels the run it supersedes. The job with Prove runs on main only: a pull request
+# gets the job without Prove, and the merge gets both.
 #
 # The steps both jobs share are written once, in the first job, and repeated in the second by
 # YAML alias (`*name`).
@@ -13,7 +17,14 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
+
+# A pull request's run is cancelled when a newer one starts for it. Each push to main is a group
+# of its own, so it is never cancelled and every merge keeps its verdict.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -233,9 +244,10 @@ jobs:
   with-prove:
     name: fast lane, with Prove
     # Prove is not public, so this job checks it out with a read-only token kept in the
-    # PROVE_READ_TOKEN secret. A pull request from a fork is given no secrets; there this job
-    # is skipped, and shows as skipped, rather than failing on a checkout it cannot make.
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    # PROVE_READ_TOKEN secret, and it runs on a push to main only: on a pull request it is
+    # skipped, and shows as skipped. A pull request that breaks only with Prove shows red when it
+    # merges.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
