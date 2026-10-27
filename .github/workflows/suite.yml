@@ -1,9 +1,11 @@
-# The whole suite, ruff and mypy, nightly and on demand, twice: once without Prove, where the
+# The whole suite, ruff and mypy, on demand, twice: once without Prove, where the
 # tests that drive Prove are skipped by name (tests/conftest.py), and once with Prove
 # installed, where they run. Each job first checks that Prove is, or is not, importable, so a
 # job's name always says what it ran against. The suite takes over an hour on a laptop and over
 # two on a GitHub runner, so pushes and pull requests run the fast lane in ci.yml instead, and
-# here the suite is cut into eight shards that run side by side, in each variant.
+# here the suite is cut into eight shards that run side by side, in each variant. It runs only
+# when asked, from the Actions tab or `gh workflow run suite.yml`, not on a schedule: a run is
+# about 300 runner-minutes.
 #
 # The shards are the table in SHARDS: a number, a colon, and the test files that shard runs.
 # The last shard is `rest`: every file the other shards do not name, so a new test file runs
@@ -24,9 +26,6 @@
 name: Whole suite
 
 on:
-  # 06:17 UTC every day, and from the Actions tab or `gh workflow run suite.yml`.
-  schedule:
-    - cron: "17 6 * * *"
   workflow_dispatch:
 
 permissions:
