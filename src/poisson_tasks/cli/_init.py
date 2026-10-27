@@ -206,13 +206,16 @@ def init(ctx: Context) -> Result:
         if estimate is not None and estimate.dollars_expected is not None:
             made = config.config_from_init_args(flags, expected_dollars=estimate.dollars_expected)
 
-    # the key
-    if found is None:
-        if made.model.api_key_env and check is not False:
-            found = providers.check_key(made.model)
-        elif made.model.api_key_env:
-            found = providers.check_key(made.model) if not providers.key_is_set(
-                made.model.api_key_env) else None
+    # the key; one that would go over plain http to another machine is refused before it is
+    # looked at, and nothing is written
+    variable = made.model.api_key_env
+    if found is None and variable and (check is not False or not providers.key_is_set(variable)):
+        try:
+            providers.refuse_plain_http_key(made.model)
+        except config.ConfigError as refused:
+            raise Refusal(str(refused), [ctx.command(*ctx.typed, "--allow-plain-http-key")]
+                          ) from None
+        found = providers.check_key(made.model)
 
     # the file, once, atomically; a file it replaces is kept as `<name>.bak` (G10)
     text = config.dump_config(made)
@@ -374,8 +377,12 @@ def _dialogue(
                 ui.say(found.detail, status="ok" if found.status == providers.ACCEPTED
                        else "bad")
     elif variable:
-        found = providers.check_key(provisional)
-        ui.say(found.detail, status="bad")
+        try:
+            found = providers.check_key(provisional)
+        except config.ConfigError as refused:
+            ui.say(str(refused), status="bad")
+        else:
+            ui.say(found.detail, status="bad")
     else:
         ui.say(f"no key: none is needed for {host_of(endpoint or '')}")
 
