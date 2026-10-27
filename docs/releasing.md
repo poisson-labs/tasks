@@ -15,7 +15,7 @@ check scripts are in `scripts/release/`; each step names the one it runs and say
 They read three settings from the environment: `RELEASE_ENV_FILE` (the `.env` with the model key
 and the upload tokens, which they read for the scans and never print), `RELEASE_TOKENIZER` (the
 tokenizer file; by default the copy in the repository the script runs from, which in the release
-worktree is not there, so step 5 names the main checkout's) and, for the installs,
+worktree is not there, so steps 5 and 11 name the main checkout's) and, for the installs,
 `RELEASE_PY311`, `RELEASE_PY312` and `RELEASE_PY313` (by default `python3.11` to `python3.13` on
 the PATH). Two more have defaults that rarely need changing: `RELEASE_PYTHON`, the Python 3.11
 that runs the checks of steps 5 and 6 (default `python3.11`), and `PYPI_MATRIX_DIR`, the folder
@@ -23,6 +23,9 @@ under `<scratch>` the installs of step 11 write to (default `matrix`). Commands 
 
 ## 1. Before the build
 
+- [ ] The release owner holds every other merge into `main` from the moment the release branch is
+  cut until it is merged. A merge in between moves the tree the gates, the suite and the checks
+  ran on: the branch is then rebased onto the new `main` and checked again from the start.
 - [ ] Everything the release holds is merged into `main` on GitHub, by the release owner. The
   preparer may build and check the branch's tip first; the release itself is built again from
   `origin/main` after the merge (step 2), and its hashes must equal the tip's.
@@ -225,7 +228,7 @@ until curl -s https://pypi.org/simple/poisson-tasks/ | grep -q 'poisson_tasks-X.
 
 <!-- docs-check: skip reason="installs the release from PyPI nine ways" -->
 ```bash
-python -I scripts/release/install_from_pypi.py X.Y.Z <scratch> && python -I scripts/release/provenance_pypi.py <scratch> <release worktree>/dist/poisson_tasks-X.Y.Z-py3-none-any.whl && python -I scripts/release/run_cells_pypi.py X.Y.Z <scratch>
+python -I scripts/release/install_from_pypi.py X.Y.Z <scratch> && python -I scripts/release/provenance_pypi.py <scratch> <release worktree>/dist/poisson_tasks-X.Y.Z-py3-none-any.whl && RELEASE_TOKENIZER=<checkout>/src/poisson_tasks/data/o200k_base.tiktoken python -I scripts/release/run_cells_pypi.py X.Y.Z <scratch>
 ```
 
 - [ ] Provenance (`scripts/release/provenance_pypi.py`): in every environment each package file equals the built
