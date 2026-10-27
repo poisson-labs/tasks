@@ -59,9 +59,7 @@ Both start the same way: `poisson-tasks` on a terminal, or the commands above. F
 
 ![The task poisson-tasks generate --arm depth:d3 --show prints, drawn in a terminal](https://raw.githubusercontent.com/poisson-labs/tasks/main/docs/images/generate-show.png)
 
-A task moves one record of a mock ledger up a fixed ladder of eight stages (`review`, `sample`, `measure`, `monitor`, `compare`, `bundle`, `route`, `label`), with a block of sixteen tools. One call moves one record one stage. The first call carries the record's entry code and every later one the token the previous call returned, so a task that is *d* stages deep takes at least *d* calls whatever the model already knows. Every call returns one fixed-width line, and a call that is wrong changes nothing. [the-task.md](https://github.com/poisson-labs/tasks/blob/main/docs/the-task.md) has the whole domain.
-
-The verdict on an episode is one of ten labels, the first that matches (`passed`, `wrong_state`, `overshoot`, `malformed_call`, ...), and every episode is judged strict and leaky at once: strict passes only a record that ends exactly at the goal with nothing else touched, leaky also accepts going past it. Generation makes no model calls and no network calls, and is byte-identical across runs, processes and platforms.
+A task moves one record of a mock ledger up a fixed ladder of eight stages, with a block of sixteen tools. One call moves one record one stage, and every call after the first carries the token the previous call returned, so a task that is *d* stages deep takes at least *d* calls whatever the model already knows. The verdict on an episode is one of ten labels, and every episode is judged strict (the record ends exactly at the goal, nothing else moved, and the model ended with a reply) and leaky (reaching the goal is enough) at once. Generation makes no model calls and no network calls, and is byte-identical across runs, processes and platforms. [the-task.md](https://github.com/poisson-labs/tasks/blob/main/docs/the-task.md) has the domain and the verdicts.
 
 ## What a first run costs, and what it changes on your machine
 
@@ -79,7 +77,7 @@ The verdict on an episode is one of ten labels, the first that matches (`passed`
 
 Installing the package also installs verifiers, and verifiers installs commands beside `poisson-tasks`: `eval`, `init`, `debug`, `replay`, `validate`, `gepa` and `vf-*`. A bare `init` is verifiers' command, not this package's; this package's is `poisson-tasks init`.
 
-A run sends your key to your model's endpoint and nowhere else, and pushes nothing to verifiers' hub. Generating tasks, `generate`, `verify`, `export`, `card` and `doctor --offline` open no connection to a model.
+A run sends your key to your model's endpoint and nowhere else, and uploads nothing: it runs verifiers with `push` off. Generating tasks, `generate`, `verify`, `export`, `card` and `doctor --offline` open no connection to a model.
 
 ## The dials
 
@@ -97,101 +95,37 @@ A **knob** is a dial you turn on purpose; an **arm** is one setting of a knob (`
 | `arguments` | how many values each call must carry, copied from the request | 2, 4, 6, 8 | Available · retested in v2 · gpt-5-nano: does not bite; Qwen3-8B: does not bite |
 | `spread` | how many tool answers the entry code is split across | 1, 2, 4 | Available · retested in v2 · gpt-5-nano: top easier; Qwen3-8B: cannot tell |
 
-Every dial stays in play: all nine have tasks and work from the command line. On your own tools every dial but the decoy-tools dial is offered, within what your tools can support, and two of them, depth and shape, need flows. A flow is a link you declare between two of your tools: which field of one tool's answer goes into which argument of the next (`--own-flow` to `init`, or `[[own.flow]]` in `tasks.toml`). Tasks will not guess one, so without flows depth and shape are listed as unavailable ([own-tools.md](https://github.com/poisson-labs/tasks/blob/main/docs/own-tools.md)). The probe's table, with every contrast and its interval, is `poisson_tasks.arms.knob_status()`, and [knobs-and-arms.md](https://github.com/poisson-labs/tasks/blob/main/docs/knobs-and-arms.md) shows it beside three things about how the probe ran that you should know. "Cannot tell" means a drop of 0.15 could not show: the dial's base level passed less than 0.15 of the time on that model. Two small models, measured once, are not the last word, so the four labelled "Available · retested in v2" are retested in v2, on current models.
+Every dial has tasks, and `--arm` reaches all nine (`poisson-tasks generate --arm block:k32 --show`, say). A run reaches depth through the `first-look`, `planning`, `profile`, `card` and `custom` recipes, the decoy-tools dial through `card` and `custom`, faults through `error-recovery` and `profile`, history through `long-sessions` and `profile`, and shape through `planning` and `profile`; similarity, block, arguments and spread are on no recipe a run takes in this release. "Available · retested in v2" means that a later release measures those four dials again, on current models; until then they work, but are not shown to make tasks harder. "Cannot tell" means a drop of 0.15 could not show: the dial's base level passed less than 0.15 of the time on that model. [knobs-and-arms.md](https://github.com/poisson-labs/tasks/blob/main/docs/knobs-and-arms.md) has the probe's table, with every contrast and its interval, beside three things about how the probe ran that you should know.
+
+On your own tools every dial but the decoy-tools dial is offered, within what your tools can support, and two of them, depth and shape, need flows: a flow is a link you declare between two of your tools, which field of one tool's answer goes into which argument of the next. Tasks will not guess one, so without flows depth and shape are listed as unavailable ([own-tools.md](https://github.com/poisson-labs/tasks/blob/main/docs/own-tools.md)).
 
 ## What a card says, and what it does not
 
-A card says, for each level of each knob you ran: strict pass@1 with its 95% interval (a bootstrap that resamples tasks), leaky pass@1, how often the model carried the record past the goal, the calls and tokens and dollars an episode cost, and which pairs of adjacent levels differ (a pair is called different only when the paired interval excludes zero and the gap is at least 0.15). It names the model, where it was served, and what produced it: the package version, the generator's hash, your tool file's contract hash on your own tools, the plan and its seeds, so a change between two cards can be traced to a changed tool contract or generator rather than the model. It refuses to publish a level where more than 10% of attempts made no tool call at all, because that measures whether the model starts, not how hard the level is.
-
-A card does not claim:
-
-- anything about another model, or about tasks other than these: it is one model's result, and ranks no models;
-- that a level is as hard for another model as it was for yours, or that two levels the card calls too small to tell are the same;
-- that it can be read beside the published cards, unless it says it was measured the same way (in this release it cannot: see below);
-- on your own tools, anything about your real tools' outputs, errors or latency, or about your app.
-
-[reading-a-card.md](https://github.com/poisson-labs/tasks/blob/main/docs/reading-a-card.md) explains every column and every line a card can carry.
+A card says, for each level of each knob you ran, what the level was worth to the model: strict pass@1 with its 95% interval, leaky pass@1, how often the model carried the record past the goal, and what an episode cost. It names the model, where it was served and what produced the run, so a change between two cards can be traced to a changed tool contract or generator rather than the model. It refuses to publish at all when more than 10% of the attempts at a level made no tool call, because that measures whether the model starts, not how hard the level is. And it ends with what it does not claim: it is one model's result on these tasks, and ranks no models. [reading-a-card.md](https://github.com/poisson-labs/tasks/blob/main/docs/reading-a-card.md) explains every column and every line a card can carry.
 
 ## The published cards
 
-Two cards ship inside the package, for `gpt-5-nano` and `Qwen3-8B`: 14 arms of depth and the decoy-tools dial, with their control arms, at 60 tasks per level and 5 attempts each, 4,200 episodes a card. `poisson-tasks card --published` rebuilds them from their records and checks them byte for byte, and [calibration.md](https://github.com/poisson-labs/tasks/blob/main/docs/calibration.md) holds both in full and where the models agree.
-
-**Both were measured on an earlier build of the generator**, so `card --published` reads each *not current* and a card from your own run is not set beside them in this release (`card --compare published` says so in one line, and the card's result carries the same row). The tasks regenerate with the same text and different ids. The next release measures the cards again on the current generator.
-
-`gpt-5-nano-2025-08-07`: 4,200 episodes on 2026-09-25, all scored, no instrument failure, about $2.52 [source: [`calibration/gpt-5-nano-2025-08-07/artifact.json`](https://github.com/poisson-labs/tasks/blob/main/calibration/gpt-5-nano-2025-08-07/artifact.json)]
-
-- `depth:d1`: gpt-5-nano-2025-08-07 strict pass@1 0.547 [0.473, 0.617], leaky pass@1 0.993, overshoot 0.447, over 60 tasks at 5 attempts each
-- `depth:d2`: gpt-5-nano-2025-08-07 strict pass@1 0.397 [0.307, 0.483], leaky pass@1 0.957, overshoot 0.560, over 60 tasks at 5 attempts each
-- `depth:d3`: gpt-5-nano-2025-08-07 strict pass@1 0.237 [0.167, 0.307], leaky pass@1 0.667, overshoot 0.427, over 60 tasks at 5 attempts each
-- `depth:d5`: gpt-5-nano-2025-08-07 strict pass@1 0.177 [0.110, 0.247], leaky pass@1 0.713, overshoot 0.537, over 60 tasks at 5 attempts each
-- `depth:d8`: gpt-5-nano-2025-08-07 strict pass@1 0.870 [0.823, 0.913], leaky pass@1 0.870, overshoot 0.000, over 60 tasks at 5 attempts each
-- `distractor:r0@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.917 [0.883, 0.950], leaky pass@1 0.917, overshoot 0.000, over 60 tasks at 5 attempts each
-- `distractor:r2@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.903 [0.863, 0.940], leaky pass@1 0.953, overshoot 0.000, over 60 tasks at 5 attempts each
-- `distractor:r4@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.910 [0.863, 0.950], leaky pass@1 0.957, overshoot 0.000, over 60 tasks at 5 attempts each
-- `distractor:r8@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.910 [0.870, 0.947], leaky pass@1 0.963, overshoot 0.000, over 60 tasks at 5 attempts each
-- `distractor:r14@k16`: gpt-5-nano-2025-08-07 strict pass@1 0.960 [0.937, 0.980], leaky pass@1 0.977, overshoot 0.000, over 60 tasks at 5 attempts each
-
-On reaching the goal, the card can call one step of depth, and it runs the wrong way: reaching falls from 0.957 at d2 to 0.667 at d3 (d2 is at or above the 0.95 saturation bound, so that step is left out), d3 to d5 is too small to call, and d8 reaches the goal more often. What varies is stopping: between 0.43 and 0.56 of attempts at d1 to d5 reach the goal and carry the record past it. The decoy-tools dial does not bite: strict pass@1 stays between 0.90 and 0.96, and no adjacent pair is distinguishable.
-
-`Qwen3-8B` (`Qwen/Qwen3-8B` at revision `b968826d`, thinking off, served with vLLM 0.29.0 on a Colab L4): 4,200 episodes on 2026-09-30, all scored, no instrument failure [source: [`calibration/qwen3-8b-b968826d/artifact.json`](https://github.com/poisson-labs/tasks/blob/main/calibration/qwen3-8b-b968826d/artifact.json)]
-
-- `depth:d1`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.000 [0.000, 0.000], leaky pass@1 1.000, overshoot 1.000, over 60 tasks at 5 attempts each
-- `depth:d2`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.397 [0.300, 0.500], leaky pass@1 1.000, overshoot 0.600, over 60 tasks at 5 attempts each
-- `depth:d3`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.823 [0.753, 0.890], leaky pass@1 0.993, overshoot 0.170, over 60 tasks at 5 attempts each
-- `depth:d5`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.860 [0.787, 0.923], leaky pass@1 0.973, overshoot 0.113, over 60 tasks at 5 attempts each
-- `depth:d8`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.997 [0.990, 1.000], leaky pass@1 0.997, overshoot 0.000, over 60 tasks at 5 attempts each
-- `distractor:r0@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 1.000 [1.000, 1.000], leaky pass@1 1.000, overshoot 0.000, over 60 tasks at 5 attempts each
-- `distractor:r2@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.990 [0.980, 1.000], leaky pass@1 0.997, overshoot 0.000, over 60 tasks at 5 attempts each
-- `distractor:r4@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.993 [0.983, 1.000], leaky pass@1 1.000, overshoot 0.000, over 60 tasks at 5 attempts each
-- `distractor:r8@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.980 [0.957, 0.997], leaky pass@1 1.000, overshoot 0.000, over 60 tasks at 5 attempts each
-- `distractor:r14@k16`: Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218 strict pass@1 0.997 [0.990, 1.000], leaky pass@1 1.000, overshoot 0.000, over 60 tasks at 5 attempts each
-
-On reaching the goal, depth does not separate the levels at all: leaky pass@1 is 0.97 or more everywhere. What varies is stopping, and it improves with depth, from 0.000 strict at d1 to 0.997 at d8. The decoy-tools dial is saturated at every level (0.98 or more). In the two history controls leaky pass@1 falls to 0.773 and 0.733, and 46 attempts hit the 32-call cap.
-
-Across the 12 pairs of adjacent levels, the models agree on none and disagree on one: depth 2 against 3 on strict, where `gpt-5-nano` falls and Qwen rises. As built, neither depth nor the decoy-tools dial orders difficulty the same way for both models, and a level's number is one model's.
+Two cards ship inside the package, for `gpt-5-nano` and `Qwen3-8B`: depth and the decoy-tools dial at every level, with their control arms, at 60 tasks per level and 5 attempts each, 4,200 episodes a card. **Both were measured on an earlier build of the generator**, so in this release `card --published` reads each *not current*, and a card from your own run is not set beside them (`card --compare published` says so in one line). A later release measures them again on the current generator. [published-cards.md](https://github.com/poisson-labs/tasks/blob/main/docs/published-cards.md) says what they show and where the two models agree, and [calibration.md](https://github.com/poisson-labs/tasks/blob/main/docs/calibration.md) holds both in full.
 
 ## The commands
 
-`poisson-tasks` is one command with seven verbs ([commands.md](https://github.com/poisson-labs/tasks/blob/main/docs/commands.md) has each one's help, what it writes and how it ends, and [config.md](https://github.com/poisson-labs/tasks/blob/main/docs/config.md) the settings file):
+`poisson-tasks` is one command with seven verbs:
 
 - `poisson-tasks init`: ask what to test, and write `tasks.toml`; spends nothing.
 - `poisson-tasks generate`: make the plan's tasks with no model and no network, or show one task in full.
 - `poisson-tasks run`: show the plan and its cost, ask, then run the tasks against the model.
 - `poisson-tasks card`: build the card from a run, or rebuild the published cards, or compare two runs.
-- `poisson-tasks verify`: judge an answer with the task's own verifier, with no model. In this release `verify` refuses a tasks file made on your own tools, in one line: `error: <file> holds tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`. It refuses `--arm` in a folder set up for your own tools the same way: `error: tasks.toml puts the tasks on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay`.
+- `poisson-tasks verify`: judge an answer with the task's own verifier, with no model. In this release it refuses tasks made on your own tools, which verify does not judge on its own yet: a run's card judges every episode on them, by replay.
 - `poisson-tasks export`: write the configs another runner reads (verifiers).
 - `poisson-tasks doctor`: say whether this environment is ready, and what to do if not.
 
-`verify` names a task by its arm and its place in the plan. With `--self-check` it checks the task's own answers, with no model: the reference solution passes, and each wrong answer the task ships with earns the outcome it is named for.
-
-<!-- docs-check: run -->
-```bash
-poisson-tasks verify --self-check --arm depth:d3 --task 1
-```
-<!-- docs-check: output -->
-```
-ok  depth:d3 task 1 (seed 13553586): the reference solution passes and each of the 7 wrong answers earns its outcome
-  reference solution       passed under both strictnesses (3 tool calls)
-  wrong_state              wrong_state · The model stopped with the record in a state that is not the goal.
-  turn_limit               turn_limit · The model used every model call it was allowed before it finished.
-  collateral_mutation      collateral_mutation · The model reached the goal but also changed something the task did not ask for.
-  overshoot                overshoot · The model reached the goal and then kept changing the record past it.
-  malformed_call_clause_2  malformed_call · The model wrote a tool call the harness could not read.
-  malformed_call_clause_3  malformed_call · The model wrote a tool call the harness could not read.
-  malformed_call_clause_4  malformed_call · The model wrote a tool call the harness could not read.
-```
-
-Every verb ends with a result line first, `error:` lines on standard error, and an exit code that means the same everywhere (0 done, 1 refused, 2 the command line is wrong, 3 stopped, 4 a check did not pass, 130 interrupted). Output is plain text in a pipe and drawn with colour on a terminal; `--plain` and `NO_COLOR` turn the colour off.
+Every verb ends the same way: a result line first, problems on standard error, and an exit code that means the same everywhere. [commands.md](https://github.com/poisson-labs/tasks/blob/main/docs/commands.md) has each verb's help, what it writes and how it ends, and [config.md](https://github.com/poisson-labs/tasks/blob/main/docs/config.md) every setting of `tasks.toml`.
 
 ## Using it from Python, and under verifiers yourself
 
-Everything the command does is a library: [python.md](https://github.com/poisson-labs/tasks/blob/main/docs/python.md) shows how to make a task, judge an answer, check a contrast, rebuild a published card and read your own tools, and points to the four short programs in the repository's `examples` folder as source to read. [verifiers-export.md](https://github.com/poisson-labs/tasks/blob/main/docs/verifiers-export.md) is for running the tasks under verifiers' own `eval`: the taskset's id, the signals it reports, the harness the numbers were measured under, and why `eval` has to be run by its path.
+Everything the command does is a library: [python.md](https://github.com/poisson-labs/tasks/blob/main/docs/python.md) shows how to make a task, judge an answer, check a contrast, rebuild a published card and read your own tools, and points to three short programs in the repository's `examples` folder as source to read. [verifiers-export.md](https://github.com/poisson-labs/tasks/blob/main/docs/verifiers-export.md) is for running the tasks under verifiers' own `eval`: the taskset's id, the signals it reports, the harness the numbers were measured under, and why `eval` has to be run by its path.
 
-## What is built, and what is not claimed
-
-Built, and covered by the test suite (**4,444 tests, 4,083 passed and 361 skipped**; `python -m pytest -q` is the check): the mock domain and its tools; the reference tokenizer; nine knobs with their control arms and thirty pin-ledger rows; task and verifier generation with a closed ten-label vocabulary; the verifiers export and the taskset id `poisson-tasks`; the command above; the two published cards inside the package; tasks on your own tools; and a Colab notebook that serves `Qwen3-8B` with vLLM and rebuilds its card. The tests that are skipped need [Proofload](https://github.com/poisson-labs/tasks/blob/main/docs/proofload.md), an optional route that is not public yet.
-
-Not claimed:
+## What is not claimed
 
 1. **No dial is claimed to work across models beyond the table above.** Two models from two families were measured; a level's number is one model's, and none is claimed for a model that has not been run.
 2. **The command has not been run against every provider for real.** The test suite runs it against stand-in servers that speak the APIs of OpenAI, Anthropic, Ollama and vLLM, not against the real services; the published cards were measured against OpenAI's API (`gpt-5-nano`) and a vLLM server (`Qwen3-8B`) through the same harness. A first run against a provider is worth a small cap.
