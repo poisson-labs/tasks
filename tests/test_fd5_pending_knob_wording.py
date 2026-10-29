@@ -14,6 +14,10 @@ words, with its nearest knob.
 
 **If it is declined**, this file's commit is dropped, and the words wait for the step that opens
 the knobs, as the decision of 2026-10-07 has it.
+
+Retrofitted 2026-10-29 for 0.3.0: `custom` on the built-in tasks offers the timeouts and
+ratelimits knobs beside depth and the distractor dial (the faults design, Q5), so the knobs the
+refusal names are four, and the two new knobs leave the list of those not offered.
 """
 
 from __future__ import annotations
@@ -25,6 +29,7 @@ from tests.fd5_support import World, config, error_lines, invoke, prog, world
 __all__ = ["prog", "world"]
 
 NOT_OFFERED = ["similarity", "faults", "history", "block", "arguments", "shape", "spread"]
+OFFERED = "depth, distractor, timeouts and ratelimits"
 
 
 @pytest.mark.parametrize("knob", NOT_OFFERED)
@@ -35,8 +40,8 @@ def test_fd5_8_a_knob_not_offered_is_said_to_be_a_knob_not_offered_here_yet(
                  prog=prog, monkeypatch=monkeypatch)
     assert ran.code == 2, ran
     assert error_lines(ran) == [
-        f'error: --knob: "{knob}" is a knob not offered here yet; the knobs offered are depth '
-        "and distractor"], ran
+        f'error: --knob: "{knob}" is a knob not offered here yet; the knobs offered are '
+        f"{OFFERED}"], ran
 
 
 def test_fd5_8_a_word_that_is_no_knob_keeps_its_nearest_knob(
