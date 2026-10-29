@@ -122,12 +122,14 @@ from typing import cast as _cast
 
 from poisson_tasks import provenance as _provenance
 from poisson_tasks.arms import DEFAULT_GENERATOR_VERSION as _DEFAULT_GENERATOR_VERSION
+from poisson_tasks.arms import EXPERIMENTAL_KNOBS as _EXPERIMENTAL_KNOBS
 from poisson_tasks.arms import arm_from_id as _arm_from_id
 from poisson_tasks.engine import EngineSpec as _EngineSpec
 from poisson_tasks.engine import engine_hash as _engine_hash
 from poisson_tasks.export import MEASURED_HARNESS as _MEASURED_HARNESS
+from poisson_tasks.knobs import _KNOBS as _GENERATOR_KNOBS
 from poisson_tasks.knobs import ArmSpec as _ArmSpec
-from poisson_tasks.knobs import _render_arm_id
+from poisson_tasks.knobs import _parse_arm_id, _render_arm_id
 from poisson_tasks.knobs import arm_id as _arm_id
 from poisson_tasks.knobs import levels as _levels
 from poisson_tasks.tasks import generate as _generate
@@ -193,6 +195,7 @@ __all__ = [
     "CardVerdict",
     "card_claims",
     "Claims",
+    "experimental_knobs",
     "comparable",
     "Comparison",
     "render_side_by_side",
@@ -313,15 +316,21 @@ _KNOBS = (_DEPTH, _DISTRACTOR)
 # entry code in front of it (spread), so that the tool server and the verifier applying any
 # of these differently, or starting their numbers apart, is a failure the records would
 # otherwise never show.
-_REPLAY_CHECKED = ("similarity", "faults", "history", "block", "arguments", "shape", "spread")
+_REPLAY_CHECKED = ("similarity", "faults", "history", "block", "arguments", "shape", "spread",
+                   "timeouts", "ratelimits")
 _REPLAY_MISMATCH = "replay_mismatch"
 # The own-tools provenance kind, and the keys its block carries.
 _OWN_KIND = "own"
 _OWN_TOOLS_KEYS = (
     "kind", "name", "tools", "source_format", "file_digest", "intents", "flows", "generator",
 )
-# The status a planned failure answers with, as the faults knob's system prompt names it.
+# The status a planned failure answers with, as the faults knob's system prompt names it; the
+# timeouts and ratelimits knobs' words are read per arm from `surface.fault_kind`.
 _UNAVAILABLE = "unavailable"
+# The knobs whose planned answers a model can give up after, and the knob whose one planned
+# answer it can retry after (0.3.0).
+_GIVE_UP_KNOBS = ("faults", "timeouts", "ratelimits")
+_LANDED = "landed"
 
 
 # ---------------------------------------------------------------------------
@@ -350,9 +359,17 @@ class EpisodeRecord:
     `setup_seconds` is the tool server's start, and `first_request_prompt_tokens` is what the
     model was sent before its first move, cache reads included.
 
-    `gave_up_after_fault` is the faults knob's: whether the episode received an `unavailable`
-    from a tool and never called that tool again, `None` on an arm that plans no failure, and
-    then left out of the written line too.
+    `gave_up_after_fault` is the faults, timeouts and ratelimits knobs': whether the episode
+    received the knob's planned answer (`unavailable`, `timeout` or `rate_limited`) from a tool
+    and never called that tool again, `None` on an arm that plans no failure (a landed arm
+    among them: not calling again is its point), and then left out of the written line too.
+
+    `retried_after_landed` is the landed knob's (0.3.0): whether the episode called the landed
+    tool again after its timeout, whether or not the harness forwarded the call; `None` on
+    every other arm.  `duplicate_write` is every own-tools arm's (0.3.0): whether an accepted
+    write repeated an earlier accepted write, the same tool with the same arguments; `None` on
+    a built-in arm.  Each is left out of the written line when `None`, so a record written
+    before the two existed writes back as the line it was.
     """
 
     task_id: str
@@ -376,6 +393,8 @@ class EpisodeRecord:
     setup_seconds: float | None = None
     first_request_prompt_tokens: int | None = None
     gave_up_after_fault: bool | None = None
+    retried_after_landed: bool | None = None
+    duplicate_write: bool | None = None
 
     def __post_init__(self) -> None:
         if self.label not in OUTCOME_LABELS:
@@ -406,9 +425,10 @@ class EpisodeRecord:
     @staticmethod
     def to_json(row: EpisodeRecord) -> str:
         """The wire format: one JSON object per line, keys sorted.  A time or first-request
-        figure that was not recorded is left out, and so is `gave_up_after_fault` on an arm
-        that plans no failure, so a record written before those fields existed writes back as
-        the line it was; `cost` is always written."""
+        figure that was not recorded is left out, and so are `gave_up_after_fault` on an arm
+        that plans no failure and `retried_after_landed` and `duplicate_write` where they do
+        not apply, so a record written before those fields existed writes back as the line it
+        was; `cost` is always written."""
         line = _dc.asdict(row)
         for name in _LEFT_OUT_WHEN_NONE:
             if line[name] is None:
@@ -424,9 +444,12 @@ _SECONDS_FIELDS = ("episode_seconds", "model_seconds", "harness_seconds", "setup
 _OPTIONAL_FIELDS = (*_SECONDS_FIELDS, "first_request_prompt_tokens")
 """The record's fields that a trace may not have measured: `None` in the record and absent
 from its written line."""
-_LEFT_OUT_WHEN_NONE = (*_OPTIONAL_FIELDS, "gave_up_after_fault")
-"""Every field a written line leaves out when it is `None`: the unmeasured ones, and the
-faults knob's verdict on an arm that plans no failure."""
+_FIGURE_FIELDS = ("gave_up_after_fault", "retried_after_landed", "duplicate_write")
+"""The per-episode figures of what the model did after a fault, each `None` where it does not
+apply."""
+_LEFT_OUT_WHEN_NONE = (*_OPTIONAL_FIELDS, *_FIGURE_FIELDS)
+"""Every field a written line leaves out when it is `None`: the unmeasured ones, and the three
+figures where they do not apply."""
 
 Cell = _Sequence[EpisodeRecord]
 
@@ -1391,11 +1414,14 @@ def _cell_figures(
     # received an `unavailable` and never called that tool again, and their share of the
     # episodes judged.  Printed by a card with a faults section and never gated; a cell whose
     # records carry no verdict has neither key, so no published artifact moves.
-    judged = [row for row in kept if row.gave_up_after_fault is not None]
-    if judged:
-        gave_up = sum(1 for row in judged if row.gave_up_after_fault)
-        figures["gave_up_after_fault_count"] = gave_up
-        figures["gave_up_after_fault_share"] = gave_up / len(judged)
+    # The two figures of 0.3.0 the same way: retried after a landed timeout (landed arms) and
+    # duplicate writes (every own-tools arm), each over the scored episodes that carry a value.
+    for name in _FIGURE_FIELDS:
+        judged = [row for row in kept if getattr(row, name) is not None]
+        if judged:
+            count = sum(1 for row in judged if getattr(row, name))
+            figures[f"{name}_count"] = count
+            figures[f"{name}_share"] = count / len(judged)
     return figures
 
 
@@ -1660,17 +1686,59 @@ def _concurrency(prov: Provenance) -> str:
     return f"{prov.concurrency} episode{'' if prov.concurrency == 1 else 's'} at once"
 
 
-def _level_header(k_values: _Sequence[int]) -> tuple[str, str]:
+# The columns a card prints for what the model did after a fault, each with the cell key it
+# reads: on a card holding faults, timeouts or ratelimits arms, *gave up after a fault*; on one
+# holding landed arms, *retried after a landed timeout*; on an own-tools card, *duplicate
+# writes*.  A card's columns are decided from its arms once and printed at the end of every
+# table that lists arms, so the published cards, which hold none of the three, keep their bytes.
+_FIGURE_COLUMNS = (
+    ("gave up after a fault", "gave_up_after_fault_share"),
+    ("retried after a landed timeout", "retried_after_landed_share"),
+    ("duplicate writes", "duplicate_write_share"),
+)
+_Columns = _Sequence[tuple[str, str]]
+
+
+def _knobs_of(artifact: Artifact) -> set[str]:
+    return {
+        spec.knob for cell in artifact.cells
+        if (spec := _spec_for(str(cell["arm_id"]))) is not None
+    }
+
+
+def _figure_columns(artifact: Artifact) -> list[tuple[str, str]]:
+    knobs = _knobs_of(artifact)
+    gave_up, retried, duplicate = _FIGURE_COLUMNS
+    out: list[tuple[str, str]] = []
+    if knobs & set(_GIVE_UP_KNOBS):
+        out.append(gave_up)
+    if _LANDED in knobs:
+        out.append(retried)
+    if artifact.provenance.tools is not None:
+        out.append(duplicate)
+    return out
+
+
+def _extra_header(extra: _Columns) -> str:
+    return "".join(f" {title} |" for title, _key in extra)
+
+
+def _extra_values(cell: _Mapping[str, _Any], extra: _Columns) -> str:
+    return "".join(f" {_fmt(cell.get(key))} |" for _title, key in extra)
+
+
+def _level_header(k_values: _Sequence[int], extra: _Columns = ()) -> tuple[str, str]:
     columns = ["arm", "model", "strict pass@1", "95% interval", "leaky pass@1",
                "leaky 95% interval", "overshoot"]
     columns += [f"strict pass@{k}" for k in k_values if k != 1]
     columns += ["median model calls", "median tokens", "median episode seconds"]
     columns += ["min calls", "no tool call", "stopped short", "saturated", "instrument",
                 "incomplete"]
+    columns += [title for title, _key in extra]
     return "| " + " | ".join(columns) + " |", "|" + "---|" * len(columns)
 
 
-def _level_row(cell: _Mapping[str, _Any], k_values: _Sequence[int]) -> str:
+def _level_row(cell: _Mapping[str, _Any], k_values: _Sequence[int], extra: _Columns = ()) -> str:
     values = [
         f"`{cell['arm_id']}`", cell["model"], _fmt(cell["pass_at_1"]),
         _interval(cell["pass_at_1_interval"]), _fmt(cell["leaky_at_1"]),
@@ -1683,6 +1751,7 @@ def _level_row(cell: _Mapping[str, _Any], k_values: _Sequence[int]) -> str:
         _fmt(cell["no_call_share"]), _fmt(cell["stopped_short_share"]),
         _fmt(cell["saturated"]), str(cell["instrument_count"]), _fmt(cell["incomplete"]),
     ]
+    values += [_fmt(cell.get(key)) for _title, key in extra]
     return "| " + " | ".join(values) + " |"
 
 
@@ -1728,7 +1797,8 @@ def render_document(
     prov = artifact.provenance
     own = prov.tools is not None
     k_values = list(prov.k_values)
-    header, rule = _level_header(k_values)
+    extra = _figure_columns(artifact)
+    header, rule = _level_header(k_values, extra)
     lines: list[str] = ["# What each difficulty level is worth", ""]
     if own:
         from poisson_tasks.own import card as _own_card
@@ -1796,7 +1866,9 @@ def render_document(
     ]
     level_cells = [cell for cell in artifact.cells if not cell["control"]]
     control_cells = [cell for cell in artifact.cells if cell["control"]]
-    knob_order: tuple[str, ...] = _KNOBS
+    # One table per knob with a level on the card, in the generator's order of knobs: the
+    # published cards' two first, then the probe's seven and the three of 0.3.0.
+    knob_order: tuple[str, ...] = _GENERATOR_KNOBS
     if own:
         from poisson_tasks.own.generator import KNOBS as _OWN_KNOBS
 
@@ -1807,7 +1879,7 @@ def render_document(
         if not rows:
             continue
         lines += ["", f"### {knob}", "", header, rule]
-        lines += [_level_row(cell, k_values) for cell in rows]
+        lines += [_level_row(cell, k_values, extra) for cell in rows]
     if not own:
         # Own tools have no control arms (decided 2026-10-13).
         lines += [
@@ -1822,7 +1894,7 @@ def render_document(
             header,
             rule,
         ]
-        lines += [_level_row(cell, k_values) for cell in control_cells]
+        lines += [_level_row(cell, k_values, extra) for cell in control_cells]
     lines += [
         "",
         "## Cost per episode",
@@ -1841,8 +1913,9 @@ def render_document(
         "pass@1, what one strict pass costs at this level, and is n/a where nothing passed.",
         "",
         "| arm | model | mean model calls | median model calls | mean tool calls | median tool "
-        "calls | mean tokens | median tokens | 90th percentile tokens | tokens per strict pass |",
-        "|---|---|---|---|---|---|---|---|---|---|",
+        "calls | mean tokens | median tokens | 90th percentile tokens | tokens per strict pass |"
+        + _extra_header(extra),
+        "|---|---|---|---|---|---|---|---|---|---|" + "---|" * len(extra),
     ]
     for cell in artifact.cells:
         lines.append(
@@ -1850,7 +1923,7 @@ def render_document(
             f"{_fmt(cell['model_calls_median'])} | {_fmt(cell['tool_calls_mean'])} | "
             f"{_fmt(cell['tool_calls_median'])} | {_fmt(cell['tokens_mean'])} | "
             f"{_fmt(cell['tokens_median'])} | {_fmt(cell['tokens_p90'])} | "
-            f"{_fmt(cell['tokens_per_strict_pass'])} |"
+            f"{_fmt(cell['tokens_per_strict_pass'])} |" + _extra_values(cell, extra)
         )
     lines += [
         "",
@@ -1871,8 +1944,8 @@ def render_document(
         "",
         "| arm | model | median episode seconds | 90th percentile episode seconds | median "
         "model seconds | 90th percentile model seconds | median harness seconds | 90th "
-        "percentile harness seconds | median setup seconds |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "percentile harness seconds | median setup seconds |" + _extra_header(extra),
+        "|---|---|---|---|---|---|---|---|---|" + "---|" * len(extra),
     ]
     for cell in artifact.cells:
         lines.append(
@@ -1881,22 +1954,22 @@ def render_document(
                 "episode_seconds_median", "episode_seconds_p90", "model_seconds_median",
                 "model_seconds_p90", "harness_seconds_median", "harness_seconds_p90",
                 "setup_seconds_median"))
-            + " |"
+            + " |" + _extra_values(cell, extra)
         )
     lines += [
         "",
         "### Token totals and dollars",
         "",
         "| arm | model | prompt tokens | cached input tokens | completion tokens | reasoning "
-        "share | computed $ | reported $ |",
-        "|---|---|---|---|---|---|---|---|",
+        "share | computed $ | reported $ |" + _extra_header(extra),
+        "|---|---|---|---|---|---|---|---|" + "---|" * len(extra),
     ]
     for cell in artifact.cells:
         lines.append(
             f"| `{cell['arm_id']}` | {cell['model']} | {cell['prompt_tokens']} | "
             f"{cell['cached_input_tokens']} | {cell['completion_tokens']} | "
             f"{_fmt(cell['reasoning_share'])} | {_fmt(cell['dollars'])} | "
-            f"{_fmt(cell['reported_cost'])} |"
+            f"{_fmt(cell['reported_cost'])} |" + _extra_values(cell, extra)
         )
     if own:
         from poisson_tasks.own import card as _own_card
@@ -2851,6 +2924,7 @@ def _replay_agrees(data: _Any, trace: _Any) -> bool:
         for _seq, _content, (name, arguments) in reached
     ]
     plan = _surface.reference_plan(bundle.arm_id, shown, bundle.reference_calls)
+    kind = _surface.fault_kind(bundle.arm_id) or _UNAVAILABLE
     stated = _surface.stated_values(bundle.arm_id, shown, bundle.reference_calls)
     spread = _surface.spread_answers(
         bundle.arm_id, shown, bundle.reference_calls, bundle.reference_observations
@@ -2860,17 +2934,18 @@ def _replay_agrees(data: _Any, trace: _Any) -> bool:
     observations: list[str] = []
     for call in calls:
         state, counts, observation = _surface.apply_planned(
-            state, counts, call, plan, stated=stated, spread=spread
+            state, counts, call, plan, stated=stated, spread=spread, kind=kind
         )
         observations.append(observation)
     return observations == [content for _seq, content, _call in reached]
 
 
 def _gave_up_after_fault(data: _Any, trace: _Any) -> bool | None:
-    """Whether the episode received an `unavailable` from a tool and never called that tool
-    again, by the name it called it; `None` on an arm that plans no failure.
+    """Whether the episode received the arm's planned answer (`unavailable`, `timeout` or
+    `rate_limited`, the word `surface.fault_kind` gives the arm) from a tool and never called
+    that tool again, by the name it called it; `None` on an arm that plans no failure.
 
-    A fault received is a tool message whose line carries `unavailable` as its status (the
+    A fault received is a tool message whose line carries the word as its status (the
     harness's own `error:` lines carry none).  Calling the tool again is any later sampled
     call by that name, whether or not the harness forwarded it: a model that met the failure
     and wrote its retry badly did not give up, and the bad call already shows as
@@ -2885,12 +2960,13 @@ def _gave_up_after_fault(data: _Any, trace: _Any) -> bool | None:
         bundle.seed, bundle.split, bundle.arm_id, bundle.goal,
         tuple(str(tool["name"]) for tool in bundle.tools),
     )
-    if not _surface.reference_plan(bundle.arm_id, shown, bundle.reference_calls):
+    word = _surface.fault_kind(bundle.arm_id)
+    if word is None or not _surface.reference_plan(bundle.arm_id, shown, bundle.reference_calls):
         return None
     exchanges = _sampled_exchanges(trace)
     for index, (content, (name, _arguments)) in enumerate(exchanges):
         fields = content.split() if isinstance(content, str) else []
-        if len(fields) > 1 and fields[0].isdigit() and fields[1] == _UNAVAILABLE:
+        if len(fields) > 1 and fields[0].isdigit() and fields[1] == word:
             if not any(later == name for _c, (later, _a) in exchanges[index + 1 :]):
                 return True
     return False
@@ -2907,8 +2983,12 @@ def _own_record(
 ) -> EpisodeRecord:
     """One own-tools episode's record: the own verdict re-read through the own export, the
     replay check on every arm (the simulator's answers to the calls that reached the server must
-    be the tool messages byte for byte), and the faults figure read from the simulator's own
-    answers."""
+    be the tool messages byte for byte), and the three figures read from the simulator's own
+    answers and store: gave up after a fault on a faults, timeouts or ratelimits arm, keyed on
+    the arm's word; retried after a landed timeout on a landed arm, any later sampled call by
+    the landed tool's name, forwarded or not; and a duplicate write, an accepted write equal to
+    an earlier one, on every arm."""
+    from poisson_tasks import surface as _surface
     from poisson_tasks.export import _sampled_exchanges
     from poisson_tasks.own import simulator as _own_sim
     from poisson_tasks.own.export import OwnTaskData, _verdict, bundle_from_data
@@ -2920,6 +3000,8 @@ def _own_record(
     instrument = label_from_signals(_episode_signals(episode))
     usage = trace.usage if trace is not None else None
     gave_up: bool | None = None
+    retried: bool | None = None
+    duplicate: bool | None = None
     if instrument is not None or trace is None:
         strict, leaky, label = False, False, instrument or "api_error"
     else:
@@ -2937,7 +3019,7 @@ def _own_record(
             exchanges = _sampled_exchanges(trace)
             reached = [(content, call) for content, call in exchanges
                        if _own_sim.reaches_the_server(call[0], call[1], block)]
-            _state, answers = _own_sim.replay(bundle, [call for _c, call in reached])
+            state, answers = _own_sim.replay(bundle, [call for _c, call in reached])
             if [answer.text for answer in answers] != [content for content, _c in reached]:
                 strict, leaky, label = False, False, _REPLAY_MISMATCH
             elif strict != (label == _PASSED) or leaky != verdict.leaky_pass:
@@ -2945,10 +3027,22 @@ def _own_record(
                     f"episode {episode.id}: the recorded reward and the re-read verdict "
                     f"disagree (strict={strict}, leaky={leaky}, label={label!r})"
                 )
-            if bundle.fault_plan:
+            duplicate = len(state.writes) != len(set(state.writes))
+            word = _surface.fault_kind(str(data.arm_id))
+            knob = _parse_arm_id(str(data.arm_id)).knob
+            if bundle.fault_plan and word is not None and knob == _LANDED:
+                retried = False
+                for index, answer in enumerate(answers):
+                    if answer.code == word:
+                        name = reached[index][1][0]
+                        later = [call[0] for _c, call in exchanges][
+                            exchanges.index(reached[index]) + 1:]
+                        if name in later:
+                            retried = True
+            elif bundle.fault_plan and word is not None:
                 gave_up = False
                 for index, answer in enumerate(answers):
-                    if answer.code == _UNAVAILABLE:
+                    if answer.code == word:
                         name = reached[index][1][0]
                         later = [call[0] for _c, call in exchanges][
                             exchanges.index(reached[index]) + 1:]
@@ -2966,6 +3060,8 @@ def _own_record(
         cost=float(usage.cost) if usage and usage.cost is not None else None,
         **(_time_from_trace(trace) if trace is not None else {}),
         gave_up_after_fault=gave_up,
+        retried_after_landed=retried,
+        duplicate_write=duplicate,
     )
 
 
@@ -3572,10 +3668,23 @@ _LINE_SELF_SERVED = (
     "reported, so a later run of the same weights served differently is not the same "
     "measurement."
 )
-_LINE_DISTRACTOR = (
-    "The distractor knob is experimental: it did not make tasks harder for either calibrated "
-    "model."
-)
+
+
+def _experimental_line(knob: str) -> str:
+    """The line a card says for an experimental knob it holds: the knob and its reason, as
+    `arms.EXPERIMENTAL_KNOBS` gives them, so the word never stands without the reason."""
+    return f"The {knob} knob is experimental: {_EXPERIMENTAL_KNOBS[knob]}."
+
+
+_LINE_DISTRACTOR = _experimental_line(_DISTRACTOR)
+
+
+def experimental_knobs(artifact: Artifact) -> dict[str, str]:
+    """Each experimental knob the card holds an arm of, mapped to its reason, in
+    `arms.EXPERIMENTAL_KNOBS`' order; empty on a card that holds none.  What `card --json`
+    carries as `experimental`, and what the card's claims say one line each for."""
+    knobs = _knobs_of(artifact)
+    return {knob: reason for knob, reason in _EXPERIMENTAL_KNOBS.items() if knob in knobs}
 _LINE_STALE = (
     "It is pinned to the generator it was made with, which is not the one this install has, so "
     "it is stale."
@@ -3622,6 +3731,9 @@ def card_claims(artifact: Artifact) -> Claims:
         flags.add("self_served")
     if any((spec := _spec_for(arm)) is not None and spec.knob == _DISTRACTOR for arm in arms):
         flags.add("distractor")
+    experimental = experimental_knobs(artifact)
+    if set(experimental) - {_DISTRACTOR}:
+        flags.add("experimental")
     if _recorded_generator(prov, "builtin_generator_hash") != _package_generator_hash():
         flags.add("stale")
     if prov.resumed:
@@ -3656,9 +3768,13 @@ def card_claims(artifact: Artifact) -> Claims:
     for flag, line in (
         ("not_comparable", _LINE_EARLIER_BUILD if earlier else _LINE_NOT_COMPARABLE),
         ("not_covered", _LINE_NOT_COVERED),
-        ("self_served", _LINE_SELF_SERVED), ("distractor", _LINE_DISTRACTOR),
-        ("stale", _LINE_STALE), ("resumed", _LINE_RESUMED),
+        ("self_served", _LINE_SELF_SERVED),
     ):
+        if flag in flags:
+            lines.append(line)
+    # One line per experimental knob the card holds, the distractor dial's where it used to be.
+    lines += [_experimental_line(knob) for knob in experimental]
+    for flag, line in (("stale", _LINE_STALE), ("resumed", _LINE_RESUMED)):
         if flag in flags:
             lines.append(line)
     return Claims(meaning=meaning, not_claimed=tuple(lines), flags=frozenset(flags))
@@ -3689,8 +3805,9 @@ _OWN_LINES = (
 
 def _own_claims(artifact: Artifact, model: str) -> Claims:
     """What an own-tools card means and does not claim: its lines are
-    `_OWN_LINES`, every one that applies, `stale` against the own-tools generator, and the
-    self-served and resumed lines as on any card; none of the published cards' comparisons."""
+    `_OWN_LINES`, every one that applies, one line per experimental knob it holds, `stale`
+    against the own-tools generator, and the self-served and resumed lines as on any card; none
+    of the published cards' comparisons."""
     from poisson_tasks.own import generator as _own_generator
 
     prov = artifact.provenance
@@ -3704,6 +3821,9 @@ def _own_claims(artifact: Artifact, model: str) -> Claims:
         flags.add("stale")
     if prov.resumed:
         flags.add("resumed")
+    experimental = experimental_knobs(artifact)
+    if experimental:
+        flags.add("experimental")
     meaning = (
         f"This card is {model}, {_where(prov, model)}, on your tools ({tools.get('name')}, "
         f"{tools.get('tools')} tool{'' if tools.get('tools') == 1 else 's'}) with responses "
@@ -3715,6 +3835,7 @@ def _own_claims(artifact: Artifact, model: str) -> Claims:
         f"excludes zero and the gap is at least {prov.delta_star:.2f}."
     )
     lines = [line for flag, line in _OWN_LINES if flag in flags]
+    lines += [_experimental_line(knob) for knob in experimental]
     for flag, line in (("self_served", _LINE_SELF_SERVED), ("stale", _LINE_STALE),
                        ("resumed", _LINE_RESUMED)):
         if flag in flags:

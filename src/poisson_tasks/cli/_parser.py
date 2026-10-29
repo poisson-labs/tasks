@@ -89,7 +89,7 @@ _SETTING_HELP: dict[str, str] = {
     "--no-price": "no price: the cap is then in tokens",
     "--recipe": "what to measure: first-look, card or custom, or a recipe your tools reach",
     "--measure": "an alias of --recipe, kept for one release",
-    "--knob": "with --recipe custom: depth or distractor",
+    "--knob": "with --recipe custom: depth, distractor, timeouts or ratelimits",
     "--levels": "with --recipe custom: the levels, comma-separated",
     "--controls": "with --recipe custom: add the control arms",
     "--no-controls": "with --recipe custom: no control arms",
@@ -274,8 +274,8 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
                    help="an arm to generate, as depth:d3; repeatable (default: the settings "
                         "file's plan)")
     p.add_argument("--knob", metavar="NAME", default=None,
-                   help="instead of --arm: the knob, depth or distractor; on your own tools, "
-                        "any knob the set reaches (default: none)")
+                   help="instead of --arm: the knob, depth, distractor, timeouts or ratelimits; "
+                        "on your own tools, any knob the set reaches (default: none)")
     p.add_argument("--levels", metavar="L,L,…", default=None,
                    help="with --knob: the levels, comma-separated (default: every level)")
     p.add_argument("--controls", dest="controls", action="store_true", default=None,

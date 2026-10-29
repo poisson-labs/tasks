@@ -208,14 +208,18 @@ def probe_statuses(knobs: _Sequence[str]) -> dict[str, dict[str, str]]:
 
 
 def probe_lines(knobs: _Sequence[str]) -> list[str]:
-    """One line per knob, in the order given: its status on each probe model, or that the
-    published cards measured it and the probe did not."""
+    """One line per knob, in the order given: its status on each probe model; for a knob with no
+    probe status that is experimental, the reason `arms.EXPERIMENTAL_KNOBS` gives and that the
+    probe did not run it; else that the published cards measured it and the probe did not."""
     statuses = probe_statuses(knobs)
     lines: list[str] = []
     for knob in knobs:
         if knob in statuses:
             said = "; ".join(f"{status} on {model}" for model, status in statuses[knob].items())
             lines.append(f"- {knob}: {said}.")
+        elif knob in _arms.EXPERIMENTAL_KNOBS:
+            lines.append(f"- {knob}: experimental, {_arms.EXPERIMENTAL_KNOBS[knob]} (the built-in "
+                         "probe did not run it).")
         else:
             lines.append(f"- {knob}: measured on the published cards, not by the probe.")
     return lines

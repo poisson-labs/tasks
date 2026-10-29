@@ -64,6 +64,7 @@ from pydantic import model_validator as _model_validator
 from poisson_tasks import surface as _surface
 from poisson_tasks.arms import _CONTROL_PAIRS, _on_a_published_card
 from poisson_tasks.arms import DEFAULT_GENERATOR_VERSION as _DEFAULT_GENERATOR_VERSION
+from poisson_tasks.arms import EXPERIMENTAL_KNOBS as _EXPERIMENTAL_KNOBS
 from poisson_tasks.arms import arm_from_id as _arm_from_id
 from poisson_tasks.engine import apply as _apply
 from poisson_tasks.engine import init_state as _init_state
@@ -184,6 +185,12 @@ def _arm_mapping(arm: _Any) -> dict[str, _Any]:
         )
 
     knob, level, control = arm["knob"], arm["level"], arm["control"]
+    if knob == "landed":
+        raise ValueError(
+            "knob 'landed' has no tasks to run on the built-in tasks: the ledger refuses a "
+            "repeated stage call, so a write that landed has no duplicate to catch; landed is "
+            "offered on your own tools"
+        )
     if not isinstance(knob, str) or knob not in _GENERATED_KNOBS:
         raise ValueError(
             f"knob {_shown(knob)} has no tasks to run: the generator makes tasks for "
@@ -334,6 +341,18 @@ class ExportTasksetConfig(_vf.TasksetConfig):
             "level-many answer with a part of it in order and the rest with none, and the "
             "block, the prompt and the calls are the same at every level, so it has no control "
             "arm; no published card measures it yet. "
+            "knob 'timeouts' (levels 0, 1, 2, 4) sets how many calls on the way answer timeout, "
+            "nothing having landed, and must be made again; its control arm timeouts:o0+len(o4) "
+            "seeds the same length as earlier tool work; EXPERIMENTAL: "
+            f"{_EXPERIMENTAL_KNOBS['timeouts']}. "
+            "knob 'ratelimits' (levels 0, 1, 2, 4) sets how many calls on the way answer "
+            "rate_limited with a retry-after of one second, nothing having landed, and must be "
+            "made again; its control arm ratelimits:r0+len(r4) seeds the same length as earlier "
+            f"tool work; EXPERIMENTAL: {_EXPERIMENTAL_KNOBS['ratelimits']}. "
+            "knob 'landed' (levels 0, 1) sets whether the write goes through and answers timeout, "
+            "so a blind retry is a duplicate; it is offered on your own tools only, whose store "
+            "accepts a second write, since on the built-in ledger a repeated stage call is refused "
+            f"and changes nothing; EXPERIMENTAL: {_EXPERIMENTAL_KNOBS['landed']}. "
             "See docs/calibration.md."
         ),
     )
@@ -887,6 +906,7 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
         self._shown: dict[str, _surface.Shown] = {}
         self._engine_state: _Any = None
         self._plan: dict[str, int] = {}
+        self._kind: str | None = None
         self._stated: dict[str, str] | None = None
         self._spread: _surface._Spread | None = None
         self._counts: dict[str, int] = {}
@@ -900,10 +920,11 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
 
         The block's names are what the model is shown; which engine tool each stands for
         is `surface.display_map`'s to say, read through the module as the verifier reads
-        it, so the server answers a call exactly as the verifier will replay it.  A faults
-        arm's planned failures are `surface.reference_plan`'s, derived the same way, keyed
-        on how many times this server has been asked for each tool; every other arm plans
-        none, and the counts start at nothing.  An arguments arm's stated values are
+        it, so the server answers a call exactly as the verifier will replay it.  A faults,
+        timeouts or ratelimits arm's planned answers are `surface.reference_plan`'s, derived
+        the same way and answered in the word `surface.fault_kind` gives the arm, keyed on
+        how many times this server has been asked for each tool; every other arm plans none,
+        and the counts start at nothing.  An arguments arm's stated values are
         `surface.stated_values`', read off the reference calls the task data carries, and
         every other arm has none.  A spread arm's named reads and their answers are
         `surface.spread_answers`', read off the reference calls and observations the task
@@ -922,6 +943,7 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
         )
         reference = [(str(call[0]), call[1]) for call in task.reference_calls]
         self._plan = _surface.reference_plan(task.arm_id, self._shown, reference)
+        self._kind = _surface.fault_kind(task.arm_id)
         self._stated = _surface.stated_values(task.arm_id, self._shown, reference)
         self._spread = _surface.spread_answers(
             task.arm_id, self._shown, reference, list(task.reference_observations)
@@ -963,6 +985,7 @@ class DomainToolset(_vf.Toolset[DomainToolsetConfig, _vf.State]):
                     step=_apply,
                     stated=self._stated,
                     spread=self._spread,
+                    **({"kind": self._kind} if self._kind is not None else {}),
                 )
                 self._engine_state = after
                 self._counts = counts

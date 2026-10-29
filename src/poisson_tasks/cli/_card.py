@@ -282,8 +282,9 @@ def _run_card(ctx: Context) -> Result:
         schema=SCHEMA, verdict="ok", sentence=sentence, rows=rows, document=document,
         data={"folder": str(folder), "model": model_name, "partial": verdict.partial,
               "owed": verdict.owed, "levels": cells, "meaning": made.claims.meaning,
-              "not_claimed": list(made.claims.not_claimed), "wrote": [str(p) for p in paths],
-              "produced_by": record},
+              "not_claimed": list(made.claims.not_claimed),
+              "experimental": calibration.experimental_knobs(made.artifact),
+              "wrote": [str(p) for p in paths], "produced_by": record},
     )
 
 

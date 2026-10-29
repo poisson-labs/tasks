@@ -31,6 +31,7 @@ from poisson_tasks.knobs import pin_ledger as _pin_ledger
 __all__ = [
     "arm_from_id",
     "DEFAULT_GENERATOR_VERSION",
+    "EXPERIMENTAL_KNOBS",
     "describe_pins",
     "knob_status",
     "Recipe",
@@ -39,7 +40,24 @@ __all__ = [
     "recipe_table",
 ]
 
-DEFAULT_GENERATOR_VERSION = "1"
+# "1" from 0.1.0, when the seven knobs changed the generator and every task id moved; "2" from
+# 0.3.0, when the three transport-fault knobs changed it again (decided 2026-10-29), so that
+# one label names one generator.
+DEFAULT_GENERATOR_VERSION = "2"
+
+# The knobs that are experimental, each with the reason in words: the one place the four are
+# listed, read by every surface that names a knob (the card's claims and `--json`, `doctor`'s
+# rows and `--json`, `init`'s choices, the plan's words, the settings file's comment, the
+# export's arm help, the own-tools card's probe lines), so the word never appears beside a knob
+# without its reason.  The distractor dial did not make tasks harder on either calibrated
+# model; the three knobs of 0.3.0 have not been measured on any model yet, and a later release
+# measures them.  `knob_status()` is untouched: it is the probe's record.
+EXPERIMENTAL_KNOBS: _Mapping[str, str] = _types.MappingProxyType({
+    "distractor": "it did not make tasks harder for either calibrated model",
+    "timeouts": "no model has been measured on it yet",
+    "ratelimits": "no model has been measured on it yet",
+    "landed": "no model has been measured on it yet",
+})
 
 # The published cards' control arms, as (level, the level it stands in for): equal to
 # `calibration.D_CONTROLS` and `calibration.R_CONTROLS`.
