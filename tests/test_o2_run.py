@@ -125,12 +125,13 @@ def own_run(tmp_path_factory: pytest.TempPathFactory) -> Iterator[OwnRun]:
 
 @needs_uv
 def test_a_plan_on_own_tools_runs_end_to_end_and_its_replay_holds_each_tool_message(own_run: OwnRun) -> None:
+    """Retrofitted 2026-10-29 for 0.3.0: the own-tools generator label moved from "own-1" to "own-2" with the ruled change to the frozen generator (the faults spec's Q4)."""
     import verifiers.v1 as vf
     from verifiers.v1.cli.output import read_episodes
 
     cal = calibration()
     plan, folder = own_run.plan, own_run.folder
-    assert [spec.generator_version for spec in plan.arms] == ["own-1"] * len(plan.arms)
+    assert [spec.generator_version for spec in plan.arms] == ["own-2"] * len(plan.arms)
     held = json.loads((folder / "plan.json").read_text(encoding="utf-8"))
     assert held["plan"]["own"]["file_digest"] == plan.own["file_digest"]
     by_id = {bundle.task_id: bundle for bundle in own_run.bundles}
