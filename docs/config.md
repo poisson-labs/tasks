@@ -43,7 +43,7 @@ read_on = "2026-09-25"              # when you read them
 [measure]
 preset = "first-look"               # first-look | error-recovery | long-sessions | planning | profile | card | custom
 # With preset = "custom":
-# knob = "depth"                    # depth | distractor (experimental)
+# knob = "depth"                    # depth | distractor | timeouts | ratelimits (experimental)
 # levels = [1, 3, 8]
 # controls = false
 # strictness = "strict"             # strict | leaky
@@ -52,7 +52,7 @@ preset = "first-look"               # first-look | error-recovery | long-session
 per_level = 10                      # 1 to 60, from the published cards' seed list; or:
 # seeds = [404, 55, 2121]
 attempts = 1
-# generator_version = "1"           # leave unset: another version moves every task id
+# generator_version = "2"           # leave unset: another version moves every task id
 
 [decoding]                          # sent with every model call; "not sent" leaves a field out
 temperature = 1.0
@@ -119,9 +119,9 @@ With `preset = "custom"`:
 
 | key | what it is | allowed |
 |---|---|---|
-| `knob` | the dial | `depth`, or `distractor` (experimental); on your own tools any knob the set reaches |
-| `levels` | the levels to run | a list of the levels the published cards measured: 1, 2, 3, 5 and 8 for depth, 0, 2, 4, 8 and 14 for the decoy-tools dial; on your own tools, the levels the set reaches |
-| `controls` | add the control arms | `true` or `false` |
+| `knob` | the dial | `depth`, `distractor` (experimental), `timeouts` (experimental) or `ratelimits` (experimental); on your own tools any knob the set reaches, `landed` (experimental) among them |
+| `levels` | the levels to run | a list of the levels the published cards measured: 1, 2, 3, 5 and 8 for depth, 0, 2, 4, 8 and 14 for the decoy-tools dial; 0, 1, 2 and 4 for timeouts and ratelimits; on your own tools, the levels the set reaches |
+| `controls` | add the control arms | `true` or `false`; timeouts and ratelimits have one control pair, levels 0 and 4, so with either knob it needs both chosen |
 | `strictness` | what counts as a pass | `strict` or `leaky`; leaky tasks carry other ids than strict ones, so they cannot sit beside the published cards |
 
 `knob`, `levels`, `controls` and `strictness` are refused under any other preset.
@@ -133,7 +133,7 @@ With `preset = "custom"`:
 | `per_level` | how many tasks at each level | 1 to 60. It takes the first `n` of the published cards' sixty seeds, so a first look runs the same tasks the cards measured |
 | `seeds` | the tasks' seeds | a list of whole numbers, instead of `per_level` |
 | `attempts` | how many attempts at each task | 1 or more; more than one shows pass@k. The published cards use 5 |
-| `generator_version` | the label that enters every task id | leave it unset; another version moves every task id, so the tasks are none a published card measured |
+| `generator_version` | the label that enters every task id | leave it unset; another version moves every task id, so the tasks are none a published card measured. It is `"2"` since 0.3.0 (`"own-2"` on your own tools, where a file that still names `own-1` is refused in one line) |
 
 The `card` preset is the published cards' design, so it refuses a `per_level` or `attempts` that is not that design's (60 and 5), and refuses `seeds`.
 

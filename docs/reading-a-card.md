@@ -38,6 +38,9 @@ One table per knob, one row per level:
 | **saturated** | `yes` when strict pass@1 is at or below 0.05, or at or above 0.95. A comparison on a rate leaves out a level saturated on that rate. |
 | **instrument** | Episodes that failed for a reason that is not the model's: `verifier_error`, `replay_mismatch`, `api_error` or `wall_timeout`. They leave the denominator, and they are counted at the moment they happen, so a resumed run cannot hide them. A cell whose instrument rate is above 0.02 is not published. |
 | **incomplete** | `yes` when the run stopped on a limit before the cell was full. |
+| **gave up after a fault** | On a card that holds the faults, timeouts or ratelimits dial: the share of scored attempts that received the dial's planned answer (`unavailable`, `timeout` or `rate_limited`) from a tool and never called that tool again. Printed at the end of every table of such a card, and never gated. |
+| **retried after a landed timeout** | On a card that holds the `landed` dial (your own tools): the share of scored attempts that called the landed tool again after its timeout, whether or not the call reached the tool. Not calling again is the point of the dial. |
+| **duplicate writes** | On a card of your own tools: the share of scored attempts in which an accepted write repeated an earlier accepted write, the same tool with the same arguments. |
 
 ### How depth is read
 
@@ -47,9 +50,9 @@ Every depth level offers the whole eight-stage ladder, so below the top level a 
 
 **A cell in which more than 10% of scored episodes made no tool call is not published at all, and neither is the card that holds it.** Such a cell measures whether the model starts the task, not how hard the level is. It was added after a first card for `gpt-5-nano` measured mostly that: most of its episodes ended on a reply asking for values the prompt already held. `poisson-tasks card` refuses in the same way, with exit 1.
 
-### The decoy-tools dial is experimental
+### Experimental dials
 
-On both published models the distractor knob (the decoy-tools dial) does not make tasks harder (below), so it is **not a difficulty setting** for current models, and the export's help for the arm option says so. Its levels stay available, and a card that includes it says it is experimental.
+Four dials are experimental, and a card that includes one says so with the reason, in one line each under what it does not claim. The distractor knob (the decoy-tools dial) does not make tasks harder on either published model (below), so it is **not a difficulty setting** for current models, and the export's help for the arm option says so; its levels stay available. The `timeouts`, `ratelimits` and `landed` dials, added in 0.3.0, have not been measured on any model yet; a later release measures them. The same word with the same reason is in `doctor`'s rows on your own tools, in `init`'s choices, and as `experimental` in `card --json` and `doctor --json`.
 
 ### The other tables
 
@@ -99,6 +102,7 @@ A card from a run ends with two short pieces of text. The first says what the ca
 - No published card covers this plan: none holds any of its levels, so nothing here can be read beside a published figure. *(a plan that holds no level a published card holds)*
 - Its model was served by its user: how it was served is not pinned beyond what the server reported, so a later run of the same weights served differently is not the same measurement. *(a model on Ollama, vLLM or another endpoint you serve)*
 - The distractor knob is experimental: it did not make tasks harder for either calibrated model. *(a card that holds the decoy-tools dial)*
+- The timeouts knob is experimental: no model has been measured on it yet. *(a card that holds the timeouts dial; the ratelimits and landed dials each have the same line)*
 - It is pinned to the generator it was made with, which is not the one this install has, so it is stale. *(a card from another build of the generator: the one its run recorded, when it recorded one)*
 - Some of its attempts were made by a later run of its folder: a resumed attempt is a fresh attempt, not a copy of the one it replaces. *(a run that was interrupted and resumed)*
 
