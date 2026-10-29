@@ -132,11 +132,12 @@ def test_pv_5_a_built_in_run_records_what_produced_it(fd4_runs: RunFolders) -> N
 
 @needs_uv
 def test_pv_5_an_own_tools_run_records_what_produced_it(own_run: OwnRun) -> None:
+    """Retrofitted 2026-10-29 for 0.3.0: the own-tools generator label moved from "own-1" to "own-2" with the ruled change to the frozen generator (the faults spec's Q4)."""
     line = one_started_line(own_run.folder)
     assert sha256(Path(own_run.plan.own["file"]).read_bytes()) == MCP_FILE
     expected = expected_record(own_run.plan, tools=OWN_TOOLS)
     assert (expected["generator_version"], expected["own_generator_hash"]) == (
-        "own-1", OWN_TOOLS_GENERATOR)
+        "own-2", OWN_TOOLS_GENERATOR)
     assert bare(line) == expected
 
 
@@ -228,6 +229,8 @@ def test_pv_7_a_resume_of_a_run_started_with_another_generator_is_refused_before
 def test_pv_8_the_built_in_card_carries_the_record(
     fd4_runs: RunFolders, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Retrofitted 2026-10-29 for 0.3.0: the generator labels moved to "2" and "own-2" with the ruled
+    change to the frozen generator (the faults spec's Q4)."""
     folder = copy_run(fd4_runs["strict"].folder, world.tmp / "strict-run")
     line = one_started_line(folder)
     expected = {**bare(line), "resumed_with": []}
@@ -246,7 +249,7 @@ def test_pv_8_the_built_in_card_carries_the_record(
     for wanted in (
         "Recorded by the run before its first request.",
         f"- poisson-tasks {line['poisson_tasks_version']}, verifiers {line['verifiers_version']}",
-        f"- built-in generator `{BUILT_IN_GENERATOR}` (generator version \"1\")",
+        f"- built-in generator `{BUILT_IN_GENERATOR}` (generator version \"2\")",
         "- tools: the built-in tools, made by the generator above",
         f"- domain `{engine_hash()}`, vocabulary `{line['vocabulary_hash']}`",
         f"- plan `{line['plan_hash']}` (preset custom), 2 seeds, seed list "
@@ -267,6 +270,8 @@ def test_pv_8_the_built_in_card_carries_the_record(
 def test_pv_8_the_own_tools_card_carries_the_record(
     own_run: OwnRun, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Retrofitted 2026-10-29 for 0.3.0: the generator labels moved to "2" and "own-2" with the ruled
+    change to the frozen generator (the faults spec's Q4)."""
     folder = copy_run(own_run.folder, world.tmp / "own-run")
     line = one_started_line(folder)
     expected = {**bare(line), "resumed_with": []}
@@ -279,7 +284,7 @@ def test_pv_8_the_own_tools_card_carries_the_record(
     section = card_md_section((folder / "card" / "card.md").read_text(encoding="utf-8"),
                               "What produced it")
     for wanted in (
-        f"- own-tools generator `{OWN_TOOLS_GENERATOR}` (generator version \"own-1\")",
+        f"- own-tools generator `{OWN_TOOLS_GENERATOR}` (generator version \"own-2\")",
         f"- tool spec `{MCP_SPEC}`: the canonical JSON of your tool file, an MCP tool list; the "
         f"file's own bytes hash to `{MCP_FILE}`",
     ):
