@@ -123,6 +123,7 @@ def test_the_own_tools_kind_travels_in_the_provenance_and_a_built_in_block_keeps
 
 
 def test_for_plan_writes_the_kind_and_the_own_generators_hash(tmp_path: Any) -> None:
+    """Retrofitted 2026-10-29 for 0.3.0: the own-tools generator label moved from "own-1" to "own-2" with the ruled change to the frozen generator (the faults spec's Q4)."""
     from tests.o1_support import fixture
     from tests.o2_support import config
 
@@ -139,7 +140,7 @@ def test_for_plan_writes_the_kind_and_the_own_generators_hash(tmp_path: Any) -> 
     assert prov.as_dict()["tools"] == {
         "kind": "own", "name": "acme-support", "tools": 5, "source_format": "mcp",
         "file_digest": hashlib.sha256(fixture("acme-mcp-tools-list.json")).hexdigest(),
-        "intents": ["refund_order"], "flows": 2, "generator": "own-1"}
+        "intents": ["refund_order"], "flows": 2, "generator": "own-2"}
 
 
 # --------------------------------------------------------------------------
