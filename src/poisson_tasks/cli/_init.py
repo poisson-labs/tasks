@@ -66,10 +66,17 @@ OWN_LABEL = "Tasks on my own tools: an OpenAI tools file, an MCP tool list, or a
 CUSTOM_LABEL = "Choose the knob and levels myself"
 FILE_QUESTION = ("Your tool file: an OpenAI tools file, an MCP tool list, or an OpenAPI "
                  "document, beside the settings file")
+# The knobs `--recipe custom` offers on the built-in tasks: each entry is the name, the label
+# and the note; an experimental knob's label says so and its note is the reason
+# `arms.EXPERIMENTAL_KNOBS` gives, read from there and not copied.
 KNOBS = (
     ("depth", "depth: how many chained steps away the goal is", ""),
     ("distractor", "distractor (experimental): how many of the sixteen tools are irrelevant",
-     "it does not make tasks harder for either calibrated model"),
+     arms.EXPERIMENTAL_KNOBS["distractor"]),
+    ("timeouts", "timeouts (experimental): how many calls on the way time out, nothing landing, "
+     "and must be made again", arms.EXPERIMENTAL_KNOBS["timeouts"]),
+    ("ratelimits", "ratelimits (experimental): how many calls on the way are rate limited, with "
+     "a retry-after, and must be made again", arms.EXPERIMENTAL_KNOBS["ratelimits"]),
 )
 
 
@@ -578,9 +585,11 @@ def _read_own(ctx: Context, settings: list[tuple[str, str | None]]) -> _OwnSetup
 
 
 def _say_summary(ctx: Context, setup: _OwnSetup) -> None:
-    """One summary line, then each refusal, and the sentence on depth and shape when no flow
-    is declared."""
-    from poisson_tasks.own.generator import UNAVAILABLE_WITHOUT_FLOWS
+    """One summary line, then each refusal, the sentence on landed when the set has a write to
+    target and no read that can check it, and the sentence on depth and shape when no flow is
+    declared."""
+    from poisson_tasks.own import recipes
+    from poisson_tasks.own.generator import LANDED_NEEDS_A_CHECK_READ, UNAVAILABLE_WITHOUT_FLOWS
 
     ui = ctx.ui
     lines = own_summary(setup.reading, setup.toolset)
@@ -590,6 +599,9 @@ def _say_summary(ctx: Context, setup: _OwnSetup) -> None:
         ui.say(line)
     for line in lines[1 + refused:]:
         ui.say(line)
+    offered = recipes.offered_knobs(setup.toolset, flows=setup.flows)
+    if "faults" in offered and "landed" not in offered:
+        ui.say(f"landed is not offered on this set. {LANDED_NEEDS_A_CHECK_READ}", status="warn")
     if not setup.flows:
         ui.say("depth and shape are not offered without a flow, a link you declare from one "
                "tool's output field into another tool's input (--own-flow "
@@ -693,7 +705,7 @@ def _own_dialogue(
     apply to this set and, after them, the knob menu of every knob the set reaches."""
     from poisson_tasks.own import card as own_card
     from poisson_tasks.own import recipes
-    from poisson_tasks.own.generator import knob_levels
+    from poisson_tasks.own.generator import GENERATOR_VERSION, knob_levels
 
     ui = ctx.ui
     if ctx.args.mcp_command is not None:
@@ -743,7 +755,7 @@ def _own_dialogue(
     names: list[str] = []
     for name, recipe in offered:
         asks = recipe.asks
-        used = [arms.arm_from_id(arm, generator_version="own-1") for arm in recipe.arms]
+        used = [arms.arm_from_id(arm, generator_version=GENERATOR_VERSION) for arm in recipe.arms]
         options.append((f"{name}: {asks[0].upper()}{asks[1:]}", _arms_words(used)))
         names.append(name)
     options.append((CUSTOM_LABEL, "every knob this set reaches"))
@@ -769,11 +781,14 @@ def _own_dialogue(
         if knob in statuses:
             said = "; ".join(f"{status} on {model}" for model, status in statuses[knob].items())
             note = f"the knob probe on the built-in tasks: {said}"
+        elif knob in arms.EXPERIMENTAL_KNOBS:
+            note = f"experimental: {arms.EXPERIMENTAL_KNOBS[knob]}"
         else:
             note = "measured on the published cards, not by the knob probe"
         if knob in shipped:
             note += "; shipped"
-        knob_options.append((knob, note))
+        label = f"{knob} (experimental)" if knob in arms.EXPERIMENTAL_KNOBS else knob
+        knob_options.append((label, note))
     knob_given = _given(answers, "--knob")
     knob_default = ordered.index(knob_given) if knob_given in ordered else 0
     knob = ordered[ui.choice(asked(), "The knob", knob_options, knob_default)]

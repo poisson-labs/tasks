@@ -11,7 +11,9 @@ Shapes decided here
 -------------------
 
 **1. `generator.KNOBS`** is the design's knobs that have levels, in the table's order: similarity,
-faults, history, block, arguments, spread, depth, shape.  Every one the set reaches is offered on own
+faults, history, block, arguments, spread, depth, shape; and since 0.3.0 timeouts, ratelimits and
+landed after them (retrofitted 2026-10-29 for the faults spec's ruled change, Q1: the list is
+`tests/o2_support.py`'s `KNOBS`, which grew to eleven).  Every one the set reaches is offered on own
 tools (`recipes.offered_knobs`); the ones that shipped lead the recipes (`recipes.shipped_knobs`).  Cost and time is on every card and is
 no knob.  `knob_levels(toolset, knob, *, flows=())` is the levels this set reaches, empty where
 it reaches none; `generate` refuses any other level in one line (`ValueError`), and refuses depth

@@ -19,4 +19,6 @@ from tests.o2_support import simulator
 def test_each_code_has_its_status() -> None:
     sim = simulator()
     found = {code: json.loads(sim.error("openapi", code, "m").text)["status"] for code in sim.ERROR_CODES}
-    assert found == {"not_found": 404, "invalid_arguments": 422, "not_ready": 409, "unavailable": 503}
+    # Retrofitted 2026-10-29 for 0.3.0: the faults design's two new codes, 504 and 429.
+    assert found == {"not_found": 404, "invalid_arguments": 422, "not_ready": 409, "unavailable": 503,
+                     "timeout": 504, "rate_limited": 429}

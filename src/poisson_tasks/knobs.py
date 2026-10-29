@@ -54,6 +54,18 @@ Shapes the requirements name but do not define, decided here:
   the key.  `_render_arm_id` is the one renderer, used by `arm_id` and by N9's lookup of
   the high arm, so the two can never disagree.
 
+* **The three transport-fault knobs of 0.3.0** (`timeouts`, `ratelimits`, `landed`) are
+  knobs beside the nine, not levels of `faults` and not a kind field on the arm: a level is a
+  count and cannot say which kind, and a seventh field would reach every reader of
+  `(knob, level)`.  Their letters are `o` (`t` is history's), `r` (the knob's name is always in
+  the id, so `ratelimits:r2` and `distractor:r2@k16` cannot be confused) and `l`.  `landed`
+  joins the knobs with no control arm, for a reason of its own: one fault pair is 33 reference
+  tokens and the shortest seeded read pair 51, so no control reaches its length within the
+  ledger's two tokens.  The status word each kind's planned answers carry is `_FAULT_WORDS`',
+  which N25 and N26 read (`surface.fault_kind` gives it per arm), and N24 to N26 apply to the
+  new knobs as the 0.3.0 faults design says: N24 and N25 to all three, N26 to the two with a
+  control.  Tested in `tests/test_f2_arms.py` and `tests/test_f2_lines_and_plan.py`.
+
 `measure_pins` is a read: it never writes to the bundle it is handed (P3).  Every entry
 point is pure -- no clock, no RNG, no IO beyond the frozen vocabulary table the engine
 already loads, and no network (SF5).  `L_obs` and the token band are the engine's
@@ -102,6 +114,9 @@ _BLOCK = "block"
 _ARGUMENTS = "arguments"
 _SHAPE = "shape"
 _SPREAD = "spread"
+_TIMEOUTS = "timeouts"
+_RATELIMITS = "ratelimits"
+_LANDED = "landed"
 _KNOBS = (
     _DEPTH,
     _DISTRACTOR,
@@ -112,6 +127,9 @@ _KNOBS = (
     _ARGUMENTS,
     _SHAPE,
     _SPREAD,
+    _TIMEOUTS,
+    _RATELIMITS,
+    _LANDED,
 )
 
 # Candidate levels, not the pilot defaults: the pilot picks {1, 3, 8} for depth, and that
@@ -129,6 +147,9 @@ _LEVELS = {
     _ARGUMENTS: (2, 4, 6, 8),
     _SHAPE: (1, 2, 4),
     _SPREAD: (1, 2, 4),
+    _TIMEOUTS: (0, 1, 2, 4),
+    _RATELIMITS: (0, 1, 2, 4),
+    _LANDED: (0, 1),
 }
 
 # The fixed block sizes, and knob R's fixed chain depth.
@@ -152,8 +173,15 @@ _LETTERS = {
     _ARGUMENTS: "a",
     _SHAPE: "w",
     _SPREAD: "p",
+    _TIMEOUTS: "o",
+    _RATELIMITS: "r",
+    _LANDED: "l",
 }
-_NO_CONTROL = (_SIMILARITY, _HISTORY, _SPREAD)
+_NO_CONTROL = (_SIMILARITY, _HISTORY, _SPREAD, _LANDED)
+# Why `landed` has no control: the lengths were measured on the faults design (one fault pair
+# against the shortest seeded read pair), and the landed line adds no call to make up for it.
+_FAULT_PAIR_TOKENS = 33
+_SHORTEST_READ_PAIR_TOKENS = 51
 
 # Similarity: a ledger's number is four digits, and a block holds the two stage tools of six
 # other ledgers.  The level is how many digits each of those shares in place with the
@@ -192,6 +220,22 @@ _OWN_SLOT = {_ARGUMENTS: "stated_values", _SHAPE: "goal_lines"}
 # call that worked.
 _OK = "ok"
 _UNAVAILABLE = "unavailable"
+# The status words the two newer kinds of planned answer carry, and the rate-limited line's
+# hint, which the table's fill follows to the payload's width.  Each kind is one word: a
+# timeout says only that whether the call went through is not known, and a rate limit that
+# nothing changed and when to make the call again.
+_TIMEOUT = "timeout"
+_RATE_LIMITED = "rate_limited"
+_RETRY_AFTER = "retry-after=1s"
+# The word each planned-fault knob's answers carry: `landed` answers the timeout line, since
+# the call went through and the model cannot tell it from one that went nowhere.
+_FAULT_WORDS = {
+    _FAULTS: _UNAVAILABLE,
+    _TIMEOUTS: _TIMEOUT,
+    _RATELIMITS: _RATE_LIMITED,
+    _LANDED: _TIMEOUT,
+}
+_FAULT_KNOBS = tuple(_FAULT_WORDS)
 _NO_PART = "none"
 _PART_END = "."
 
@@ -277,6 +321,14 @@ class ArmSpec:
             raise ValueError(refusal)
         if self.control is None:
             return
+        if self.knob == _LANDED:
+            raise ValueError(
+                f"landed has no control arm: one fault pair is {_FAULT_PAIR_TOKENS} reference "
+                f"tokens and the shortest seeded read pair {_SHORTEST_READ_PAIR_TOKENS}, so no "
+                f"seeded history reaches the length of its one planned answer within the "
+                f"ledger's {_N9_BAND} tokens, and landed level {self.level} cannot stand in "
+                f"for level {self.control}"
+            )
         if self.knob in _NO_CONTROL:
             raise ValueError(
                 f"{self.knob} has no control arm: its levels differ in nothing a control "
@@ -299,15 +351,16 @@ class ArmSpec:
         Depth level `d` needs `d + 1`; every R level needs `d_R + 1`.  The depth control
         follows its own `dL` and never the level it stands in for, because seeded history
         uses no turns.  Similarity, history, block and arguments need the base task's two
-        stage calls; faults one more call per planned failure; shape four stage calls at
-        every width; spread its four reads and the two stage calls.  A control follows its
-        own level here too.
+        stage calls; faults, timeouts and ratelimits one more call per planned answer; shape
+        four stage calls at every width; spread its four reads and the two stage calls;
+        landed the one call that lands and the reply.  A control follows its own level here
+        too.
         """
         if self.knob == _DEPTH:
             return self.level + 1
         if self.knob == _DISTRACTOR:
             return _D_R + 1
-        if self.knob == _FAULTS:
+        if self.knob in (_FAULTS, _TIMEOUTS, _RATELIMITS):
             return _D_B + self.level + 1
         if self.knob == _SHAPE:
             return _SHAPE_CALLS + 1
@@ -396,9 +449,20 @@ def _unbuildable(knob: str, level: int) -> str | None:
             f"number's {_NUMBER_WIDTH} digits a lookalike shares with the target's, from 0 "
             f"to {_MAX_SIMILARITY}"
         )
-    if knob in (_FAULTS, _HISTORY) and level < 0:
-        counted = "failed calls" if knob == _FAULTS else "tokens of earlier tool work"
+    if knob in (_FAULTS, _HISTORY, _TIMEOUTS, _RATELIMITS, _LANDED) and level < 0:
+        counted = {
+            _FAULTS: "failed calls",
+            _HISTORY: "tokens of earlier tool work",
+            _TIMEOUTS: "calls that time out",
+            _RATELIMITS: "calls that are rate limited",
+            _LANDED: "writes that land and answer a timeout",
+        }[knob]
         return f"{knob} level {level} cannot be built: the level counts {counted}, from 0 up"
+    if knob == _LANDED and level > 1:
+        return (
+            f"landed level {level} cannot be built: the level is whether the write lands and "
+            "answers a timeout, 0 or 1"
+        )
     if knob == _BLOCK and level > _MAX_BLOCK:
         return (
             f"block level {level} cannot be built: a block offers at most {_MAX_BLOCK} tools, "
@@ -738,16 +802,22 @@ def pin_ledger(knob: str) -> list[PinRow]:
             tolerance="every pair; an arm that seeds nothing holds it trivially",
             on_violation=_REFUSE,
             stage=_GENERATION,
-            applies_to=(_FAULTS, _HISTORY),
+            applies_to=(_FAULTS, _HISTORY, _TIMEOUTS, _RATELIMITS, _LANDED),
         ),
         PinRow(
             row_id="N25",
             held="Fault plan",
-            measured="planned `unavailable` answers on the reference path",
-            tolerance="exactly the level, the first stage taking the odd one",
+            measured=(
+                "planned answers on the reference path, each carrying the knob's own status "
+                "word (`unavailable`, `timeout` or `rate_limited`)"
+            ),
+            tolerance=(
+                "exactly the level, the first stage taking the odd one; on landed, one on the "
+                "last tool of the path at level 1 and none at level 0"
+            ),
             on_violation=_REFUSE,
             stage=_GENERATION,
-            applies_to=(_FAULTS,),
+            applies_to=(_FAULTS, _TIMEOUTS, _RATELIMITS, _LANDED),
         ),
         PinRow(
             row_id="N26",
@@ -756,7 +826,7 @@ def pin_ledger(knob: str) -> list[PinRow]:
             tolerance=f"+/- {_N9_BAND} tokens, summed over the pairs",
             on_violation=_REFUSE,
             stage=_GENERATION,
-            applies_to=(_FAULTS,),
+            applies_to=(_FAULTS, _TIMEOUTS, _RATELIMITS),
         ),
         PinRow(
             row_id="N27",
@@ -1056,6 +1126,9 @@ def measure_pins(bundle: _Bundle) -> PinRecord:
     except ValueError:
         knob = None
     own_slot = _OWN_SLOT.get(knob) if knob is not None else None
+    # The status word this knob's planned answers carry, which N25 and N26 count; an arm of a
+    # knob that plans none counts no line, whatever its observations say.
+    fault_word = _FAULT_WORDS.get(knob) if knob is not None else None
     slots = tuple(slot for slot in bundle.prompt_slots if slot[0] != own_slot)
     widths = tuple(sorted({len(observation.encode("utf-8")) for observation in observations}))
     counts = tuple(_count_tokens(observation) for observation in observations)
@@ -1083,7 +1156,7 @@ def measure_pins(bundle: _Bundle) -> PinRecord:
     fault_tokens = sum(
         _pair_tokens(str(call[0]), call[1], observation)
         for call, observation in paired
-        if _status(observation) == _UNAVAILABLE
+        if fault_word is not None and _status(observation) == fault_word
     )
     stage_calls = tuple(call for call in calls if str(call[0]) not in _SPEC.read_tools)
     extras = tuple(_extra_values(by_name.get(str(call[0])), call[1]) for call in stage_calls)
@@ -1144,7 +1217,9 @@ def measure_pins(bundle: _Bundle) -> PinRecord:
                 sum(
                     1
                     for call, observation in paired
-                    if str(call[0]) == name and _status(observation) == _UNAVAILABLE
+                    if str(call[0]) == name
+                    and fault_word is not None
+                    and _status(observation) == fault_word
                 ),
             )
             for name in right
@@ -1453,11 +1528,18 @@ def _check_n24(c: _Contrast) -> str | None:
 
 def _check_n25(c: _Contrast) -> str | None:
     """The arm's own level, split over the right tools.  A control plans its own level's
-    failures and never those of the level it stands in for."""
+    failures and never those of the level it stands in for.  On landed the plan is one answer
+    on the last right tool at level 1, and none at level 0."""
     offenders = []
     for arm in c.arm_ids:
         planned = c.value(arm, "N25")
-        expected = _split_evenly(c.parsed[arm].level, len(planned))
+        level = c.parsed[arm].level
+        if c.knob == _LANDED:
+            expected = tuple(
+                level if index == len(planned) - 1 else 0 for index in range(len(planned))
+            )
+        else:
+            expected = _split_evenly(level, len(planned))
         if tuple(count for _name, count in planned) != expected or (
             not planned and c.parsed[arm].level
         ):

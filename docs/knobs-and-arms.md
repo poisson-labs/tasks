@@ -8,7 +8,10 @@ the pin ledger is what makes that a measurement rather than a hope.
 
 ## The knobs
 
-Nine are named, and the generator makes tasks for all nine.
+Twelve are named: the two the published cards measured, the seven newer knobs the knob
+probe measured, and three transport faults added in 0.3.0, which no model has been measured
+on yet. The generator makes tasks for eleven of them; `landed` is made on your own tools
+only, for a reason given below.
 
 **`depth`** -- how many chained stage calls the goal is away. Levels `1, 2, 3, 5, 8`. A
 depth-*d* task needs *d* calls plus a reply turn, and the chain token makes them
@@ -41,9 +44,53 @@ they are arranged, and its base is its one-chain width).
 
 A level outside a knob's candidates can still be an arm (`history:t12800`); a level the
 knob has no task for cannot, and `ArmSpec` refuses it: a similarity level outside
-0 to 3, a negative faults or history level, a block under 8 or over 258 (the two tools the
-task needs and every read name the table can make), an arguments level outside 2 to 8, a
-shape width other than 1, 2 or 4, a spread level outside 1 to 4.
+0 to 3, a negative faults, history, timeouts, ratelimits or landed level, a landed level
+above 1, a block under 8 or over 258 (the two tools the task needs and every read name the
+table can make), an arguments level outside 2 to 8, a shape width other than 1, 2 or 4, a
+spread level outside 1 to 4.
+
+### Three transport faults
+
+The faults knob answers a planned call `unavailable`: nothing changed, and the same call
+works when made again. Two requests from the launch asked for the other things a call can
+come back with, and 0.3.0 adds them as three knobs beside it, each the faults design with its
+own status word and its own sentence in the system prompt. None of the three has been
+measured on any model yet, so each is **experimental**, and every place that names one says so
+with that reason.
+
+| knob | varies | levels | arm ids | control arm |
+|---|---|---|---|---|
+| `timeouts` | how many calls on the way time out, nothing having landed, and must be made again | `0, 1, 2, 4` | `timeouts:o2` | `timeouts:o0+len(o4)` |
+| `ratelimits` | how many calls on the way answer `rate_limited` with a retry-after, and must be made again | `0, 1, 2, 4` | `ratelimits:r2` | `ratelimits:r0+len(r4)` |
+| `landed` | whether the write goes through but answers a timeout, so a blind retry is a duplicate | `0, 1` | `landed:l1` | none |
+
+What the model sees is one line in each case, the engine's own layout with the knob's word
+in the status field:
+
+```text
+000003 timeout      00000000000000000000000000000000
+000003 rate_limited retry-after=1s000000000000000000
+```
+
+A timeout says only that whether the call went through is not known; a rate limit says that
+nothing changed and when to make the call again. Tasks has no clock, so the retry-after is a
+hint the model reads, and nothing in an episode waits. Each knob adds one sentence to the
+system prompt at every level, level 0 included, as faults does: for timeouts (and for
+landed), "A call can come back `timeout`: whether it went through is not known."; for
+ratelimits, "A call can come back `rate_limited` with a retry-after: nothing changed, and
+the same call can be made again after that long." The timeouts sentence is deliberately
+silent on whether a retry is safe: that silence is the kind, and whether the drop deepens
+between a `503` and a timeout is the question the knob is for.
+
+`landed` has no control arm: one planned pair is 33 reference tokens and the shortest read
+pair a control can seed is 51, so no seeded history matches its length within the ledger's
+two tokens, and the landed line adds no call to make up the difference. It is not built on
+the built-in tasks either: the ledger refuses a repeated stage call (`not_ready`, nothing
+moved), so a write that landed and answered a timeout has no duplicate for the end-state
+check to catch, and `generate` says so in one line. On your own tools the store accepts a
+second write as yours would, a read after a write shows the written record, and `landed` is
+offered on any set that has a read tool taking one of the target write's arguments
+([own-tools.md](own-tools.md)).
 
 `levels(knob)` returns the candidate levels; which of them a run measures is up to its recipe
 or its settings file ([config.md](config.md)). The names on this page that are not
@@ -136,15 +183,17 @@ spec that cannot be rendered cannot be built, and the constructor raises.
 ## Turn budgets
 
 `spec.reference_turns` is the minimum: the calls the arm needs, plus the reply turn.
-Depth *d* needs *d* + 1; faults level *f* needs 3 + *f*, one more call per failure; shape
-needs 5 at every width and spread 7 at every level; every other arm needs 3.
+Depth *d* needs *d* + 1; faults, timeouts and ratelimits level *f* need 3 + *f*, one more
+call per planned answer; shape needs 5 at every width and spread 7 at every level; every
+other arm needs 3, landed among them (its one call lands).
 `spec.max_turns(slack)` adds a slack you choose. A run of `poisson-tasks` caps every episode
 at 32 model calls instead, four times the deepest task's minimum ([verifiers-export.md](verifiers-export.md)
 says why).
 
 ## The pin ledger
 
-Thirty rows: N1 to N13, then N19 to N35 for the seven newer knobs. Every row is held
+Thirty rows: N1 to N13, then N19 to N35 for the newer knobs (the three transport faults of
+0.3.0 join the rows the faults knob is held to, and add none). Every row is held
 **across the arms of one contrast**, measured on the generated bundles. `check_pins({arm_id: bundle, ...})` runs them and returns a
 `PinReport`.
 
@@ -168,9 +217,9 @@ Thirty rows: N1 to N13, then N19 to N35 for the seven newer knobs. Every row is 
 | N21 | each of six lookalike ledgers' numbers shares exactly the level's digits, in place, with the target's; none starts with 0 | `similarity` |
 | N22 | the two right tools' names, descriptions and parameters | `similarity` |
 | N23 | the seeded history's tokens are the level, within two | `history` |
-| N24 | every seeded call is a read tool in the block, answered `ok` | `faults`, `history` |
-| N25 | the planned `unavailable` answers are the level, split over the right tools, the first taking the odd one | `faults` |
-| N26 | the control's seeded tokens match the higher arm's failed calls, within two | `faults` control |
+| N24 | every seeded call is a read tool in the block, answered `ok` | `faults`, `history`, `timeouts`, `ratelimits`, `landed` |
+| N25 | the planned answers, each in the knob's own word, are the level, split over the right tools, the first taking the odd one; for `landed`, one on the last tool | `faults`, `timeouts`, `ratelimits`, `landed` |
+| N26 | the control's seeded tokens match the higher arm's failed calls, within two | `faults`, `timeouts`, `ratelimits` controls |
 | N27 | the block holds exactly the level's number of tools | `block` |
 | N28 | the right tools sit in the same slots, inside the first eight | `block` |
 | N29 | the block's token count -- **reported**; the control's filler matches the higher arm's extra block, within two, or it refuses | `block` |

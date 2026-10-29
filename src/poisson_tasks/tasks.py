@@ -28,6 +28,12 @@ reads in place of stating the entry code, the code split across the first P of t
 and the rest answering `none`, each answer a head, a full stop and keyed hex, answered in front
 of the engine by `surface.py` so that the generator, the verifier, the tool server and a run's
 replay give one answer; the block, the system prompt and the six calls B's at every level.
+`tests/test_f2_*.py` pin the 0.3.0 transport-fault knobs: `timeouts` and `ratelimits` are the
+faults design with their own status word and their own sentence, planned, answered and
+retried through the same seam, each a knob of its own and not a kind field on the arm;
+`landed`, a write that goes through and answers the timeout line, is a knob the generator
+refuses on the built-in tasks in one line that says why and names a user's own tools, where
+it is built (decided 2026-10-29, Q2 option a of the faults design).
 
 Everything here is a pure function of its arguments and the frozen vocabulary table:
 no clock, no RNG, no model, no network (G1, G2).  The engine's and the knobs module's
@@ -202,6 +208,9 @@ _BLOCK = "block"
 _ARGUMENTS = "arguments"
 _SHAPE = "shape"
 _SPREAD = "spread"
+_TIMEOUTS = "timeouts"
+_RATELIMITS = "ratelimits"
+_LANDED = "landed"
 _GENERATED_KNOBS = (
     _DEPTH,
     _DISTRACTOR,
@@ -212,7 +221,15 @@ _GENERATED_KNOBS = (
     _ARGUMENTS,
     _SHAPE,
     _SPREAD,
+    _TIMEOUTS,
+    _RATELIMITS,
 )
+# The knobs whose level is a plan of answers in front of the engine: each is the faults knob's
+# design with its own status word and its own sentence (`surface.fault_kind`, below).  `landed`
+# is a knob and not generated here: on the built-in ledger a repeated stage call is refused
+# and moves nothing, so a landed write has no duplicate to catch; it is built on a user's own
+# tools, whose store accepts a second write (decided 2026-10-29, the 0.3.0 faults design).
+_PLANNED_KNOBS = (_FAULTS, _TIMEOUTS, _RATELIMITS)
 
 # The knobs module's `d_R`, cited and not re-minted: `reference_turns` is `d_R + 1` for
 # every R arm (N16), so the number comes back off that module's own constructor.
@@ -301,10 +318,24 @@ _UNAVAILABLE_STATUS = "unavailable"
 # The faults knob's one sentence, added to the system prompt at every faults level, the
 # base level included: without it the knob would also test whether a model guesses that an
 # `unavailable` answer is transient, a second factor, and the prompt would differ across the
-# knob's arms where N3 holds it equal.
+# knob's arms where N3 holds it equal.  The timeouts and ratelimits knobs each add one sentence
+# of their own the same way.  The timeouts sentence is deliberately silent on whether a retry
+# is safe: that silence is the kind, since an `unavailable` says nothing changed and a timeout
+# does not.  The ratelimits sentence says the hint is a wait, and nothing in an episode waits:
+# the knob measures whether the model retries after a rate limit as it does after an outage.
 _FAULTS_SENTENCE = (
     "A call can come back `unavailable`: nothing changed, and the same call can be made again."
 )
+_TIMEOUTS_SENTENCE = "A call can come back `timeout`: whether it went through is not known."
+_RATELIMITS_SENTENCE = (
+    "A call can come back `rate_limited` with a retry-after: nothing changed, and the same "
+    "call can be made again after that long."
+)
+_FAULT_SENTENCES = {
+    _FAULTS: _FAULTS_SENTENCE,
+    _TIMEOUTS: _TIMEOUTS_SENTENCE,
+    _RATELIMITS: _RATELIMITS_SENTENCE,
+}
 
 # The prompt templates.  One template for depth and distractor (the design gives knob D
 # "one fixed template"), so N6's template-id clause is an equality a contrast can actually
@@ -1026,10 +1057,11 @@ def _block_names(
 
     Knob D: the target class's stage tools plus an equal number of orthogonal reads,
     identical at every level (N4).  Knob R: the `d_R` required tools, `r` functional
-    distractors and the rest reads, with the required tools' slots untouched (N2).  Faults:
-    knob R's base block at every level (N4), because its level is a plan over the calls and
-    not a change to the block.  History: the same base block at every level (N4), because its
-    level is earlier tool work before the first move and not a change to the block.
+    distractors and the rest reads, with the required tools' slots untouched (N2).  Faults,
+    timeouts and ratelimits: knob R's base block at every level (N4), because each level is
+    a plan over the calls and not a change to the block.  History: the same base block at
+    every level (N4), because its level is earlier tool work before the first move and not a
+    change to the block.
     Arguments: the same base block too (N4), its level being how many values the stage calls
     carry, which widens the stage tools' schemas and designates no slot.  Spread: the same
     base block too (N4), its level being how many of the four named reads answer with a
@@ -1048,7 +1080,7 @@ def _block_names(
             f"{len(base)} tools available"
         )
     names = [base[index] for index in permutation]
-    if arm.knob in (_DEPTH, _FAULTS, _HISTORY, _ARGUMENTS, _SPREAD) or arm.level == 0:
+    if arm.knob in (_DEPTH, *_PLANNED_KNOBS, _HISTORY, _ARGUMENTS, _SPREAD) or arm.level == 0:
         return tuple(names)
 
     pool = _distractor_pool(spec, qualifier)
@@ -1568,10 +1600,14 @@ def _shape_calls(
 
 
 def _planned_chain(
-    scenario: _Scenario, chain: tuple[_Call, ...], seq_start: int, plan: dict[str, int]
+    scenario: _Scenario,
+    chain: tuple[_Call, ...],
+    seq_start: int,
+    plan: dict[str, int],
+    kind: str = _UNAVAILABLE_STATUS,
 ) -> tuple[tuple[_Call, ...], tuple[str, ...]]:
-    """The chain with the plan applied, numbered from `seq_start`: each planned failure's call
-    answered `unavailable`, and the same call, arguments and all, made again until it is
+    """The chain with the plan applied, numbered from `seq_start`: each planned answer's call
+    answered the kind's line, and the same call, arguments and all, made again until it is
     answered.  Through the one function the tool server and `verify` apply the plan with, so
     the reference meets exactly the answers a model would."""
     state = _init_state(scenario, seq_start)
@@ -1580,10 +1616,12 @@ def _planned_chain(
     observations: list[str] = []
     for call in chain:
         while True:
-            state, counts, observation = _surface.apply_planned(state, counts, call, plan)
+            state, counts, observation = _surface.apply_planned(
+                state, counts, call, plan, kind=kind
+            )
             calls.append(call)
             observations.append(observation)
-            if _status_of(observation) != _UNAVAILABLE_STATUS:
+            if _status_of(observation) != kind:
                 break
     return tuple(calls), tuple(observations)
 
@@ -1596,19 +1634,21 @@ def _fault_pair_tokens(
     record: str,
     depth: int,
 ) -> int:
-    """N26's target for a faults control: the reference tokens of the fault pairs it stands in
-    for, the high level's less its own level's.  A fault pair is a planned call and its
-    `unavailable` answer, measured as N9's unit and numbered as the plain arm numbers them."""
+    """N26's target for a faults, timeouts or ratelimits control: the reference tokens of the
+    fault pairs it stands in for, the high level's less its own level's.  A fault pair is a
+    planned call and its answer in the knob's word, measured as N9's unit and numbered as the
+    plain arm numbers them."""
     chain, _observations = _chain_calls(spec, scenario, qualifier, record, depth, 1)
     path = tuple(name for name, _args in chain)
+    kind = _surface.fault_kind(_arm_id(arm)) or _UNAVAILABLE_STATUS
 
     def tokens(level: int) -> int:
         plan = _surface.fault_plan(_arm_id(_replace(arm, level=level, control=None)), path)
-        calls, observations = _planned_chain(scenario, chain, 1, plan)
+        calls, observations = _planned_chain(scenario, chain, 1, plan, kind)
         return sum(
             _pair_tokens(name, args, observation)
             for (name, args), observation in zip(calls, observations, strict=True)
-            if _status_of(observation) == _UNAVAILABLE_STATUS
+            if _status_of(observation) == kind
         )
 
     return tokens(arm.control or 0) - tokens(arm.level)
@@ -1981,6 +2021,7 @@ def _verdict(
     # answered itself takes none, and reaches the engine here as it always has, as no tool or
     # as arguments the engine refuses, changing nothing.
     plan = _surface.reference_plan(bundle.arm_id, shown, bundle.reference_calls)
+    kind = _surface.fault_kind(bundle.arm_id) or _UNAVAILABLE_STATUS
     # An arguments arm's stated values, read off the reference as the tool server and the
     # record reader read them, applied by the same function: a stage call that does not carry
     # exactly them is refused there and moves no record here either.
@@ -1998,7 +2039,7 @@ def _verdict(
             call: _Call = (_surface.engine_name(shown, name), args)
             if _reaches_the_server(name, args, block):
                 state, counts, _observation = _surface.apply_planned(
-                    state, counts, call, plan, stated=stated, spread=spread
+                    state, counts, call, plan, stated=stated, spread=spread, kind=kind
                 )
             else:
                 state, _observation = _apply(state, call)
@@ -2291,6 +2332,13 @@ def _refuse_a_knob_not_generated(arm: _ArmSpec) -> None:
     """The knobs module names every knob, with its levels, its arm ids and its ledger rows;
     this module makes tasks for `_GENERATED_KNOBS`.  Without the refusal an arm of any other
     knob would be built as a distractor arm under another knob's id."""
+    if arm.knob == _LANDED:
+        raise ValueError(
+            "no landed task is generated on the built-in tasks: the ledger refuses a repeated "
+            "stage call and moves nothing, so a write that landed and answered a timeout has "
+            "no duplicate for the end-state check to catch; landed is offered on your own "
+            "tools, whose store accepts a second write as yours would"
+        )
     if arm.knob not in _GENERATED_KNOBS:
         raise ValueError(
             f"no {arm.knob} task can be generated yet: the {arm.knob} knob has its levels, its "
@@ -2364,8 +2412,8 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
 
     seq_start = 1
     system_prompt = _SYSTEM_PROMPT
-    if arm.knob == _FAULTS:
-        system_prompt = system_prompt + "\n" + _FAULTS_SENTENCE
+    if arm.knob in _PLANNED_KNOBS:
+        system_prompt = system_prompt + "\n" + _FAULT_SENTENCES[arm.knob]
     prompt: str | tuple[dict[str, _Any], ...] = instruction
 
     if arm.knob == _HISTORY:
@@ -2394,11 +2442,12 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
             )
         )
         prompt = _seeded_messages(instruction, _seeded_block(engine_spec, reads, pairs, wanted))
-    elif arm.control is not None and arm.knob == _FAULTS:
-        # The faults control: the base level's task with read pairs seeded before the first
-        # move, as long as the fault pairs the high level adds, so a drop can be read against
-        # the same length added as earlier tool work.  The fewest pairs whose reachable totals
-        # bracket that length (N26), seeded as a depth control's are (N24).
+    elif arm.control is not None and arm.knob in _PLANNED_KNOBS:
+        # The faults, timeouts or ratelimits control: the base level's task with read pairs
+        # seeded before the first move, as long as the fault pairs the high level adds, so a
+        # drop can be read against the same length added as earlier tool work.  The fewest
+        # pairs whose reachable totals bracket that length (N26), seeded as a depth control's
+        # are (N24).
         reads = tuple(name for name in block if name in engine_spec.read_tools)
         wanted = _fault_pair_tokens(engine_spec, scenario, arm, qualifier, record, goal)
         pairs = _fewest_pairs_reaching(engine_spec, reads, wanted)
@@ -2499,14 +2548,15 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
         reference_calls = tuple(
             (name, {**arguments, **stated}) for name, arguments in reference_calls
         )
-    if arm.knob == _FAULTS:
-        # The reference carries the retries: each planned failure's call, answered
-        # `unavailable`, and the same call again (N25).  The plan is read off the arm id and
-        # the reference's own tools, as `verify` and the tool server read it, so the controls
-        # built from this reference meet the same answers.
+    if arm.knob in _PLANNED_KNOBS:
+        # The reference carries the retries: each planned answer's call, answered the knob's
+        # line, and the same call again (N25).  The plan and the word are read off the arm id
+        # and the reference's own tools, as `verify` and the tool server read them, so the
+        # controls built from this reference meet the same answers.
         plan = _surface.fault_plan(rendered, tuple(name for name, _args in reference_calls))
         reference_calls, reference_observations = _planned_chain(
-            scenario, reference_calls, seq_start, plan
+            scenario, reference_calls, seq_start, plan,
+            _surface.fault_kind(rendered) or _UNAVAILABLE_STATUS,
         )
     final_token = _payload_of(reference_observations[-1]) if reference_observations else None
 

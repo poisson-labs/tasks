@@ -35,7 +35,16 @@ Every tool call returns one fixed-width line of exactly 52 bytes:
 
 A call that is wrong -- an unknown tool, an absent record, a bad token, a stage that is
 not ready -- returns a status word saying so and **changes nothing**. The domain never
-half-applies a call.
+half-applies a call. A stage call repeated on a record that has already made that stage is
+one of these: it answers `not_ready` and moves nothing, so on this ledger a duplicate write
+has nothing to break.
+
+Three more status words are answered in front of the domain, by the dials that plan them,
+in the same fixed-width line: `unavailable` (the faults dial: nothing changed, and the same
+call works when made again), `timeout` (the timeouts dial, and on your own tools the landed
+dial: whether the call went through is not known) and `rate_limited` (the ratelimits dial,
+with `retry-after=1s` at the start of the payload: nothing changed, and the hint is read, not
+waited on). The sequence number advances on these as on every call.
 
 Beside the stage tools a task needs, the block holds **read tools** (`lookup_region`,
 `scan_capacity`, ...), which answer questions about a catalogue and mutate nothing. The

@@ -11,7 +11,10 @@ Shapes decided here
 **1. All nine knobs are offered on own tools**, within each set's limits as the earlier decisions
 say (depth and shape only with flows, block to the set's size, and so on), whatever
 `arms.SHIPPED_KNOBS` holds: `own.recipes.offered_knobs(toolset, flows=...)` is every knob of
-`generator.KNOBS` the set reaches, in that order, with or without a `shipped` list given.
+`generator.KNOBS` the set reaches, in that order, with or without a `shipped` list given.  Since
+0.3.0 that list is eleven, the faults spec's three new knobs after the eight (retrofitted
+2026-10-29 for its ruled change, Q1, through `tests/o2_support.py`'s `KNOBS`); a new knob has no
+probe status, so `probe_statuses` leaves it out as it leaves out depth.
 
 **2. Recipes still lead with the knobs that shipped** (as decided): a recipe is
 offered when one of its knobs shipped and the set reaches it, and runs arms of those knobs only;

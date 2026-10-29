@@ -53,11 +53,12 @@ def outcome(measure: str, root: Path) -> Any:
 def test_custom_takes_a_knob_offered_on_the_set_at_levels_it_reaches(
     shipped: tuple[str, ...], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Retrofitted 2026-10-29 for 0.3.0: the own-tools generator label moved from "own-1" to "own-2" with the ruled change to the frozen generator (the faults spec's Q4)."""
     monkeypatch.setattr(arms, "SHIPPED_KNOBS", shipped)
     (tmp_path / "tools.json").write_bytes(fixture("acme-mcp-tools-list.json"))
     plan = outcome('preset = "custom"\nknob = "depth"\nlevels = [2, 1]\nstrictness = "leaky"', tmp_path)
     assert [(a.knob, a.level, a.strictness, a.generator_version) for a in plan.arms] == [
-        ("depth", 1, "leaky", "own-1"), ("depth", 2, "leaky", "own-1")]
+        ("depth", 1, "leaky", "own-2"), ("depth", 2, "leaky", "own-2")]
     assert outcome('preset = "custom"\nknob = "depth"\nlevels = [3]', tmp_path) == "measure.levels"
     faults = outcome('preset = "custom"\nknob = "faults"\nlevels = [0, 4]', tmp_path)
     # every knob the set reaches, shipped or not (decided 2026-10-13 23:26)

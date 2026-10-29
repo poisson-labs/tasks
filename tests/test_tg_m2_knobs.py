@@ -148,15 +148,20 @@ ROW_KNOBS = {
     "N9": ("depth",),
     **{row: ("similarity",) for row in ("N19", "N20", "N21", "N22")},
     "N23": ("history",),
-    "N24": ("faults", "history"),
-    **{row: ("faults",) for row in ("N25", "N26")},
+    # N24 to N26 retrofitted 2026-10-29 for 0.3.0: the faults design's three knobs join faults on
+    # N24 and N25, and the two with a control arm on N26 (its section 7).
+    "N24": ("faults", "history", "timeouts", "ratelimits", "landed"),
+    "N25": ("faults", "timeouts", "ratelimits", "landed"),
+    "N26": ("faults", "timeouts", "ratelimits"),
     **{row: ("block",) for row in ("N27", "N28", "N29")},
     **{row: ("arguments",) for row in ("N30", "N31", "N32")},
     **{row: ("shape",) for row in ("N33", "N34")},
     "N35": ("spread",),
 }
+# Retrofitted 2026-10-29 for 0.3.0: the three transport-fault knobs join the nine (the faults
+# design, Q1), so the rows that apply to every knob apply to twelve.
 EVERY_KNOB = ("depth", "distractor", "similarity", "faults", "history", "block", "arguments",
-              "shape", "spread")
+              "shape", "spread", "timeouts", "ratelimits", "landed")
 # Where a row is enforced is not the same question as whether a *bundle* carries
 # what it measures.  N11 and N12 are enforced when the adapter starts, and both are
 # measurable at generation: strictness is `bundle.verifier.strictness` and the two

@@ -72,10 +72,12 @@ def written(spec: ArmSpec) -> str:
 # --------------------------------------------------------------------------
 
 
-def test_the_generator_version_a_user_gets_is_1_everywhere() -> None:
-    assert arms.DEFAULT_GENERATOR_VERSION == "1"
+def test_the_generator_version_a_user_gets_is_2_everywhere() -> None:
+    """Retrofitted 2026-10-29 for 0.3.0: the label moved from "1" to "2" with the ruled change to
+    the frozen generator (the faults spec's Q4), as it moved from "0" to "1" in 0.1.0."""
+    assert arms.DEFAULT_GENERATOR_VERSION == "2"
     assert cal.GENERATOR_VERSION == arms.DEFAULT_GENERATOR_VERSION
-    assert {spec.generator_version for spec in cal.arm_specs()} == {"1"}
+    assert {spec.generator_version for spec in cal.arm_specs()} == {"2"}
 
 
 @pytest.mark.parametrize("card", CARDS)

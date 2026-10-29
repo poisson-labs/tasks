@@ -9,10 +9,11 @@ file's digest goes into every task id, and a user never types it.
 Shapes decided here
 -------------------
 
-**1. `poisson_tasks.own.generator`** holds `GENERATOR_VERSION = "own-1"`, `generate(toolset, arm,
+**1. `poisson_tasks.own.generator`** holds `GENERATOR_VERSION = "own-2"` (`"own-1"` before 0.3.0;
+retrofitted 2026-10-29 for the faults spec's Q4), `generate(toolset, arm,
 seed, *, intents=None, flows=())`, `generator_hash()`, `hash_of(sources)` (the hash as a pure
 function of a mapping from module name to bytes) and `HASHED_MODULES`, the modules whose bytes
-the hash covers.  An own-tools arm is a `knobs.ArmSpec` whose `generator_version` is `"own-1"`.
+the hash covers.  An own-tools arm is a `knobs.ArmSpec` whose `generator_version` is `"own-2"`.
 
 **2. What the hash covers**: every `poisson_tasks` module loaded by importing the generator, the
 simulator and the verdict, `surface` and `knobs` among them (with them the package's own `__init__`
@@ -88,8 +89,9 @@ def test_the_same_bytes_arm_and_seed_make_the_same_task_in_every_process() -> No
     assert first == "\n".join(here) + "\n"
 
 
-def test_the_label_is_own_1_and_an_arm_at_another_version_is_refused() -> None:
-    assert generator().GENERATOR_VERSION == "own-1"
+def test_the_label_is_own_2_and_an_arm_at_another_version_is_refused() -> None:
+    """Retrofitted 2026-10-29 for 0.3.0: the own-tools generator label moved from "own-1" to "own-2" with the ruled change to the frozen generator (the faults spec's Q4)."""
+    assert generator().GENERATOR_VERSION == "own-2"
     spec = dataclasses.replace(arm("faults", 1), generator_version="1")
     with pytest.raises(ValueError):
         generator().generate(acme(), spec, 7)

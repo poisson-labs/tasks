@@ -2,6 +2,23 @@
 
 All notable changes to Poisson Tasks.
 
+## 0.3.0 (2026-10-29)
+
+### Faults, part two: timeouts, rate limits, and a write that landed
+
+- **Three new dials, each experimental until a model has been measured on it.** `timeouts` is how many calls on the way time out, with nothing landing, and must be made again (levels 0, 1, 2 and 4; `timeouts:o2`). `ratelimits` is how many answer `rate_limited` with a retry-after of one second (0, 1, 2 and 4; `ratelimits:r2`). `landed` is whether the write goes through but answers a timeout, so a blind retry is a duplicate (0 and 1; `landed:l1`); it is offered on your own tools, whose store accepts a second write as yours would. On the built-in ledger a repeated stage call is refused and changes nothing, so a duplicate there has nothing to catch, and `landed` is not offered on the built-in tasks. Asked for in replies to the launch.
+- **What the model sees.** A timeout says only that whether the call went through is not known; a rate limit says to retry after one second. Tasks has no clock, so the retry-after is a hint the model reads and nothing waits. Each dial adds one sentence to the system prompt at every level, as faults does. On your own tools the answers come in your file's idiom: a 504 or 429 for an OpenAPI document, an error object with `retry_after` for an OpenAI tools file, an `isError` result for MCP.
+- **The card shows what the model did after the fault**: gave up after a fault (now for each kind), retried after a landed timeout, and on your own tools, duplicate writes. None of them gates a card. A card's tables also appear for every dial it holds a level of: before, a card of the faults, history or shape dial printed no level table.
+- **A write on your own tools now answers with what it was sent**: every argument under its name, into the matching field of the tool's output schema or beside `ok` and `id` without one. Before, a write answered with a made-up record, so a correct call could read as a wrong one in the replies view. Reads answer as before until a write lands: after it, a read that takes one of the write's arguments shows the written values, so an agent can check whether a timed-out write went through before making it again. `landed` needs such a read, and `init` and `doctor` say so on a set that has none.
+- **Every task id moved, and no built-in task did.** The generator changed to make the three dials, so its hash moved and with it every task id, on the built-in tasks and on your own tools; the generator version is now `"2"` (`"own-2"` on your own tools). Every built-in task keeps its prompt, tools, goal and reference solution under its new id, as in 0.1.0. On your own tools a task keeps its request, tools and calls, and its reference answers now carry the echo. A run folder started with 0.2.x cannot be resumed with 0.3.0 (`run` says so before anything is spent); `card --compare` between the two says the generators differ; a 0.2.x card still builds and checks. The published cards are unchanged and still not current.
+- **"Experimental" is said with its reason wherever a dial is named**: in the card's "what it does not claim", in `doctor`'s rows on your own tools, in `init`'s choices, in the export's arm help, and as `experimental` in `card --json` and `doctor --json`. The decoy-tools dial keeps its reason (it did not make tasks harder for either calibrated model); the three new dials say no model has been measured on them yet.
+- **Reaching them.** `generate --arm` and `export --to verifiers` take every new arm; `[measure] preset = "custom"` with `knob = "timeouts"` or `"ratelimits"` runs and cards them on the built-in tasks, with the control pair `timeouts:o0+len(o4)` under `controls = true`, and on your own tools `landed` too. No recipe changed; a later release measures the three on current models.
+- **Library names added:** `arms.EXPERIMENTAL_KNOBS`, `surface.fault_kind`, `simulator.State.writes`, `calibration.experimental_knobs`, `generator.LANDED_NEEDS_A_CHECK_READ`, and the record fields `retried_after_landed` and `duplicate_write`, each left out of a written record where it does not apply.
+
+### Tests
+
+- **The three dials, the echo, the reflection and the card are held by tests written before the build** (`tests/test_f2_*.py`): the arms and their refusals, the lines and the plan at every card seed on both splits, the counting episodes and the live replay, the own-tools answers in each format's idiom, the figures, the experimental surfaces, and the docs. The generator's hash is recorded again at its new value, with a kept file of the timeouts and ratelimits digests at the card seeds, and the own-tools digests are recorded again too.
+
 ## 0.2.2 (2026-10-27)
 
 ### Fixes

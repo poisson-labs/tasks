@@ -331,16 +331,20 @@ def nano_run(**facts: Any) -> dict[str, Any]:
 
 def test_an_outcome_without_a_re_gate_is_byte_for_byte_what_main_wrote(tmp_path: Path) -> None:
     """Qwen's outcome on Qwen alone (what the notebook writes) and the two models' outcome (the
-    `analyse` step), neither re-gated: the sha256 of each file as `main` at 0b983ef wrote it."""
+    `analyse` step), neither re-gated: the sha256 of each file as `main` at 0b983ef wrote it.
+
+    Re-pinned 2026-10-29 for 0.3.0: each outcome carries the frozen generator's hash, which moved
+    with the ruled change to the generator (the faults design, Q1); with the old hash put back the
+    files hash to the four values pinned before, so nothing else of them moved."""
     alone = write_outcome_of(tmp_path / "alone", {OTHER: qwen_run()})
     both = write_outcome_of(tmp_path / "both", {MODEL: nano_run(), OTHER: qwen_run()})
     assert alone == {
-        "outcome.json": "4be72b3829addc1271db3f5b73020432824ec7787d74b1d0314b982939ce1d69",
-        "outcome.md": "77ca245253cecded0885816f8be85854e5402c98916ca048b3797ca87d35d418",
+        "outcome.json": "78eb28b913990b1f287a3edc8730817f966a764ad67f5cd4483a20838654c9f9",
+        "outcome.md": "024b8e903e69f8a9c4fc9642c496ba72464f6fc7d0b6f7415c86d1f80e00f43d",
     }
     assert both == {
-        "outcome.json": "5f954330e61a5096e1e57ec252763cac53e84bf7fdef2bbcace069436e7aa52c",
-        "outcome.md": "36ba002023b2a36f93d5bdc8c98b65c710b5c64e3d62dcfae388882eb027b0d7",
+        "outcome.json": "b6ac8d1ba65d708d716bf53fa750d22d955c818cbf93233ff9aa56c205092b51",
+        "outcome.md": "9314a08a35765cb79e824a78ae7040407d1e11b314f6a27fd745c6159e87687b",
     }
 
 

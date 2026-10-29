@@ -34,12 +34,23 @@ module pinned them; this file is where it also fails as a change to the frozen g
 **3. What a deliberate change updates**, as every message here says: the literal below,
 `calibration_run.EXPECTED_GENERATOR_HASH`, and the content digests of every knob whose tasks
 the change moves, in the kept file that holds them.
+
+Retrofitted 2026-10-29 for 0.3.0 (the faults spec's ruled change to the frozen generator, Q1):
+the timeouts and ratelimits knobs' content digests, kept in `tests/test_f2_kept.py` at the sixty
+card seeds on both splits as faults' are, are read here beside the seven, so the knob set this
+file holds grows to nine.  The `landed` knob has no built-in tasks (ruled, Q2 option a), so it
+has no digest here; its own-tools tasks are kept in the same file's own-tools half.  The kept file
+is written by the build, so it is read by name and a tree without it reads no digests from it
+and fails the knob set, naming what is missing.  The literal below was moved by the build to the
+hash it measured, with the digests, as shape 3 says a deliberate change does; the labels moved to
+"2" and "own-2" with it (Q4).
 """
 
 from __future__ import annotations
 
 import dataclasses
 import hashlib
+import importlib
 import json
 from typing import Any
 
@@ -60,12 +71,24 @@ from tests import (
 from tests.k3_support import CARD_SEEDS, made
 from tests.k4_support import SPLITS
 
-# The frozen generator: the hash of version "1" over tasks.py, surface.py and knobs.py as the
-# spread knob's build left them, 2026-10-09.
-FROZEN_GENERATOR_HASH = "b460964dc153fab4535af3b39abd41d50198f3dcc644ae3e43ddee85544b57f9"
+# The frozen generator: the hash of version "2" over tasks.py, surface.py and knobs.py as the
+# 0.3.0 faults build left them, 2026-10-29 (the ruled change, Q1); from 2026-10-09 to then it was
+# version "1"'s, b460964dc153fab4535af3b39abd41d50198f3dcc644ae3e43ddee85544b57f9.
+FROZEN_GENERATOR_HASH = "b0aa26c77259dd16a07f814fc4b250ce0ba69d372aff520663db089daa9b0db4"
 
 MOVES = {"task_id", "generator_hash", "pins"}
 BOTH_AT_CARD_SEEDS = {"eval": CARD_SEEDS, "train": CARD_SEEDS}
+
+
+def kept_by_name(name: str) -> dict[tuple[str, str], str]:
+    """A kept file's `MAIN`, read by name: none when the file is not on this tree."""
+    try:
+        module = importlib.import_module(f"tests.{name}")
+    except ModuleNotFoundError:
+        return {}
+    return dict(module.MAIN)
+
+
 # Each knob's digests as the file that pinned them holds them, with the seeds they were taken at.
 KEPT: tuple[tuple[str, dict[tuple[str, str], str], dict[str, tuple[int, ...]]], ...] = (
     ("similarity and faults", test_k4_kept.MAIN, BOTH_AT_CARD_SEEDS),
@@ -74,6 +97,7 @@ KEPT: tuple[tuple[str, dict[tuple[str, str], str], dict[str, tuple[int, ...]]], 
     ("arguments", test_k7_kept.MAIN, dict(SPLITS)),
     ("shape", test_k8_kept.MAIN, dict(SPLITS)),
     ("spread", test_k8b_kept.MAIN, dict(SPLITS)),
+    ("timeouts and ratelimits", kept_by_name("test_f2_kept"), BOTH_AT_CARD_SEEDS),
 )
 DIGESTS: dict[tuple[str, str], tuple[str, tuple[int, ...]]] = {
     (arm_id, split): (digest, seeds[split])
@@ -87,11 +111,12 @@ def frozen(what: str) -> str:
     must update."""
     return (
         f"{what}: the built-in generator is frozen at {FROZEN_GENERATOR_HASH} (since "
-        "2026-10-09).  A change to tasks.py, surface.py or knobs.py needs a decision, and a "
+        "2026-10-29, the 0.3.0 re-freeze; before it, since 2026-10-09).  A change to tasks.py, surface.py or knobs.py needs a decision, and a "
         "deliberate one updates FROZEN_GENERATOR_HASH in tests/test_frozen_generator.py, "
         "calibration_run.EXPECTED_GENERATOR_HASH, and the content digests of every knob whose "
         "tasks it moves, in the kept file that holds them (tests/test_k4_kept.py to "
-        "tests/test_k8b_kept.py; the 840 published tasks in tests/test_k1_content.py)."
+        "tests/test_k8b_kept.py and tests/test_f2_kept.py; the 840 published tasks in "
+        "tests/test_k1_content.py)."
     )
 
 
@@ -130,9 +155,11 @@ def test_the_generator_is_the_frozen_one_and_the_driver_expects_it() -> None:
 
 
 def test_every_knob_with_kept_digests_is_read_here() -> None:
-    """Shape 2: the seven knobs whose tasks the kept files pin, each at every card level."""
+    """Shape 2: the nine knobs whose tasks the kept files pin, each at every card level
+    (retrofitted for 0.3.0: seven before it)."""
     knobs = {arm_id.partition(":")[0] for arm_id, _split in DIGESTS}
-    assert knobs == {"similarity", "faults", "history", "block", "arguments", "shape", "spread"}
+    assert knobs == {"similarity", "faults", "history", "block", "arguments", "shape", "spread",
+                     "timeouts", "ratelimits"}
     assert all(split in {"eval", "train"} for _arm, split in DIGESTS)
 
 

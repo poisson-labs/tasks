@@ -95,12 +95,34 @@ _NOT_SENT = "not sent"
 _PRESETS = (*(name for name, recipe in RECIPES.items() if recipe.offered), "custom")
 # Beside `[own]` the preset may name any recipe, and the set decides when the plan is resolved.
 _OWN_PRESETS = (*RECIPES, "custom")
-_KNOBS = tuple(_CONTROL_PAIRS)
+# The knobs `[measure] preset = "custom"` offers on the built-in tasks, each with its control
+# pairs: the published cards' two, and since 0.3.0 the timeouts and ratelimits knobs, whose one
+# control pair is the knob's lowest and highest level (the faults design, Q5).  Not
+# `arms._CONTROL_PAIRS`, which says which arms the published cards measured.
+_CUSTOM_CONTROLS: dict[str, tuple[tuple[int, int], ...]] = {
+    **_CONTROL_PAIRS,
+    "timeouts": ((0, 4),),
+    "ratelimits": ((0, 4),),
+}
+_KNOBS = tuple(_CUSTOM_CONTROLS)
+# The knobs offered on your own tools, and not on the built-in tasks, with the reason in one
+# line: a knob the library has and this file does not take on the built-in tasks is refused
+# naming the knobs it does take, and this one is refused naming where it is offered.
+_OWN_ONLY = {
+    "landed": (
+        "landed is offered on your own tools only: on the built-in ledger a repeated stage "
+        "call is refused and changes nothing, so a write that landed and answered a timeout "
+        "has no duplicate for the end-state check to catch"
+    ),
+}
 # The knobs on a user's own tools, in the own generator's order (`own.generator.KNOBS`, which
 # cannot be imported here: it loads the tokenizer).  The tests hold this copy equal to it.
-_OWN_KNOBS = ("similarity", "faults", "history", "block", "arguments", "spread", "depth", "shape")
+_OWN_KNOBS = ("similarity", "faults", "history", "block", "arguments", "spread", "depth", "shape",
+              "timeouts", "ratelimits", "landed")
 _OWN_FORMATS = ("auto", "openai", "mcp", "openapi")
-_OWN_GENERATOR_VERSION = "own-1"
+_OWN_GENERATOR_VERSION = "own-2"
+# The own-tools label before 0.3.0, refused in a settings file in one line that says what moved.
+_OWN_GENERATOR_VERSION_BEFORE = "own-1"
 OWN_LIST_FILE = "tools.mcp.json"
 """Where `init --mcp-command` saves the listed tools, beside the settings file."""
 _STRICTNESSES = ("strict", "leaky")
@@ -787,6 +809,8 @@ class _Reader:
         knob = "depth"
         if given["knob"] is not _MISSING:
             key = "measure.knob"
+            if isinstance(given["knob"], str) and given["knob"] in _OWN_ONLY:
+                raise self.refusal(key, f"{self.name(key)}: {_OWN_ONLY[given['knob']]}")
             if isinstance(given["knob"], str) and given["knob"] not in _KNOBS and _is_knob(
                 given["knob"]
             ):
@@ -812,7 +836,7 @@ class _Reader:
         if given["controls"] is not _MISSING:
             key = "measure.controls"
             controls = self.switch(key, given["controls"])
-            pairs = _CONTROL_PAIRS[knob]
+            pairs = _CUSTOM_CONTROLS[knob]
             if controls and not any(low in chosen and high in chosen for low, high in pairs):
                 both = _listed([f"{low} and {high}" for low, high in pairs], "or")
                 raise self.refusal(
@@ -1174,7 +1198,8 @@ def dump_config(config: ProjectConfig) -> str:
     knob, chosen, controls, strictness = custom_values
     presets = _OWN_PRESETS if own is not None else _PRESETS
     knob_words = (
-        _listed(_OWN_KNOBS, "or") if own is not None else "depth | distractor (experimental)"
+        _listed(_OWN_KNOBS, "or") if own is not None
+        else "depth | distractor | timeouts | ratelimits (experimental)"
     )
 
     out = [
@@ -1956,6 +1981,13 @@ def resolve_plan(config: ProjectConfig, *, root: str | os.PathLike[str] | None =
     own: dict[str, Any] | None = None
 
     if config.own is not None:
+        if tasks.generator_version == _OWN_GENERATOR_VERSION_BEFORE:
+            raise ConfigError(
+                f"[tasks] generator_version is {_show(tasks.generator_version)}; the generator "
+                f'on your tools changed in 0.3.0 and is "{_OWN_GENERATOR_VERSION}" now, so '
+                "leave it unset",
+                key="tasks.generator_version",
+            )
         if tasks.generator_version not in (None, _OWN_GENERATOR_VERSION):
             raise ConfigError(
                 f"[tasks] generator_version is {_show(tasks.generator_version)}; tasks on your "
@@ -1983,16 +2015,25 @@ def resolve_plan(config: ProjectConfig, *, root: str | os.PathLike[str] | None =
             arm_from_id(arm, generator_version=version) for arm in RECIPES[measure.preset].arms
         )
     else:
+        # `custom`: the knob's levels in the knob's order, then its control arms where both
+        # levels are chosen; for the published cards' knobs that is `arm_specs()`'s order, and
+        # the two knobs of 0.3.0 follow it.
         knob = measure.knob or "depth"
         chosen = set(levels(knob) if measure.levels is None else measure.levels)
+        plain = [ArmSpec(knob=knob, level=level, control=None, strictness="strict", split="eval",
+                         generator_version=DEFAULT_GENERATOR_VERSION)
+                 for level in levels(knob) if level in chosen]
+        controls = [
+            ArmSpec(knob=knob, level=low, control=high, strictness="strict", split="eval",
+                    generator_version=DEFAULT_GENERATOR_VERSION)
+            for low, high in _CUSTOM_CONTROLS.get(knob, ())
+            if bool(measure.controls) and low in chosen and high in chosen
+        ]
         arms = tuple(
             arm_from_id(
                 arm_id(spec), strictness=measure.strictness or "strict", generator_version=version
             )
-            for spec in card_arms
-            if spec.knob == knob
-            and spec.level in chosen
-            and (spec.control is None or (bool(measure.controls) and spec.control in chosen))
+            for spec in (*plain, *controls)
         )
 
     if tasks.seeds is not None:

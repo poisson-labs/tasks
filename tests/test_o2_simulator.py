@@ -30,7 +30,9 @@ digest, seed, tool, arguments)"; a task's seed is a seed of its split (the built
 both), so the split is part of the seed here.
 
 **3. `ERROR_CODES` is the design's four, in its order**: `not_found`, `invalid_arguments`,
-`not_ready`, `unavailable`.  In the OpenAI idiom an error is Tasks' own tool result
+`not_ready`, `unavailable` (retrofitted 2026-10-29 for 0.3.0: the faults design's two new
+kinds, `timeout` and `rate_limited`, follow them, so the tuple is six; the four keep their
+places).  In the OpenAI idiom an error is Tasks' own tool result
 `{"error": {"code": ..., "message": ...}}`, not flagged; in the MCP idiom the message is the
 text and `is_error` is true; in the OpenAPI idiom it is `{"status": ..., "detail": ...}`, 503 for
 `unavailable` and a 4xx for the others (which 4xx is the pending file
@@ -343,7 +345,9 @@ def test_an_mcp_tool_with_an_output_schema_answers_in_structured_content_with_it
 
 
 def test_the_error_codes_are_spec_4s() -> None:
-    assert simulator().ERROR_CODES == ("not_found", "invalid_arguments", "not_ready", "unavailable")
+    """Retrofitted 2026-10-29 for 0.3.0: the two new codes follow the design's four."""
+    assert simulator().ERROR_CODES == ("not_found", "invalid_arguments", "not_ready", "unavailable",
+                                       "timeout", "rate_limited")
 
 
 @pytest.mark.parametrize("code", ["not_found", "invalid_arguments", "not_ready", "unavailable"])

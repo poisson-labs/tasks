@@ -7,8 +7,10 @@ tokenizer file when it is missing, the one thing `doctor` changes; `--offline` o
 `--show-command` prints the `init --yes` command that writes the settings file.  With `[own]`
 in the settings file, the tool file is read again and its summary reported:
 the counts, each refusal, the file's digest, and one line per knob the set reaches, the shipped
-ones first, with the knob probe's status on each model (decided 2026-10-13 23:26); when the newest
-run of the same tool file carries another digest, one line says so, naming both.
+ones first, with the knob probe's status on each model (decided 2026-10-13 23:26), or, for a knob
+that is experimental, the reason `arms.EXPERIMENTAL_KNOBS` gives; one line says why landed is not
+offered on a set with a write to target and no read that can check it; when the newest run of the
+same tool file carries another digest, one line says so, naming both.
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from poisson_tasks import config, providers
+from poisson_tasks import arms, config, providers
 from poisson_tasks.cli import _format
 from poisson_tasks.cli._common import (
     HARNESS_LINE,
@@ -221,7 +223,7 @@ def _own_rows(ctx: Context, settings: Any) -> tuple[list[Row], dict[str, Any]]:
     from poisson_tasks import own
     from poisson_tasks.own import card as own_card
     from poisson_tasks.own import recipes as own_recipes
-    from poisson_tasks.own.generator import Flow
+    from poisson_tasks.own.generator import LANDED_NEEDS_A_CHECK_READ, Flow
 
     rows: list[Row] = []
     path = config.own_file_path(settings.own, settings_root(ctx))
@@ -264,20 +266,29 @@ def _own_rows(ctx: Context, settings: Any) -> tuple[list[Row], dict[str, Any]]:
                                     if shipped else ""), "ok"))
     else:
         rows.append(Row("knobs", "no knob reaches a level on this set", "ok"))
+    experimental = {knob: arms.EXPERIMENTAL_KNOBS[knob] for knob in ordered
+                    if knob in arms.EXPERIMENTAL_KNOBS}
     for knob in ordered:
         if knob in statuses:
             said = "; ".join(f"{status} on {model}" for model, status in statuses[knob].items())
             words = f"the knob probe's status on the built-in tasks: {said}"
+        elif knob in experimental:
+            words = (f"experimental: {experimental[knob]}, not on the published cards and not by "
+                     "the knob probe")
         else:
             words = "measured on the published cards, not by the knob probe"
         rows.append(Row(knob, words, "note"))
+    if "faults" in offered and "landed" not in offered:
+        rows.append(Row("check read", f"landed is not offered on this set. "
+                                      f"{LANDED_NEEDS_A_CHECK_READ}", "note"))
     if not flows:
         from poisson_tasks.own.generator import UNAVAILABLE_WITHOUT_FLOWS
 
         rows.append(Row("flows", f"none declared, so depth and shape are unavailable: "
                                  f"{UNAVAILABLE_WITHOUT_FLOWS}", "note"))
     held: dict[str, Any] = {"file": path, "readable": True, "digest": toolset.file_digest,
-                            "knobs": list(ordered), "statuses": statuses}
+                            "knobs": list(ordered), "statuses": statuses,
+                            "experimental": experimental}
     last = _last_run(settings_root(ctx) / settings.output.runs, path, name)
     if last is not None:
         folder, digest = last

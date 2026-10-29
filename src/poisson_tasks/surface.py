@@ -22,6 +22,15 @@ states, read off the reference by `stated_values`, and `apply_planned` refuses a
 stage call with a `bad_args` line in front of the engine, which then sees only its own
 two arguments (`tests/test_k6_check.py`, `tests/test_k6_live.py`).
 
+The three transport-fault knobs of 0.3.0 share the faults knob's seam: `fault_kind` gives the
+status word an arm's planned answers carry (`unavailable`, `timeout`, `rate_limited`, or `None`
+on a knob that plans none), `fault_plan` plans `timeouts` and `ratelimits` as it plans `faults`
+and `landed` as one answer on the last tool of the path, and `apply_planned` answers a planned
+call with the kind's line: the timeout line is the `unavailable` line with its word changed,
+and the rate-limited line carries a retry-after hint in its payload, followed by the table's
+fill.  Every caller that passes no kind gets `unavailable`, so the faults knob is as it was
+(`tests/test_f2_lines_and_plan.py`, `tests/test_f2_counting_and_seam.py`).
+
 The information-spread knob's answers live here for the same reason: a spread arm's four
 named reads, read off the reference by `spread_answers`, are answered by `apply_planned` in
 front of the engine with the part of the entry code each holds, or `none`, a full stop and
@@ -47,12 +56,15 @@ from poisson_tasks.knobs import (
     _ARGUMENTS,
     _BLOCK,
     _D_B,
-    _FAULTS,
+    _FAULT_WORDS,
+    _LANDED,
     _LOOKALIKE_LEDGERS,
     _MAX_SIMILARITY,
     _NO_PART,
     _NUMBER_WIDTH,
     _PART_END,
+    _RATE_LIMITED,
+    _RETRY_AFTER,
     _SIMILARITY,
     _SPREAD,
     _UNAVAILABLE,
@@ -359,17 +371,30 @@ def engine_name(shown: dict[str, Shown], name: _Any) -> str:
     return _NO_TOOL if entry is None else entry.engine
 
 
-def fault_plan(arm_id: str, path: _Sequence[str]) -> dict[str, int]:
-    """How many times each tool on the reference path answers `unavailable` before it works.
+def fault_kind(arm_id: str) -> str | None:
+    """The status word an arm's planned answers carry: `unavailable` on faults, `timeout` on
+    timeouts and on landed, `rate_limited` on ratelimits, and `None` on an arm of any other
+    knob, which plans none.  The server, `verify`, the replay check and the record reader read
+    the word from here, so the four agree on what a planned answer looks like."""
+    return _FAULT_WORDS.get(_parse_arm_id(arm_id).knob)
 
-    A faults arm's level, split over the path's tools as evenly as it goes, the earlier tools
-    taking the extra; a tool the path calls twice is one tool, and a tool planned no failure
-    is left out.  A faults control plans its own level's failures, never those of the level
-    it stands in for, and an arm of any other knob plans none.
+
+def fault_plan(arm_id: str, path: _Sequence[str]) -> dict[str, int]:
+    """How many times each tool on the reference path answers its planned line before it
+    works.
+
+    A faults, timeouts or ratelimits arm's level, split over the path's tools as evenly as it
+    goes, the earlier tools taking the extra; a tool the path calls twice is one tool, and a
+    tool planned no answer is left out.  A control plans its own level's answers, never those
+    of the level it stands in for.  A landed arm plans one answer, on the last tool of the
+    path, at level 1 and none at level 0: the last tool, because a landed call mid-chain
+    swallows the token the next call needs.  An arm of any other knob plans none.
     """
     arm = _parse_arm_id(arm_id)
-    if arm.knob != _FAULTS:
+    if arm.knob not in _FAULT_WORDS:
         return {}
+    if arm.knob == _LANDED:
+        return {path[-1]: 1} if arm.level and path else {}
     tools = tuple(dict.fromkeys(path))
     return {
         tool: count
@@ -388,19 +413,36 @@ def reference_plan(
     return fault_plan(arm_id, tuple(engine_name(shown, name) for name, _args in reference_calls))
 
 
-def _status_line(seq: int, status_word: str) -> str:
+def _planned_payload(kind: str) -> str:
+    """What a planned answer's payload carries: the table's error payload, and on a
+    rate-limited line the retry-after hint followed by the table's fill to the payload's
+    width.  A hint and not a window: an episode has no clock, so nothing in it can wait, and
+    the hint is there because a real rate limit carries one and an agent reads it."""
+    layout = _SPEC.layout
+    payload = str(layout["error_payload"])
+    if kind == _RATE_LIMITED:
+        payload = (_RETRY_AFTER + payload)[: layout["payload_width"]]
+    return payload
+
+
+def _status_line(seq: int, status_word: str, payload: str | None = None) -> str:
     """A refusal answered in front of the engine: the engine's own line at `seq`, saying
-    `status_word` in the status field (`unavailable` for a planned failure, `bad_args` for a
-    stage call the argument check refuses), with the table's error payload.  Rendered from
-    the table's layout, so the line is `L_obs` bytes like every other observation and the
-    engine's private renderer stays private."""
+    `status_word` in the status field (`unavailable`, `timeout` or `rate_limited` for a
+    planned answer, `bad_args` for a stage call the argument check refuses), with the table's
+    error payload unless another is given.  Rendered from the table's layout, so the line is
+    `L_obs` bytes like every other observation and the engine's private renderer stays
+    private."""
     layout = _SPEC.layout
     rendered_seq = str(seq).rjust(layout["seq_width"], layout["seq_fill"])
     if len(rendered_seq) != layout["seq_width"]:
         raise ValueError(f"seq {seq} does not fit the {layout['seq_width']}-byte field")
     status = status_word.ljust(layout["status_width"], layout["status_fill"])
+    if len(status) != layout["status_width"]:
+        raise ValueError(f"{status_word!r} does not fit the {layout['status_width']}-byte field")
+    if payload is None:
+        payload = str(layout["error_payload"])
     separator: str = layout["separator"]
-    return separator.join((rendered_seq, status, str(layout["error_payload"])))
+    return separator.join((rendered_seq, status, payload))
 
 
 def _answer_line(seq: int, payload: str) -> str:
@@ -514,13 +556,16 @@ def apply_planned(
     step: _Step = _apply,
     stated: _Mapping[str, str] | None = None,
     spread: _Spread | None = None,
+    kind: str = _UNAVAILABLE,
 ) -> tuple[_DomainState, dict[str, int], str]:
-    """One call that reached the tool server, with the planned failures, the named reads'
+    """One call that reached the tool server, with the planned answers, the named reads'
     answers and the argument check applied in front of the engine.
 
     `counts` is how many times each tool has been called so far, whatever the arguments, and
-    the first `plan[tool]` calls to a tool answer `unavailable`: the counter advances, as it
-    does on every call (E5), and the records do not.  Every other call reaches the engine
+    the first `plan[tool]` calls to a tool answer the planned line, `kind`'s word in the
+    status field (`fault_kind`; `unavailable` when no kind is given, so every caller that
+    knows only the faults knob is unchanged) with the kind's payload: the counter advances,
+    as it does on every call (E5), and the records do not.  Every other call reaches the engine
     through `step`, the engine's own `apply` unless the caller hands in its own name for it;
     the tool server does, so that every engine step it takes goes through one name under its
     lock.  The counts after the call are returned, and the ones given are not written.
@@ -544,7 +589,8 @@ def apply_planned(
     after_counts = {**counts, name: made + 1}
     if made < plan.get(name, 0):
         seq = state.next_seq
-        return _replace(state, next_seq=seq + 1), after_counts, _status_line(seq, _UNAVAILABLE)
+        line = _status_line(seq, kind, _planned_payload(kind))
+        return _replace(state, next_seq=seq + 1), after_counts, line
     if spread is not None and isinstance(arguments, _Mapping):
         for read, read_arguments, payload in spread:
             if name == read and dict(arguments) == read_arguments:

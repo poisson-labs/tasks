@@ -102,16 +102,19 @@ def test_card_beside_own_is_refused_when_the_file_is_read() -> None:
 
 
 def test_a_generator_version_that_is_not_the_own_generators_is_refused(tmp_path: Path) -> None:
+    """Retrofitted 2026-10-29 for 0.3.0: the labels moved to "2" and "own-2" with the ruled change
+    to the frozen generator (the faults spec's Q4); the settings file's commented line names the
+    built-in label, so it reads "2" too."""
     acme_with_flows(tmp_path)
     text = own_text('preset = "first-look"').replace(
-        '# generator_version = "1"', 'generator_version = "1"', 1)
+        '# generator_version = "2"', 'generator_version = "2"', 1)
     made = config.loads_config(text)
-    assert made.tasks.generator_version == "1"
+    assert made.tasks.generator_version == "2"
     with pytest.raises(config.ConfigError) as refused:
         config.resolve_plan(made, root=tmp_path)
     assert refused.value.key == "tasks.generator_version"
     fine = own_text('preset = "first-look"').replace(
-        '# generator_version = "1"', 'generator_version = "own-1"', 1)
+        '# generator_version = "2"', 'generator_version = "own-2"', 1)
     assert config.resolve_plan(config.loads_config(fine), root=tmp_path).arms
 
 

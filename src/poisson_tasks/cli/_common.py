@@ -137,7 +137,7 @@ def settings_root(ctx: Context) -> Path:
 
 
 def _knob_words(knob: str, levels: Sequence[int], controls: bool) -> str:
-    note = " (experimental)" if knob == "distractor" else ""
+    note = " (experimental)" if knob in arms.EXPERIMENTAL_KNOBS else ""
     text = f"{knob}{note} at {_format.words(levels)}"
     if controls:
         text += ", with the control arms" if len(levels) > 2 else ", with the control arm"

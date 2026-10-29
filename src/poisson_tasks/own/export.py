@@ -42,6 +42,7 @@ from poisson_tasks.export import _from_wire_message, _ordered_turns, _to_wire_me
 from poisson_tasks.knobs import ArmSpec as _ArmSpec
 from poisson_tasks.own import generator as _generator
 from poisson_tasks.own import simulator as _sim
+from poisson_tasks.own.generator import GENERATOR_VERSION as _GENERATOR_VERSION
 from poisson_tasks.own.generator import Flow as _Flow
 from poisson_tasks.own.generator import OwnBundle as _OwnBundle
 from poisson_tasks.own.verdict import verify as _verify
@@ -91,7 +92,8 @@ class OwnTasksetConfig(_vf.TasksetConfig):
     )
     arm: dict[str, _Any] = _Field(
         default_factory=dict,
-        description="The arm: the six ArmSpec fields as one JSON object, at generator own-1.",
+        description=("The arm: the six ArmSpec fields as one JSON object, at generator "
+                     f"{_GENERATOR_VERSION}."),
     )
     seeds: list[int] = _Field(
         default_factory=list,
