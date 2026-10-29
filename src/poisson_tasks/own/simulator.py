@@ -9,12 +9,26 @@ episode always gets the same answer and the arm never enters it; without an outp
 Tasks' own `{"error": {...}}` object for OpenAI tools, `isError` with the message as text for
 MCP, `{"status": ..., "detail": ...}` for OpenAPI; an MCP tool with an output schema answers in
 `structuredContent` with its text beside.  `start`, `step` and `replay` are the state machine
-over a generated task (`generator.OwnBundle`): a planned fault answers `unavailable`, arguments
-that break the schema `invalid_arguments`, a named read for a key the task does not hold
-`not_found`, an expected step made before its prerequisite `not_ready`; otherwise the call is
-accepted, a read changes nothing, the expected write moves its flag, and any other accepted
-write (the expected one made again included) is a side effect.  Only calls that reach the
-server go through `step`; `replay` passes over what the harness answers itself.
+over a generated task (`generator.OwnBundle`): a planned fault answers in the arm's word
+(`surface.fault_kind`: `unavailable`, `timeout`, or `rate_limited` with a retry-after of one
+second), arguments that break the schema `invalid_arguments`, a named read for a key the task
+does not hold `not_found`, an expected step made before its prerequisite `not_ready`; otherwise
+the call is accepted, a read changes nothing, the expected write moves its flag, and any other
+accepted write (the expected one made again included) is a side effect.  Only calls that reach
+the server go through `step`; `replay` passes over what the harness answers itself.
+
+Since 0.3.0 (the faults design, decided 2026-10-29) an accepted write's answer carries what it
+was sent: every argument under its name, beside `ok` and the drawn `id` without an output
+schema (an argument named `id` winning), and in the same-named output property when the value
+conforms to it with one; the values a task serves are placed after the echo, so a served value
+is never overwritten.  The store keeps the writes (`State.writes`, every accepted write in
+order), and a read reflects them: after an accepted write, a read whose checkable arguments are
+all among the write's, under the same names with the same values, answers its drawn object
+overlaid with the write's arguments by the same rule, the latest such write winning; before any
+such write, and for a read sharing no argument name, it answers as before.  Under a `landed`
+arm the one planned call reaches the store as any call does, accepted, a stray write or refused
+by its schema, and its answer is replaced by the timeout.  `respond` itself is unchanged: the
+echo and the reflection are `step`'s, read off the call and the store.
 
 Pure: no clock but `CLOCK` (dates are arithmetic on it, never read from the machine), no
 randomness but the keyed draw, no network.  Output schema keywords the draw cannot honour
@@ -33,9 +47,13 @@ import uuid as _uuid
 from collections.abc import Mapping as _Mapping
 from collections.abc import Sequence as _Sequence
 from dataclasses import dataclass as _dataclass
+from dataclasses import replace as _dc_replace
 from typing import Any as _Any
 
+from poisson_tasks.knobs import _LANDED as _LANDED_KNOB
+from poisson_tasks.knobs import _parse_arm_id
 from poisson_tasks.own._types import OwnTool as _OwnTool
+from poisson_tasks.surface import fault_kind as _fault_kind
 
 __all__ = [
     "CLOCK",
@@ -57,7 +75,8 @@ __all__ = [
 ]
 
 CLOCK = "2026-01-01T00:00:00Z"
-ERROR_CODES = ("not_found", "invalid_arguments", "not_ready", "unavailable")
+ERROR_CODES = ("not_found", "invalid_arguments", "not_ready", "unavailable", "timeout",
+               "rate_limited")
 OUTPUT_PASSED_OVER: tuple[str, ...] = (
     "pattern", "not", "if", "then", "else", "allOf", "contains", "minContains", "maxContains",
     "propertyNames", "dependentSchemas", "dependentRequired", "dependencies",
@@ -65,8 +84,15 @@ OUTPUT_PASSED_OVER: tuple[str, ...] = (
     "maxProperties", "multipleOf", "uniqueItems",
 )
 
-# The OpenAPI status of each error code (decided 2026-10-13).
-_STATUS = {"not_found": 404, "invalid_arguments": 422, "not_ready": 409, "unavailable": 503}
+# The OpenAPI status of each error code (decided 2026-10-13; the two of 0.3.0 on 2026-10-29).
+_STATUS = {"not_found": 404, "invalid_arguments": 422, "not_ready": 409, "unavailable": 503,
+           "timeout": 504, "rate_limited": 429}
+_UNAVAILABLE = "unavailable"
+_TIMEOUT = "timeout"
+_RATE_LIMITED = "rate_limited"
+# The rate-limited answer's hint, in seconds: a hint and not a window, since nothing in an
+# episode waits.
+_RETRY_AFTER = 1
 _FORMATS = ("openai", "mcp", "openapi")
 _DRAW_KEY = b"poisson-tasks/own/simulator/1"
 _LETTERS = "abcdefghijklmnopqrstuvwxyz"
@@ -103,14 +129,17 @@ class Answer:
 @_dataclass(frozen=True)
 class State:
     """The store a task's calls move: one flag per write the task expects, one per read that
-    serves a value, the accepted writes it did not expect, every call the server received, and
-    how many times each tool was called (the fault plan's counter)."""
+    serves a value, the accepted writes it did not expect, every call the server received, how
+    many times each tool was called (the fault plan's counter), and every accepted write,
+    expected or not, as `(tool, canonical arguments)` in the order the server received them.
+    A duplicate write is an accepted write equal to an earlier one, read off `writes`."""
 
     done: tuple[bool, ...]
     side_effects: tuple[_Any, ...]
     calls: int
     served: tuple[bool, ...] = ()
     counts: tuple[tuple[str, int], ...] = ()
+    writes: tuple[tuple[str, str], ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -557,17 +586,22 @@ def success(source_format: str, tool: _OwnTool, value: _Any) -> Answer:
     return Answer(_text(value), structured, False)
 
 
-def error(source_format: str, code: str, message: str) -> Answer:
-    """An error in the format's idiom; `code` is one of `ERROR_CODES`."""
+def error(source_format: str, code: str, message: str, *,
+          retry_after: int | None = None) -> Answer:
+    """An error in the format's idiom; `code` is one of `ERROR_CODES`.  `retry_after`, the
+    rate-limited answer's hint in seconds, joins the OpenAI error object and the OpenAPI body
+    as `retry_after`; MCP carries the message alone."""
     if source_format not in _FORMATS:
         raise ValueError(f"{source_format!r} is not a format: openai, mcp or openapi")
     if code not in ERROR_CODES:
         raise ValueError(f"{code!r} is not an error code: " + ", ".join(ERROR_CODES))
+    hint = {} if retry_after is None else {"retry_after": retry_after}
     if source_format == "mcp":
         return Answer(message, None, True, code)
     if source_format == "openapi":
-        return Answer(_text({"status": _STATUS[code], "detail": message}), None, False, code)
-    return Answer(_text({"error": {"code": code, "message": message}}), None, False, code)
+        body = {"status": _STATUS[code], "detail": message, **hint}
+        return Answer(_text(body), None, False, code)
+    return Answer(_text({"error": {"code": code, "message": message, **hint}}), None, False, code)
 
 
 # ---------------------------------------------------------------------------
@@ -637,6 +671,11 @@ def start(task: _Any) -> State:
     return State(done=(False,) * writes, side_effects=(), calls=0, served=(False,) * reads)
 
 
+def _with(state: State, **changes: _Any) -> State:
+    """`state` with `changes` made."""
+    return _dc_replace(state, **changes)
+
+
 def _indices(task: _Any) -> tuple[dict[int, int], dict[int, int]]:
     """Step index to flag index, for writes and for reads."""
     writes: dict[int, int] = {}
@@ -674,9 +713,50 @@ def _met(task: _Any, state: State, step_: _Mapping[str, _Any], writes: dict[int,
     return True
 
 
+def _overlaid(value: _Any, arguments: _Mapping[str, _Any], output_schema: _Any) -> _Any:
+    """`value` with `arguments` echoed into it: at the top level without an output schema,
+    and into each same-named output property the argument's value conforms to with one; a
+    value that is no object takes no echo."""
+    if not isinstance(value, dict):
+        return value
+    if output_schema is None:
+        return {**value, **arguments}
+    properties = _map_of(output_schema, "properties") if isinstance(output_schema, dict) else {}
+    out = dict(value)
+    for name, schema in properties.items():
+        if name in arguments and conforms(arguments[name], schema):
+            out[name] = arguments[name]
+    return out
+
+
+def _reflected(state: State, tool: _OwnTool, arguments: _Mapping[str, _Any],
+               checkable: _Sequence[str]) -> _Mapping[str, _Any] | None:
+    """The arguments of the latest accepted write a read of `tool` reflects: one whose
+    arguments hold every checkable argument of the read, under the same names with the same
+    values, there being at least one; `None` when no write does."""
+    keys = [name for name in checkable if name in arguments]
+    if not keys:
+        return None
+    for _name, written in reversed(state.writes):
+        held = _json.loads(written)
+        if isinstance(held, dict) and all(
+            key in held and same(held[key], arguments[key]) for key in keys
+        ):
+            return dict(held)
+    return None
+
+
 def _served_answer(task: _Any, tool: _OwnTool, arguments: _Mapping[str, _Any],
-                   step_: _Mapping[str, _Any] | None) -> Answer:
+                   step_: _Mapping[str, _Any] | None, *,
+                   echoed: _Mapping[str, _Any] | None = None) -> Answer:
+    """An accepted call's answer: the drawn object, the echo (`echoed`, the write's own
+    arguments on a write and the reflected write's on a read, or none), then the values the
+    task serves, placed last so a served value is never overwritten."""
     value = respond(tool, arguments, digest=task.file_digest, seed=task.seed, split=task.split)
+    if echoed is not None:
+        value = _overlaid(value, echoed, tool.output_schema)
+        if tool.output_schema is None and tool.effect != "read" and isinstance(value, dict):
+            value[_OK] = True
     if step_ is not None and step_["serves"]:
         key = _key_of(task.file_digest, task.seed, task.split, tool.name, arguments)
         for path, placed in step_["serves"]:
@@ -684,19 +764,56 @@ def _served_answer(task: _Any, tool: _OwnTool, arguments: _Mapping[str, _Any],
     return success(task.source_format, tool, value)
 
 
+def _planned(task: _Any, name: str, count: int) -> str | None:
+    """The word the `count`-th call to `name` is planned to answer, or `None` when it is not
+    planned: the arm's kind (`surface.fault_kind`), `unavailable` on a task whose arm names
+    none."""
+    if dict(task.fault_plan).get(name, 0) < count:
+        return None
+    return _fault_kind(str(task.arm_id)) or _UNAVAILABLE
+
+
+def _is_landed(task: _Any) -> bool:
+    try:
+        return _parse_arm_id(str(task.arm_id)).knob == _LANDED_KNOB
+    except ValueError:
+        return False
+
+
+def _planned_error(fmt: str, kind: str, name: str) -> Answer:
+    if kind == _TIMEOUT:
+        return error(fmt, kind, f"{name} timed out; whether it went through is not known")
+    if kind == _RATE_LIMITED:
+        return error(fmt, kind, f"{name} is rate limited; retry after {_RETRY_AFTER} second",
+                     retry_after=_RETRY_AFTER)
+    return error(fmt, kind, f"{name} is unavailable; make the call again")
+
+
 def step(task: _Any, state: State, call: tuple[str, _Any]) -> tuple[State, Answer]:
-    """One call that reached the server, answered, and the store after it."""
+    """One call that reached the server, answered, and the store after it.  A planned call
+    answers the arm's word and moves nothing, except under a landed arm, where it reaches the
+    store as any call does and its answer alone is replaced by the timeout."""
     name, arguments = call
     if not isinstance(arguments, dict):
         raise ValueError("a call that reaches the server carries a JSON object")
     tool = _tool_of(task, name)
     counts = dict(state.counts)
     counts[name] = counts.get(name, 0) + 1
-    after = State(done=state.done, side_effects=state.side_effects, calls=state.calls + 1,
-                  served=state.served, counts=tuple(sorted(counts.items())))
+    after = _with(state, calls=state.calls + 1, counts=tuple(sorted(counts.items())))
     fmt = task.source_format
-    if dict(task.fault_plan).get(name, 0) >= counts[name]:
-        return after, error(fmt, "unavailable", f"{name} is unavailable; make the call again")
+    kind = _planned(task, name, counts[name])
+    if kind is not None:
+        if _is_landed(task):
+            after, _answer = _applied(task, after, tool, name, arguments)
+        return after, _planned_error(fmt, kind, name)
+    return _applied(task, after, tool, name, arguments)
+
+
+def _applied(task: _Any, after: State, tool: _OwnTool, name: str,
+             arguments: dict[str, _Any]) -> tuple[State, Answer]:
+    """The call applied to the store, the counter already advanced."""
+    fmt = task.source_format
+    state = after
     if not conforms(arguments, tool.input_schema):
         return after, error(fmt, "invalid_arguments",
                             f"the arguments do not fit {name}'s schema")
@@ -705,9 +822,10 @@ def step(task: _Any, state: State, call: tuple[str, _Any]) -> tuple[State, Answe
     checkable = [n for n, s in (properties.items() if isinstance(properties, dict) else ())
                  if not _free_text(s)]
     if tool.effect == "read":
+        echoed = _reflected(state, tool, arguments, checkable)
         keyed = [i for i, s in enumerate(task.steps) if s["effect"] == "read" and s["tool"] == name]
         if not keyed:
-            return after, _served_answer(task, tool, arguments, None)
+            return after, _served_answer(task, tool, arguments, None, echoed=echoed)
         matching = [i for i in keyed if _matches(task.steps[i], name, arguments, checkable)]
         if not matching:
             return after, error(fmt, "not_found", f"{name} holds nothing for these arguments")
@@ -718,12 +836,12 @@ def step(task: _Any, state: State, call: tuple[str, _Any]) -> tuple[State, Answe
                                 " depends on has not been made")
         served = list(after.served)
         served[reads[index]] = True
-        after = State(done=after.done, side_effects=after.side_effects, calls=after.calls,
-                      served=tuple(served), counts=after.counts)
-        return after, _served_answer(task, tool, arguments, task.steps[index])
+        after = _with(after, served=tuple(served))
+        return after, _served_answer(task, tool, arguments, task.steps[index], echoed=echoed)
     expected = [i for i, s in enumerate(task.steps) if s["effect"] == "write"
                 and _matches(s, name, arguments, checkable)]
     pending = [i for i in expected if not state.done[writes[i]]]
+    written = (name, canonical(arguments))
     if pending:
         index = pending[0]
         if not _met(task, state, task.steps[index], writes, reads):
@@ -731,13 +849,11 @@ def step(task: _Any, state: State, call: tuple[str, _Any]) -> tuple[State, Answe
                                 " depends on has not been made")
         done = list(after.done)
         done[writes[index]] = True
-        after = State(done=tuple(done), side_effects=after.side_effects, calls=after.calls,
-                      served=after.served, counts=after.counts)
-        return after, _served_answer(task, tool, arguments, task.steps[index])
-    stray = (name, canonical(arguments))
-    after = State(done=after.done, side_effects=after.side_effects + (stray,), calls=after.calls,
-                  served=after.served, counts=after.counts)
-    return after, _served_answer(task, tool, arguments, None)
+        after = _with(after, done=tuple(done), writes=after.writes + (written,))
+        return after, _served_answer(task, tool, arguments, task.steps[index], echoed=arguments)
+    after = _with(after, side_effects=after.side_effects + (written,),
+                  writes=after.writes + (written,))
+    return after, _served_answer(task, tool, arguments, None, echoed=arguments)
 
 
 def _free_text(schema: _Any) -> bool:

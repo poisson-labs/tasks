@@ -3,7 +3,8 @@
 A task is a pure function of the tool file's bytes (through the set's digest), the arm and the
 seed: every draw is a keyed hash of those and of nothing else, no set or dict built from a set is
 ever iterated, and the task id is a content hash over every other field.  The version label is
-`own-1`; `generator_hash` covers this module's bytes and every module of the package that
+`own-2` (it was `own-1` until 0.3.0 changed the generator, with the ruled change to the frozen
+built-in one); `generator_hash` covers this module's bytes and every module of the package that
 importing the generator, the simulator and the verdict loads (`HASHED_MODULES`), the shared
 `surface.py` and `knobs.py` among them, and none of `arms`, so a knob shipping moves no task.
 It never changes a built-in task.
@@ -27,7 +28,15 @@ What a task is made of, by knob (as decided 2026-10-13):
   with a checkable argument, `level` of them holding a part of a target value in order and the
   rest `none`; **depth** follows the longest declared chain, level d its last d calls; **shape**
   runs the longest keyed chain four times, width 1 in sequence, width 2 as two sequences side by
-  side, width 4 all side by side.
+  side, width 4 all side by side;
+- **timeouts** and **ratelimits** (0.3.0) plan `surface.fault_plan`'s answers as faults does,
+  each in its own word, and swap the system prompt's fault clause for the kind's; **landed**
+  (0.3.0) plans one answer on the target, which the simulator applies as any call and answers
+  the timeout, so its reference is the one call and a reply; it is offered only on a set with a
+  check read, a read tool with a checkable argument named as one of the target write's, and its
+  target is drawn per seed from the writes that have one, the same at both levels, so that a
+  model can tell a write that landed from one that went nowhere by reading the record back
+  (decided 2026-10-29, Q3 of the faults design).
 
 `OwnBundle.steps` is what the simulator and the verdict read: the calls the task expects, each
 with the arguments that identify it, the steps it waits for and the values its answer serves.
@@ -65,6 +74,7 @@ __all__ = [
     "KNOBS",
     "HASHED_MODULES",
     "UNAVAILABLE_WITHOUT_FLOWS",
+    "LANDED_NEEDS_A_CHECK_READ",
     "Flow",
     "OwnBundle",
     "generator_hash",
@@ -75,8 +85,9 @@ __all__ = [
     "generate",
 ]
 
-GENERATOR_VERSION = "own-1"
-KNOBS = ("similarity", "faults", "history", "block", "arguments", "spread", "depth", "shape")
+GENERATOR_VERSION = "own-2"
+KNOBS = ("similarity", "faults", "history", "block", "arguments", "spread", "depth", "shape",
+         "timeouts", "ratelimits", "landed")
 # Every `poisson_tasks` module a fresh interpreter loads for the generator, the simulator and the
 # verdict (`tests/test_o2_determinism.py` holds this list to that), in alphabetical order.
 HASHED_MODULES: tuple[str, ...] = (
@@ -99,8 +110,29 @@ UNAVAILABLE_WITHOUT_FLOWS = (
     "Depth and shape need the model to carry a value from one tool's output into another's "
     "input in a way that makes sense for your domain. Tasks will not guess that."
 )
+LANDED_NEEDS_A_CHECK_READ = (
+    "A landed timeout can only be told from one that went nowhere by reading the record back, "
+    "so landed needs a read tool that takes one of the target write's arguments. This set has "
+    "none."
+)
 
-_SIMILARITY, _FAULTS, _HISTORY, _BLOCK, _ARGUMENTS, _SPREAD, _DEPTH, _SHAPE = KNOBS
+(_SIMILARITY, _FAULTS, _HISTORY, _BLOCK, _ARGUMENTS, _SPREAD, _DEPTH, _SHAPE, _TIMEOUTS,
+ _RATELIMITS, _LANDED) = KNOBS
+# The knobs whose level is a plan of answers in front of the store, each in its own word
+# (`surface.fault_kind`); the three faults-shaped ones carry the retries in the reference,
+# and landed carries none, its one planned call going through.
+_PLANNED = (_FAULTS, _TIMEOUTS, _RATELIMITS, _LANDED)
+# The system prompt's fault clause: today's on every knob but the two new kinds', each of which
+# says what its answer means and no more.
+_FAULT_CLAUSE = "A call may answer that the tool is unavailable; make the same call again."
+_FAULT_CLAUSES = {
+    _TIMEOUTS: "A call may time out; whether it went through is then not known.",
+    _LANDED: "A call may time out; whether it went through is then not known.",
+    _RATELIMITS: (
+        "A call may answer that the tool is rate limited, with how long to wait; make the same "
+        "call again after that."
+    ),
+}
 _READ = "read"
 _WRITE = "write"
 _EVAL = "eval"
@@ -281,6 +313,19 @@ def _targets(toolset: _OwnToolSet) -> list[_OwnTool]:
 
 def _reads(toolset: _OwnToolSet) -> list[_OwnTool]:
     return [t for t in toolset.tools if t.effect == _READ and _required_drawable(t)]
+
+
+def _check_reads(toolset: _OwnToolSet, target: _OwnTool) -> list[_OwnTool]:
+    """The reads that can check a write to `target`: a read tool with a checkable argument whose
+    name is one of the target's arguments, so a read of the written record answers with what
+    was written after the write (the simulator's reflection)."""
+    names = set(_properties(target))
+    return [t for t in _reads(toolset) if names & set(_checkable(t))]
+
+
+def _landed_targets(toolset: _OwnToolSet) -> list[_OwnTool]:
+    """The writes a landed task can target: those with a check read."""
+    return [t for t in _targets(toolset) if _check_reads(toolset, t)]
 
 
 def _string_field(tool: _OwnTool) -> str | None:
@@ -586,8 +631,10 @@ def knob_levels(toolset: _Any, knob: str, *, flows: _Sequence[Flow] = ()) -> tup
     check_flows(toolset, flows)
     if not _targets(toolset):
         return ()
-    if knob in (_SIMILARITY, _FAULTS):
+    if knob in (_SIMILARITY, _FAULTS, _TIMEOUTS, _RATELIMITS):
         return _knobs.levels(knob)
+    if knob == _LANDED:
+        return _knobs.levels(knob) if _landed_targets(toolset) else ()
     if knob == _HISTORY:
         return _knobs.levels(knob) if _reads(toolset) else ()
     if knob == _BLOCK:
@@ -654,11 +701,12 @@ def _path_words(path: str) -> str:
     return " of ".join(reversed(words)) if len(words) > 1 else words[0]
 
 
-def _system_prompt(toolset: _OwnToolSet) -> str:
+def _system_prompt(toolset: _OwnToolSet, knob: str) -> str:
+    clause = _FAULT_CLAUSES.get(knob, _FAULT_CLAUSE)
     return (
         f"You work with the tools of {toolset.name}. Make one tool call per turn, with its"
-        " arguments as JSON. A call may answer that the tool is unavailable; make the same"
-        " call again. Reply in plain text once the request is done, and make no other change."
+        f" arguments as JSON. {clause} Reply in plain text once the request is done, and make"
+        " no other change."
     )
 
 
@@ -877,6 +925,13 @@ def _drawn_target(toolset: _OwnToolSet, key: bytes) -> _OwnTool:
     return targets[_pick(key, "target", len(targets))]
 
 
+def _drawn_landed_target(toolset: _OwnToolSet, key: bytes) -> _OwnTool:
+    """A landed task's target, drawn per seed from the writes that have a check read, so the
+    knob's two levels share it."""
+    targets = _landed_targets(toolset)
+    return targets[_pick(key, "landed/target", len(targets))]
+
+
 def _history_prompt(toolset: _OwnToolSet, request: str, level: int, key: bytes, seed: int,
                     split: str) -> tuple[dict[str, _Any], ...]:
     reads = _reads(toolset)
@@ -1031,7 +1086,7 @@ def generate(
     intents: _Mapping[str, str] | None = None,
     flows: _Sequence[Flow] = (),
 ) -> OwnBundle:
-    """The task on `toolset` for `arm` (a `knobs.ArmSpec` at generator `own-1`) and `seed`."""
+    """The task on `toolset` for `arm` (a `knobs.ArmSpec` at `GENERATOR_VERSION`) and `seed`."""
     if arm.generator_version != GENERATOR_VERSION:
         raise ValueError(f"the own-tools generator is {GENERATOR_VERSION!r}; the arm is at"
                          f" {arm.generator_version!r}")
@@ -1053,9 +1108,11 @@ def generate(
     account = _surface.target_number(seed, split) if knob == _SIMILARITY else None
     if knob == _SIMILARITY:
         names = names + [f"{_cut(n)}_{account}" for n in names]
-    if knob in (_SIMILARITY, _FAULTS, _HISTORY):
+    if knob in (_SIMILARITY, _FAULTS, _HISTORY, _TIMEOUTS, _RATELIMITS):
         design = _base_design(toolset, _drawn_target(toolset, key), key, intents, names,
                               account=account)
+    elif knob == _LANDED:
+        design = _base_design(toolset, _drawn_landed_target(toolset, key), key, intents, names)
     elif knob == _BLOCK:
         design = _block_design(toolset, level, key, intents, names)
     elif knob == _ARGUMENTS:
@@ -1097,8 +1154,11 @@ def generate(
     named_reads = tuple((to_shown[name], args, field) for name, args, field in design.named_reads)
 
     path = tuple(dict.fromkeys(name for name, _args in reference))
-    fault_plan = _surface.fault_plan(rendered, path) if knob == _FAULTS else {}
-    if fault_plan:
+    fault_plan = _surface.fault_plan(rendered, path) if knob in _PLANNED else {}
+    if fault_plan and knob != _LANDED:
+        # The reference carries the retries: each planned answer's call, and the same call
+        # again.  A landed arm's one planned call goes through, so its reference is the call
+        # once and the reply.
         expanded: list[tuple[str, dict[str, _Any]]] = []
         seen: set[str] = set()
         for name, args in reference:
@@ -1123,7 +1183,7 @@ def generate(
         file_digest=toolset.file_digest,
         generator_hash=generator_hash(),
         form=design.form,
-        system_prompt=_system_prompt(toolset),
+        system_prompt=_system_prompt(toolset, knob),
         request=design.request,
         prompt=prompt,
         tools=tuple(tools),
