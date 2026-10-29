@@ -69,7 +69,7 @@ from tests.fd4_support import (
 from tests.fixtures.model_server import FixtureModel
 from tests.k3_support import GAVE_UP, episode, made, record_with, right
 from tests.o2_support import fixture_sets
-from tests.pv_support import invoke_json
+from tests.pv_support import copy_run, invoke_json
 from tests.test_k3_records import provenance
 from tests.test_o2_card import artifact as own_artifact
 from tests.test_o2_cli import QUIET, invoke, work  # noqa: F401 - the fixture is used by name
@@ -237,14 +237,19 @@ def timeouts_run(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
 
 @needs_uv
 def test_card_json_carries_experimental_and_the_card_its_line(
-    timeouts_run: Path, fd4_runs: RunFolders, monkeypatch: pytest.MonkeyPatch  # noqa: F811
+    timeouts_run: Path, fd4_runs: RunFolders, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    tmp_path: Path,
 ) -> None:
     """`card --json`'s `experimental` maps each experimental knob on the card to its reason, `{}`
-    on a card with none; the card's own page carries the line."""
+    on a card with none; the card's own page carries the line.
+
+    Retrofitted 2026-10-29 by the build session: the two shared run folders are copied before
+    `card` writes into them (`tests/pv_support.py`'s rule), since a card left in the session's
+    shared folder made a later test's copy of it refuse to write its own."""
     for folder, expected in (
         (timeouts_run, {"timeouts": NOT_MEASURED}),
-        (fd4_runs["distractor"].folder, {"distractor": DID_NOT_BITE}),
-        (fd4_runs["strict"].folder, {}),
+        (copy_run(fd4_runs["distractor"].folder, tmp_path / "distractor"), {"distractor": DID_NOT_BITE}),
+        (copy_run(fd4_runs["strict"].folder, tmp_path / "strict"), {}),
     ):
         ran, document = invoke_json(["card", str(folder)], monkeypatch)
         assert ran.code == 0, ran

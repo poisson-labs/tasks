@@ -203,7 +203,15 @@ def test_reads_before_any_write_and_the_errors_answer_as_on_main() -> None:
 def test_the_store_keeps_every_accepted_write_in_order() -> None:
     """Shape 1, on acme at seed 404 under `faults:f1`: the target's planned answer is no write; a
     stray write, the target, the target again and a call its schema refuses leave three writes,
-    the second and third equal; the verdict is `collateral_mutation`, as today."""
+    the second and third equal; the verdict is `malformed_call`, as today.
+
+    Retrofitted 2026-10-29 by the build session: the assertion read `collateral_mutation`, which
+    is not today's verdict on these calls.  The last call breaks the target's schema, so format
+    clause 4 fires, and `malformed_call` comes before `collateral_mutation` in the frozen label
+    order (`tests/test_o2_verdict.py`); measured on the unbuilt tree, where the verdict on this
+    call list is `malformed_call` and on the same list without the refused call
+    `collateral_mutation`.  The store's three writes and two side effects are held as
+    written."""
     sim = simulator()
     bundle = own_made(fixture_sets()["acme-mcp"], "faults", 1, 404)
     target, args = first_write(bundle)
@@ -217,7 +225,8 @@ def test_the_store_keeps_every_accepted_write_in_order() -> None:
     assert writes(state) == (
         (stray[0], canonical(stray[1])), (target, canonical(args)), (target, canonical(args)))
     assert len(state.side_effects) == 2
-    assert judge(bundle, calls).strict_label == "collateral_mutation"
+    assert judge(bundle, calls).strict_label == "malformed_call"
+    assert judge(bundle, calls[:-1]).strict_label == "collateral_mutation"
 
 
 def test_a_repeated_write_is_recorded_as_a_duplicate(tmp_path: Path) -> None:
@@ -391,13 +400,20 @@ def test_under_landed_the_reference_is_one_call_and_a_blind_retry_is_a_duplicate
 def test_under_landed_the_first_call_reaches_the_store_whatever_it_is() -> None:
     """On acme at seed 404: a first call its schema refuses is answered the timeout and moves
     nothing, and the right call after it is not planned and is accepted; a first call that is a
-    stray write is applied as one and answered the timeout."""
+    stray write is applied as one and answered the timeout.
+
+    Retrofitted 2026-10-29 by the build session: the stray write's `order_id` was the target's
+    with a character appended, which acme's schema refuses (`minLength` and `maxLength` are
+    both 6), so that call was the first case again and not a stray write.  The stray write now
+    takes the target's `order_id` with its last character changed, a value the schema takes
+    that names another order."""
     bundle = own_made(fixture_sets()["acme-mcp"], "landed", 1, 404)
     (target, args), = bundle.reference_calls
     state, (refused, right) = stepped(bundle, [(target, {"": []}), (target, args)])
     assert refused.code == "timeout" and right.code is None
     assert all(state.done) and len(writes(state)) == 1
-    stray_args = {**args, "order_id": args["order_id"] + "x"}
+    order = str(args["order_id"])
+    stray_args = {**args, "order_id": order[:-1] + ("x" if order[-1] != "x" else "y")}
     state, (stray,) = stepped(bundle, [(target, stray_args)])
     assert stray.code == "timeout"
     assert not any(state.done) and len(state.side_effects) == 1 and len(writes(state)) == 1
