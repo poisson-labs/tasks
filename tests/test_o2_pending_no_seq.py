@@ -33,6 +33,7 @@ from tests.o2_support import acme, calibration, config, generator, reference_mod
 def test_calls_made_in_one_turn_replay_in_the_order_the_harness_sent_them(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Retrofitted 2026-10-29 for 0.3.0: the own-tools generator label moved from "own-1" to "own-2" with the ruled change to the frozen generator (the faults spec's Q4)."""
     (tmp_path / "tools.json").write_bytes(fixture("acme-mcp-tools-list.json"))
     monkeypatch.setenv("O2_API_KEY", "EMPTY")
     from poisson_tasks.arms import arm_from_id
@@ -40,7 +41,7 @@ def test_calls_made_in_one_turn_replay_in_the_order_the_harness_sent_them(
     with reference_model() as model:
         cfg = config()
         data = (tmp_path / "tools.json").read_bytes()
-        spec = arm_from_id("spread:p4", generator_version="own-1")
+        spec = arm_from_id("spread:p4", generator_version="own-2")
         plan = cfg.Plan(
             preset="custom", arms=(spec,), seeds=(404,), attempts=1,
             model=cfg.ModelConfig(provider="openai-compatible", name="scripted", base_url=model.base_url,
