@@ -44,7 +44,10 @@ from tests.k9_support import (
 )
 
 pytestmark = needs_uv
-HASH = "b460964dc153fab4535af3b39abd41d50198f3dcc644ae3e43ddee85544b57f9"
+# The frozen generator's hash the driver records and refuses against: moved 2026-10-29 for
+# 0.3.0 with the ruled change to the generator (the faults design, Q1), as
+# calibration_run.EXPECTED_GENERATOR_HASH moved; it was b460964dc153fab4535af3b39abd41d50198f3dcc644ae3e43ddee85544b57f9 before.
+HASH = "b0aa26c77259dd16a07f814fc4b250ce0ba69d372aff520663db089daa9b0db4"
 
 
 def drive(

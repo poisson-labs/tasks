@@ -39,10 +39,11 @@ FIXTURES = REPO / "tests" / "fixtures" / "o1"
 PROG = "poisson-tasks"
 
 SCHEMA = "poisson-tasks.produced-by/1"
-BUILT_IN_GENERATOR = "b460964dc153fab4535af3b39abd41d50198f3dcc644ae3e43ddee85544b57f9"
-OWN_TOOLS_GENERATOR = "22c8ac69045893eb4915c72d05020d10049696411b10c2bb94b5cac9d5e1b765"
-GENERATOR_0_PREFIX = "fda0e65fd942"
-"""The first twelve characters of what generator version "0" hashes to."""
+BUILT_IN_GENERATOR = "b0aa26c77259dd16a07f814fc4b250ce0ba69d372aff520663db089daa9b0db4"
+OWN_TOOLS_GENERATOR = "0cf69e660b66ff0c9a36d906cd7dad10e0c7a5f63b71c950bed7bdfd67888a14"
+GENERATOR_0_PREFIX = "53c243df0a80"
+"""The first twelve characters of what generator version "0" hashes to.  Moved 2026-10-29 for
+0.3.0 with the two hashes above: the label enters the hash over the same changed files."""
 VOCABULARY = "9f3a8c4f4711574e947ec8b3396ff552c9b7aa730fbb5d565db4f10776653037"
 """The bytes of `data/vocabulary-v2.json`: the vocabulary hash is their SHA-256."""
 
