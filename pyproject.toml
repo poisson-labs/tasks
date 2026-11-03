@@ -53,7 +53,13 @@ dependencies = [
 # path reaches that module, so a plain install works without it, and `pip install
 # "poisson-tasks[prove]"` adds it. It is an extra, and not a dependency, because it is one of two
 # output routes and brings its own scientific stack (numpy, pandas, scipy, pyarrow, textual).
-prove = ["poisson-prove"]
+#
+# The floor was measured, not guessed: on 2026-11-03 the end-to-end check
+# (scripts/release/prove_e2e.py) ran against each published version, with this tree's wheel
+# installed beside `poisson-prove==X`. 0.1.0, 0.1.1 and 0.1.2 each passed all twenty checks; 0.0.1,
+# the yanked name-hold, has no command and no Episode, and failed ten. 0.1.0 is the first release
+# with what Tasks uses, so that is the floor.
+prove = ["poisson-prove>=0.1.0"]
 
 # Floors, not pins: the suite, mypy --strict and the ruff rule set in this file are
 # known green on these versions, and nothing below them is claimed. NOTICE names the
