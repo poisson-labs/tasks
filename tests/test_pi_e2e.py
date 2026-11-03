@@ -135,3 +135,20 @@ def test_pi5_4_the_jobs_with_prove_install_it_from_the_extra_and_the_jobs_withou
         runs = "\n".join(s.get("run", "") for s in steps_of(job))
         assert "find_spec('poisson_prove')" in runs, name
         assert "proofload" not in runs.lower(), name
+
+
+@pytest.mark.parametrize("name", ["ci.yml", "suite.yml"])
+def test_pi5_5_the_jobs_with_prove_run_wherever_the_jobs_without_it_do(name: str) -> None:
+    """Prove was private, and a job that needed a read token ran on a push to main only (the
+    fast lane) or for this repository only (the whole suite).  From PyPI it needs neither, so a
+    pull request, and a fork, gets the job with Prove as well, and a change that breaks only
+    with Prove is red where it is made.  The `if:` lines are gone; a condition that is added
+    back needs a reason."""
+    workflow = load(WORKFLOWS / name)
+    with_prove = {key: job for key, job in workflow["jobs"].items() if key.endswith("with-prove")}
+    assert with_prove
+    for key, job in with_prove.items():
+        assert "if" not in job, (name, key, job.get("if"))
+    text = (WORKFLOWS / name).read_text(encoding="utf-8")
+    assert "runs on a push to main only" not in text
+    assert "Prove runs on main only" not in text
