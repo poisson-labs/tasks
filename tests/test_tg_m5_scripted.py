@@ -771,19 +771,21 @@ def test_sf7_the_scripted_path_has_no_verifiers_and_no_network():
 # A1 · public API only
 # ===========================================================================
 
+# Retrofitted 2026-11-03 for 0.3.1: Prove is published as the package `poisson_prove`; A1's rule is
+# the same rule on the new name, and the helper and test names stay as they were.
 _ALLOWED_PROOFLOAD = {"Episode", "Rollout"}
-_DOTTED = re.compile(r"^proofload\.[A-Za-z_][\w.]*$")  # "proofload" alone is the CLI's name
+_DOTTED = re.compile(r"^poisson_prove\.[A-Za-z_][\w.]*$")  # "poisson_prove" alone is the module the CLI runs
 
 
 def proofload_violations(tree: ast.AST) -> list[str]:
-    """A1: "From `proofload`, only `Episode` and `Rollout` are imported, plus the CLI."  So a
-    `from proofload import` of those two names is the one permitted shape: `import proofload`,
-    a deep `from proofload.x import`, any other name, and a dynamic import of a proofload
-    module by string are each a violation."""
+    """A1: "From `proofload`, only `Episode` and `Rollout` are imported, plus the CLI."  The
+    package is `poisson_prove` now, so a `from poisson_prove import` of those two names is the one
+    permitted shape: `import poisson_prove`, a deep `from poisson_prove.x import`, any other
+    name, and a dynamic import of a poisson_prove module by string are each a violation."""
     bad: list[str] = []
     for module, names, level in imports_of(tree):
-        if level == 0 and module.split(".")[0] == "proofload":
-            if module != "proofload" or not names or not set(names) <= _ALLOWED_PROOFLOAD:
+        if level == 0 and module.split(".")[0] == "poisson_prove":
+            if module != "poisson_prove" or not names or not set(names) <= _ALLOWED_PROOFLOAD:
                 bad.append(f"{module}: {names}")
     for node in ast.walk(tree):
         if isinstance(node, ast.Constant) and isinstance(node.value, str) and _DOTTED.match(node.value):
@@ -797,8 +799,8 @@ def test_a1_1_only_episode_and_rollout_are_imported_from_proofload():
 
 def test_a1_2_the_walker_sees_the_import_the_adapter_must_make():
     """The control for A1.1: a walker that found no imports at all would pass it.  The
-    adapter builds `proofload.Episode`, so the one permitted import has to be there."""
-    seen = [(m, n) for m, n, level in imports_of(adapter_tree()) if m == "proofload" and level == 0]
+    adapter builds `poisson_prove.Episode`, so the one permitted import has to be there."""
+    seen = [(m, n) for m, n, level in imports_of(adapter_tree()) if m == "poisson_prove" and level == 0]
     assert seen and all(set(n) <= _ALLOWED_PROOFLOAD for _m, n in seen)
     assert any("Episode" in n for _m, n in seen)
 
@@ -806,18 +808,18 @@ def test_a1_2_the_walker_sees_the_import_the_adapter_must_make():
 @pytest.mark.parametrize(
     "source",
     [
-        "from proofload.store import config_hash",
-        "import proofload.store",
-        "import proofload",
-        "from proofload import Episode, derive_seed",
-        "from proofload.episode import Episode",
-        "import importlib\nimportlib.import_module('proofload.store')",
+        "from poisson_prove.store import config_hash",
+        "import poisson_prove.store",
+        "import poisson_prove",
+        "from poisson_prove import Episode, derive_seed",
+        "from poisson_prove.episode import Episode",
+        "import importlib\nimportlib.import_module('poisson_prove.store')",
     ],
 )
 def test_a1_3_the_walker_flags_every_shape_that_is_not_the_one_permitted(source):
     """It tests this file's own walker, which is what makes A1.1 able to fail."""
     assert proofload_violations(ast.parse(source)) != []
-    assert proofload_violations(ast.parse("from proofload import Episode, Rollout")) == []
+    assert proofload_violations(ast.parse("from poisson_prove import Episode, Rollout")) == []
 
 
 # ===========================================================================
