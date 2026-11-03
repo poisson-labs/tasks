@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -7,7 +7,10 @@ name = "poisson-tasks"
 version = "0.3.0"
 description = "Tool-use tasks with a known right answer, generated on your machine, and a card that says what each level of difficulty was worth to the model you ran."
 readme = "README.md"
-license = { file = "LICENSE" }
+# An SPDX expression (PEP 639), so PyPI shows "MIT" and not the licence text; the two files are
+# what the package has always shipped under dist-info/licenses/, LICENSE and the third-party NOTICE.
+license = "MIT"
+license-files = ["LICENSE", "NOTICE"]
 # The upper bound is verifiers 0.3.1's own, which this package pins.
 requires-python = ">=3.11,<3.14"
 authors = [{ name = "Poisson Labs", email = "work@poissonlabs.ai" }]
@@ -16,7 +19,6 @@ keywords = ["tool-use", "evaluation", "benchmark", "reinforcement-learning", "ag
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3.11",
