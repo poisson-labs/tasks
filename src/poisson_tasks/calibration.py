@@ -12,15 +12,15 @@ the attempts burned (CAL15).
 and asks whether the instrument detects them.  This asks what a level is worth to a model, and
 it shares a word with that and no arithmetic.
 
-**A21, the pilot's distinct-instance rule, does not apply to this module.**  The Proofload
+**A21, the pilot's distinct-instance rule, does not apply to this module.**  The Prove
 pilot salts its replicates apart so that no two are the same instance.  Here the opposite is
 required: pass@k is defined over repeated attempts at the same task, so a cell's `n`
 attempts share `task_id`, `arm_id`, `seed`, `scenario_hash` and `generator_hash` (CAL3), and
 `check_attempts` refuses a cell whose attempts were salted apart.  Carrying the pilot's rule
 across computes something that is not pass@k.
 
-**Tasks is standalone.**  Nothing here imports Proofload or the Prove-gated adapter, and the
-whole module works with Proofload unimportable (CAL22).  The instrument labels the adapter
+**Tasks is standalone.**  Nothing here imports Prove or the Prove-gated adapter, and the
+whole module works with Prove unimportable (CAL22).  The instrument labels the adapter
 would assign are read from the signals the trace already carries instead
 (`label_from_signals`), and every published number recomputes from the per-episode records with
 no model and no network (CAL19).
@@ -41,7 +41,7 @@ Shapes decided here, where the tests leave them open
 * **The seed list is derived, not typed.**  Sixty 32-bit seeds from a named derivation
   (`_SEED_DERIVATION`), sorted; the derivation is the declaration and the list is published
   in the artifact with its hash (CAL1).  The seeds come from the eval split.
-* **The pilot's seeds are a registry.**  The pilot's stages declare *salts* and Proofload
+* **The pilot's seeds are a registry.**  The pilot's stages declare *salts* and Prove
   derives their seeds at run time, which this module cannot import.  `pilot_seeds` returns
   what the pilot has registered, and today that is nothing: CAL1's disjointness holds in the
   other direction, by the pilot's salt vetting refusing a salt whose seeds meet the published
@@ -2247,7 +2247,7 @@ def plumbing_gate(
 
 _SEED_DERIVATION = "poisson-tasks/calibration/seeds/v0"
 """The declaration behind the seed list: seed `i` is the first four bytes of
-`sha256("<derivation>:<i>")`, the same 32-bit shape as Proofload's, sorted."""
+`sha256("<derivation>:<i>")`, the same 32-bit shape as Prove's, sorted."""
 
 
 def _derive_seeds() -> tuple[int, ...]:
@@ -2263,7 +2263,7 @@ def _derive_seeds() -> tuple[int, ...]:
 _SEEDS = _derive_seeds()
 
 PILOT_SEEDS: dict[int, tuple[int, ...]] = {2: (), 3: (), 5: ()}
-"""The pilot's registered seeds per stage.  The pilot declares salts and Proofload derives
+"""The pilot's registered seeds per stage.  The pilot declares salts and Prove derives
 their seeds at run time; none is registered yet.  The disjointness CAL1 asks for is kept by
 the pilot's salt vetting against the published sixty, and by this registry once a stage's
 seeds exist."""

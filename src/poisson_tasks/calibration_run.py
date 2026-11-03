@@ -63,7 +63,7 @@ The pieces
   ends its step with a STOP that carries the command's own output (`StepFailed`), so the
   notebook shows the reason and not only an exit status.
 
-Nothing here imports Proofload or the adapter (CAL22).
+Nothing here imports Prove or the adapter (CAL22).
 """
 
 from __future__ import annotations
