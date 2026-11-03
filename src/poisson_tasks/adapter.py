@@ -1,4 +1,4 @@
-"""The Proofload adapter's scripted path: the arm targets, the two scripted policies, the
+"""The Prove adapter's scripted path: the arm targets, the two scripted policies, the
 outcome map and the pre-registration validator.
 
 The invariants this file is built against are A1-A9 and A12, tested in
@@ -14,7 +14,7 @@ what needs `verifiers` in modules of its own and hands `to_episode` a `Run` buil
 trace.
 
 Every entry point is a pure function of its arguments and the registration it was loaded
-from: no clock, no RNG but a keyed hash of the Proofload seed, no model, no network, and
+from: no clock, no RNG but a keyed hash of the Prove seed, no model, no network, and
 no module-level state that a call writes (A12).
 
 Shapes the tests leave open, decided by this build
@@ -53,16 +53,15 @@ Each carries its escape hatch.  The tests pin none of them beyond what is said h
 * **The scripted `fmt` is named `direct` and carries no markers**, so format-check clause 1
   never fires on this path.  A reply is the text `Done.`; nothing pins the wording.
 * **At slack 0 the leaky plant cannot overshoot.**  An overshoot is `d + 2` turns and the
-  budget is `d + 1`, so `to_episode`'s turn guard raises and Proofload stores an errored
+  budget is `d + 1`, so `to_episode`'s turn guard raises and Prove stores an errored
   row.  The pilot's slack is 4; `validate_preregistration` allows 0 because N17 does.
-* **Proofload is not a dependency, and this module is the only thing in the package that
-  needs it.**  It is unpublished and there is no extra for it (`pyproject.toml` says why):
-  it comes from a checkout installed into the same environment, `pip install -e
-  ../proofload`.  The import below stays the one shape A1 permits, a
-  top-level `from proofload import Episode`, and is wrapped so that importing this module
+* **Prove is an optional extra, and this module is the only thing in the package that needs
+  it.**  The distribution is `poisson-prove` and the package is `poisson_prove`; the extra is
+  `pip install "poisson-tasks[prove]"`.  The import below stays the one shape A1 permits, a
+  top-level `from poisson_prove import Episode`, and is wrapped so that importing this module
   without the extra raises a `ModuleNotFoundError` naming the extra rather than the bare
-  "No module named 'proofload'".  Nothing on the package's import path reaches this module,
-  so `import poisson_tasks` and everything under it but this file work without Proofload.
+  "No module named 'poisson_prove'".  Nothing on the package's import path reaches this module,
+  so `import poisson_tasks` and everything under it but this file work without Prove.
   *Escape hatch:* delete the `try`; A1 reads the `from` either way, since it walks the tree.
 """
 
@@ -81,13 +80,12 @@ from pathlib import Path as _Path
 from typing import Any as _Any
 
 try:
-    from proofload import Episode as _Episode
+    from poisson_prove import Episode as _Episode
 except ModuleNotFoundError as _exc:
     raise ModuleNotFoundError(
-        "This module is the Proofload route, and Proofload is not a dependency of "
-        "poisson-tasks: nothing else in the package needs it.  It is not publicly "
-        "available yet, so there is no extra and no index to install it from -- install "
-        "a checkout into this same environment: `pip install -e ../proofload`."
+        "This module is the Prove route, and Prove is an optional extra of poisson-tasks: "
+        "nothing else in the package needs it.  Install it with "
+        '`pip install "poisson-tasks[prove]"` (the distribution is `poisson-prove`).'
     ) from _exc
 
 from poisson_tasks.engine import DomainState as _DomainState
@@ -275,7 +273,7 @@ def to_episode(
     horizon: int,
     meta: _Mapping[str, _Any] | None = None,
 ) -> _Episode:
-    """The one outcome path: a run of one bundle to a `proofload.Episode` (A9).
+    """The one outcome path: a run of one bundle to a `poisson_prove.Episode` (A9).
 
     `t` is the number of assistant turns, a reply included, and `horizon` is the knob's
     common `H` and never the arm's own `max_turns` (N17).  What would break A5 or A3 is
@@ -549,7 +547,7 @@ def load_registry(
     compared with `sha256` before anything else is read, and the same bytes are parsed, so
     an edit that leaves the parsed document identical -- a comment, a newline, two keys
     swapped -- still refuses.  A mismatch is a `RuntimeError` naming both hashes, one of
-    the four types `proofload sweep` turns into "cannot resolve --target", so a stale
+    the four types `poisson-prove sweep` turns into "cannot resolve --target", so a stale
     registry fails at import and before any episode.  There is no cache: every load checks
     again.
 
@@ -617,7 +615,7 @@ def _integral(value: _Any) -> int | None:
 def _check_cfg(cfg: _Mapping[str, _Any], arm: _ArmSpec, slack: int, horizon: int) -> None:
     """The cfg contract (decision 4), by name.
 
-    "The adapter refuses to start" has no start hook in Proofload to live in, so a rollout
+    "The adapter refuses to start" has no start hook in Prove to live in, so a rollout
     that raises is the only refusal it can store.  A key that names a level is refused,
     because it moves `config_hash`; the four pins must be there and equal the
     registration's; every other key -- `model`, `serving_pin`, `temperature`,
@@ -666,7 +664,7 @@ def _plant_of(cfg: _Mapping[str, _Any], cells: _Mapping[str, _Plant]) -> _Plant:
 def _scripted_target(
     policy: str, arm: _ArmSpec, slack: int, horizon: int, cells: _Mapping[str, _Plant]
 ) -> _Target:
-    """One arm's callable under one policy: `(cfg, seed) -> proofload.Episode`.
+    """One arm's callable under one policy: `(cfg, seed) -> poisson_prove.Episode`.
 
     Refusals come first and cheapest -- a running loop, then the cfg, then the plant cell --
     and only then a bundle is generated, so a refused call costs no generation except for
@@ -677,7 +675,7 @@ def _scripted_target(
         _refuse_running_loop()
         _check_cfg(cfg, arm, slack, horizon)
         plant = _plant_of(cfg, cells) if policy == _FAULTY else None
-        # The Proofload seed is the task seed itself, with no remapping (G12).
+        # The Prove seed is the task seed itself, with no remapping (G12).
         bundle = _generate(arm, seed)
         _check_generator_hash(cfg, bundle)
         run = _reference_run(bundle) if plant is None else _faulty_run(bundle, seed, plant)
@@ -729,7 +727,7 @@ def _reference_run(bundle: _TaskBundle) -> Run:
 
 
 def _draw(seed: int, kind: str, step: int) -> float:
-    """A uniform number in [0, 1), a keyed hash of the Proofload seed: the same in every
+    """A uniform number in [0, 1), a keyed hash of the Prove seed: the same in every
     process and under every `PYTHONHASHSEED`.  53 bits, so that 1.0 is unreachable and a
     rate of 1 fires every time."""
     material = _DRAW_DOMAIN + f"{seed}\x1f{kind}\x1f{step}".encode("ascii")
