@@ -120,6 +120,12 @@ built-in tasks and the Petstore tool file, each in the coloured look and in `--p
   `127.0.0.1`.
 - [ ] Keep each scene's `plan.json`, `produced_by.jsonl` and cards with the evidence, not its
   traces.
+- [ ] The Prove route runs from the wheel and from PyPI alone (`scripts/release/prove_e2e.py`): a
+  fresh environment takes the wheel with its `prove` extra, so `poisson-prove` comes from
+  pypi.org; the example and the real `poisson-prove` command then run the built-in tasks under
+  the scripted policy and read the episodes back, with no local Prove on the path; and with
+  `poisson-prove` uninstalled the package still imports and the adapter is refused naming the
+  extra. It ends `PROVE E2E OK`.
 
 ## 7. The date
 

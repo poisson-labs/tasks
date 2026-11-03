@@ -1,7 +1,8 @@
 #!/bin/zsh
 # Steps 5 and 6 of docs/releasing.md on one build: twine, the version, no tokenizer, the key and
-# token scans (against the last release's), the comparison with the last release's files, and the
-# wheel gate.
+# token scans (against the last release's), the comparison with the last release's files, the
+# wheel gate, and the Prove route end to end (the wheel with its prove extra, poisson-prove from
+# PyPI, no local Prove).
 #
 #   RELEASE_ENV_FILE=<checkout>/.env zsh scripts/release/release_checks.sh \
 #       VERSION WORKTREE OLD_VERSION OLD_DIST OLD_REV SCRATCH OUT
@@ -23,7 +24,7 @@ TOK=${RELEASE_TOKENIZER:-${S:h:h}/src/poisson_tasks/data/o200k_base.tiktoken}
 NREV=$(git -C $W rev-parse HEAD)
 WHL=$W/dist/poisson_tasks-$V-py3-none-any.whl SDIST=$W/dist/poisson_tasks-$V.tar.gz
 failed=0
-mkdir -p $T/u $OUT/build $OUT/twine $OUT/key-scan $OUT/wheel-gate
+mkdir -p $T/u $OUT/build $OUT/twine $OUT/key-scan $OUT/wheel-gate $OUT/prove-e2e
 step() { print -- "=== $1 ($(date -u +%H:%M:%SZ))"; }
 
 step "the build: $NREV"
@@ -95,6 +96,12 @@ for v in gate/venv driver; do d=$($T/$v/bin/python -c 'import poisson_tasks,path
 $T/gate/venv/bin/python -m poisson_tasks --version
 (cd $T && trap - INT && unset PYTHONDONTWRITEBYTECODE && PYTHONDONTWRITEBYTECODE=1 $T/driver/bin/python -I "$S/drive.py" $W $T/gate $OUT/wheel-gate/transcripts > $OUT/wheel-gate/drive.log 2>&1) || failed=1
 tail -3 $OUT/wheel-gate/drive.log
+
+step "the Prove route, end to end"
+rm -rf $T/prove-e2e
+$P -I "$S/prove_e2e.py" --wheel $WHL --work $T/prove-e2e --example $W/examples/prove_sweep/run.py --tokenizer $TOK > $OUT/prove-e2e/prove-e2e.txt 2>&1 || failed=1
+for f in pip-install.log freeze.txt example.log; do cp $T/prove-e2e/$f $OUT/prove-e2e/ 2>/dev/null; done
+tail -2 $OUT/prove-e2e/prove-e2e.txt
 
 step "end: failed=$failed"
 exit $failed
