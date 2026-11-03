@@ -1618,7 +1618,7 @@ def test_a7_4_a_registry_that_was_loaded_once_is_checked_again_on_the_next_load(
 
 def test_a7_5_the_refusal_surfaces_as_a_target_resolution_failure_before_any_episode(tmp_path):
     """"That surfaces as target resolution failure, before any episode."  Through the real
-    CLI: a registry that raises at import is `cannot resolve --target`, exit 2, and nothing is
+    CLI: a registry that raises at import is `cannot resolve --target`, exit 1, and nothing is
     stored — while the same command against the good registry runs (the control, without
     which a refusal of everything would pass)."""
     reg, sha, sealed = pilot_files(tmp_path)
@@ -1629,7 +1629,7 @@ def test_a7_5_the_refusal_surfaces_as_a_target_resolution_failure_before_any_epi
     store = tmp_path / "store"
     args = ["sweep", str(sweep_file), "--salt", SALT, "--max-mde", MAX_MDE, "--yes"]
     bad = cli(store, *args, "--target", "lock_stale:reference_depth_d1", mods=tmp_path)
-    assert bad.returncode == 2
+    assert bad.returncode == 1  # retrofitted 2026-11-03 for 0.3.1: Prove exits 1 here; 2 is a usage error
     assert "cannot resolve --target" in bad.stdout + bad.stderr
     assert not store.exists() or not [p for p in store.iterdir() if p.is_dir()]
     good = cli(store, *args, "--target", "lock_good:reference_depth_d1", mods=tmp_path)
