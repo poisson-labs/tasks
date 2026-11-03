@@ -1,22 +1,24 @@
-"""Run two arms of the depth knob through Proofload, end to end, and read the outcomes.
+"""Run the depth knob's arms through Prove, end to end, and read the outcomes.
 
-    python examples/proofload_sweep/run.py [--store DIR]
+    python examples/prove_sweep/run.py [--store DIR]
 
 This is the whole scripted path: a pre-registration file, a registry module built from
-it, a Proofload sweep spec, and two real `proofload sweep` runs driven by the reference
-policy -- the one that plays each task correctly. Every episode should come back
+it, a Prove sweep spec, and three real `poisson-prove sweep` runs (two arms of depth and the
+control for the longer one) driven by the reference policy -- the one that plays each task
+correctly. Every episode should come back
 `passed`, because the policy is the answer the generator shipped with the task. That is
 the point of the scripted path: it exercises the plumbing with the model taken out, so a
 later failure is a model's and not the instrument's.
 
-It needs Proofload importable and `python -m proofload` runnable. Nothing else, and no
-network: the tasks are generated in process and the policy is a function.
+It needs Prove installed (`pip install "poisson-tasks[prove]"`), so that `poisson_prove` is
+importable and `python -m poisson_prove` runs. Nothing else, and no network: the tasks are
+generated in process and the policy is a function.
 
 Files it writes, under `--store` (default: ./example-store beside this file):
 
     registration.toml   the pre-registration: knob, arms, slack, horizon, split
     registry.py         `load_registry(...)` plus one module-level callable per arm
-    sweep.toml          Proofload's own spec: the cfg axes, held at one value each
+    sweep.toml          Prove's own spec: the cfg axes, held at one value each
     runs/               the store the sweep writes to
 """
 
@@ -90,10 +92,10 @@ def registry_text(registration: pathlib.Path, digest: str) -> str:
 
 
 def sweep_text(horizon: int) -> str:
-    """Proofload's spec. Every cfg axis is held at one value, because this run is about
+    """Prove's spec. Every cfg axis is held at one value, because this run is about
     the plumbing and not about a contrast; `t_unit = "turns"` is what the horizon counts.
 
-    `replicates` and `--max-mde` are a real gate: Proofload refuses a design it judges
+    `replicates` and `--max-mde` are a real gate: Prove refuses a design it judges
     underpowered for the effect you say you want to detect, before it runs anything. At 8
     replicates it will only accept a loose `--max-mde`, which is honest for a run whose
     outcome is known in advance."""
@@ -115,25 +117,29 @@ def sweep(store: pathlib.Path, spec: pathlib.Path, target: str, modules: pathlib
         [str(modules)] + ([env["PYTHONPATH"]] if env.get("PYTHONPATH") else [])
     )
     done = subprocess.run(
-        [sys.executable, "-m", "proofload", "--store", str(store), "sweep", str(spec),
-         "--target", target, "--max-mde", MAX_MDE, "--salt", SALT, "--yes"],
+        [sys.executable, "-m", "poisson_prove", "--store", str(store), "sweep", str(spec),
+         "--target", target, "--max-mde", MAX_MDE, "--salt", SALT, "--yes", "--json"],
         env=env, capture_output=True, text=True, timeout=600,
     )
-    found = re.search(r"^run_id: (\S+)$", done.stdout, re.M)
-    if done.returncode != 0 or found is None:
+    # The text form of `sweep` names the run by its name; the id is in the JSON document.
+    try:
+        run_id = json.loads(done.stdout)["run_id"]
+    except (ValueError, KeyError, TypeError):
+        run_id = None
+    if done.returncode != 0 or not isinstance(run_id, str):
         raise SystemExit(
-            f"proofload sweep --target {target} exited {done.returncode}\n"
+            f"poisson-prove sweep --target {target} exited {done.returncode}\n"
             f"--- stdout\n{done.stdout}\n--- stderr\n{done.stderr}"
         )
-    return found.group(1)
+    return run_id
 
 
 def episodes(store: pathlib.Path, run_id: str) -> list[dict[str, object]]:
     """The stored episodes, read from the store's parquet files.
 
-    `outcome`, `t` and `seed` are Proofload's own columns. `meta` is what the adapter
+    `outcome`, `t` and `seed` are Prove's own columns. `meta` is what the adapter
     wrote beside them -- the arm, the knob and level, the scenario and task ids, the
-    pin record, and the calls the policy actually made. Proofload's public verbs do not
+    pin record, and the calls the policy actually made. Prove's public verbs do not
     print an episode's `meta`, which is why this reads the files; that is filed as PG-17
     in `gap-log.md`.
     """
@@ -180,7 +186,7 @@ def main() -> None:
         # non-alphanumeric characters collapsed to one underscore: `--target module:attr`
         # will not take a colon or a plus in an attribute name.
         target = "reference_" + re.sub(r"[^0-9A-Za-z]+", "_", arm_id(arm))
-        print(f"\n--- proofload sweep --target registry:{target} ---")
+        print(f"\n--- poisson-prove sweep --target registry:{target} ---")
         run_id = sweep(store, spec, f"registry:{target}", modules)
         rows = episodes(store, run_id)
         labels: dict[str, int] = {}
@@ -196,25 +202,30 @@ def main() -> None:
         print(f"    ... {len(rows) - 3} more")
         run_ids[arm_id(arm)] = run_id
 
-    # `proofload diff` is how a knob is read: the same seeds under two arms. `--event` is
-    # needed here because every episode passed, so there is no failure event for Proofload
-    # to infer. The line worth reading is `truncated=0`: N17 is the claim that the
+    # `poisson-prove diff` is how a knob is read: the same seeds under two arms. `--event` is
+    # needed here because every episode passed, so there is no failure event for Prove
+    # to infer. The number worth reading is `truncated=0`: N17 is the claim that the
     # declared horizon cuts no arm of this registration short, and this is where it is
-    # measured rather than asserted.
-    print("\n--- proofload diff: depth:d1 against depth:d3 (head) ---")
+    # measured rather than asserted. Prove prints it on the `method=` line, far down the
+    # report, so this prints that line and the verdict above it.
+    print("\n--- poisson-prove diff: depth:d1 against depth:d3 (head) ---")
     diff = subprocess.run(
-        [sys.executable, "-m", "proofload", "--store", str(store), "diff",
+        [sys.executable, "-m", "poisson_prove", "--store", str(store), "diff",
          run_ids["depth:d1"], run_ids["depth:d3"], "--event", "passed"],
         capture_output=True, text=True, timeout=300,
     )
     if diff.returncode != 0:
-        raise SystemExit(f"proofload diff exited {diff.returncode}\n{diff.stderr}")
-    for line in diff.stdout.strip().splitlines()[:4]:
-        print(f"  {line}")
+        raise SystemExit(f"poisson-prove diff exited {diff.returncode}\n{diff.stderr}")
+    lines = diff.stdout.strip().splitlines()
+    print(f"  {lines[0]}")
+    for line in lines:
+        if re.search(r"\btruncated=\d+", line):
+            print(f"  {line}")
+            break
     print("  ... (the full report is long; run the command yourself for all of it)")
 
     print(f"\nthe store is at {store}.")
-    print(f"  proofload --store {store} inspect {run_ids['depth:d3']}")
+    print(f"  poisson-prove --store {store} inspect {run_ids['depth:d3']} --event passed")
 
 
 if __name__ == "__main__":
