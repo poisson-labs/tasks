@@ -1169,7 +1169,7 @@ def test_a9_2_both_scripted_targets_reach_the_outcome_map_through_the_module_glo
     `to_episode` up in the module at call time.  A target that built its own Episode, or that
     captured the function when the registry was built, would leave the model path a second
     outcome path."""
-    from proofload import Episode
+    from poisson_prove import Episode  # retrofitted 2026-11-03 for 0.3.1: the published name of the package
 
     mod, spec = adapter(), SPEC_D3
     real, sentinel, seen = mod.to_episode, Episode(outcome="passed", t=1, horizon=13), []
@@ -1472,7 +1472,7 @@ def test_a8_8_a_replay_mismatch_outranks_every_system_label_too(control):
 
 @pytest.mark.parametrize("spec", [SPEC_D3, D_SPECS[5], SPEC_R4, R_SPECS[5]], ids=lambda s: aid(s))
 def test_map1_meta_is_the_bundles_identity_and_the_verdicts_predicates(spec):
-    from proofload import Episode
+    from poisson_prove import Episode  # retrofitted 2026-11-03 for 0.3.1: the published name of the package
 
     bundle = bundle_of(spec, 2121)
     run = make_run(bundle, bundle.reference_calls)
