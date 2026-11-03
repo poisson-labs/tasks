@@ -1,10 +1,10 @@
 """Test configuration, outside the frozen test files.
 
-`tests/test_tg_m5_scripted.py` drives Proofload's real CLI and `tests/test_tg_m5_bridge.py`
-calls the adapter's `to_episode`, and Proofload is not a dependency of this package and not
-installable from any index.  It comes from a checkout installed into the same environment
-(`pip install -e ../proofload`).  Without it every test in those two files is skipped, with
-the reason below, and the rest of the suite runs.
+`tests/test_tg_m5_scripted.py` drives Prove's real command line and `tests/test_tg_m5_bridge.py`
+calls the adapter's `to_episode`, and Prove is an optional extra of this package, not a
+dependency (`pip install "poisson-tasks[prove]"`, which installs `poisson-prove` from PyPI).
+Without it every test in those two files is skipped, with the reason below, and the rest of the
+suite runs.
 
 It is done here and not in the file itself because the test files are frozen: each module
 was built against tests written before it, and the suite is not edited to suit an install.
@@ -47,31 +47,31 @@ from hypothesis import settings
 settings.register_profile("ci", derandomize=True)
 settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "default"))
 
-# The test files that need the extra: the scripted path's, which drives Proofload's CLI, and
+# The test files that need the extra: the scripted path's, which drives Prove's command line, and
 # the model path's bridge, which calls `to_episode`. Matched on the name, so a run from
 # any directory and any invocation (`pytest`, `pytest tests/`, a single node id) sees the same
-# thing.
+# thing. The name of the set is the one `tests/test_cal_calibration.py` imports (CAL22), a frozen
+# test, so it keeps it.
 PROOFLOAD_TEST_FILES = frozenset({"test_tg_m5_scripted.py", "test_tg_m5_bridge.py"})
 
 SKIP_REASON = (
-    "Proofload is not installed: these tests drive its real CLI.  It is not a dependency "
-    "of this package and it is not publicly available yet, so there is no extra and no "
-    "index to install it from: it comes from a checkout installed into the same "
-    "environment -- `pip install -e ../proofload`."
+    "Prove is not installed: these tests drive its real command line.  It is an optional "
+    "extra of this package, not a dependency: `pip install \"poisson-tasks[prove]\"` "
+    "installs it from PyPI (the distribution is `poisson-prove`)."
 )
 
 
-def proofload_installed() -> bool:
-    """Whether the extra is present. `find_spec` and not an import: importing Proofload
-    here would cost every run of the suite the import, and this module is read first."""
+def prove_installed() -> bool:
+    """Whether the extra is present. `find_spec` and not an import: importing Prove here
+    would cost every run of the suite the import, and this module is read first."""
     try:
-        return importlib.util.find_spec("proofload") is not None
+        return importlib.util.find_spec("poisson_prove") is not None
     except (ImportError, ValueError):
         return False
 
 
 def pytest_collection_modifyitems(config: Any, items: list[Any]) -> None:
-    if proofload_installed():
+    if prove_installed():
         return
     skip = pytest.mark.skip(reason=SKIP_REASON)
     for item in items:

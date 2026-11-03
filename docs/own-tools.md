@@ -85,7 +85,7 @@ ok  this environment is ready to run tasks.toml
   key         ok      OPENAI_API_KEY is set (not checked: --offline)
   tools       ok      5 tools: 3 read, 0 write, 2 not known (treated as write), 0 refused in tools.json
   file        ok      file: an OpenAI tools file, sha256 bf34e029e3fa609162c90e8709251c32db608d8aa0afd1f23432d500bd007ece
-  knobs       ok      faults, history, depth, shape, similarity, arguments and spread reach a level on this set; faults, history, depth and shape shipped and lead the recipes
+  knobs       ok      faults, history, depth, shape, similarity, arguments, spread, timeouts, ratelimits and landed reach a level on this set; faults, history, depth and shape shipped and lead the recipes
   faults      note    the knob probe's status on the built-in tasks: does not bite on gpt-5-nano; bites on Qwen3-8B
   history     note    the knob probe's status on the built-in tasks: bites on gpt-5-nano; bites on Qwen3-8B
   depth       note    measured on the published cards, not by the knob probe
@@ -93,6 +93,9 @@ ok  this environment is ready to run tasks.toml
   similarity  note    the knob probe's status on the built-in tasks: does not bite on gpt-5-nano; does not bite on Qwen3-8B
   arguments   note    the knob probe's status on the built-in tasks: does not bite on gpt-5-nano; does not bite on Qwen3-8B
   spread      note    the knob probe's status on the built-in tasks: top easier on gpt-5-nano; cannot tell on Qwen3-8B
+  timeouts    note    experimental: no model has been measured on it yet, not on the published cards and not by the knob probe
+  ratelimits  note    experimental: no model has been measured on it yet, not on the published cards and not by the knob probe
+  landed      note    experimental: no model has been measured on it yet, not on the published cards and not by the knob probe
   harness     ok      …
   platform    ok      …
 ```

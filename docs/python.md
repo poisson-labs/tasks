@@ -31,7 +31,7 @@ print(verdict.label)
 ```
 <!-- docs-check: output -->
 ```
-dab5794b7cd35eaefc337817fbcd61efbd5e8db27d3203f04dcf06867ec8a3d4
+498cf5981028a78c9d56f5bbd77980dcaa2acc242d792aafb05af64d73d94ac1
 passed
 ```
 
@@ -76,7 +76,7 @@ print(arms.arm_from_id("faults:f2", strictness="leaky", generator_version="0").s
 ```
 <!-- docs-check: output -->
 ```
-ArmSpec(knob='depth', level=3, control=None, strictness='strict', split='eval', generator_version='1')
+ArmSpec(knob='depth', level=3, control=None, strictness='strict', split='eval', generator_version='2')
 depth:d3
 leaky
 ```

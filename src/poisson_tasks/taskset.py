@@ -35,7 +35,7 @@ config, and a flag on the command line overrides any of them.
   `turn_limit`, the model's own failure.  Ordinary episodes of both calibrated models end
   within 18 calls, so the cap binds only an episode that does not stop.
 
-Nothing here imports Proofload: the standalone path needs no extra.
+Nothing here imports Prove: the standalone path needs no extra.
 """
 
 from __future__ import annotations

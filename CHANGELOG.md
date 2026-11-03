@@ -2,6 +2,24 @@
 
 All notable changes to Poisson Tasks.
 
+## 0.3.1 (2026-11-03)
+
+### Fixes
+
+- **The Prove route works with Prove as it is published.** Prove went public as the distribution `poisson-prove`, whose package is `poisson_prove`. Every release up to 0.3.0 imported it under its earlier name, so a Tasks installed beside the published Prove could not use the route. `poisson_tasks.adapter` now takes `Episode` from `poisson_prove`, and importing it without Prove raises a `ModuleNotFoundError` that names the way to install it. Nothing else changes for anyone who does not use the route: `import poisson_tasks` still never reaches the adapter.
+- **A `prove` extra.** `pip install "poisson-tasks[prove]"` installs `poisson-prove` from PyPI, from 0.1.0 up to, and not including, 0.2. The floor was measured, not guessed: the route passed on each of 0.1.0, 0.1.1 and 0.1.2, and the yanked 0.0.1, which holds the name and no code, fails. The ceiling is the next minor release, because Prove is 0.x and its command line can move in one. A plain install does not bring Prove.
+- **The example and its page follow Prove's command line.** `examples/prove_sweep/run.py` (it was `examples/proofload_sweep/`) reads the run id from `poisson-prove sweep --json`, because the text form names a run by its name and no longer prints an id line, and its diff section prints the line that says no episode was cut short by the horizon. The page is `docs/prove.md`, and says `poisson-prove` where it said the earlier name.
+- **The licence is an SPDX expression.** The package page showed the whole MIT text in its License field; it now shows `MIT`, and the wheel and the sdist carry `LICENSE` and `NOTICE` as licence files. The `NOTICE` entry for Prove names the published distribution and the licence read from its wheel.
+- **The output blocks in `docs/own-tools.md` and `docs/python.md` show 0.3.0's generator.** They still showed generator version 1, an older task id and a `doctor` list of seven dials, so the docs check, run from the wheel, failed on them; 0.3.0's pages shipped with those blocks.
+
+Nothing about the tasks changed: every task id, both generator hashes and every published card are what 0.3.0 had.
+
+### Tests
+
+- **The route is run end to end from two published packages.** `scripts/release/prove_e2e.py` installs this tree's wheel with its `prove` extra into a fresh environment, so that `poisson-prove` comes from PyPI, then runs the example and the real `poisson-prove` command on the built-in tasks, reads the episodes back, and checks that Tasks still imports, and the adapter is refused with the extra's name, once Prove is uninstalled. Every release runs it, the fast lane of the pull request check runs it, and the test suite runs it at the newest Prove the extra allows and at the lowest.
+- **CI installs Prove from PyPI.** The jobs with Prove no longer check out a private repository with a token; they install the `prove` extra, and now run on pull requests as well as on main.
+- **Existing tests were edited, each in its own commit, because Prove's command line moved or its name changed:** the scripted path's helper that read the run id from a line `sweep` no longer prints; the refused-target test's exit code (1, not 2) and its count of run folders (the store root now holds a `.poisson` marker folder); the helper that runs the command (`python -m poisson_prove`); the test of the one import the adapter may make from Prove; the two tests that import `Episode` in their bodies; the docs test that names the Prove page; the test that reads 0.3.0's changelog section, which is no longer the first; and the examples test that names the example folder.
+
 ## 0.3.0 (2026-10-29)
 
 ### Faults, part two: timeouts, rate limits, and a write that landed

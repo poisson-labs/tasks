@@ -33,6 +33,8 @@ Retrofitted for the docs rewrite after 0.2.1, as ruled on 2026-10-26: the set ga
 `docs/published-cards.md`, which holds the published cards' per-level lines the README held
 (the test that renders them reads that page now); and `docs/proofload.md`, a maintainer's page
 for an optional route, is no longer linked from the README, while staying under plain words.
+Retrofitted for 0.3.1: that page is `docs/prove.md`, under Prove's published name; the set and the
+list of pages the README does not link name it so.
 `docs/commands.md` holds each command's help, which this file holds equal to what the command
 prints.
 """
@@ -56,10 +58,10 @@ CONTRIBUTING = REPO / "CONTRIBUTING.md"
 STANDARDS = ("repo-hygiene.md", "cli-look.md", "releasing.md")
 DOC_SET = {
     "calibration.md", "cli-look.md", "commands.md", "config.md", "knobs-and-arms.md",
-    "own-tools.md", "proofload.md", "published-cards.md", "python.md", "reading-a-card.md",
+    "own-tools.md", "prove.md", "published-cards.md", "python.md", "reading-a-card.md",
     "releasing.md", "repo-hygiene.md", "the-task.md", "verifiers-export.md",
 }
-LINKED_FROM_README = DOC_SET - set(STANDARDS) - {"proofload.md"}
+LINKED_FROM_README = DOC_SET - set(STANDARDS) - {"prove.md"}
 BASE = "https://github.com/poisson-labs/tasks/blob/main/"
 
 

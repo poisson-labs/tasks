@@ -6,8 +6,8 @@
 # wheel. The whole suite takes over an hour, so it runs in suite.yml, on demand.
 #
 # A branch runs once, on its pull request and not again on its push, and a new push to the pull
-# request cancels the run it supersedes. The job with Prove runs on main only: a pull request
-# gets the job without Prove, and the merge gets both.
+# request cancels the run it supersedes. Both jobs run on a pull request and on a push to main:
+# Prove comes from PyPI, so the job with it needs no token.
 #
 # The steps both jobs share are written once, in the first job, and repeated in the second by
 # YAML alias (`*name`).
@@ -59,7 +59,7 @@ jobs:
       - name: Fetch the reference tokenizer's encoding file
         run: python -m poisson_tasks.fetch_encoding
       - name: Prove is not installed
-        run: python -c "import importlib.util, sys; sys.exit(importlib.util.find_spec('proofload') is not None)"
+        run: python -c "import importlib.util, sys; sys.exit(importlib.util.find_spec('poisson_prove') is not None)"
       - name: Ruff
         run: ruff check .
       - name: Mypy
@@ -243,11 +243,9 @@ jobs:
 
   with-prove:
     name: fast lane, with Prove
-    # Prove is not public, so this job checks it out with a read-only token kept in the
-    # PROVE_READ_TOKEN secret, and it runs on a push to main only: on a pull request it is
-    # skipped, and shows as skipped. A pull request that breaks only with Prove shows red when it
-    # merges.
-    if: github.event_name == 'push'
+    # Prove comes from PyPI, through the `prove` extra, so this job needs no token and no second
+    # checkout, and it runs wherever the job without Prove does: a change that breaks only with
+    # Prove is red on its pull request.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -258,14 +256,6 @@ jobs:
         with:
           path: tasks
           persist-credentials: false
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          repository: poisson-labs/prove
-          # The Prove commit the suite is known green against; moved deliberately, never floating.
-          ref: 98dc6af0e8b66f733c98d3867035e21bba5c219d
-          token: ${{ secrets.PROVE_READ_TOKEN }}
-          path: prove
-          persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.11"
@@ -273,17 +263,17 @@ jobs:
         with:
           version: "0.11.14"
           enable-cache: false
-      # The order the README gives: Prove from its checkout, then this package.
+      # Prove from PyPI, through the extra: the newest poisson-prove the extra allows (>=0.1.0,<0.2),
+      # so a new Prove release inside the range is met here before a user meets it.
       - name: Install
         run: |
           python -m venv .venv
-          .venv/bin/python -m pip install -e ../prove
-          .venv/bin/python -m pip install -e ".[dev]"
+          .venv/bin/python -m pip install -e ".[dev,prove]"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Fetch the reference tokenizer's encoding file
         run: python -m poisson_tasks.fetch_encoding
       - name: Prove is installed
-        run: python -c "import proofload; print('proofload', proofload.__version__, proofload.__file__)"
+        run: python -c "import poisson_prove, importlib.metadata; print('poisson-prove', importlib.metadata.version('poisson-prove'), poisson_prove.__file__)"
       - name: Ruff
         run: ruff check .
       - name: Mypy
@@ -291,10 +281,17 @@ jobs:
       - *generator-hashes
       - *digest-tests
       - *build-wheel
-      # Prove from its checkout first, as the README gives it, then the wheel.
+      # The wheel with its extra, so Prove comes from PyPI as a user gets it.
       - name: Install the wheel in a fresh environment
         run: |
           python -m venv "$RUNNER_TEMP/wheel"
-          "$RUNNER_TEMP/wheel/bin/python" -m pip install ../prove
-          "$RUNNER_TEMP/wheel/bin/python" -m pip install "$RUNNER_TEMP"/dist/*.whl
+          "$RUNNER_TEMP/wheel/bin/python" -m pip install "$(ls "$RUNNER_TEMP"/dist/*.whl)[prove]"
       - *first-screen
+      # The documented Prove route from the wheel and PyPI alone, in an environment of its own: the
+      # example and the real `poisson-prove` command on the built-in tasks, and Tasks without
+      # Prove after it is uninstalled (scripts/release/prove_e2e.py).
+      - name: The Prove route, end to end
+        run: |
+          python scripts/release/prove_e2e.py --wheel "$(ls "$RUNNER_TEMP"/dist/*.whl)" \
+            --work "$RUNNER_TEMP/prove-e2e" \
+            --tokenizer "$(python -c 'from poisson_tasks.fetch_encoding import ENCODING_PATH; print(ENCODING_PATH)')"

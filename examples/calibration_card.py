@@ -14,7 +14,7 @@ one, says whether the card is current for the installed generator, and prints th
 `--page` instead rebuilds every committed card and prints the one page for all of them,
 `docs/calibration.md`: where the models' difficulty orderings agree, then each card in full.
 
-No model, no network, no Proofload.  Every published number is a function of the records and
+No model, no network, no Prove.  Every published number is a function of the records and
 the provenance, so nothing here needs the run to be repeated.
 """
 

@@ -437,8 +437,9 @@ def child_env(extra: Path | None = None, **more: str) -> dict[str, str]:
 
 
 def cli(store: Path, *args: str, mods: Path | None = None, timeout: int = 300) -> subprocess.CompletedProcess[str]:
+    # Retrofitted 2026-11-03 for 0.3.1: Prove is published as `poisson-prove`, run as `-m poisson_prove`.
     return subprocess.run(
-        [sys.executable, "-m", "proofload", "--store", str(store), *args],
+        [sys.executable, "-m", "poisson_prove", "--store", str(store), *args],
         env=child_env(mods),
         capture_output=True,
         text=True,
@@ -457,13 +458,19 @@ def sweep(
 ) -> str:
     args = ["sweep", str(spec), "--target", target, "--max-mde", MAX_MDE, "--yes"]
     args += ["--pair-with", pair_with] if pair_with is not None else ["--salt", str(salt)]
-    done = cli(store, *args, mods=mods)
-    found = re.search(r"^run_id: (\S+)$", done.stdout, re.M)
-    if done.returncode != 0 or found is None:
+    # Retrofitted 2026-11-03 for 0.3.1: the published Prove (poisson-prove 0.1.0 to 0.1.2) prints no
+    # `run_id: <id>` line; the text form names a run by its name, and the id is `"run_id"` in the
+    # document `--json` prints.
+    done = cli(store, *args, "--json", mods=mods)
+    try:
+        run_id = json.loads(done.stdout)["run_id"]
+    except (ValueError, KeyError, TypeError):
+        run_id = None
+    if done.returncode != 0 or not isinstance(run_id, str):
         raise AssertionError(
             f"sweep {target} exited {done.returncode}\n--- stdout\n{done.stdout}\n--- stderr\n{done.stderr}"
         )
-    return found.group(1)
+    return run_id
 
 
 def read_rows(store: Path, run_id: str) -> list[dict[str, Any]]:
@@ -764,19 +771,21 @@ def test_sf7_the_scripted_path_has_no_verifiers_and_no_network():
 # A1 · public API only
 # ===========================================================================
 
+# Retrofitted 2026-11-03 for 0.3.1: Prove is published as the package `poisson_prove`; A1's rule is
+# the same rule on the new name, and the helper and test names stay as they were.
 _ALLOWED_PROOFLOAD = {"Episode", "Rollout"}
-_DOTTED = re.compile(r"^proofload\.[A-Za-z_][\w.]*$")  # "proofload" alone is the CLI's name
+_DOTTED = re.compile(r"^poisson_prove\.[A-Za-z_][\w.]*$")  # "poisson_prove" alone is the module the CLI runs
 
 
 def proofload_violations(tree: ast.AST) -> list[str]:
-    """A1: "From `proofload`, only `Episode` and `Rollout` are imported, plus the CLI."  So a
-    `from proofload import` of those two names is the one permitted shape: `import proofload`,
-    a deep `from proofload.x import`, any other name, and a dynamic import of a proofload
-    module by string are each a violation."""
+    """A1: "From `proofload`, only `Episode` and `Rollout` are imported, plus the CLI."  The
+    package is `poisson_prove` now, so a `from poisson_prove import` of those two names is the one
+    permitted shape: `import poisson_prove`, a deep `from poisson_prove.x import`, any other
+    name, and a dynamic import of a poisson_prove module by string are each a violation."""
     bad: list[str] = []
     for module, names, level in imports_of(tree):
-        if level == 0 and module.split(".")[0] == "proofload":
-            if module != "proofload" or not names or not set(names) <= _ALLOWED_PROOFLOAD:
+        if level == 0 and module.split(".")[0] == "poisson_prove":
+            if module != "poisson_prove" or not names or not set(names) <= _ALLOWED_PROOFLOAD:
                 bad.append(f"{module}: {names}")
     for node in ast.walk(tree):
         if isinstance(node, ast.Constant) and isinstance(node.value, str) and _DOTTED.match(node.value):
@@ -790,8 +799,8 @@ def test_a1_1_only_episode_and_rollout_are_imported_from_proofload():
 
 def test_a1_2_the_walker_sees_the_import_the_adapter_must_make():
     """The control for A1.1: a walker that found no imports at all would pass it.  The
-    adapter builds `proofload.Episode`, so the one permitted import has to be there."""
-    seen = [(m, n) for m, n, level in imports_of(adapter_tree()) if m == "proofload" and level == 0]
+    adapter builds `poisson_prove.Episode`, so the one permitted import has to be there."""
+    seen = [(m, n) for m, n, level in imports_of(adapter_tree()) if m == "poisson_prove" and level == 0]
     assert seen and all(set(n) <= _ALLOWED_PROOFLOAD for _m, n in seen)
     assert any("Episode" in n for _m, n in seen)
 
@@ -799,18 +808,18 @@ def test_a1_2_the_walker_sees_the_import_the_adapter_must_make():
 @pytest.mark.parametrize(
     "source",
     [
-        "from proofload.store import config_hash",
-        "import proofload.store",
-        "import proofload",
-        "from proofload import Episode, derive_seed",
-        "from proofload.episode import Episode",
-        "import importlib\nimportlib.import_module('proofload.store')",
+        "from poisson_prove.store import config_hash",
+        "import poisson_prove.store",
+        "import poisson_prove",
+        "from poisson_prove import Episode, derive_seed",
+        "from poisson_prove.episode import Episode",
+        "import importlib\nimportlib.import_module('poisson_prove.store')",
     ],
 )
 def test_a1_3_the_walker_flags_every_shape_that_is_not_the_one_permitted(source):
     """It tests this file's own walker, which is what makes A1.1 able to fail."""
     assert proofload_violations(ast.parse(source)) != []
-    assert proofload_violations(ast.parse("from proofload import Episode, Rollout")) == []
+    assert proofload_violations(ast.parse("from poisson_prove import Episode, Rollout")) == []
 
 
 # ===========================================================================
@@ -1160,7 +1169,7 @@ def test_a9_2_both_scripted_targets_reach_the_outcome_map_through_the_module_glo
     `to_episode` up in the module at call time.  A target that built its own Episode, or that
     captured the function when the registry was built, would leave the model path a second
     outcome path."""
-    from proofload import Episode
+    from poisson_prove import Episode  # retrofitted 2026-11-03 for 0.3.1: the published name of the package
 
     mod, spec = adapter(), SPEC_D3
     real, sentinel, seen = mod.to_episode, Episode(outcome="passed", t=1, horizon=13), []
@@ -1463,7 +1472,7 @@ def test_a8_8_a_replay_mismatch_outranks_every_system_label_too(control):
 
 @pytest.mark.parametrize("spec", [SPEC_D3, D_SPECS[5], SPEC_R4, R_SPECS[5]], ids=lambda s: aid(s))
 def test_map1_meta_is_the_bundles_identity_and_the_verdicts_predicates(spec):
-    from proofload import Episode
+    from poisson_prove import Episode  # retrofitted 2026-11-03 for 0.3.1: the published name of the package
 
     bundle = bundle_of(spec, 2121)
     run = make_run(bundle, bundle.reference_calls)
@@ -1612,7 +1621,7 @@ def test_a7_4_a_registry_that_was_loaded_once_is_checked_again_on_the_next_load(
 
 def test_a7_5_the_refusal_surfaces_as_a_target_resolution_failure_before_any_episode(tmp_path):
     """"That surfaces as target resolution failure, before any episode."  Through the real
-    CLI: a registry that raises at import is `cannot resolve --target`, exit 2, and nothing is
+    CLI: a registry that raises at import is `cannot resolve --target`, exit 1, and nothing is
     stored — while the same command against the good registry runs (the control, without
     which a refusal of everything would pass)."""
     reg, sha, sealed = pilot_files(tmp_path)
@@ -1623,12 +1632,17 @@ def test_a7_5_the_refusal_surfaces_as_a_target_resolution_failure_before_any_epi
     store = tmp_path / "store"
     args = ["sweep", str(sweep_file), "--salt", SALT, "--max-mde", MAX_MDE, "--yes"]
     bad = cli(store, *args, "--target", "lock_stale:reference_depth_d1", mods=tmp_path)
-    assert bad.returncode == 2
+    assert bad.returncode == 1  # retrofitted 2026-11-03 for 0.3.1: Prove exits 1 here; 2 is a usage error
     assert "cannot resolve --target" in bad.stdout + bad.stderr
-    assert not store.exists() or not [p for p in store.iterdir() if p.is_dir()]
+    # Retrofitted 2026-11-03 for 0.3.1: the published Prove writes a `.poisson` marker folder into the
+    # store root with the first run; the runs are the folders that are not dot-folders.
+    def run_folders() -> list[Path]:
+        return [p for p in store.iterdir() if p.is_dir() and not p.name.startswith(".")]
+
+    assert not store.exists() or not run_folders()
     good = cli(store, *args, "--target", "lock_good:reference_depth_d1", mods=tmp_path)
     assert good.returncode == 0, good.stderr
-    assert len([p for p in store.iterdir() if p.is_dir()]) == 1
+    assert len(run_folders()) == 1
 
 
 def test_a7_7_the_registered_names_are_the_policy_then_the_arm_id_with_runs_of_punctuation_as_underscores(tmp_path):

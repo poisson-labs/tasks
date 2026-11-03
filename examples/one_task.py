@@ -2,7 +2,7 @@
 
     python examples/one_task.py [SEED]
 
-No model, no network, no Proofload. Everything it prints is a pure function of the arm,
+No model, no network, no Prove. Everything it prints is a pure function of the arm,
 the seed and the frozen vocabulary table: run it twice and you get the same bytes.
 """
 

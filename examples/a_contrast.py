@@ -7,7 +7,7 @@ and in nothing else. The pin ledger is what says so: every row is an equality *a
 the arms of a contrast, measured on the generated bundles, and a row that fails refuses
 the contrast before any model runs.
 
-No model, no network, no Proofload.
+No model, no network, no Prove.
 """
 
 from __future__ import annotations

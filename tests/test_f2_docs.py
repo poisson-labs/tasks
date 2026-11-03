@@ -74,7 +74,9 @@ def test_the_task_page_and_the_own_tools_page_name_the_new_answers() -> None:
 
 def test_the_changelog_and_contributing_say_what_0_3_0_moved() -> None:
     changelog = read("CHANGELOG.md")
-    first = re.search(r"^## (\S+)", changelog, re.MULTILINE)
+    # Retrofitted 2026-11-03 for 0.3.1: 0.3.0's section is no longer the first one in the file, so
+    # it is found by its heading; and CONTRIBUTING's count sentence is the newest release's.
+    first = re.search(r"^## (0\.3\.0) \(", changelog, re.MULTILINE)
     assert first is not None and first.group(1) == "0.3.0"
     section = changelog[first.start(): changelog.index("\n## ", first.end())]
     assert "Every task id moved, and no built-in task did." in section
@@ -84,4 +86,4 @@ def test_the_changelog_and_contributing_say_what_0_3_0_moved() -> None:
     frozen = contributing[contributing.index("## The test files are frozen"):]
     frozen = frozen[: frozen.index("\n## ", 1)]
     assert "0.3.0" in frozen, frozen
-    assert re.search(r"At 0\.3\.0 the suite is [\d,]+ tests", contributing)
+    assert re.search(r"At 0\.3\.[01] the suite is [\d,]+ tests", contributing)

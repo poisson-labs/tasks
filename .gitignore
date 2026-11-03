@@ -23,7 +23,9 @@ env/
 .coverage
 htmlcov/
 
-# Proofload run stores. The default store root is ./proofload-runs.
+# Prove run stores. The default store root is ./prove-runs. The line below it is the folder an
+# older Prove wrote by default; a checkout that ran one still holds it.
+prove-runs/
 proofload-runs/
 
 # Local working notes: a symlink. No trailing slash, or the symlink gets through.
@@ -33,7 +35,7 @@ notes
 # .git/info/exclude, so a folder left out only there ships in it.
 .work/
 
-# The second virtual environment, for the suite without Proofload. Left out here for the same
+# The second virtual environment, for the suite without Prove. Left out here for the same
 # reason as .work/.
 .venv-noprove/
 
