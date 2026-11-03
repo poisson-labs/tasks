@@ -457,13 +457,19 @@ def sweep(
 ) -> str:
     args = ["sweep", str(spec), "--target", target, "--max-mde", MAX_MDE, "--yes"]
     args += ["--pair-with", pair_with] if pair_with is not None else ["--salt", str(salt)]
-    done = cli(store, *args, mods=mods)
-    found = re.search(r"^run_id: (\S+)$", done.stdout, re.M)
-    if done.returncode != 0 or found is None:
+    # Retrofitted 2026-11-03 for 0.3.1: the published Prove (poisson-prove 0.1.0 to 0.1.2) prints no
+    # `run_id: <id>` line; the text form names a run by its name, and the id is `"run_id"` in the
+    # document `--json` prints.
+    done = cli(store, *args, "--json", mods=mods)
+    try:
+        run_id = json.loads(done.stdout)["run_id"]
+    except (ValueError, KeyError, TypeError):
+        run_id = None
+    if done.returncode != 0 or not isinstance(run_id, str):
         raise AssertionError(
             f"sweep {target} exited {done.returncode}\n--- stdout\n{done.stdout}\n--- stderr\n{done.stderr}"
         )
-    return found.group(1)
+    return run_id
 
 
 def read_rows(store: Path, run_id: str) -> list[dict[str, Any]]:
