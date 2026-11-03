@@ -95,7 +95,7 @@ jobs:
         run: python -m poisson_tasks.fetch_encoding
       - &prove-not-installed
         name: Prove is not installed
-        run: python -c "import importlib.util, sys; sys.exit(importlib.util.find_spec('proofload') is not None)"
+        run: python -c "import importlib.util, sys; sys.exit(importlib.util.find_spec('poisson_prove') is not None)"
       # The functions that read the table: the shard numbers, a shard's files, and the pytest
       # arguments of a shard, which for `rest` are `--ignore` for every file another shard names.
       - &shard-helpers
@@ -161,8 +161,8 @@ jobs:
 
   with-prove:
     name: suite, shard ${{ matrix.shard }} of ${{ strategy.job-total }}, with Prove
-    # Prove is not public, so this job checks it out with a read-only token kept in the
-    # PROVE_READ_TOKEN secret, which a fork does not have; there this job is skipped.
+    # Prove comes from PyPI, through the `prove` extra, so this job needs no token and no second
+    # checkout. It runs for this repository only (kept as it was; a fork has no need of it).
     if: github.repository == 'poisson-labs/tasks'
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -173,29 +173,19 @@ jobs:
         working-directory: tasks
     steps:
       - *checkout
-      - &checkout-prove
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          repository: poisson-labs/prove
-          # The Prove commit the suite is known green against; moved deliberately, never floating.
-          ref: 98dc6af0e8b66f733c98d3867035e21bba5c219d
-          token: ${{ secrets.PROVE_READ_TOKEN }}
-          path: prove
-          persist-credentials: false
       - *setup-python
       - *setup-uv
-      # The order the README gives: Prove from its checkout, then this package.
+      # Prove from PyPI, through the extra: the newest poisson-prove the extra allows (>=0.1.0,<0.2).
       - &install-with-prove
         name: Install
         run: |
           python -m venv .venv
-          .venv/bin/python -m pip install -e ../prove
-          .venv/bin/python -m pip install -e ".[dev]"
+          .venv/bin/python -m pip install -e ".[dev,prove]"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - *fetch-encoding
       - &prove-installed
         name: Prove is installed
-        run: python -c "import proofload; print('proofload', proofload.__version__, proofload.__file__)"
+        run: python -c "import poisson_prove, importlib.metadata; print('poisson-prove', importlib.metadata.version('poisson-prove'), poisson_prove.__file__)"
       - *shard-helpers
       - *shard-tests
 
@@ -262,7 +252,6 @@ jobs:
         working-directory: tasks
     steps:
       - *checkout
-      - *checkout-prove
       - *setup-python
       - *setup-uv
       - *install-with-prove
