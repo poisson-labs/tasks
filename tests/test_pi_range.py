@@ -67,3 +67,14 @@ def test_pi6_2_the_route_runs_end_to_end_at_the_lowest_prove_the_extra_allows(
     )
     assert done.returncode == 0, (done.stdout + done.stderr)[-4000:]
     assert done.stdout.strip().splitlines()[-1].endswith(f"poisson-prove {floor}")
+
+
+def test_pi6_3_the_extra_stops_before_prove_0_2() -> None:
+    """The ceiling is a claim only the measured range makes: Prove is 0.x, and the three
+    details of its command line that Tasks had to follow (the run id, the exit code of a
+    refused target, the store's marker folder) are the kind of thing a minor release moves.  A
+    0.2 is measured, and the bound raised, in a release of its own."""
+    spec = prove_requirement().specifier
+    assert spec.contains(Version("0.1.99"), prereleases=False)
+    assert not spec.contains(Version("0.2.0"), prereleases=True)
+    assert not spec.contains(Version("1.0.0"), prereleases=True)
