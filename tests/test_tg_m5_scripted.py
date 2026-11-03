@@ -1631,10 +1631,15 @@ def test_a7_5_the_refusal_surfaces_as_a_target_resolution_failure_before_any_epi
     bad = cli(store, *args, "--target", "lock_stale:reference_depth_d1", mods=tmp_path)
     assert bad.returncode == 1  # retrofitted 2026-11-03 for 0.3.1: Prove exits 1 here; 2 is a usage error
     assert "cannot resolve --target" in bad.stdout + bad.stderr
-    assert not store.exists() or not [p for p in store.iterdir() if p.is_dir()]
+    # Retrofitted 2026-11-03 for 0.3.1: the published Prove writes a `.poisson` marker folder into the
+    # store root with the first run; the runs are the folders that are not dot-folders.
+    def run_folders() -> list[Path]:
+        return [p for p in store.iterdir() if p.is_dir() and not p.name.startswith(".")]
+
+    assert not store.exists() or not run_folders()
     good = cli(store, *args, "--target", "lock_good:reference_depth_d1", mods=tmp_path)
     assert good.returncode == 0, good.stderr
-    assert len([p for p in store.iterdir() if p.is_dir()]) == 1
+    assert len(run_folders()) == 1
 
 
 def test_a7_7_the_registered_names_are_the_policy_then_the_arm_id_with_runs_of_punctuation_as_underscores(tmp_path):
