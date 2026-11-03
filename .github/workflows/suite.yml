@@ -162,8 +162,7 @@ jobs:
   with-prove:
     name: suite, shard ${{ matrix.shard }} of ${{ strategy.job-total }}, with Prove
     # Prove comes from PyPI, through the `prove` extra, so this job needs no token and no second
-    # checkout. It runs for this repository only (kept as it was; a fork has no need of it).
-    if: github.repository == 'poisson-labs/tasks'
+    # checkout, and it runs wherever the job without Prove does, a fork included.
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy: *shard-matrix
@@ -243,7 +242,6 @@ jobs:
 
   cover-with-prove:
     name: ruff, mypy and the shards, with Prove
-    if: github.repository == 'poisson-labs/tasks'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:

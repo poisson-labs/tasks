@@ -6,8 +6,8 @@
 # wheel. The whole suite takes over an hour, so it runs in suite.yml, on demand.
 #
 # A branch runs once, on its pull request and not again on its push, and a new push to the pull
-# request cancels the run it supersedes. The job with Prove runs on main only: a pull request
-# gets the job without Prove, and the merge gets both.
+# request cancels the run it supersedes. Both jobs run on a pull request and on a push to main:
+# Prove comes from PyPI, so the job with it needs no token.
 #
 # The steps both jobs share are written once, in the first job, and repeated in the second by
 # YAML alias (`*name`).
@@ -244,9 +244,8 @@ jobs:
   with-prove:
     name: fast lane, with Prove
     # Prove comes from PyPI, through the `prove` extra, so this job needs no token and no second
-    # checkout. It runs on a push to main only: on a pull request it is skipped, and shows as
-    # skipped. A pull request that breaks only with Prove shows red when it merges.
-    if: github.event_name == 'push'
+    # checkout, and it runs wherever the job without Prove does: a change that breaks only with
+    # Prove is red on its pull request.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
