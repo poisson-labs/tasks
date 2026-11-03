@@ -437,8 +437,9 @@ def child_env(extra: Path | None = None, **more: str) -> dict[str, str]:
 
 
 def cli(store: Path, *args: str, mods: Path | None = None, timeout: int = 300) -> subprocess.CompletedProcess[str]:
+    # Retrofitted 2026-11-03 for 0.3.1: Prove is published as `poisson-prove`, run as `-m poisson_prove`.
     return subprocess.run(
-        [sys.executable, "-m", "proofload", "--store", str(store), *args],
+        [sys.executable, "-m", "poisson_prove", "--store", str(store), *args],
         env=child_env(mods),
         capture_output=True,
         text=True,
