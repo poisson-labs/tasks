@@ -133,7 +133,7 @@ def test_the_copy_without_the_file_really_does_without_it(which: str, bare: Path
 
 
 EXAMPLE_FILES = [EXAMPLES / "one_task.py", EXAMPLES / "a_contrast.py",
-                 EXAMPLES / "proofload_sweep" / "run.py"]
+                 EXAMPLES / "prove_sweep" / "run.py"]  # retrofitted 2026-11-03 for 0.3.1: the folder is prove_sweep
 
 
 @pytest.mark.parametrize("path", EXAMPLE_FILES, ids=lambda p: p.name)
