@@ -153,13 +153,15 @@ preparer fills in the values and checks each part without running the upload; th
 runs them in this order. Each block starts only once the one before it has landed, and a block
 that stops says why in one line, so a refusal never reads as done.
 
-**Block one, the upload.** It refuses on any UTC day but the changelog's, saying so, and on any
-file whose hash is not the build's (`shasum` prints `FAILED`), and reads the token from `.env`
+**Block one, the upload.** It refuses on any UTC day but the changelog's, saying so, on any
+file whose hash is not the build's (`shasum` prints `FAILED`) and on any hash line that is not
+properly formatted, such as one of the wrong length (`--strict` makes `shasum` exit 1 on it;
+without it `shasum` warns, checks the other file and exits 0), and reads the token from `.env`
 without printing it. It has landed when twine prints `View at:`; block two waits for that.
 
 <!-- docs-check: skip reason="uploads the release to PyPI" -->
 ```bash
-if [[ "$(date -u +%F)" != YYYY-MM-DD ]]; then echo "stopped, nothing uploaded: the UTC date is $(date -u +%F) and this release uploads on YYYY-MM-DD"; else cd <release worktree>/dist && printf '%s  %s\n' <wheel sha256> poisson_tasks-X.Y.Z-py3-none-any.whl <sdist sha256> poisson_tasks-X.Y.Z.tar.gz | shasum -a 256 -c - && TWINE_USERNAME=__token__ TWINE_PASSWORD="$(sed -n 's/^PYPI_API_TOKEN=//p' <checkout>/.env)" uvx twine@7.0.0 upload --non-interactive --repository-url https://upload.pypi.org/legacy/ poisson_tasks-X.Y.Z-py3-none-any.whl poisson_tasks-X.Y.Z.tar.gz; fi
+if [[ "$(date -u +%F)" != YYYY-MM-DD ]]; then echo "stopped, nothing uploaded: the UTC date is $(date -u +%F) and this release uploads on YYYY-MM-DD"; else cd <release worktree>/dist && printf '%s  %s\n' <wheel sha256> poisson_tasks-X.Y.Z-py3-none-any.whl <sdist sha256> poisson_tasks-X.Y.Z.tar.gz | shasum -a 256 --strict -c - && TWINE_USERNAME=__token__ TWINE_PASSWORD="$(sed -n 's/^PYPI_API_TOKEN=//p' <checkout>/.env)" uvx twine@7.0.0 upload --non-interactive --repository-url https://upload.pypi.org/legacy/ poisson_tasks-X.Y.Z-py3-none-any.whl poisson_tasks-X.Y.Z.tar.gz; fi
 ```
 
 **Block two, the tag and the GitHub release.** It starts only when PyPI answers for `X.Y.Z`, so
