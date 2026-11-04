@@ -204,25 +204,22 @@ def main() -> None:
 
     # `poisson-prove diff` is how a knob is read: the same seeds under two arms. `--event` is
     # needed here because every episode passed, so there is no failure event for Prove
-    # to infer. The number worth reading is `truncated=0`: N17 is the claim that the
-    # declared horizon cuts no arm of this registration short, and this is where it is
-    # measured rather than asserted. Prove prints it on the `method=` line, far down the
-    # report, so this prints that line and the verdict above it.
+    # to infer. The number worth reading is `truncated`, and it should be 0: N17 is the claim
+    # that the declared horizon cuts no arm of this registration short, and this is where it
+    # is measured rather than asserted. `--json` carries it in every Prove the extra allows,
+    # so this reads the document and prints that number and the verdict.
     print("\n--- poisson-prove diff: depth:d1 against depth:d3 (head) ---")
     diff = subprocess.run(
         [sys.executable, "-m", "poisson_prove", "--store", str(store), "diff",
-         run_ids["depth:d1"], run_ids["depth:d3"], "--event", "passed"],
+         run_ids["depth:d1"], run_ids["depth:d3"], "--event", "passed", "--json"],
         capture_output=True, text=True, timeout=300,
     )
     if diff.returncode != 0:
         raise SystemExit(f"poisson-prove diff exited {diff.returncode}\n{diff.stderr}")
-    lines = diff.stdout.strip().splitlines()
-    print(f"  {lines[0]}")
-    for line in lines:
-        if re.search(r"\btruncated=\d+", line):
-            print(f"  {line}")
-            break
-    print("  ... (the full report is long; run the command yourself for all of it)")
+    compared = json.loads(diff.stdout)
+    print(f"  {compared['verdict']}  {compared['sentence']}")
+    print(f"  truncated {compared['truncated']}  (episodes the horizon cut short)")
+    print("  ... (run the command yourself, without --json, for the report)")
 
     print(f"\nthe store is at {store}.")
     print(f"  poisson-prove --store {store} inspect {run_ids['depth:d3']} --event passed")
