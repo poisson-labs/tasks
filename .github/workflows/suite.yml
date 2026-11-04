@@ -55,7 +55,7 @@ env:
 jobs:
   without-prove:
     name: suite, shard ${{ matrix.shard }} of ${{ strategy.job-total }}, without Prove
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy: &shard-matrix
       # A red shard does not stop the others, so one run shows every red test.
@@ -163,7 +163,7 @@ jobs:
     name: suite, shard ${{ matrix.shard }} of ${{ strategy.job-total }}, with Prove
     # Prove comes from PyPI, through the `prove` extra, so this job needs no token and no second
     # checkout, and it runs wherever the job without Prove does, a fork included.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy: *shard-matrix
     defaults:
@@ -194,7 +194,7 @@ jobs:
   # variants only if a test module skips itself at import, so it is checked in both.
   cover-without-prove:
     name: ruff, mypy and the shards, without Prove
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
       run:
@@ -242,7 +242,7 @@ jobs:
 
   cover-with-prove:
     name: ruff, mypy and the shards, with Prove
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
       run:
