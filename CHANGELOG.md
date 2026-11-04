@@ -2,6 +2,20 @@
 
 All notable changes to Poisson Tasks.
 
+## 0.3.3 (2026-11-04)
+
+### Fixes
+
+- **The Prove route no longer reads the text of `diff`.** `scripts/release/prove_e2e.py` and `examples/prove_sweep/run.py` looked for `truncated=` in what `poisson-prove diff` prints, and Prove's next release moves that line behind a flag. They now read `truncated` from `diff --json`, which Prove 0.1.0 to 0.1.3 all carry. The example also stops if the field is missing, where it used to print nothing.
+- **The `prove` extra has no ceiling.** `pip install "poisson-tasks[prove]"` now installs `poisson-prove` 0.1.0 or later, where it stopped before 0.2. Prove runs this route's check, from the latest release of Tasks, before it ships, on a wheel under a local version, and the ceiling would have refused that wheel at 0.2. The route passed on each of 0.1.0, 0.1.1, 0.1.2 and 0.1.3. No Prove 0.2 exists yet to measure.
+
+Nothing about the tasks changed: every task id, both generator hashes and every published card are what 0.3.2 had.
+
+### Tests and tooling
+
+- **The release wheel gate's driver writes no bytecode.** It runs with `python -B -I`, because `-I` ignores `PYTHONDONTWRITEBYTECODE`, and the driver was leaving `__pycache__` folders in the release worktree. The wheel is unaffected.
+- **An existing test was edited, in its own commit:** `test_pi6_3_the_extra_stops_before_prove_0_2` is now `test_pi6_3_the_extra_has_no_ceiling`. The test count does not change, so CONTRIBUTING's sentence on the suite stands.
+
 ## 0.3.2 (2026-11-04)
 
 ### Fixes
