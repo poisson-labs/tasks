@@ -304,8 +304,13 @@ def main() -> int:
             ids[arm] = str(document["run_id"])
     if len(ids) == 2:
         diffed = run(["poisson-prove", "--store", str(work / "real-store"), "diff", ids["depth:d1"], ids["depth:d3"],
-                      "--event", "passed"], env, cwd)
-        check(diffed.returncode == 0 and re.search(r"\btruncated=0\b", diffed.stdout) is not None,
+                      "--event", "passed", "--json"], env, cwd)
+        # The document, not the text: `--json` carries `truncated` in every Prove the extra allows.
+        try:
+            compared = json.loads(diffed.stdout)
+        except ValueError:
+            compared = {}
+        check(diffed.returncode == 0 and compared.get("truncated") == 0,
               "the real command diffs the two depths and no episode is cut short by the horizon",
               tail(diffed.stdout + diffed.stderr))
 
