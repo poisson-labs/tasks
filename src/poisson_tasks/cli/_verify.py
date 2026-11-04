@@ -19,6 +19,7 @@ from typing import Any
 from poisson_tasks.cli import _format
 from poisson_tasks.cli._common import (
     Context,
+    arm_from_typed,
     load_settings,
     need_tokenizer,
     resolve,
@@ -84,10 +85,7 @@ def _bundle(ctx: Context) -> tuple[Any, str]:
         strictness = settings.measure.strictness or "strict"
         if settings.tasks.generator_version is not None:
             version = settings.tasks.generator_version
-    try:
-        spec = arms.arm_from_id(args.arm, strictness=strictness, generator_version=version)
-    except ValueError as refused:
-        raise Usage(str(refused)) from None
+    spec = arm_from_typed(args.arm, strictness=strictness, generator_version=version)
     from poisson_tasks import knobs
 
     arm_id = knobs.arm_id(spec)

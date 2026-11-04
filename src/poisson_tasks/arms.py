@@ -15,6 +15,8 @@ environment, and `export` is imported by `calibration`.  The tests hold this cop
 from __future__ import annotations
 
 import dataclasses as _dataclasses
+import difflib as _difflib
+import itertools as _itertools
 import json as _json
 import pathlib as _pathlib
 import types as _types
@@ -86,7 +88,10 @@ def arm_from_id(
     """
     if not isinstance(arm_id, str):
         raise ValueError(f"an arm id is text such as depth:d3; got {type(arm_id).__name__}")
-    parsed = _parse_arm_id(arm_id)
+    try:
+        parsed = _parse_arm_id(arm_id)
+    except ValueError as refused:
+        raise ValueError(_with_nearest(arm_id, str(refused))) from None
     spec = _ArmSpec(
         knob=parsed.knob,
         level=parsed.level,
@@ -99,6 +104,40 @@ def arm_from_id(
     if canonical != arm_id:
         raise ValueError(f"{arm_id!r} is not an arm id: the arm it reads as is written {canonical}")
     return spec
+
+
+# The knobs whose arms the built-in tasks take, for the refusal of a text that is not an arm id;
+# `landed` is the twelfth and is offered on your own tools only.
+_BUILT_IN_KNOBS = ("depth", "distractor", "similarity", "faults", "history", "block", "arguments",
+                   "shape", "spread", "timeouts", "ratelimits")
+
+
+def _known_arm_ids() -> list[str]:
+    """The id of every plain arm of the built-in knobs at each of its candidate levels, and of a
+    control arm for each pair of levels (the lower standing in for the higher): what a mistyped
+    id is held against.  It is not a list of what may be typed, since the generator makes some
+    arms at other levels too."""
+    found: list[str] = []
+    for knob in _BUILT_IN_KNOBS:
+        levels = _levels(knob)
+        pairs: list[tuple[int, int | None]] = [(level, None) for level in levels]
+        pairs += list(_itertools.combinations(levels, 2))
+        for level, control in pairs:
+            try:
+                _ArmSpec(knob=knob, level=level, control=control, strictness=_CARD_STRICTNESS,
+                         split=_CARD_SPLIT, generator_version=DEFAULT_GENERATOR_VERSION)
+            except ValueError:
+                continue
+            found.append(_render_arm_id(knob, level, control))
+    return list(dict.fromkeys(found))
+
+
+def _with_nearest(arm_id: str, text: str) -> str:
+    """The refusal of a text that is not an arm id (`text`, the parser's own), then the arm the
+    text is nearest to when one is near, and the knobs the built-in tasks take."""
+    close = _difflib.get_close_matches(arm_id, _known_arm_ids(), n=1)
+    guess = f"; did you mean {close[0]}?" if close else "."
+    return f"{text}{guess} The knobs the built-in tasks take are {_listed(list(_BUILT_IN_KNOBS))}."
 
 
 def _on_a_published_card(spec: _ArmSpec) -> bool:
