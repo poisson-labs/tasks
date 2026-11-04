@@ -301,3 +301,18 @@ def arm_from_typed(typed: str, **fixed: Any) -> Any:
             raise Usage(f"{typed!r} is not an arm the generator builds: depth goes from 1 to "
                         f"{max(levels)} steps{hint}")
     return spec
+
+
+def refuse_seed_outside_plan(seed: int, seeds: Sequence[int]) -> None:
+    """`--seed S` names a task by its seed, and the task has its place in the plan: a seed the plan
+    does not hold is refused in one line that says what the plan holds (its seeds when there are ten
+    or fewer, else how many) and that `--task N` picks one by its place."""
+    if seed in seeds:
+        return
+    count = len(seeds)
+    if count <= 10:
+        held = f"{_format.plural(count, 'seed')}: {_format.words(list(seeds))}"
+    else:
+        held = _format.plural(count, "seed")
+    raise Refusal(f"--seed {seed} is not a seed of this plan, which has {held}; --task N picks "
+                  f"one by its place, 1 to {count}")

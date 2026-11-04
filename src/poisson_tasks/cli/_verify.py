@@ -22,6 +22,7 @@ from poisson_tasks.cli._common import (
     arm_from_typed,
     load_settings,
     need_tokenizer,
+    refuse_seed_outside_plan,
     resolve,
     settings_exist,
 )
@@ -89,12 +90,13 @@ def _bundle(ctx: Context) -> tuple[Any, str]:
     from poisson_tasks import knobs
 
     arm_id = knobs.arm_id(spec)
-    if args.seed is not None:
-        if args.task is not None:
-            raise Usage("--task counts in the plan and --seed names a seed you chose; give one")
-        return tasks.generate(spec, args.seed), task_name(arm_id, None, args.seed)
     if seeds is None:
         seeds = calibration.seed_list()
+    if args.seed is not None:
+        if args.task is not None:
+            raise Usage("--task counts in the plan and --seed names one of its seeds; give one")
+        refuse_seed_outside_plan(args.seed, seeds)
+        return tasks.generate(spec, args.seed), task_name(arm_id, None, args.seed)
     place = 1 if args.task is None else args.task
     if place < 1 or place > len(seeds):
         raise Refusal(f"--task {place} is out of range: the plan has "

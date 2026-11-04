@@ -301,7 +301,7 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
     p.add_argument("--task", metavar="N", type=int, default=None,
                    help="with --show: the task's place in the plan, counting from 1 (default: 1)")
     p.add_argument("--seed", metavar="S", type=int, default=None,
-                   help="with --show: a seed you chose, instead of --task")
+                   help="with --show: one of the plan's seeds, instead of --task")
     p.add_argument("--force", action="store_true",
                    help="write over files already there (default: refuse)")
 
@@ -380,7 +380,7 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
                    help="the task's place in the plan, counting from 1: the settings file's "
                         "seeds, or the published sixty (default: 1)")
     p.add_argument("--seed", metavar="S", type=int, default=None,
-                   help="a seed you chose, instead of --task")
+                   help="one of the plan's seeds, instead of --task")
     p.add_argument("--tasks", metavar="FILE", default=None,
                    help="a file generate wrote; --task N counts in it (default: none)")
     p.add_argument("--self-check", action="store_true",

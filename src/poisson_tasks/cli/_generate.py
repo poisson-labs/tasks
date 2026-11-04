@@ -32,6 +32,7 @@ from poisson_tasks.cli._common import (
     own_plan_words,
     plan_words,
     refuse_overwrite,
+    refuse_seed_outside_plan,
     resolve,
     settings_exist,
     settings_root,
@@ -313,6 +314,7 @@ def pick_task(plan: Any, spec: Any, place: int | None, seed: int | None) -> tupl
 
     arm_id = knobs.arm_id(spec)
     if seed is not None:
+        refuse_seed_outside_plan(seed, plan.seeds)
         return _one_task(plan, spec, seed), task_name(arm_id, None, seed)
     place = 1 if place is None else place
     if place < 1 or place > len(plan.seeds):
