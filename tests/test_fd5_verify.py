@@ -237,10 +237,14 @@ def test_fd5_15_a_task_is_named_by_its_arm_its_place_and_its_seed(
 def test_fd5_15_a_chosen_seed_is_named_by_its_seed(
     prog: str, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    ran = invoke(["verify", "--arm", "depth:d2", "--seed", "4242", "--self-check"], prog=prog,
+    # Retrofitted 2026-11-04 for 0.3.2 (#31): `--seed` names a seed of the plan, and one outside it
+    # is refused, so the seed this test chooses is the fourth of the published sixty (the plan with
+    # no settings file), where it was 4242.
+    seed = calibration().seed_list()[3]
+    ran = invoke(["verify", "--arm", "depth:d2", "--seed", str(seed), "--self-check"], prog=prog,
                  monkeypatch=monkeypatch)
     assert ran.code == 0, ran
-    assert names(ran.first, "depth:d2", None, 4242), ran.first
+    assert names(ran.first, "depth:d2", None, seed), ran.first
 
 
 def test_fd5_15_a_settings_files_seeds_are_the_plan_a_place_counts_in(
