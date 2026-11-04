@@ -32,7 +32,11 @@ driver's does, so the test uses the same `Pty` the driver does.
   three.
 - **FX39.6** `settle.Answered` holds that loop to one answer until something new is on the screen:
   the same fake session reads one Enter.
-- **FX39.7** `drive.py` answers the setup's questions and a session word's through it.
+- **FX39.7** `drive.py` answers the setup's questions through it, and marks it before it answers.
+- **FX39.8** the guard reads the screen and not its length: a confirmation of the answered prompt
+  is not a new question, a numbered question is, and so is one with no number.  A guard that
+  marked after the answer, or compared lengths, stopped the first scene of the wheel gate at its
+  first question, because the next question was already on the screen when the answer returned.
 """
 
 from __future__ import annotations
@@ -158,9 +162,9 @@ def answer_every_question(pty: Pty, guard: Any = None) -> None:
         if guard is not None and not guard.fresh():
             time.sleep(0.5)
             continue
-        pty.send("\r", settle=1.0)
         if guard is not None:
             guard.mark()
+        pty.send("\r", settle=1.0)
     raise AssertionError(pty.plain)
 
 
@@ -190,9 +194,42 @@ def test_fx39_6_the_guard_holds_the_loop_to_one_answer_until_something_new_is_on
         pty.close()
 
 
-def test_fx39_7_drive_py_answers_the_setup_and_a_word_through_the_guard() -> None:
+def test_fx39_7_drive_py_answers_the_setups_questions_through_the_guard() -> None:
     text = (REPO / "scripts" / "release" / "drive.py").read_text(encoding="utf-8")
-    for name in ("setup_answers", "word"):
-        body = text[text.index(f"    def {name}("):]
-        body = body[: body.index("\n    def ", 10)] if "\n    def " in body[10:] else body
-        assert "self.answered.fresh()" in body and "self.answered.mark()" in body, name
+    body = text[text.index("    def setup_answers("):]
+    body = body[: body.index("\ndef scene(")]
+    assert "self.answered.fresh()" in body, "the loop answers without asking the guard"
+    assert body.index("self.answered.mark()") < body.index("self.pty.send(ENTER"), (
+        "the guard is marked after the answer, when the next question may already be on the screen")
+
+
+class Screen:
+    """What the guard reads of a pseudo-terminal: its text so far."""
+
+    def __init__(self, plain: str) -> None:
+        self.plain = plain
+
+
+def test_fx39_8_the_guard_reads_the_screen_not_its_length() -> None:
+    """The first guard compared the screen's length, and could not tell a question the session has
+    not taken yet from one it has: the answered prompt leaves a confirmation line (`    › [10]`, one
+    indent more than the question and drawn once where the question was drawn twice), which is
+    output, and the next question can be on the screen before the driver looks.  So the guard
+    compares what is on the screen with what was there at the answer.  A confirmation of the same
+    prompt is not a new question; a numbered question is, though its prompt reads like the one
+    before; so is a question with no number."""
+    from scripts.release.settle import Answered
+
+    question = "7. How many tasks per level?\n   › [10]   › [10]\n"
+    screen = Screen(question)
+    guard = Answered(screen)
+    assert guard.fresh(), "nothing has been answered yet"
+    guard.mark()
+    assert not guard.fresh(), "the question is still on the screen"
+    screen.plain += "\n    › [10]\n"
+    assert not guard.fresh(), "the confirmation of the answered prompt is not a new question"
+    screen.plain += "8. How many attempts at each task?\n   › [10]   › [10]\n"
+    assert guard.fresh(), "a numbered question is new, though its prompt reads like the last"
+    guard.mark()
+    screen.plain += "\n    › [10]\nCheck it with a free request to 127.0.0.1:1? [Y/n]\n"
+    assert guard.fresh(), "a question with no number, a different line, is new"
