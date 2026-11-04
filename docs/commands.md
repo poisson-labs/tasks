@@ -261,7 +261,7 @@ examples:
 
 Makes the plan's tasks with no model and no network, checks the contrast through the pin ledger (the checks that two levels of a knob differ in that knob and in nothing else; see [knobs-and-arms.md](knobs-and-arms.md)), and writes them as files, one file per level, in the form `poisson_tasks.export` reads (JSON Lines, one task per line). Without a settings file it takes `--arm depth:d3` (repeatable), or `--knob` with `--levels`. It refuses to replace files that are already there unless you pass `--force`.
 
-With `--show` it prints one task the way a model would see it: the system prompt and the request, the tools and which of them the task needs, the reference solution with what the domain returns for each call, and the verdict on every wrong answer the task ships with. `--task N` picks the task by its place in the plan, counting from 1; `--seed S` picks one by a seed you chose. With no `--arm` it shows the plan's first arm's first task and names the other arms in a row of its own.
+With `--show` it prints one task the way a model would see it: the system prompt and the request, the tools and which of them the task needs, the reference solution with what the domain returns for each call, and the verdict on every wrong answer the task ships with. `--task N` picks the task by its place in the plan, counting from 1; `--seed S` picks one by its seed, which must be one the plan holds: a seed outside the plan is refused in one line that names the plan's seeds, or how many it has when there are more than ten. With no `--arm` it shows the plan's first arm's first task and names the other arms in a row of its own.
 
 <!-- docs-check: run -->
 ```bash
@@ -340,7 +340,8 @@ options:
   --show                print one task in full, with one arm; writes nothing
   --task N              with --show: the task's place in the plan, counting
                         from 1 (default: 1)
-  --seed S              with --show: a seed you chose, instead of --task
+  --seed S              with --show: one of the plan's seeds, instead of
+                        --task
   --force               write over files already there (default: refuse)
 
 examples:
@@ -526,7 +527,7 @@ examples:
 
 ## verify
 
-Runs the verifier a task was generated with, with no model. With `--self-check` it checks the task's own answers: the reference solution passes under both strictnesses, and each wrong answer the task ships with earns the outcome it is named for. With `--transcript FILE` it judges your own agent's attempt at the task, in one of three forms (OpenAI chat messages, one row of a verifiers `traces.jsonl`, or this tool's own turns). A task is named by its arm and its place in the plan (`--arm depth:d3 --task 7`), or by a seed you chose, or by a file `generate` wrote (`--tasks FILE`, with `--task N`).
+Runs the verifier a task was generated with, with no model. With `--self-check` it checks the task's own answers: the reference solution passes under both strictnesses, and each wrong answer the task ships with earns the outcome it is named for. With `--transcript FILE` it judges your own agent's attempt at the task, in one of three forms (OpenAI chat messages, one row of a verifiers `traces.jsonl`, or this tool's own turns). A task is named by its arm and its place in the plan (`--arm depth:d3 --task 7`), or by one of its seeds (`--seed S`; a seed the plan does not hold is refused), or by a file `generate` wrote (`--tasks FILE`, with `--task N`).
 
 The verdict word is the outcome itself (`passed`, `overshoot`, `wrong_state`, ...). `verify` exits 0 when the verdict is `passed` and 4 otherwise, so a script can gate on it.
 
@@ -581,7 +582,7 @@ options:
   --task N           the task's place in the plan, counting from 1: the
                      settings file's seeds, or the published sixty (default:
                      1)
-  --seed S           a seed you chose, instead of --task
+  --seed S           one of the plan's seeds, instead of --task
   --tasks FILE       a file generate wrote; --task N counts in it (default:
                      none)
   --self-check       check the task's own answers: the reference solution and

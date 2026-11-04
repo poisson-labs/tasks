@@ -26,6 +26,7 @@ ONLY = set(sys.argv[4:])
 sys.path.insert(0, str(REPO))
 WHEEL_PY = GATE / "venv" / "bin" / "python"
 
+from scripts.release.settle import Answered, wait_settled  # noqa: E402
 from tests import fd9_support as f9  # noqa: E402
 from tests.fd3_support import KEY, stub_bin  # noqa: E402
 from tests.fd5_support import uv_cache  # noqa: E402
@@ -61,6 +62,8 @@ f9.Pty._pump = _live_pump
 PROMPTS = (re.compile(r"(›\s*(a step's number, a word, help or quit|a number or a word)?|"
                       r"type a number or a word, then Enter \(help, quit\):)\s*$"))
 DOWN, UP, ENTER = "\x1b[B", "\x1b[A", "\r"
+START = r"Start\? \[y/N\]"
+FIRST = r"Enter to start, or quit"
 MENU = re.compile(r"(Which episode\?|card\.md, \d+ sections|Which run\?|Which tool's output\?|"
                   r"Which field of its output\?|Into which tool\?|Which of its inputs\?)")
 results: list[dict] = []
@@ -91,6 +94,7 @@ class Driver:
     def __init__(self, scene: str, pty: f9.Pty, look: str) -> None:
         self.scene, self.pty, self.look = scene, pty, look
         self.log: list[str] = []
+        self.answered = Answered(pty)
 
     def tail(self, since: int, chars: int = 1500) -> str:
         """The screen's text from `since`, its last `chars`, without control characters (the
@@ -115,6 +119,17 @@ class Driver:
     def note(self, what: str) -> None:
         print(f"{time.strftime('%H:%M:%S')} {self.scene}: {what}", flush=True)
 
+    def answer(self, prompt: str, text: str, *, since: int = 0, last_line: bool = True,
+               settle: float = 2.0) -> None:
+        """Type `text` and Enter at `prompt` once the prompt has settled (`settle.py` says why), or
+        only Enter when `text` is empty."""
+        wait_settled(self.pty, prompt, since=since, last_line=last_line)
+        self.answered.mark()
+        if text:
+            self.pty.type(text, settle=settle)
+        else:
+            self.pty.send(ENTER, settle=settle)
+
     def word(self, word: str, *, start: str = "n", until: float = 900) -> None:
         """Type `word`, answer whatever it asks (menus: the last option; `Start?`: `start`; any
         other question: Enter), until the session's prompt is back."""
@@ -138,7 +153,7 @@ class Driver:
             last = [line for line in self.tail(since).splitlines() if line.strip()][-1:]
             last_line = last[0] if last else ""
             if re.search(r"Start\? \[y/N\]\s*$", last_line):
-                self.pty.type(start, settle=2.0)
+                self.answer(START, start, since=since)
                 continue
             if self.at_prompt(since):
                 return
@@ -162,10 +177,14 @@ class Driver:
             text = self.pty.plain[since:]
             if re.search(until, text):
                 return
+            if not self.answered.fresh():
+                time.sleep(1.0)  # nothing new since the last answer: the session has not taken it yet
+                continue
             last = [line for line in self.tail(since).splitlines() if line.strip()][-1:]
             last_line = last[0] if last else ""
             if own and "What do you want to test?" in text and not getattr(self, "_kind", False):
                 self._kind = True
+                self.answered.mark()
                 if self.look == "pretty":
                     self.pty.send(DOWN, settle=0.5)
                     self.pty.send(ENTER, settle=1.5)
@@ -175,6 +194,7 @@ class Driver:
             if own and "Your tool file" in last_line + self.tail(since, 300) and \
                     not getattr(self, "_file", False):
                 self._file = True
+                self.answered.mark()
                 self.pty.type("petstore.json", settle=1.5)
                 continue
             if not (re.search(r"(\[Y/n\]|\[y/N\]|\]\s*|\?\s*(\(.*\))?\s*)$", last_line.rstrip() + " ")
@@ -182,6 +202,7 @@ class Driver:
                 time.sleep(1.0)  # no question on screen: a verb is still working
                 continue
             self.note(f"setup: Enter at {last_line[-60:]!r}")
+            self.answered.mark()
             self.pty.send(ENTER, settle=1.5)
         raise AssertionError(f"{self.scene}: setup never reached {until!r}\n{self.tail(since)}")
 
@@ -224,16 +245,13 @@ def built_in(look: str, model: FixtureModel) -> None:
     env = env_for(root / "home", model.base_url)
 
     def body(d: Driver) -> None:
-        d.pty.expect(r"Enter to start, or quit")
-        d.pty.quiet(1.0)
+        d.pty.expect(FIRST)
         since = len(d.pty.plain)
-        d.pty.type("y", settle=1.5)  # y starts step 1
+        d.answer(FIRST, "y", last_line=False, settle=1.5)  # y starts step 1
         d.setup_answers(since, own=False, until=r"Enter for step 3")
-        d.pty.quiet(1.0)
-        d.pty.send(ENTER, settle=2.0)
-        d.pty.expect(r"Start\? \[y/N\]", since=since)
-        d.pty.quiet(1.0)
-        d.pty.type("y", settle=2.0)
+        d.answer(r"Enter for step 3", "", since=since, last_line=False)
+        d.pty.expect(START, since=since)
+        d.answer(START, "y", since=since)
         d.pty.expect(r"Step 5 of 5", since=since, timeout=900)
         d.pty.expect(r"^next\s*$", since=d.pty.plain.rindex("Step 5 of 5"), timeout=120)
         d.pty.quiet(2.0)
@@ -261,20 +279,17 @@ def own_tools(look: str) -> None:
         def body(d: Driver) -> None:
             from poisson_tasks import config, runs
 
-            d.pty.expect(r"Enter to start, or quit")
-            d.pty.quiet(1.0)
+            d.pty.expect(FIRST)
             since = len(d.pty.plain)
-            d.pty.send(ENTER, settle=1.5)
+            d.answer(FIRST, "", last_line=False, settle=1.5)
             d.setup_answers(since, own=True, until=r"Enter for step 3")
             plan = config.resolve_plan(config.load_config(folder / "tasks.toml"), root=folder)
             for spec in plan.arms:
                 for bundle in runs.own_bundles(plan, spec, plan.seeds):
                     reference.register(bundle)
-            d.pty.quiet(1.0)
-            d.pty.send(ENTER, settle=2.0)
-            d.pty.expect(r"Start\? \[y/N\]", since=since)
-            d.pty.quiet(1.0)
-            d.pty.type("y", settle=2.0)
+            d.answer(r"Enter for step 3", "", since=since, last_line=False)
+            d.pty.expect(START, since=since)
+            d.answer(START, "y", since=since)
             d.pty.expect(r"Step 5 of 5", since=since, timeout=900)
             d.pty.expect(r"^next\s*$", since=d.pty.plain.rindex("Step 5 of 5"), timeout=120)
             d.pty.quiet(2.0)

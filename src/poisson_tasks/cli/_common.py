@@ -4,6 +4,7 @@ words for a plan, the next command, and small helpers over paths."""
 from __future__ import annotations
 
 import dataclasses
+import difflib
 import os
 import platform
 import shlex
@@ -15,7 +16,7 @@ from typing import Any
 
 from poisson_tasks import arms, config, providers
 from poisson_tasks.cli import _format
-from poisson_tasks.cli._result import Refusal
+from poisson_tasks.cli._result import Refusal, Usage
 
 DEFAULT_SETTINGS = "tasks.toml"
 HARNESS_LINE = (
@@ -274,3 +275,44 @@ def refuse_overwrite(paths: Sequence[Path], force: bool, ctx: Context, *argv: st
                 f"{shown(path)} is already there; pass --force to write it again",
                 [ctx.command(*typed, "--force")],
             )
+
+
+# ---------------------------------------------------------------------------
+# arms typed on the command line
+# ---------------------------------------------------------------------------
+
+
+def arm_from_typed(typed: str, **fixed: Any) -> Any:
+    """The arm a typed id names, for `arms.arm_from_id` with `fixed` as its other fields.  A text
+    that is not an arm id is a `Usage` error in the library's own words (they carry the nearest arm
+    and the knobs); a well-formed id deeper than the generator goes is a `Usage` error too, in one
+    line that says how deep it goes, where it used to end as an unexpected failure."""
+    from poisson_tasks import knobs
+
+    try:
+        spec = arms.arm_from_id(typed, **fixed)
+    except ValueError as refused:
+        raise Usage(str(refused)) from None
+    if spec.knob == "depth":
+        levels = knobs.levels("depth")
+        if not 1 <= spec.level <= max(levels):
+            close = difflib.get_close_matches(typed, [f"depth:d{level}" for level in levels], n=1)
+            hint = f"; did you mean {close[0]}?" if close else ""
+            raise Usage(f"{typed!r} is not an arm the generator builds: depth goes from 1 to "
+                        f"{max(levels)} steps{hint}")
+    return spec
+
+
+def refuse_seed_outside_plan(seed: int, seeds: Sequence[int]) -> None:
+    """`--seed S` names a task by its seed, and the task has its place in the plan: a seed the plan
+    does not hold is refused in one line that says what the plan holds (its seeds when there are ten
+    or fewer, else how many) and that `--task N` picks one by its place."""
+    if seed in seeds:
+        return
+    count = len(seeds)
+    if count <= 10:
+        held = f"{_format.plural(count, 'seed')}: {_format.words(list(seeds))}"
+    else:
+        held = _format.plural(count, "seed")
+    raise Refusal(f"--seed {seed} is not a seed of this plan, which has {held}; --task N picks "
+                  f"one by its place, 1 to {count}")

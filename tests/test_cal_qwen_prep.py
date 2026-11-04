@@ -44,7 +44,7 @@ from typing import Any
 import pytest
 
 from poisson_tasks import calibration as cal
-from tests.helpers import HELPER_MARK, Rig, needs_uv, run_module
+from tests.helpers import HELPER_MARK, Rig, default_sigint, needs_uv, run_module
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
@@ -809,8 +809,11 @@ def test_the_helper_passes_the_stop_button_on_to_the_driver(rig: Any) -> None:
     r.run("preflight")
     r.run("phase1")
     r.run("probe")
+    # Retrofitted 2026-11-04 for 0.3.2 (#37): the kernel starts with SIGINT at its default, so the
+    # stop button reaches it however the suite was started.
     kernel = subprocess.Popen(_kernel(r, "phase3", "--wall-clock-hours", "1"), env=r.env,
-                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                              preexec_fn=default_sigint)
     r.started.append(kernel)  # type: ignore[arg-type]
     _wait_for(lambda: len(r.durable_ids("phase3")) >= 2, timeout_s=300)
     kernel.send_signal(signal.SIGINT)

@@ -37,6 +37,15 @@ NOTEBOOK = REPO / "notebooks" / "calibration_model_b.ipynb"
 FAKE = HERE / "fake_vllm.py"
 
 
+def default_sigint() -> None:
+    """`Popen(preexec_fn=default_sigint)`: the child starts with `SIGINT` at its default, whatever
+    the test process was started with.  A process started as a background job from a script
+    (`cmd &`) has `SIGINT` ignored, and a child inherits that, so a stop button pressed at the child
+    (a `SIGINT` sent to it) would do nothing and the test would wait for a stop that never comes
+    (#37, found in 0.3.1)."""
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+
 def run_module() -> Any:
     import importlib
 
@@ -273,7 +282,8 @@ class Rig:
 
     def start(self, command: str, *extra: str) -> subprocess.Popen[bytes]:
         proc = subprocess.Popen(self.argv(command, *extra), env=self.env,
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                preexec_fn=default_sigint)
         self.started.append(proc)
         return proc
 

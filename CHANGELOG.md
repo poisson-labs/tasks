@@ -2,6 +2,25 @@
 
 All notable changes to Poisson Tasks.
 
+## 0.3.2 (2026-11-04)
+
+### Fixes
+
+- **A mistyped arm id gets the nearest arm back (#31).** `generate --arm` and `verify --arm` used to say only what an arm id looks like, and listed nine of the knobs. They now say `did you mean depth:d3?` when the text is near an arm (`detph:d3`, `distractor:r8`), and name every knob the built-in tasks take, `timeouts` and `ratelimits` among them; the sentence is `arms.arm_from_id`'s own, so the library and both commands give the same one. On your own tools the refusal also says which of the plan's arms is nearest.
+- **A depth the generator does not build is refused (#31).** `depth:d9`, `depth:d33` and `depth:d0` are well-formed ids, and ended as an unexpected failure with exit 3. They are now a usage error, exit 2, in one line that says depth goes from 1 to 8 steps.
+- **`--seed` names a seed of the plan, and one outside it is refused (#31).** `generate --show --seed 42` and `verify --seed 42` judged any integer without a word that 42 is not one of the plan's seeds. A seed the plan does not hold is now refused, exit 1 as `--task 99` is, in one line that names the plan's seeds (or how many it has, when more than ten) and says `--task N` counts them by place. The help text and `docs/commands.md` say "one of the plan's seeds" where they said "a seed you chose".
+
+Nothing about the tasks changed: every task id, both generator hashes and every published card are what 0.3.1 had.
+
+### Tests and tooling
+
+- **CI runs on a pinned runner image (#36).** Every job of both workflows runs on `ubuntu-24.04`, where it ran on `ubuntu-latest`, which GitHub is moving to Ubuntu 26. A test holds it for every job of every workflow.
+- **The stop-button tests pass however the suite is started (#37).** The three tests that press the stop button failed when the test process was started with `SIGINT` ignored, as a background job started from a script is. They now set `SIGINT` to its default for the process they drive.
+- **Three checks from 0.3.0 are held by tests (#38).** A second write to the same tool with other arguments the schema accepts is not counted as a duplicate; after the target write, a read with no checkable argument (`list_channels` with no arguments on acme) answers as before the write; and each experimental dial's note in `init` equals the reason `arms.EXPERIMENTAL_KNOBS` gives for that dial, character for character, dial by dial. Each test was seen to pass on the code and to fail on the change it is written against.
+- **The wording about the published cards is held by a test (#32).** `init` and the card already say a later release measures the published cards again, as the docs do (0.2.2 changed it from the next release); nothing held the words, and a test now does.
+- **The release wheel gate waits for a prompt to settle before it types (#39).** The first run of the `built-in-pretty` scene in 0.3.0 lost its `y` at the run's Start prompt, because the driver typed into the gap between the prompt being drawn and being read. `scripts/release/drive.py` now waits until the prompt is the last line on the screen and nothing has been written for three seconds. It also answers a question once: the first run with only that wait stopped at the same prompt, because the setup loop, finding the session slow to show its next question, answered the last one twice, and the extra Enter reached the Start prompt as an empty answer.
+- **Existing tests were edited, each in its own commit:** the two tests that gave `--seed` a seed of their own outside the plan now give one the plan holds; the three stop-button tests set `SIGINT` for the process they drive; and the test that reads CONTRIBUTING's count sentence accepts 0.3.2's.
+
 ## 0.3.1 (2026-11-03)
 
 ### Fixes

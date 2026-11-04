@@ -12,7 +12,9 @@
 # The steps both jobs share are written once, in the first job, and repeated in the second by
 # YAML alias (`*name`).
 #
-# Third-party actions are pinned to a commit, with the release it is in beside it.
+# Third-party actions are pinned to a commit, with the release it is in beside it, and the runner
+# image is pinned too: ubuntu-24.04, not a label GitHub moves (tests/test_fx_runner_pinned.py).
+# A newer image is a commit of its own, with a run behind it.
 name: CI
 
 on:
@@ -32,7 +34,7 @@ permissions:
 jobs:
   without-prove:
     name: fast lane, without Prove
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
       run:
@@ -246,7 +248,7 @@ jobs:
     # Prove comes from PyPI, through the `prove` extra, so this job needs no token and no second
     # checkout, and it runs wherever the job without Prove does: a change that breaks only with
     # Prove is red on its pull request.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
       run:

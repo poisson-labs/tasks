@@ -15,6 +15,7 @@ being the generator's own.
 from __future__ import annotations
 
 import dataclasses
+import difflib
 import json
 import sys
 from pathlib import Path
@@ -25,11 +26,13 @@ from poisson_tasks.cli import _format
 from poisson_tasks.cli._common import (
     Context,
     arm_folder,
+    arm_from_typed,
     load_settings,
     need_tokenizer,
     own_plan_words,
     plan_words,
     refuse_overwrite,
+    refuse_seed_outside_plan,
     resolve,
     settings_exist,
     settings_root,
@@ -60,14 +63,11 @@ def _plan_from_flags(ctx: Context) -> tuple[Any, Path]:
         flags += ["--generator-version", args.generator_version]
     if args.arm:
         version = args.generator_version or arms.DEFAULT_GENERATOR_VERSION
-        try:
-            specs = tuple(
-                arms.arm_from_id(arm_id, strictness=args.strictness or "strict",
-                                 generator_version=version)
-                for arm_id in args.arm
-            )
-        except ValueError as refused:
-            raise Usage(str(refused)) from None
+        specs = tuple(
+            arm_from_typed(arm_id, strictness=args.strictness or "strict",
+                           generator_version=version)
+            for arm_id in args.arm
+        )
         try:
             made = config.config_from_init_args([flag for flag in flags])
         except config.ConfigError as refused:
@@ -154,7 +154,9 @@ def _own_plan_from_flags(ctx: Context, settings: Any) -> Any:
     held = {knobs.arm_id(spec): spec for spec in plan.arms}
     for name in args.arm:
         if name not in held:
-            raise Usage(f"{name} is not an arm of this plan on your tools; its arms are "
+            near = difflib.get_close_matches(name, list(held), n=1)
+            hint = f"; did you mean {near[0]}?" if near else "."
+            raise Usage(f"{name} is not an arm of this plan on your tools{hint} Its arms are "
                         f"{_format.words(list(held), 'or')}")
     try:
         specs = tuple(
@@ -312,6 +314,7 @@ def pick_task(plan: Any, spec: Any, place: int | None, seed: int | None) -> tupl
 
     arm_id = knobs.arm_id(spec)
     if seed is not None:
+        refuse_seed_outside_plan(seed, plan.seeds)
         return _one_task(plan, spec, seed), task_name(arm_id, None, seed)
     place = 1 if place is None else place
     if place < 1 or place > len(plan.seeds):
