@@ -8,7 +8,7 @@ generator can build, was not refused at all but ended as an unexpected failure, 
 - **FX31.1** a text that is not an arm id is refused as it was (a usage error, exit 2, one `error:`
   line, nothing written) and the line now says `did you mean <the nearest arm>?` when an arm is
   near it, for a transposition (`detph:d3`), a stray digit (`depth:d33`), a missing field
-  (`distractor:r8`, `history:t60`), a missing letter (`faluts:f2`, `timeout:o2`) and a control arm.
+  (`distractor:r8`, `history:600`), a missing letter (`faluts:f2`, `timeout:o2`) and a control arm.
 - **FX31.2** the line names the choices: every knob the built-in tasks take, so a person who
   did not know `timeouts` and `ratelimits` exist is told they do.
 - **FX31.3** a text that is nowhere near an arm gets the choices and no guess.
@@ -51,7 +51,7 @@ TYPOS = [
     ("dpeth:d1+h8", "depth:d1+h8"),
     ("distractor:r8", "distractor:r8@k16"),
     ("faluts:f2", "faults:f2"),
-    ("history:t60", "history:t600"),
+    ("history:600", "history:t600"),
     ("timeout:o2", "timeouts:o2"),
 ]
 
