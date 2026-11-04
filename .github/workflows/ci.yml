@@ -265,8 +265,8 @@ jobs:
         with:
           version: "0.11.14"
           enable-cache: false
-      # Prove from PyPI, through the extra: the newest poisson-prove the extra allows (>=0.1.0,<0.2),
-      # so a new Prove release inside the range is met here before a user meets it.
+      # Prove from PyPI, through the extra: the newest poisson-prove the extra allows (>=0.1.0),
+      # so a new Prove release is met here before a user meets it.
       - name: Install
         run: |
           python -m venv .venv

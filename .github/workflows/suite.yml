@@ -174,7 +174,7 @@ jobs:
       - *checkout
       - *setup-python
       - *setup-uv
-      # Prove from PyPI, through the extra: the newest poisson-prove the extra allows (>=0.1.0,<0.2).
+      # Prove from PyPI, through the extra: the newest poisson-prove the extra allows (>=0.1.0).
       - &install-with-prove
         name: Install
         run: |

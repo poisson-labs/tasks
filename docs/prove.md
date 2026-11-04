@@ -11,7 +11,7 @@ Prove is one of the two routes a generated task can be run down, beside verifier
 pip install "poisson-tasks[prove]"
 ```
 
-The extra installs `poisson-prove` from 0.1.0 up to, and not including, 0.2. That is the range the route is checked against: every release of Tasks is run end to end against the Prove that PyPI serves, and 0.1.0, 0.1.1 and 0.1.2 each passed. The command it adds is `poisson-prove` (`python -m poisson_prove` is the same).
+The extra installs `poisson-prove` 0.1.0 or later, with no upper bound. The route is checked from both sides: every release of Tasks is run end to end against the Prove that PyPI serves, and 0.1.0, 0.1.1, 0.1.2 and 0.1.3 each passed; every pull request and release of Prove runs the same check, from the latest release of Tasks, before it ships. The command it adds is `poisson-prove` (`python -m poisson_prove` is the same).
 
 From a checkout of this repository, the extra is installed with the development tools:
 

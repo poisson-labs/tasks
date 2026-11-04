@@ -60,11 +60,13 @@ dependencies = [
 # (scripts/release/prove_e2e.py) ran against each published version, with this tree's wheel
 # installed beside `poisson-prove==X`. 0.1.0, 0.1.1 and 0.1.2 each passed all twenty checks; 0.0.1,
 # the yanked name-hold, has no command and no Episode, and failed ten. 0.1.0 is the first release
-# with what Tasks uses, so that is the floor. The ceiling is the next minor: Prove is 0.x, and what
-# Tasks follows of its command line (the run id in `sweep --json`, the exit code of a target that
-# cannot be resolved, the store's `.poisson` folder) is what a minor release can move, so a 0.2 is
-# measured the same way, and the bound raised, in a release of its own.
-prove = ["poisson-prove>=0.1.0,<0.2"]
+# with what Tasks uses, so that is the floor. There is no ceiling: Prove's `tasks-check` job runs
+# this check from Tasks' latest release tag, on a wheel of the tree under a local version, on every
+# pull request and before every release, and a red check stops it. So a Prove that moves what Tasks
+# follows of its command line (the run id in `sweep --json`, `truncated` in `diff --json`, the exit
+# code of a target that cannot be resolved, the store's `.poisson` folder) is met there, and a
+# ceiling would refuse the very wheel that job offers once Prove's version passes it.
+prove = ["poisson-prove>=0.1.0"]
 
 # Floors, not pins: the suite, mypy --strict and the ruff rule set in this file are
 # known green on these versions, and nothing below them is claimed. NOTICE names the
