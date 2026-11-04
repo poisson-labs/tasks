@@ -143,3 +143,19 @@ def test_fx31_9_on_your_own_tools_a_mistyped_arm_gets_the_plans_nearest_arm_and_
     assert "did you mean" not in line and [arm for arm in held if arm not in line] == [], line
     right = invoke_own(["generate", "--show", "--arm", "depth:d2"], monkeypatch)
     assert right.code == 0, right
+
+
+def test_fx31_10_the_library_refusal_itself_names_the_nearest_arm_and_the_knobs() -> None:
+    from poisson_tasks.arms import arm_from_id
+
+    with pytest.raises(ValueError) as near:
+        arm_from_id("detph:d3")
+    assert "did you mean depth:d3?" in str(near.value), near.value
+    assert [knob for knob in KNOBS if knob not in str(near.value)] == [], near.value
+    with pytest.raises(ValueError) as far:
+        arm_from_id("qqqq")
+    assert "did you mean" not in str(far.value), far.value
+    assert [knob for knob in KNOBS if knob not in str(far.value)] == [], far.value
+    with pytest.raises(ValueError) as spelling:
+        arm_from_id("depth:d03")
+    assert "did you mean" not in str(spelling.value) and "depth:d3" in str(spelling.value)
