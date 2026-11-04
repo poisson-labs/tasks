@@ -23,9 +23,14 @@ rule names (`did you mean` and the arm).
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from tests.fd5_support import World, error_lines, invoke, prog, tree, world
+from tests.o1_support import fixture
+from tests.test_o2_cli import FLOWS, QUIET, work  # noqa: F401 - the fixture is used by name
+from tests.test_o2_cli import invoke as invoke_own
 
 __all__ = ["prog", "world"]
 
@@ -117,3 +122,24 @@ def test_fx31_5_generate_writes_its_files_for_a_right_arm_and_nothing_for_a_wron
     right = invoke(["generate", "--arm", "depth:d3"], prog=prog, monkeypatch=monkeypatch)
     assert right.code == 0 and error_lines(right) == [], right
     assert tree(world.work) != {}
+
+
+def test_fx31_9_on_your_own_tools_a_mistyped_arm_gets_the_plans_nearest_arm_and_its_arms(
+    work: Path, monkeypatch: pytest.MonkeyPatch  # noqa: F811
+) -> None:
+    """The refusal on your own tools already named the plan's arms.  It now also says which one a
+    mistyped id is nearest to; a text near none of them gets the arms and no guess."""
+    (work / "tools.json").write_bytes(fixture("acme-mcp-tools-list.json"))
+    assert invoke_own(["init", *QUIET, "--own-file", "tools.json", *FLOWS], monkeypatch).code == 0
+    held = ["depth:d1", "depth:d2", "depth:d3"]
+    near = invoke_own(["generate", "--show", "--arm", "detph:d2"], monkeypatch)
+    assert near.code == 2, near
+    (line,) = [text for text in near.err.splitlines() if text.startswith("error: ")]
+    assert "did you mean depth:d2?" in line, line
+    assert [arm for arm in held if arm not in line] == [], line
+    far = invoke_own(["generate", "--show", "--arm", "qqqq"], monkeypatch)
+    assert far.code == 2, far
+    (line,) = [text for text in far.err.splitlines() if text.startswith("error: ")]
+    assert "did you mean" not in line and [arm for arm in held if arm not in line] == [], line
+    right = invoke_own(["generate", "--show", "--arm", "depth:d2"], monkeypatch)
+    assert right.code == 0, right
