@@ -8,6 +8,14 @@ as Enter, and `Start? [y/N]` takes Enter for a no: the first run of the `built-i
 lost its `y` that way on 2026-10-29 (0.3.0).  So the driver waits until the prompt has been on the
 screen, and nothing has been written, for `SETTLE` seconds, and only then types.
 
+A second cause of the same failure is a question answered twice.  A session under load can be
+slow to take an answer and show the next prompt, and a driver that answers whatever question is on
+the screen answers the same one again.  The second Enter is read by the prompt after it, and the
+Enter the driver sends on purpose then reaches `Start? [y/N]` as an empty answer, which is a no.
+The first run of the wheel gate with only the wait above showed it: a fourth Enter at the same
+line three seconds after the third, where 0.3.1's passing run has three.  `Answered` holds the
+driver to one answer until the screen has something new on it.
+
 Standard library only: `tests/test_fx_drive_settle.py` runs it against a fake session.
 """
 
@@ -17,7 +25,7 @@ import re
 import time
 from typing import Any
 
-__all__ = ["SETTLE", "wait_settled"]
+__all__ = ["SETTLE", "Answered", "wait_settled"]
 
 SETTLE = 3.0
 _CONTROLS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
@@ -43,3 +51,19 @@ def wait_settled(
         if time.monotonic() > deadline or pty.process.poll() is not None:
             raise AssertionError(f"{prompt!r} never settled"
                                  f"{' as the last line' if last_line else ''}\n{screen[-1500:]}")
+
+
+class Answered:
+    """Remembers how much of the screen there was when the driver last answered.  `fresh()` is
+    true when the session has written something since, so a question is answered once, and `mark()`
+    is called after every answer.  Nothing has been answered at the start, so it is fresh."""
+
+    def __init__(self, pty: Any) -> None:
+        self.pty = pty
+        self._at = -1
+
+    def fresh(self) -> bool:
+        return bool(len(self.pty.plain) > self._at)
+
+    def mark(self) -> None:
+        self._at = len(self.pty.plain)

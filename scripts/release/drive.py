@@ -26,7 +26,7 @@ ONLY = set(sys.argv[4:])
 sys.path.insert(0, str(REPO))
 WHEEL_PY = GATE / "venv" / "bin" / "python"
 
-from scripts.release.settle import wait_settled  # noqa: E402
+from scripts.release.settle import Answered, wait_settled  # noqa: E402
 from tests import fd9_support as f9  # noqa: E402
 from tests.fd3_support import KEY, stub_bin  # noqa: E402
 from tests.fd5_support import uv_cache  # noqa: E402
@@ -94,6 +94,7 @@ class Driver:
     def __init__(self, scene: str, pty: f9.Pty, look: str) -> None:
         self.scene, self.pty, self.look = scene, pty, look
         self.log: list[str] = []
+        self.answered = Answered(pty)
 
     def tail(self, since: int, chars: int = 1500) -> str:
         """The screen's text from `since`, its last `chars`, without control characters (the
@@ -127,6 +128,7 @@ class Driver:
             self.pty.type(text, settle=settle)
         else:
             self.pty.send(ENTER, settle=settle)
+        self.answered.mark()
 
     def word(self, word: str, *, start: str = "n", until: float = 900) -> None:
         """Type `word`, answer whatever it asks (menus: the last option; `Start?`: `start`; any
@@ -135,6 +137,7 @@ class Driver:
         self.log.append(word)
         self.note(f"word {word}")
         self.pty.type(word, settle=1.5)
+        self.answered.mark()
         deadline = time.monotonic() + until
         handled = 0
         while time.monotonic() < deadline:
@@ -147,6 +150,7 @@ class Driver:
                 handled = len(menus)
                 self.note(f"menu {menus[-1]}: the last option")
                 self.pick_last(since)
+                self.answered.mark()
                 continue
             last = [line for line in self.tail(since).splitlines() if line.strip()][-1:]
             last_line = last[0] if last else ""
@@ -160,7 +164,11 @@ class Driver:
             if re.search(r"(\[Y/n\]|\[y/N\]|›\s*(\[.*\])?|\]\s*)$", last_line.rstrip()) or \
                     re.search(r"\?\s*(\(.*\))?\s*$", last_line) or \
                     re.match(r"^\s*(Description:|❯|\d+\) )", last_line):
+                if not self.answered.fresh():
+                    time.sleep(1.0)  # nothing new since the last answer: it has not been taken yet
+                    continue
                 self.pty.send(ENTER, settle=1.5)
+                self.answered.mark()
                 continue
             time.sleep(1.0)
         raise AssertionError(f"{self.scene}: {word!r} never came back to the prompt\n"
@@ -175,6 +183,9 @@ class Driver:
             text = self.pty.plain[since:]
             if re.search(until, text):
                 return
+            if not self.answered.fresh():
+                time.sleep(1.0)  # nothing new since the last answer: the session has not taken it yet
+                continue
             last = [line for line in self.tail(since).splitlines() if line.strip()][-1:]
             last_line = last[0] if last else ""
             if own and "What do you want to test?" in text and not getattr(self, "_kind", False):
@@ -184,11 +195,13 @@ class Driver:
                     self.pty.send(ENTER, settle=1.5)
                 else:
                     self.pty.type("2", settle=1.5)
+                self.answered.mark()
                 continue
             if own and "Your tool file" in last_line + self.tail(since, 300) and \
                     not getattr(self, "_file", False):
                 self._file = True
                 self.pty.type("petstore.json", settle=1.5)
+                self.answered.mark()
                 continue
             if not (re.search(r"(\[Y/n\]|\[y/N\]|\]\s*|\?\s*(\(.*\))?\s*)$", last_line.rstrip() + " ")
                     or re.match(r"^\s*(Description:|❯|\d+\) )", last_line)):
@@ -196,6 +209,7 @@ class Driver:
                 continue
             self.note(f"setup: Enter at {last_line[-60:]!r}")
             self.pty.send(ENTER, settle=1.5)
+            self.answered.mark()
         raise AssertionError(f"{self.scene}: setup never reached {until!r}\n{self.tail(since)}")
 
 
