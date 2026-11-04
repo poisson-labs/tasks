@@ -27,8 +27,10 @@ under `<scratch>` the installs of step 11 write to (default `matrix`). Commands 
   cut until it is merged. A merge in between moves the tree the gates, the suite and the checks
   ran on: the branch is then rebased onto the new `main` and checked again from the start.
 - [ ] Everything the release holds is merged into `main` on GitHub, by the release owner. The
-  preparer may build and check the branch's tip first; the release itself is built again from
-  `origin/main` after the merge (step 2), and its hashes must equal the tip's.
+  preparer may build and check the branch's tip first, with the tools of step 3 (another
+  `hatchling` writes its own version into the wheel's `WHEEL` file, which changes the wheel's
+  hash); the release itself is built again from `origin/main` after the merge (step 2), and its
+  hashes must equal the tip's.
 - [ ] `CHANGELOG.md` opens with `## X.Y.Z (YYYY-MM-DD)`, dated the UTC day the upload is expected
   to land. A patch release's section holds fixes and tests only.
 - [ ] `pyproject.toml` says `version = "X.Y.Z"`.
@@ -129,8 +131,10 @@ built-in tasks and the Petstore tool file, each in the coloured look and in `--p
 
 ## 7. The date
 
-- [ ] The upload will land on the changelog's date, in UTC. If it will not, stop: re-date the
-  section, which is a new commit through review, and start again at step 2.
+- [ ] The upload will land on the changelog's date, in UTC, with room to spare: the report says
+  how many minutes of that day were left when the blocks were handed over, and fewer than 180 is
+  too few. If it will not land, or too few remain, stop: re-date the section, which is a new
+  commit through review, and start again at step 2.
 
 ## 8. The tag
 
@@ -153,13 +157,15 @@ preparer fills in the values and checks each part without running the upload; th
 runs them in this order. Each block starts only once the one before it has landed, and a block
 that stops says why in one line, so a refusal never reads as done.
 
-**Block one, the upload.** It refuses on any UTC day but the changelog's, saying so, and on any
-file whose hash is not the build's (`shasum` prints `FAILED`), and reads the token from `.env`
+**Block one, the upload.** It refuses on any UTC day but the changelog's, saying so, on any
+file whose hash is not the build's (`shasum` prints `FAILED`) and on any hash line that is not
+properly formatted, such as one of the wrong length (`--strict` makes `shasum` exit 1 on it;
+without it `shasum` warns, checks the other file and exits 0), and reads the token from `.env`
 without printing it. It has landed when twine prints `View at:`; block two waits for that.
 
 <!-- docs-check: skip reason="uploads the release to PyPI" -->
 ```bash
-if [[ "$(date -u +%F)" != YYYY-MM-DD ]]; then echo "stopped, nothing uploaded: the UTC date is $(date -u +%F) and this release uploads on YYYY-MM-DD"; else cd <release worktree>/dist && printf '%s  %s\n' <wheel sha256> poisson_tasks-X.Y.Z-py3-none-any.whl <sdist sha256> poisson_tasks-X.Y.Z.tar.gz | shasum -a 256 -c - && TWINE_USERNAME=__token__ TWINE_PASSWORD="$(sed -n 's/^PYPI_API_TOKEN=//p' <checkout>/.env)" uvx twine@7.0.0 upload --non-interactive --repository-url https://upload.pypi.org/legacy/ poisson_tasks-X.Y.Z-py3-none-any.whl poisson_tasks-X.Y.Z.tar.gz; fi
+if [[ "$(date -u +%F)" != YYYY-MM-DD ]]; then echo "stopped, nothing uploaded: the UTC date is $(date -u +%F) and this release uploads on YYYY-MM-DD"; else cd <release worktree>/dist && printf '%s  %s\n' <wheel sha256> poisson_tasks-X.Y.Z-py3-none-any.whl <sdist sha256> poisson_tasks-X.Y.Z.tar.gz | shasum -a 256 --strict -c - && TWINE_USERNAME=__token__ TWINE_PASSWORD="$(sed -n 's/^PYPI_API_TOKEN=//p' <checkout>/.env)" uvx twine@7.0.0 upload --non-interactive --repository-url https://upload.pypi.org/legacy/ poisson_tasks-X.Y.Z-py3-none-any.whl poisson_tasks-X.Y.Z.tar.gz; fi
 ```
 
 **Block two, the tag and the GitHub release.** It starts only when PyPI answers for `X.Y.Z`, so

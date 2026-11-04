@@ -2,7 +2,8 @@
 
 usage: python -I scripts/release/explain_diff.py REPO OLD_REV NEW_REV BASE_REV OLD_TIP NAMES.txt OUT.txt
 
-For each path in NAMES.txt (git diff --name-only OLD_REV NEW_REV):
+For each path in NAMES.txt (git diff --name-only --no-renames OLD_REV NEW_REV, so that a renamed file is a path that
+is "removed" and a path that is "added", and neither is lost):
   * a .py file is parsed at both revisions with every bare-string statement (docstrings, string-only statements)
     removed; if the two ASTs are equal the change is "comments/docstrings/layout only", else "code changed";
   * any other file is "non-code" (docs, changelog, config);

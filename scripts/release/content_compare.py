@@ -3,10 +3,12 @@
 usage: python -I scripts/release/content_compare.py OLD_DIST NEW_DIST OLD_VERSION NEW_VERSION GIT_DIFF_NAMES.txt OUT.txt
 
 OLD_DIST and NEW_DIST each hold a release's wheel and sdist.  OLD_VERSION is rewritten to NEW_VERSION in member names
-for the lookup only (0.2.0 -> 0.2.1).  GIT_DIFF_NAMES.txt is `git diff --name-only <old commit> <new commit>`.  Every member that is
+for the lookup only (0.2.0 -> 0.2.1).  GIT_DIFF_NAMES.txt is `git diff --name-only --no-renames <old commit> <new commit>`
+(without `--no-renames` a renamed file is listed under its new name only, and its old member looks unexplained).  Every member that is
 added, removed or differs is tagged with whether its tracked path is in the git diff between the two builds' commits.
 The wheel ships the repository's `calibration/` folder as `poisson_tasks/cards/`, so that prefix maps back to
-`calibration/` before the lookup.  Prints no file content.
+`calibration/` before the lookup, and the wheel's `<name>.dist-info/licenses/FILE` (the files `license-files` names) maps
+back to the repository's `FILE`.  Prints no file content.
 """
 import hashlib
 import sys
@@ -36,6 +38,8 @@ def sdist_rows(path, rename):
 def tracked(member, kind):
     if kind == "sdist":
         return member.split("/", 1)[1] if "/" in member else member
+    if ".dist-info/licenses/" in member:
+        return member.split(".dist-info/licenses/", 1)[1]
     if member.startswith("poisson_tasks/cards/"):
         return "calibration/" + member[len("poisson_tasks/cards/"):]
     return "src/" + member if member.startswith("poisson_tasks") and ".dist-info/" not in member else member
