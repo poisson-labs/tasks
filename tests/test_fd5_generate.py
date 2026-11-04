@@ -261,11 +261,14 @@ def test_fd5_15_show_names_its_task_by_arm_and_place_and_shows_it_in_full(
 def test_fd5_15_show_with_a_chosen_seed_names_the_seed(
     prog: str, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    ran = invoke(["generate", "--arm", "depth:d2", "--show", "--seed", "4242"], prog=prog,
+    # Retrofitted 2026-11-04 for 0.3.2 (#31): `--seed` names a seed of the plan, and one outside it
+    # is refused, so the seed this test chooses is the fourth of the plan's ten, where it was 4242.
+    seed = calibration().seed_list()[3]
+    ran = invoke(["generate", "--arm", "depth:d2", "--show", "--seed", str(seed)], prog=prog,
                  monkeypatch=monkeypatch)
     assert ran.code == 0, ran
-    bundle = tasks().generate(specs_of(["depth:d2"])[0], 4242)
-    assert naming_line(ran.out.splitlines()[0], "depth:d2", None, 4242), ran.out[:400]
+    bundle = tasks().generate(specs_of(["depth:d2"])[0], seed)
+    assert naming_line(ran.out.splitlines()[0], "depth:d2", None, seed), ran.out[:400]
     assert squashed(str(bundle.prompt)) in squashed(ran.out)
     assert tree(world.work) == {}
 
