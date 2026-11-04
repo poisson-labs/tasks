@@ -94,7 +94,8 @@ $T/gate/venv/bin/python -m pip install -q --disable-pip-version-check --no-cache
 $T/driver/bin/python -m pip install -q --disable-pip-version-check --index-url https://pypi.org/simple "$WHL" pytest hypothesis > $T/driver-install.log 2>&1 || failed=1
 for v in gate/venv driver; do d=$($T/$v/bin/python -c 'import poisson_tasks,pathlib;print(pathlib.Path(poisson_tasks.__file__).parent/"data")'); cp $TOK "$d/"; done
 $T/gate/venv/bin/python -m poisson_tasks --version
-(cd $T && trap - INT && unset PYTHONDONTWRITEBYTECODE && PYTHONDONTWRITEBYTECODE=1 $T/driver/bin/python -I "$S/drive.py" $W $T/gate $OUT/wheel-gate/transcripts > $OUT/wheel-gate/drive.log 2>&1) || failed=1
+# -B: -I makes python ignore PYTHONDONTWRITEBYTECODE, so without it the driver's imports (settle.py, tests/) wrote __pycache__ folders into the release worktree
+(cd $T && trap - INT && unset PYTHONDONTWRITEBYTECODE && PYTHONDONTWRITEBYTECODE=1 $T/driver/bin/python -B -I "$S/drive.py" $W $T/gate $OUT/wheel-gate/transcripts > $OUT/wheel-gate/drive.log 2>&1) || failed=1
 tail -3 $OUT/wheel-gate/drive.log
 
 step "the Prove route, end to end"
