@@ -46,6 +46,7 @@ from typing import Any
 import pytest
 
 from tests.helpers import (
+    default_sigint,
     driver_helper,
     free_port,
     needs_git,
@@ -396,10 +397,13 @@ def test_the_stop_button_during_the_install_stops_uv_too(
     virtualenv unseen while the next attempt removes and rebuilds it."""
     inst = Install(tmp_path, monkeypatch)
     pid_file = tmp_path / "uv-slow.pid"
+    # Retrofitted 2026-11-04 for 0.3.2 (#37): the driver starts with SIGINT at its default, so the
+    # stop button reaches it however the suite was started.
     proc = subprocess.Popen(
         _driver("install-vllm", "--venv", str(inst.venv)),
         env=_driver_env(FAKE_UV_SLOW="venv", UV_SLOW_PID=str(pid_file)),
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        preexec_fn=default_sigint,
     )
     child = 0
     try:
