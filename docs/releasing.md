@@ -131,8 +131,10 @@ built-in tasks and the Petstore tool file, each in the coloured look and in `--p
 
 ## 7. The date
 
-- [ ] The upload will land on the changelog's date, in UTC. If it will not, stop: re-date the
-  section, which is a new commit through review, and start again at step 2.
+- [ ] The upload will land on the changelog's date, in UTC, with room to spare: the report says
+  how many minutes of that day were left when the blocks were handed over, and fewer than 180 is
+  too few. If it will not land, or too few remain, stop: re-date the section, which is a new
+  commit through review, and start again at step 2.
 
 ## 8. The tag
 
