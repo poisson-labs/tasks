@@ -11,8 +11,9 @@ sixty when `verify` finds no settings file, and the first ten of them when `gene
   are more.
 - **FX31.7** the controls, which differ in the one thing under test: a seed the plan holds is shown
   and verified, and named by its seed, in the same folder; so is the plan's own `--task N`.
-- **FX31.8** the plan is the settings file's when there is one: with `seeds = [404, 55, 2121]` the
-  seed 55 is held and the seed 42 is not, and the refusal names the three.
+- **FX31.8** the plan is the settings file's when `verify` finds one, and the flags' when `generate`
+  is given `--arm` (which builds its plan from its flags): with the seeds 404, 55 and 2121 the seed 55
+  is held and the seed 42 is not, and the refusal names the three.
 
 The refusal is held against these controls, never by its words beyond the numbers it must carry.
 """
@@ -94,13 +95,19 @@ def test_fx31_7_a_seed_the_plan_holds_and_its_task_number_are_not_refused(
 
 
 @pytest.mark.parametrize("command", list(COMMANDS))
-def test_fx31_8_the_settings_files_seeds_are_the_plan(
+def test_fx31_8_the_plan_is_the_settings_files_or_the_flags_seeds(
     command: str, prog: str, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    three_seeds(world)
-    held = invoke(COMMANDS[command]("55"), prog=prog, monkeypatch=monkeypatch)
+    """`verify` counts in the settings file's seeds.  `generate --arm` builds the plan from its
+    flags and not from the settings file, so there `--seeds` is what makes the plan."""
+    if command == "verify":
+        three_seeds(world)
+        extra: list[str] = []
+    else:
+        extra = ["--seeds", ",".join(str(seed) for seed in THREE)]
+    held = invoke([*COMMANDS[command]("55"), *extra], prog=prog, monkeypatch=monkeypatch)
     assert held.code == 0 and "55" in held.first, held
-    ran = invoke(COMMANDS[command](str(OUT)), prog=prog, monkeypatch=monkeypatch)
+    ran = invoke([*COMMANDS[command](str(OUT)), *extra], prog=prog, monkeypatch=monkeypatch)
     assert ran.code == 1, ran
     (line,) = error_lines(ran)
     assert {str(OUT), *map(str, THREE)} <= numbers_in(line), line
