@@ -80,7 +80,7 @@ grep -E '^# [0-9]+ hits|exit code' $OUT/key-scan/token-scan.txt
 grep -q 'exit code: [12]' $OUT/key-scan/token-scan.txt && failed=1
 
 step "against $OV's files"
-git -C $W diff --name-only $OREV $NREV > $OUT/build/git-diff-names-$OV-to-$V.txt
+git -C $W diff --name-only --no-renames $OREV $NREV > $OUT/build/git-diff-names-$OV-to-$V.txt
 print "$(wc -l < $OUT/build/git-diff-names-$OV-to-$V.txt) paths in git diff $OREV $NREV"
 mkdir -p $T/olddist $T/newdist && cp $OLD/poisson_tasks-$OV* $T/olddist/ && cp $WHL $SDIST $T/newdist/
 $P -I "$S/content_compare.py" $T/olddist $T/newdist $OV $V $OUT/build/git-diff-names-$OV-to-$V.txt $OUT/build/content-comparison.txt
