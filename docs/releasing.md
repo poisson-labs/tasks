@@ -27,8 +27,10 @@ under `<scratch>` the installs of step 11 write to (default `matrix`). Commands 
   cut until it is merged. A merge in between moves the tree the gates, the suite and the checks
   ran on: the branch is then rebased onto the new `main` and checked again from the start.
 - [ ] Everything the release holds is merged into `main` on GitHub, by the release owner. The
-  preparer may build and check the branch's tip first; the release itself is built again from
-  `origin/main` after the merge (step 2), and its hashes must equal the tip's.
+  preparer may build and check the branch's tip first, with the tools of step 3 (another
+  `hatchling` writes its own version into the wheel's `WHEEL` file, which changes the wheel's
+  hash); the release itself is built again from `origin/main` after the merge (step 2), and its
+  hashes must equal the tip's.
 - [ ] `CHANGELOG.md` opens with `## X.Y.Z (YYYY-MM-DD)`, dated the UTC day the upload is expected
   to land. A patch release's section holds fixes and tests only.
 - [ ] `pyproject.toml` says `version = "X.Y.Z"`.
