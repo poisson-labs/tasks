@@ -10,7 +10,7 @@ So the floor is 0.1.0, the first release that has what Tasks uses.
 - **PI6.2** the route runs, end to end, at the lowest version the extra allows -- read from
   `pyproject.toml`, so a floor that is moved is a floor that is measured again.
 
-The upper bound is a separate decision, held by its own tests.
+The upper bound is a separate decision, held by its own test, **PI6.3**.
 """
 
 from __future__ import annotations
@@ -69,12 +69,14 @@ def test_pi6_2_the_route_runs_end_to_end_at_the_lowest_prove_the_extra_allows(
     assert done.stdout.strip().splitlines()[-1].endswith(f"poisson-prove {floor}")
 
 
-def test_pi6_3_the_extra_stops_before_prove_0_2() -> None:
-    """The ceiling is a claim only the measured range makes: Prove is 0.x, and the three
-    details of its command line that Tasks had to follow (the run id, the exit code of a
-    refused target, the store's marker folder) are the kind of thing a minor release moves.  A
-    0.2 is measured, and the bound raised, in a release of its own."""
+def test_pi6_3_the_extra_has_no_ceiling() -> None:
+    """Retrofitted 2026-11-04 for Prove 0.2.0.  This test was `test_pi6_3_the_extra_stops_before_
+    prove_0_2` and held `<0.2`.  Prove's `tasks-check` job now runs `prove_e2e.py` from Tasks' latest
+    release tag before Prove ships, on a wheel under a local version, which is what the ceiling was
+    for; and a ceiling refuses that wheel once Prove's version passes it, so pip takes PyPI's and the
+    job fails on its last line.  `0.2.0+tree.abc1234` is the shape of the version that job offers."""
     spec = prove_requirement().specifier
     assert spec.contains(Version("0.1.99"), prereleases=False)
-    assert not spec.contains(Version("0.2.0"), prereleases=True)
-    assert not spec.contains(Version("1.0.0"), prereleases=True)
+    assert spec.contains(Version("0.2.0"), prereleases=False)
+    assert spec.contains(Version("0.2.0+tree.abc1234"), prereleases=False)
+    assert spec.contains(Version("1.0.0"), prereleases=False)

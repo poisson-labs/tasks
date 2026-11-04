@@ -187,7 +187,7 @@ License:     MIT
 Prove, the poisson-prove distribution (first party; optional extra, not contained here)
 ----------------------------------------------------------------------------------------
 Upstream:    https://pypi.org/project/poisson-prove/ (HTTP 200 on 2026-11-03). The optional
-             `prove` extra asks for it (poisson-prove >=0.1.0,<0.2). It is not a dependency of
+             `prove` extra asks for it (poisson-prove >=0.1.0). It is not a dependency of
              a plain install, and none of it is contained in this repository or its wheel.
 Source read: LICENSE in the poisson-prove 0.1.2 wheel
              (poisson_prove-0.1.2.dist-info/licenses/LICENSE), read on 2026-11-03.

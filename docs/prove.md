@@ -11,7 +11,7 @@ Prove is one of the two routes a generated task can be run down, beside verifier
 pip install "poisson-tasks[prove]"
 ```
 
-The extra installs `poisson-prove` from 0.1.0 up to, and not including, 0.2. That is the range the route is checked against: every release of Tasks is run end to end against the Prove that PyPI serves, and 0.1.0, 0.1.1 and 0.1.2 each passed. The command it adds is `poisson-prove` (`python -m poisson_prove` is the same).
+The extra installs `poisson-prove` 0.1.0 or later, with no upper bound. The route is checked from both sides: every release of Tasks is run end to end against the Prove that PyPI serves, and 0.1.0, 0.1.1, 0.1.2 and 0.1.3 each passed; every pull request and release of Prove runs the same check, from the latest release of Tasks, before it ships. The command it adds is `poisson-prove` (`python -m poisson_prove` is the same).
 
 From a checkout of this repository, the extra is installed with the development tools:
 
@@ -27,7 +27,7 @@ From a checkout of this repository, the extra is installed with the development 
 .venv/bin/python examples/prove_sweep/run.py
 ```
 
-The example writes a pre-registration, builds a registry module from it under its own hash, writes a Prove sweep spec, and runs three real `poisson-prove sweep` processes, one per arm, driven by the reference policy: the one that plays each task correctly. It then reads the stored episodes back and prints their outcomes, and runs a `poisson-prove diff` of the two depth arms. Every episode comes back `passed`, and the depth arms differ in turns: 2 at `d1`, 4 at `d3`. The `diff` prints `truncated=0`, which is the registration's horizon cutting no arm short. That is the point of the scripted path: the instrument is exercised with the model taken out, so a later failure is a model's and not the instrument's.
+The example writes a pre-registration, builds a registry module from it under its own hash, writes a Prove sweep spec, and runs three real `poisson-prove sweep` processes, one per arm, driven by the reference policy: the one that plays each task correctly. It then reads the stored episodes back and prints their outcomes, and runs a `poisson-prove diff` of the two depth arms. Every episode comes back `passed`, and the depth arms differ in turns: 2 at `d1`, 4 at `d3`. The example reads the `diff` from `--json`, where `truncated` is 0, which is the registration's horizon cutting no arm short. That is the point of the scripted path: the instrument is exercised with the model taken out, so a later failure is a model's and not the instrument's.
 
 It takes a few seconds and writes about 80 KB under `examples/prove_sweep/example-store`, which git ignores. Delete that folder to start over. [The example](https://github.com/poisson-labs/tasks/blob/main/examples/prove_sweep/run.py) is source to read; [python.md](python.md) lists the others.
 
