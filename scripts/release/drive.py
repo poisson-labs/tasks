@@ -124,11 +124,11 @@ class Driver:
         """Type `text` and Enter at `prompt` once the prompt has settled (`settle.py` says why), or
         only Enter when `text` is empty."""
         wait_settled(self.pty, prompt, since=since, last_line=last_line)
+        self.answered.mark()
         if text:
             self.pty.type(text, settle=settle)
         else:
             self.pty.send(ENTER, settle=settle)
-        self.answered.mark()
 
     def word(self, word: str, *, start: str = "n", until: float = 900) -> None:
         """Type `word`, answer whatever it asks (menus: the last option; `Start?`: `start`; any
@@ -137,7 +137,6 @@ class Driver:
         self.log.append(word)
         self.note(f"word {word}")
         self.pty.type(word, settle=1.5)
-        self.answered.mark()
         deadline = time.monotonic() + until
         handled = 0
         while time.monotonic() < deadline:
@@ -150,7 +149,6 @@ class Driver:
                 handled = len(menus)
                 self.note(f"menu {menus[-1]}: the last option")
                 self.pick_last(since)
-                self.answered.mark()
                 continue
             last = [line for line in self.tail(since).splitlines() if line.strip()][-1:]
             last_line = last[0] if last else ""
@@ -164,11 +162,7 @@ class Driver:
             if re.search(r"(\[Y/n\]|\[y/N\]|›\s*(\[.*\])?|\]\s*)$", last_line.rstrip()) or \
                     re.search(r"\?\s*(\(.*\))?\s*$", last_line) or \
                     re.match(r"^\s*(Description:|❯|\d+\) )", last_line):
-                if not self.answered.fresh():
-                    time.sleep(1.0)  # nothing new since the last answer: it has not been taken yet
-                    continue
                 self.pty.send(ENTER, settle=1.5)
-                self.answered.mark()
                 continue
             time.sleep(1.0)
         raise AssertionError(f"{self.scene}: {word!r} never came back to the prompt\n"
@@ -190,26 +184,26 @@ class Driver:
             last_line = last[0] if last else ""
             if own and "What do you want to test?" in text and not getattr(self, "_kind", False):
                 self._kind = True
+                self.answered.mark()
                 if self.look == "pretty":
                     self.pty.send(DOWN, settle=0.5)
                     self.pty.send(ENTER, settle=1.5)
                 else:
                     self.pty.type("2", settle=1.5)
-                self.answered.mark()
                 continue
             if own and "Your tool file" in last_line + self.tail(since, 300) and \
                     not getattr(self, "_file", False):
                 self._file = True
-                self.pty.type("petstore.json", settle=1.5)
                 self.answered.mark()
+                self.pty.type("petstore.json", settle=1.5)
                 continue
             if not (re.search(r"(\[Y/n\]|\[y/N\]|\]\s*|\?\s*(\(.*\))?\s*)$", last_line.rstrip() + " ")
                     or re.match(r"^\s*(Description:|❯|\d+\) )", last_line)):
                 time.sleep(1.0)  # no question on screen: a verb is still working
                 continue
             self.note(f"setup: Enter at {last_line[-60:]!r}")
-            self.pty.send(ENTER, settle=1.5)
             self.answered.mark()
+            self.pty.send(ENTER, settle=1.5)
         raise AssertionError(f"{self.scene}: setup never reached {until!r}\n{self.tail(since)}")
 
 

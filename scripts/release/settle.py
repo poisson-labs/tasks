@@ -29,6 +29,7 @@ __all__ = ["SETTLE", "Answered", "wait_settled"]
 
 SETTLE = 3.0
 _CONTROLS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+_NUMBERED = re.compile(r"\s*\d+\. \S")
 
 
 def wait_settled(
@@ -54,16 +55,35 @@ def wait_settled(
 
 
 class Answered:
-    """Remembers how much of the screen there was when the driver last answered.  `fresh()` is
-    true when the session has written something since, so a question is answered once, and `mark()`
-    is called after every answer.  Nothing has been answered at the start, so it is fresh."""
+    """Remembers what was on the screen when the driver last answered, so that a question is
+    answered once.  `mark()` is called just before an answer is sent, and `fresh()` is true when the
+    session has put something new to answer on the screen since: a numbered question
+    (`7. How many tasks per level?`) that was not there, or a last line that is not the one
+    answered.  The answered prompt leaves a confirmation line (`    › [10]`, drawn once where the
+    question was drawn twice, `› [10]   › [10]`), which reads like the question and is not a new
+    one.  Nothing has been answered at the start, so it is fresh.
+
+    It is marked before the answer and not after, because a session that takes the answer quickly
+    has the next question on the screen by the time the answer returns."""
 
     def __init__(self, pty: Any) -> None:
         self.pty = pty
-        self._at = -1
+        self._seen: tuple[str, int] | None = None
+
+    def _state(self) -> tuple[str, int]:
+        text = _CONTROLS.sub("", self.pty.plain)
+        lines = [line for line in text.splitlines() if line.strip()]
+        words = (lines[-1] if lines else "").split()
+        half = len(words) // 2
+        if half and len(words) % 2 == 0 and words[:half] == words[half:]:
+            words = words[:half]  # a prompt is drawn twice on its line
+        return " ".join(words), sum(1 for line in lines if _NUMBERED.match(line))
 
     def fresh(self) -> bool:
-        return bool(len(self.pty.plain) > self._at)
+        if self._seen is None:
+            return True
+        last, numbered = self._state()
+        return numbered > self._seen[1] or last != self._seen[0]
 
     def mark(self) -> None:
-        self._at = len(self.pty.plain)
+        self._seen = self._state()
