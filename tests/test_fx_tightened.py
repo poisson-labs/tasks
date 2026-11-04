@@ -16,17 +16,38 @@ commit that added it names that change and the result.  None of the changes is c
   before the write.  A read is shown the written values only when its checkable arguments are all
   among the write's; one that carries none has nothing to match, and `list_channels` with no
   arguments is that read.  The change it guards against overlays the latest write on it.
+- **FX38.3** each experimental dial's note in `init` is the reason in `arms.EXPERIMENTAL_KNOBS`,
+  character for character, dial by dial: in the built-in knob menu (`_init.KNOBS`, the notes of
+  `distractor`, `timeouts` and `ratelimits`) and in the knob menu of the guided session on your
+  own tools (`timeouts`, `ratelimits` and `landed`, each `experimental: <reason>`).  0.3.0's test
+  looked for the reason inside the whole text of the menu, and only for two of the dials, so a
+  note typed as a different literal that contained the reason, or a third dial's note typed as any
+  text at all, passed.
 """
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from tests.f2_support import DUPLICATE, field, loaded, own_made, own_record, stepped
-from tests.o2_support import fixture_sets, mcp_set, read_tool, write_tool
+from poisson_tasks.cli import _init
+from tests.f2_support import (
+    DUPLICATE,
+    EXPERIMENTAL_REASONS,
+    experimental,
+    field,
+    loaded,
+    own_made,
+    own_record,
+    stepped,
+)
+from tests.o1_support import fixture
+from tests.o2_support import acme_flows, fixture_sets, mcp_set, read_tool, write_tool
+from tests.test_o2_cli import FLOWS, acme_set, invoke, work  # noqa: F401 - the fixture is used by name
+from tests.fd5_support import Answers
 
 S12 = {"type": "string", "maxLength": 12}
 AB = {"type": "string", "enum": ["a", "b"]}
@@ -75,3 +96,56 @@ def test_fx38_2_a_read_with_no_checkable_argument_answers_as_before_the_write(na
     _state, (looked_before, _w, looked_after) = stepped(bundle, [look, (target, args), look])
     assert loaded(looked_after) != loaded(looked_before)
     assert loaded(looked_after)["order_id"] == args["order_id"], "the control: the write is shown"
+
+
+def test_fx38_3_the_shared_reasons_are_the_four_experimental_dials() -> None:
+    """The reasons the notes are held to are the mapping's own, and it is the four."""
+    assert experimental() == EXPERIMENTAL_REASONS
+
+
+def test_fx38_3_the_built_in_menus_notes_are_the_reasons_exactly() -> None:
+    reasons = experimental()
+    menu = {name: (label, note) for name, label, note in _init.KNOBS}
+    assert {name for name in menu if name in reasons} == {"distractor", "timeouts", "ratelimits"}
+    for name in ("distractor", "timeouts", "ratelimits"):
+        label, note = menu[name]
+        assert note == reasons[name], (name, note)
+        assert f"{name} (experimental)" in label, (name, label)
+    label, note = menu["depth"]
+    assert note == "" and "(experimental)" not in label, "the control: depth is not experimental"
+
+
+def knob_menu(text: str) -> dict[str, list[str]]:
+    """The options of the guided session's knob menu (plain look), each label with its note lines."""
+    lines = text.splitlines()
+    start = next(i for i, line in enumerate(lines) if re.fullmatch(r"\d+\. The knob", line))
+    options: dict[str, list[str]] = {}
+    label = None
+    for line in lines[start + 1:]:
+        numbered = re.fullmatch(r"   \d+\) (.*)", line)
+        if numbered:
+            label = numbered.group(1)
+            options[label] = []
+        elif label is not None and line.startswith("      "):
+            options[label].append(line.strip())
+        else:
+            break
+    return options
+
+
+def test_fx38_3_the_own_tools_menus_notes_are_the_reasons_exactly(
+    work: Path, monkeypatch: pytest.MonkeyPatch  # noqa: F811
+) -> None:
+    from poisson_tasks.own import recipes
+
+    (work / "tools.json").write_bytes(fixture("acme-mcp-tools-list.json"))
+    table = recipes.recipes_for(acme_set(), flows=acme_flows())
+    custom = str(sum(1 for recipe in table.values() if recipe.offered) + 1)
+    ran = invoke(["init", "--no-check-key", *FLOWS], monkeypatch,
+                 Answers(["2", "", "", "", "", "tools.json", custom]))
+    assert ran.code == 0, ran
+    menu = knob_menu(ran.out + ran.err)
+    reasons = experimental()
+    for name in ("timeouts", "ratelimits", "landed"):
+        assert menu.get(f"{name} (experimental)") == [f"experimental: {reasons[name]}"], (name, menu)
+    assert not any(label.startswith("depth") and "experimental" in label for label in menu), menu
