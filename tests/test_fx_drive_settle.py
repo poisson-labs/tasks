@@ -22,12 +22,24 @@ driver's does, so the test uses the same `Pty` the driver does.
   screen, when it never is.
 - **FX39.4** `drive.py` types `y` at a prompt only through that wait: no `.type("y"` of the
   scenes is left bare.
+- **FX39.5** the control for the second cause, found by the first run of the wheel gate with only
+  the settle in place: a session slow to show its next prompt (under load, as the first screens
+  of a run are) leaves the last question on the screen, and a loop that answers every question it
+  sees answers it twice.  The second Enter is read by the prompt after it, and the Enter the
+  driver then sends on purpose reaches `Start? [y/N]` as an empty answer, which is a no.  That is
+  the 0.3.0 failure again, and the settle does not touch it: the run that showed it has a fourth
+  Enter at the same `› [1]` line three seconds after the third, where 0.3.1's passing run has
+  three.
+- **FX39.6** `settle.Answered` holds that loop to one answer until something new is on the screen:
+  the same fake session reads one Enter.
+- **FX39.7** `drive.py` answers the setup's questions and a session word's through it.
 """
 
 from __future__ import annotations
 
 import os
 import re
+import time
 from pathlib import Path
 from typing import Any
 
@@ -120,3 +132,67 @@ def test_fx39_4_drive_py_types_y_only_through_the_wait() -> None:
     bare = [line.strip() for line in text.splitlines()
             if re.search(r"\.type\(\s*(\"y\"|start\b)", line)]
     assert bare == [], bare
+
+
+SLOW = '''\
+import os, select, time
+
+os.write(1, b"Question? [1] ")
+os.read(0, 100)
+time.sleep(4.0)
+os.write(1, b"\\nNEXT\\n")
+ready, _, _ = select.select([0], [], [], 3)
+extra = repr(os.read(0, 100).decode().strip()) if ready else "(none)"
+os.write(1, ("extra:" + extra + "\\n").encode())
+'''
+
+
+def answer_every_question(pty: Pty, guard: Any = None) -> None:
+    """The driver's setup loop, reduced: wait for quiet, stop when the next screen is there, and
+    otherwise answer the question on the screen with Enter (once the guard allows, if one is given)."""
+    deadline = time.monotonic() + 40
+    while time.monotonic() < deadline:
+        pty.quiet(1.0)
+        if "NEXT" in pty.plain:
+            return
+        if guard is not None and not guard.fresh():
+            time.sleep(0.5)
+            continue
+        pty.send("\r", settle=1.0)
+        if guard is not None:
+            guard.mark()
+    raise AssertionError(pty.plain)
+
+
+def test_fx39_5_a_loop_that_answers_every_question_it_sees_answers_a_slow_one_twice(
+    tmp_path: Path,
+) -> None:
+    pty = session(tmp_path, SLOW)
+    try:
+        answer_every_question(pty)
+        pty.expect(r"extra:", timeout=30)
+        assert "extra:''" in pty.plain, pty.plain
+    finally:
+        pty.close()
+
+
+def test_fx39_6_the_guard_holds_the_loop_to_one_answer_until_something_new_is_on_the_screen(
+    tmp_path: Path,
+) -> None:
+    from scripts.release.settle import Answered
+
+    pty = session(tmp_path, SLOW)
+    try:
+        answer_every_question(pty, Answered(pty))
+        pty.expect(r"extra:", timeout=30)
+        assert "extra:(none)" in pty.plain, pty.plain
+    finally:
+        pty.close()
+
+
+def test_fx39_7_drive_py_answers_the_setup_and_a_word_through_the_guard() -> None:
+    text = (REPO / "scripts" / "release" / "drive.py").read_text(encoding="utf-8")
+    for name in ("setup_answers", "word"):
+        body = text[text.index(f"    def {name}("):]
+        body = body[: body.index("\n    def ", 10)] if "\n    def " in body[10:] else body
+        assert "self.answered.fresh()" in body and "self.answered.mark()" in body, name
