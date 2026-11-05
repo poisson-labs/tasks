@@ -85,7 +85,7 @@ ok  this environment is ready to run tasks.toml
   key         ok      OPENAI_API_KEY is set (not checked: --offline)
   tools       ok      5 tools: 3 read, 0 write, 2 not known (treated as write), 0 refused in tools.json
   file        ok      file: an OpenAI tools file, sha256 bf34e029e3fa609162c90e8709251c32db608d8aa0afd1f23432d500bd007ece
-  knobs       ok      faults, history, depth, shape, similarity, arguments, spread, timeouts, ratelimits and landed reach a level on this set; faults, history, depth and shape shipped and lead the recipes
+  knobs       ok      faults, history, depth, shape, similarity, arguments, spread, timeouts, ratelimits, landed, baddata and lagged reach a level on this set; faults, history, depth and shape shipped and lead the recipes
   faults      note    the knob probe's status on the built-in tasks: does not bite on gpt-5-nano; bites on Qwen3-8B
   history     note    the knob probe's status on the built-in tasks: bites on gpt-5-nano; bites on Qwen3-8B
   depth       note    measured on the published cards, not by the knob probe
@@ -96,6 +96,8 @@ ok  this environment is ready to run tasks.toml
   timeouts    note    experimental: no model has been measured on it yet, not on the published cards and not by the knob probe
   ratelimits  note    experimental: no model has been measured on it yet, not on the published cards and not by the knob probe
   landed      note    experimental: no model has been measured on it yet, not on the published cards and not by the knob probe
+  baddata     note    experimental: no model has been measured on it yet, not on the published cards and not by the knob probe
+  lagged      note    experimental: no model has been measured on it yet, not on the published cards and not by the knob probe
   harness     ok      …
   platform    ok      …
 ```
@@ -159,6 +161,8 @@ A stray write is a side effect, and a stray read is not, so Tasks has to know. M
 - A write that is accepted answers with what it was sent: every argument under its name, into the matching field of the tool's output schema when the value fits that field (drawn as usual when it does not), or beside `ok` and `id` when the tool has no output schema (an argument named `id` is the answer's `id`). The values a task hands from one call to the next are placed after that, so a value the task serves is never overwritten.
 - Errors come in each format's own idiom: for OpenAI tools, `{"error": {"code": "...", "message": "..."}}`; for MCP, a result with `isError: true` and the message as text; for OpenAPI, `{"status": 404, "detail": "..."}`. The codes are `not_found` (404), `invalid_arguments` (422), `not_ready` (409, a step before its prerequisite), `unavailable` (503, a planned fault), `timeout` (504, a planned timeout: whether the call went through is not known) and `rate_limited` (429, a planned rate limit, with `retry_after: 1` beside the message in the OpenAI and OpenAPI idioms).
 - A small store of records keyed by the values the task names. A write the task expects moves its record; any other accepted write is recorded as a side effect. The store keeps every accepted write, and a read reflects them: after a write, a read whose checkable arguments all name values the write was sent, under the same names, answers with the written values (the latest such write wins); before any such write, and for a read that shares no argument name with a write, it answers as it always did. The expected write made a second time is accepted and recorded as a side effect and as a duplicate write, because Tasks cannot know that a write of yours is idempotent.
+- On a `baddata` or `lagged` arm, and on no other, a read's answer also says what it was asked: the call's arguments are placed in it by the rule a write's answer follows, each under its own name in the matching field of the output schema when the value fits that field, or beside `ok` and `id` when the tool has no output schema. An answer for another record can then be told from an answer for the record asked. A read whose output schema has no field named as one of its arguments cannot say it. On every other dial a read answers as before.
+- On a `baddata` arm above level 0, the one read the request names answers wrongly the first time it is made and correctly from then on. On a `lagged` arm at level 1, the first read that would show the target write answers as if the write had not landed, once in an episode, and every later read shows it. Neither is an error: both come back in the tool's ordinary answer shape, with nothing on them to say so.
 
 Everything is pure: no clock but a fixed one, no randomness but the keyed draw, and no network.
 
@@ -192,9 +196,85 @@ All the dials are offered on your tools, within what each set can support, wheth
 | `shape` | chains of your declared links run in sequence or side by side | one declared chain whose first call takes a checkable argument |
 | `timeouts` | planned `timeout` answers in your format's error idiom; the same call then works | none; levels 0, 1, 2, 4; experimental |
 | `ratelimits` | planned `rate_limited` answers with a retry-after of one second; the same call then works | none; levels 0, 1, 2, 4; experimental |
-| `landed` | the first call to the target goes through and answers a timeout, so a blind retry is a second, duplicate write; the reference is the one call and a reply | a read that takes one of the target write's arguments, so the model can check whether the write landed; levels 0, 1; experimental |
+| `landed` | the first call to the target goes through and answers a timeout, so a blind retry is a second, duplicate write; the reference is the one call and a reply | a read that takes one of the target write's arguments and whose answer can show one of them (the argument it was read by counts), so the model can check whether the write landed; levels 0, 1; experimental |
+| `baddata` | one argument of the target write is carried in a read's answer, and above level 0 that read's first answer is wrong; the same read made again is right | a read with a checkable argument, and a write with a checkable argument that the read's answer has a field for; levels 0, 1, 2, 3, or 0, 2, 3 on a set whose answers cannot name what they were asked for; experimental |
+| `lagged` | the request is the write and a read that checks it; at level 1 the first read after the write answers as if it had not landed | a read that takes one of the target write's arguments and whose answer shows another of them; levels 0, 1; experimental |
 
-The decoy-tools dial (`distractor`) is not offered on your tools, and no dial has a control arm there. The three dials added in 0.3.0 are experimental, no model having been measured on them yet, and `doctor` and `init` say so beside each; on a set that has a write to target but no read taking one of its arguments, both say in one line why `landed` is not offered. A flow is a link you declare from one tool's output field into another tool's input, such as the `id` that `get_order` returns into `refund_order`'s `order_id`: `--own-flow get_order.id:refund_order.order_id` to `init`, or `[[own.flow]]` in `tasks.toml`. Tasks will not guess one. Without flows, depth and shape are listed as unavailable, and `init` says so in a note that names both ways to declare one. In the guided session (a bare `poisson-tasks` on a terminal), the `flow` step asks which tool's output, which field, into which tool and which input, and writes the flow through `init --force` with the file's own settings, keeping the old `tasks.toml` as `tasks.toml.bak`.
+The decoy-tools dial (`distractor`) is not offered on your tools, and no dial has a control arm there. The three dials added in 0.3.0 and the two added in 0.4.0 are experimental, no model having been measured on them yet, and `doctor` and `init` say so beside each; on a set that has a write to target but no read taking one of its arguments, both say in one line why `landed` is not offered. Since 0.4.0 `landed` also needs that read's answer to be able to show one of the write's arguments: a read that answers the same before the write and after it tells a model nothing. A flow is a link you declare from one tool's output field into another tool's input, such as the `id` that `get_order` returns into `refund_order`'s `order_id`: `--own-flow get_order.id:refund_order.order_id` to `init`, or `[[own.flow]]` in `tasks.toml`. Tasks will not guess one. Without flows, depth and shape are listed as unavailable, and `init` says so in a note that names both ways to declare one. In the guided session (a bare `poisson-tasks` on a terminal), the `flow` step asks which tool's output, which field, into which tool and which input, and writes the flow through `init --force` with the file's own settings, keeping the old `tasks.toml` as `tasks.toml.bak`.
+
+**The two bad-data dials.** `baddata` and `lagged` are reads that answer wrongly once and say nothing about it; [knobs-and-arms.md](knobs-and-arms.md) has the design. A `baddata` request leaves one argument of the write unstated and says which read's answer holds it, and in which field. The write waits on that read: made first, it answers `not_ready`. At level 0 the read is truthful. Above it the read's first answer is wrong and the same read made again is right: at level 1 it shows another value under another key, at 2 another value under the key that was asked, and at 3 the smallest change to the true value (a number off by one or by a half, a string with its last character changed, another member of an enum). Only an argument that has such a smallest change is carried, so a date-time, a boolean or a list never is. On the tool file of the first run, at level 2:
+
+<!-- docs-check: run -->
+```bash
+poisson-tasks generate --knob baddata --levels 2 --show | head -n 22
+```
+<!-- docs-check: output -->
+```
+ok  baddata:b2 task 1 (seed 13553586): needs 3 tool calls and a reply (4 model calls); a run allows 32 model calls
+  task id  …
+
+what the model is shown
+  You work with the tools of acme. Make one tool call per turn, with its arguments as JSON. A read may answer with a value that is out of date or wrong. Reply in plain text once the request is done, and make no other change.
+
+  Send the customer a note about an order: order_id "rreqbf". The channel is in this read's answer: Look up one order by its id, order_id "jxhgzs": the id field.
+
+the tools it may call
+  get_order        (order_id)  needed
+  search_orders    (query)
+  refund_order     (order_id, amount, reason)
+  notify_customer  (order_id, channel)  needed
+  list_channels    ()
+
+the reference solution
+  1. get_order(order_id="jxhgzs")
+     -> {"id":"email","ok":true,"order_id":"jxhgzs"}
+  2. get_order(order_id="jxhgzs")
+     -> {"id":"sms","ok":true,"order_id":"jxhgzs"}
+  3. notify_customer(order_id="rreqbf", channel="sms")
+     -> {"channel":"sms","id":"qv1lqy2q7xva3hof","ok":true,"order_id":"rreqbf"}
+```
+
+A model that sends the first answer's value has made a wrong write and not the right one: `wrong_state`, which fails strict and leaky. One that sends it and then the right value ends `collateral_mutation`.
+
+A `lagged` request is the write, then a read to check that it took, and it says to make the change again only if it did not take. At level 0 the read shows the write. At level 1 the first read after the write answers as if the write had not landed, once in an episode, and every later read shows it:
+
+<!-- docs-check: run -->
+```bash
+poisson-tasks generate --knob lagged --levels 1 --show | head -n 22
+```
+<!-- docs-check: output -->
+```
+ok  lagged:g1 task 1 (seed 13553586): needs 3 tool calls and a reply (4 model calls); a run allows 32 model calls
+  task id  …
+
+what the model is shown
+  You work with the tools of acme. Make one tool call per turn, with its arguments as JSON. A read may answer with a record as it was before your last write. Reply in plain text once the request is done, and make no other change.
+
+  Refund part or all of an order: order_id "hfwicz", amount 91.5, reason "other". Then check it took: Look up one order by its id, order_id "hfwicz". Make the change again only if it did not take.
+
+the tools it may call
+  get_order        (order_id)  needed
+  search_orders    (query)
+  refund_order     (order_id, amount, reason)  needed
+  notify_customer  (order_id, channel)
+  list_channels    ()
+
+the reference solution
+  1. refund_order(order_id="hfwicz", amount=91.5, reason="other")
+     -> {"amount":91.5,"id":"qs7dz66zutjbt4un","ok":true,"order_id":"hfwicz","reason":"other"}
+  2. get_order(order_id="hfwicz")
+     -> {"id":"8fzdljqwltpf7fdl","ok":true,"order_id":"hfwicz"}
+  3. get_order(order_id="hfwicz")
+     -> {"amount":91.5,"id":"8fzdljqwltpf7fdl","ok":true,"order_id":"hfwicz","reason":"other"}
+```
+
+A model that believes the lagging read over the write's own answer writes again. The store accepts the second write, so the episode ends `collateral_mutation`: strict fails it, and leaky passes it, since the goal was reached. Read a `lagged` table on strict. On both dials a read costs nothing, and reading until two answers in a row agree is right at every level.
+
+What a set needs for each, in the words `init` warns with and `doctor` notes (under the rows `carrier read`, `named key` and `showing read`):
+
+- "baddata is not offered on this set. Bad data needs a read whose answer holds a value a write then takes, so baddata needs a read tool with a checkable argument and a write with a checkable argument that read's answer has a field for. This set has none."
+- "baddata has no level 1 on this set. Level 1 of baddata needs a read whose answer names what it was asked for. This set's answers do not, so it reaches 0, 2 and 3." The Petstore example document is such a set: none of its reads returns a field named as the argument it was read by.
+- "lagged is not offered on this set. A read that lags a write can only be told from a write that failed if a later read shows the write, so lagged needs a read tool that takes one of the target write's arguments and whose answer shows another of them. This set has none." A read with no output schema can show a whole write; a read with one needs a field named as another of the write's arguments.
 
 ## The settings for your tools
 
@@ -210,11 +290,11 @@ An `[own]` table in `tasks.toml` means the tasks are on your tools; the rest of 
 | `[[own.flow]]` | `--own-flow FROM.FIELD:TO.PARAM` (repeatable) | a value from one tool's output (a path in it, such as `orders[].order_id`) into another's input |
 | | `--mcp-command CMD` | list an MCP server's tools, with your consent |
 
-Beside `[own]`, `[measure] preset` names any recipe the set supports (not `card`), or `custom` with any knob the set reaches; `controls = true` is refused. `[tasks] generator_version`, when set, must be `own-1`, the label of the generator that makes tasks on your tools.
+Beside `[own]`, `[measure] preset` names any recipe the set supports (not `card`), or `custom` with any knob the set reaches; `controls = true` is refused. `[tasks] generator_version`, when set, must be `own-3`, the label of the generator that makes tasks on your tools; `own-1` and `own-2`, its labels before 0.3.0 and before 0.4.0, are each refused in one line that names the release and `own-3`.
 
 ## The card on your tools
 
-Its first lines say: "Measured on your tools (acme, 5 tools from an OpenAI tools file), with responses simulated from your schemas. Your backend was never called." Then each dial's table against its first level, and beside it what the knob probe found for that dial on the built-in tasks, with the plain statement that the probe's statuses come from those tasks on two models, not from your tools; for a dial the probe did not run and no model has been measured on, the line says it is experimental and why. Every table on a card of your tools has a *duplicate writes* column, the share of scored attempts in which an accepted write repeated an earlier one; a table of the `landed` dial has *retried after a landed timeout* beside it, and one of the faults, timeouts or ratelimits dials *gave up after a fault*. None of the three gates the card.
+Its first lines say: "Measured on your tools (acme, 5 tools from an OpenAI tools file), with responses simulated from your schemas. Your backend was never called." Then each dial's table against its first level, and beside it what the knob probe found for that dial on the built-in tasks, with the plain statement that the probe's statuses come from those tasks on two models, not from your tools; for a dial the probe did not run and no model has been measured on, the line says it is experimental and why. Every table on a card of your tools has a *duplicate writes* column, the share of scored attempts in which an accepted write repeated an earlier one; a table of the `landed` dial has *retried after a landed timeout* beside it, and one of the faults, timeouts or ratelimits dials *gave up after a fault*. A card that holds the `baddata` or `lagged` dial ends every table with two more: *acted on bad data*, the share of scored attempts that received the bad answer and then sent its value in an accepted write to the target (on `lagged`, made the target write again after the lagging read), and *read again after a bad answer*, the share that called that read again before their next write. None of the five gates the card.
 
 What it does not claim, every line that applies:
 

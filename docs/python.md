@@ -31,7 +31,7 @@ print(verdict.label)
 ```
 <!-- docs-check: output -->
 ```
-498cf5981028a78c9d56f5bbd77980dcaa2acc242d792aafb05af64d73d94ac1
+4c8c8bfc63e0b3f33af9ca0586c5fca454de37715fbee52e59073c473b8dc7ac
 passed
 ```
 
@@ -76,7 +76,7 @@ print(arms.arm_from_id("faults:f2", strictness="leaky", generator_version="0").s
 ```
 <!-- docs-check: output -->
 ```
-ArmSpec(knob='depth', level=3, control=None, strictness='strict', split='eval', generator_version='2')
+ArmSpec(knob='depth', level=3, control=None, strictness='strict', split='eval', generator_version='3')
 depth:d3
 leaky
 ```
@@ -85,7 +85,7 @@ An id that is not written the way `arm_id` writes it (`bogus:d1`, or `depth:d03`
 
 ## A contrast, held to the pin ledger
 
-Two arms of one knob should differ in that knob and in nothing else. The pin ledger is thirty equalities across the arms of a contrast, measured on the generated tasks; [knobs-and-arms.md](knobs-and-arms.md) lists them. `check_pins` runs them, and `arms.describe_pins` turns the report into one sentence.
+Two arms of one knob should differ in that knob and in nothing else. The pin ledger is thirty-one equalities across the arms of a contrast, measured on the generated tasks; [knobs-and-arms.md](knobs-and-arms.md) lists them. `check_pins` runs them, and `arms.describe_pins` turns the report into one sentence.
 
 <!-- docs-check: run -->
 ```python
@@ -196,6 +196,8 @@ ships: bites on gpt-5-nano; bites on Qwen3-8B
 ## Measuring a model
 
 `poisson-tasks run` and `poisson-tasks card` are built on four functions of `poisson_tasks.calibration`: `run_arm` runs one cell (one arm, one model), `records_from_run` turns a finished run folder into per-episode records, `build_artifact` computes every figure from them under a `Provenance` block, and `render_document` renders the card. `build_artifact` is where a card's refusals are enforced ([reading-a-card.md](reading-a-card.md) lists them).
+
+A per-episode record (`calibration.EpisodeRecord`) carries two fields for the `baddata` and `lagged` dials, `acted_on_bad_data` and `read_again_after_bad`. Each is `True` or `False` on an arm of those dials above level 0, and `None` on every other arm and at level 0; a field that is `None` is left out of the record's written line, so the `episodes.jsonl` of an older card keeps its bytes. A cell that has them carries `acted_on_bad_data_count` and `acted_on_bad_data_share`, `read_again_after_bad_count` and `read_again_after_bad_share`, which are the card's two columns.
 
 ## Your own tools
 

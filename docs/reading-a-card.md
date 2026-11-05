@@ -41,10 +41,16 @@ One table per knob, one row per level:
 | **gave up after a fault** | On a card that holds the faults, timeouts or ratelimits dial: the share of scored attempts that received the dial's planned answer (`unavailable`, `timeout` or `rate_limited`) from a tool and never called that tool again. Printed at the end of every table of such a card, and never gated. |
 | **retried after a landed timeout** | On a card that holds the `landed` dial (your own tools): the share of scored attempts that called the landed tool again after its timeout, whether or not the call reached the tool. Not calling again is the point of the dial. |
 | **duplicate writes** | On a card of your own tools: the share of scored attempts in which an accepted write repeated an earlier accepted write, the same tool with the same arguments. |
+| **acted on bad data** | On a card that holds the `baddata` or `lagged` dial: the share of scored attempts that received the dial's one bad answer and then did what it asked for. On the built-in tasks that is the other record moved (levels 1 and 2), or the episode ended with the target one stage short of the goal (level 3). On your own tools it is an accepted write to the target that carried the bad value, or on `lagged` the target write accepted again after the lagging read. An attempt that never received the bad answer counts as no. Level 0 has no bad answer, so its row reads *n/a*. |
+| **read again after a bad answer** | On the same cards: the share of scored attempts that, after the bad answer, called that read again before their next stage call or write, whether or not the call reached the tool. Reading again is what a model that checks does. An attempt that never received the bad answer counts as no, and level 0 reads *n/a*. The two are the last columns of every table of such a card, and are never gated. |
 
 ### How depth is read
 
 Every depth level offers the whole eight-stage ladder, so below the top level a model can carry the record past the goal. The strict rate therefore asks two things at once: reach the goal, and stop there. The two published models do not fail these the same way, so a card reports them apart. **Depth is read on leaky pass@1, reaching the goal**, compared level by level in its own table; the overshoot column shows how often the model did not stop. Strict is still computed, published and compared, and it is first in every table. At d8 no stage lies above the goal, so nothing can overshoot there and strict equals leaky.
+
+### How the bad-data dials are read
+
+Neither `baddata` nor `lagged` adds a verdict: what catches a model that trusts a bad answer is where the episode ends. On `baddata` that is `wrong_state`, which fails strict and leaky alike, so either rate shows it. **A `lagged` table is read on strict pass@1.** A model that believes the lagging read writes again; the goal was still reached, so leaky passes the episode and only strict fails it, as `collateral_mutation`. `custom` measures strict unless the settings file says otherwise. The two columns above tell apart what the rate cannot: a model that never looked again, from one that looked and still went wrong. `card --json` carries them in each entry of `data.levels` whose level has them, as `acted_on_bad_data_count`, `acted_on_bad_data_share`, `read_again_after_bad_count` and `read_again_after_bad_share`, and leaves the four keys out everywhere else.
 
 ### The no-call refusal
 
@@ -52,7 +58,7 @@ Every depth level offers the whole eight-stage ladder, so below the top level a 
 
 ### Experimental dials
 
-Four dials are experimental, and a card that includes one says so with the reason, in one line each under what it does not claim. The distractor knob (the decoy-tools dial) does not make tasks harder on either published model (below), so it is **not a difficulty setting** for current models, and the export's help for the arm option says so; its levels stay available. The `timeouts`, `ratelimits` and `landed` dials, added in 0.3.0, have not been measured on any model yet; a later release measures them. The same word with the same reason is in `doctor`'s rows on your own tools, in `init`'s choices, and as `experimental` in `card --json` and `doctor --json`.
+Six dials are experimental, for one of two reasons, and a card that includes one says so with the reason, in one line each under what it does not claim. The distractor knob (`distractor`, the decoy-tools dial) does not make tasks harder on either published model (below), so it is **not a difficulty setting** for current models, and the export's help for the arm option says so; its levels stay available. The `timeouts`, `ratelimits` and `landed` dials, added in 0.3.0, and the `baddata` and `lagged` dials, added in 0.4.0, have not been measured on any model yet; a later release measures them. The same word with the same reason is in `doctor`'s rows on your own tools, in `init`'s choices, and as `experimental` in `card --json` and `doctor --json`.
 
 ### The other tables
 
@@ -102,7 +108,7 @@ A card from a run ends with two short pieces of text. The first says what the ca
 - No published card covers this plan: none holds any of its levels, so nothing here can be read beside a published figure. *(a plan that holds no level a published card holds)*
 - Its model was served by its user: how it was served is not pinned beyond what the server reported, so a later run of the same weights served differently is not the same measurement. *(a model on Ollama, vLLM or another endpoint you serve)*
 - The distractor knob is experimental: it did not make tasks harder for either calibrated model. *(a card that holds the decoy-tools dial)*
-- The timeouts knob is experimental: no model has been measured on it yet. *(a card that holds the timeouts dial; the ratelimits and landed dials each have the same line)*
+- The timeouts knob is experimental: no model has been measured on it yet. *(a card that holds the timeouts dial; the ratelimits, landed, baddata and lagged dials each have the same line)*
 - It is pinned to the generator it was made with, which is not the one this install has, so it is stale. *(a card from another build of the generator: the one its run recorded, when it recorded one)*
 - Some of its attempts were made by a later run of its folder: a resumed attempt is a fresh attempt, not a copy of the one it replaces. *(a run that was interrupted and resumed)*
 
