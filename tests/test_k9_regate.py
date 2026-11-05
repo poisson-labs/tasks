@@ -335,16 +335,19 @@ def test_an_outcome_without_a_re_gate_is_byte_for_byte_what_main_wrote(tmp_path:
 
     Re-pinned 2026-10-29 for 0.3.0: each outcome carries the frozen generator's hash, which moved
     with the ruled change to the generator (the faults design, Q1); with the old hash put back the
-    files hash to the four values pinned before, so nothing else of them moved."""
+    files hash to the four values pinned before, so nothing else of them moved.
+
+    Re-pinned 2026-11-05 for 0.4.0, for the same reason (the stale-data spec's ruled change, Q1):
+    with 0.3.0's hash put back the files hash to the four values 0.3.0 pinned."""
     alone = write_outcome_of(tmp_path / "alone", {OTHER: qwen_run()})
     both = write_outcome_of(tmp_path / "both", {MODEL: nano_run(), OTHER: qwen_run()})
     assert alone == {
-        "outcome.json": "78eb28b913990b1f287a3edc8730817f966a764ad67f5cd4483a20838654c9f9",
-        "outcome.md": "024b8e903e69f8a9c4fc9642c496ba72464f6fc7d0b6f7415c86d1f80e00f43d",
+        "outcome.json": "c07fa771b35151e4856d77fd3f135989c9d903d43f4aca99f75c96a4068b1e6a",
+        "outcome.md": "22de05da7b2f6df5731dfd873ff538e35475cad534d1baf1ed081e1e6daaee8f",
     }
     assert both == {
-        "outcome.json": "b6ac8d1ba65d708d716bf53fa750d22d955c818cbf93233ff9aa56c205092b51",
-        "outcome.md": "9314a08a35765cb79e824a78ae7040407d1e11b314f6a27fd745c6159e87687b",
+        "outcome.json": "7e5b05e9cbb1881cf350c2c7c8fbf1aefb3d5e7bb939befe9868736819536e40",
+        "outcome.md": "fee14548ae21241d3557db26c213b9e8f0550450e0e4aac697f3c9668040e19c",
     }
 
 

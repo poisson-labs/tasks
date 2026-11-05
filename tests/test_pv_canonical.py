@@ -47,10 +47,12 @@ from tests.pv_support import (
 # these tests were written on.
 # Re-pinned 2026-10-29 for 0.3.0: the three files changed with the ruled change to the frozen
 # generator (the faults design, Q1), so their digests moved with the two generator hashes.
+# Re-pinned 2026-11-05 for 0.4.0: the same three files changed again with the stale-data spec's
+# ruled change (Q1); the engine, the vocabulary and the probe's table are as they were.
 FROZEN = {
-    "src/poisson_tasks/tasks.py": "1b1c188061e59f9f0d1c20878c4b99727aec50d019c2fb639e0f042a5aa4931f",
-    "src/poisson_tasks/surface.py": "26ea843b4fc5d37ae9420f9cb443397ad24ef18d47eebf19cf694de3c7672c08",
-    "src/poisson_tasks/knobs.py": "caf72074e7287636877df14d2fb9541972ff364ae5f698d2000e836ef80041a5",
+    "src/poisson_tasks/tasks.py": "5f142258832fc7c190f93665d96330595dccc03f01c85b6e3ece9c281c32af37",
+    "src/poisson_tasks/surface.py": "3e9c70d218e8d30df7c9a9fd5f927283839a73ce7f259919d20b73327c4cc946",
+    "src/poisson_tasks/knobs.py": "06e40b2279dd581a27362c010ace60b02cb502d91fb26cf5b7c6d3fd8070ae04",
     "src/poisson_tasks/engine.py": "5ae0ae984b960cf52fe9691141ff05f63a2df33bdcbcc767330c0f0177aaa725",
     "src/poisson_tasks/data/vocabulary-v2.json": VOCABULARY,
     "src/poisson_tasks/knob_status.json": "6a9cc69cf9ebb34d9a7627d540648a20b97b0e0a9048b29c3ae99715dbdae9c5",

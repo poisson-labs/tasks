@@ -47,7 +47,9 @@ pytestmark = needs_uv
 # The frozen generator's hash the driver records and refuses against: moved 2026-10-29 for
 # 0.3.0 with the ruled change to the generator (the faults design, Q1), as
 # calibration_run.EXPECTED_GENERATOR_HASH moved; it was b460964dc153fab4535af3b39abd41d50198f3dcc644ae3e43ddee85544b57f9 before.
-HASH = "b0aa26c77259dd16a07f814fc4b250ce0ba69d372aff520663db089daa9b0db4"
+# Moved again 2026-11-05 for 0.4.0 (the stale-data spec's ruled change, Q1), from
+# b0aa26c77259dd16a07f814fc4b250ce0ba69d372aff520663db089daa9b0db4.
+HASH = "38a8db83a79c9d42059b77a3ef5ba018ec715fff9dcfda3c146ad27d8ba2921c"
 
 
 def drive(

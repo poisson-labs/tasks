@@ -11,13 +11,16 @@ eval split, strict, of every field but `task_id` and `generator_hash`, which mov
 hashed module.  It passes on the build by design; a change that moves any own task fails here.
 
 **The own-tools generator's hash** is the second record, beside the built-in generator's frozen
-`b0aa26c77259dd16a07f814fc4b250ce0ba69d372aff520663db089daa9b0db4`
-(`tests/test_frozen_generator.py`): the hash of `own-2` over `generator.HASHED_MODULES` as this
+`38a8db83a79c9d42059b77a3ef5ba018ec715fff9dcfda3c146ad27d8ba2921c`
+(`tests/test_frozen_generator.py`): the hash of `own-3` over `generator.HASHED_MODULES` as this
 file was committed.  Re-pinned 2026-10-29 for 0.3.0 (the faults design's ruled change to the
 generator, Q1): the write echo moved every own task's reference observations, so every digest
 below moved with the hash; the request, tools, target, stated values and reference calls of each
 task are as they were, which the build measured before re-pinning.  The three new knobs' own-tools
-digests are kept in `tests/test_f2_kept.py`.  Unlike the built-in one it is not frozen: a change to the own-tools tasks that edits a
+digests are kept in `tests/test_f2_kept.py`.  Re-pinned 2026-11-05 for 0.4.0 (the stale-data spec's
+ruled change, Q1): the hash alone moved, from `0cf69e660b66ff0c9a36d906cd7dad10e0c7a5f63b71c950bed7bdfd67888a14`;
+every digest below is as it was, since no other arm's tasks moved, and the two new knobs' own-tools
+digests are kept in `tests/test_bd_kept.py`.  Unlike the built-in one it is not frozen: a change to the own-tools tasks that edits a
 hashed module updates it here and names the new hash in its record, with the digests below.  A
 built-in hash that moved would fail `test_frozen_generator`, never this file; an own hash that moved
 fails here, never there.
@@ -36,7 +39,7 @@ import pytest
 from poisson_tasks.knobs import arm_id
 from tests.o2_support import every_arm, fixture_sets, flows_for, generator
 
-OWN_GENERATOR_HASH = "0cf69e660b66ff0c9a36d906cd7dad10e0c7a5f63b71c950bed7bdfd67888a14"
+OWN_GENERATOR_HASH = "f941d7f8d7ae1694bac834f705c9283471fc65665a467ea9e717a8c6a395933a"
 SEEDS = (404, 55, 2121)
 MOVES = {"task_id", "generator_hash"}
 # 136 rows: every arm of the eight knobs each fixture set reaches (the acme sets with their
