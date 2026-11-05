@@ -3,8 +3,9 @@
 A task is a pure function of the tool file's bytes (through the set's digest), the arm and the
 seed: every draw is a keyed hash of those and of nothing else, no set or dict built from a set is
 ever iterated, and the task id is a content hash over every other field.  The version label is
-`own-2` (it was `own-1` until 0.3.0 changed the generator, with the ruled change to the frozen
-built-in one); `generator_hash` covers this module's bytes and every module of the package that
+`own-3` (it was `own-1` until 0.3.0 changed the generator and `own-2` until 0.4.0 changed it
+again, each with the ruled change to the frozen built-in one); `generator_hash` covers this
+module's bytes and every module of the package that
 importing the generator, the simulator and the verdict loads (`HASHED_MODULES`), the shared
 `surface.py` and `knobs.py` among them, and none of `arms`, so a knob shipping moves no task.
 It never changes a built-in task.
@@ -36,7 +37,24 @@ What a task is made of, by knob (as decided 2026-10-13):
   check read, a read tool with a checkable argument named as one of the target write's, and its
   target is drawn per seed from the writes that have one, the same at both levels, so that a
   model can tell a write that landed from one that went nowhere by reading the record back
-  (decided 2026-10-29, Q3 of the faults design).
+  (decided 2026-10-29, Q3 of the faults design).  Since 0.4.0 the check read's answer must also
+  be able to show one of the write's arguments, its key among them: a read that answers the
+  same before and after the write tells a model nothing (ruled 2026-11-04, Q14);
+- **baddata** (0.4.0) carries one argument of the target in a read's answer: the request states
+  every other value and says which read and which field hold the carried one, and the write
+  waits on that read.  At a level above 0 the read's first answer is wrong and every later one
+  right: at 1 it holds another value under another key, at 2 another value under the asked key,
+  at 3 the smallest change to the true value.  The target, the argument, the read and every
+  value are drawn per seed and never by the level.  A set needs a write with a checkable scalar
+  argument that has such a smallest change, and a keyed read whose answer has a field for it
+  that is not one of the read's own arguments; level 1 also needs an answer that can name the
+  key it was asked, and where a set has such reads the task is drawn from them at every level;
+- **lagged** (0.4.0) is a write and a read that checks it: the request says to make the change
+  again only if it did not take, and at level 1 the first read after the write answers as if
+  it had not landed.  A set needs a read that takes one of the write's arguments, requires no
+  argument the write lacks, and whose answer can show another of the write's arguments; the
+  write's values are drawn again until the read's answer before the write and after it differ
+  on the task made, the same at both levels (ruled 2026-11-04, the stale-data spec).
 
 `OwnBundle.steps` is what the simulator and the verdict read: the calls the task expects, each
 with the arguments that identify it, the steps it waits for and the values its answer serves.
@@ -75,6 +93,9 @@ __all__ = [
     "HASHED_MODULES",
     "UNAVAILABLE_WITHOUT_FLOWS",
     "LANDED_NEEDS_A_CHECK_READ",
+    "BADDATA_NEEDS_A_CARRIER",
+    "BADDATA_NEEDS_A_NAMED_KEY",
+    "LAGGED_NEEDS_A_SHOWING_READ",
     "Flow",
     "OwnBundle",
     "generator_hash",
@@ -85,9 +106,9 @@ __all__ = [
     "generate",
 ]
 
-GENERATOR_VERSION = "own-2"
+GENERATOR_VERSION = "own-3"
 KNOBS = ("similarity", "faults", "history", "block", "arguments", "spread", "depth", "shape",
-         "timeouts", "ratelimits", "landed")
+         "timeouts", "ratelimits", "landed", "baddata", "lagged")
 # Every `poisson_tasks` module a fresh interpreter loads for the generator, the simulator and the
 # verdict (`tests/test_o2_determinism.py` holds this list to that), in alphabetical order.
 HASHED_MODULES: tuple[str, ...] = (
@@ -115,9 +136,23 @@ LANDED_NEEDS_A_CHECK_READ = (
     "so landed needs a read tool that takes one of the target write's arguments. This set has "
     "none."
 )
+BADDATA_NEEDS_A_CARRIER = (
+    "Bad data needs a read whose answer holds a value a write then takes, so baddata needs a "
+    "read tool with a checkable argument and a write with a checkable argument that read's "
+    "answer has a field for. This set has none."
+)
+BADDATA_NEEDS_A_NAMED_KEY = (
+    "Level 1 of baddata needs a read whose answer names what it was asked for. This set's "
+    "answers do not, so it reaches 0, 2 and 3."
+)
+LAGGED_NEEDS_A_SHOWING_READ = (
+    "A read that lags a write can only be told from a write that failed if a later read shows "
+    "the write, so lagged needs a read tool that takes one of the target write's arguments and "
+    "whose answer shows another of them. This set has none."
+)
 
 (_SIMILARITY, _FAULTS, _HISTORY, _BLOCK, _ARGUMENTS, _SPREAD, _DEPTH, _SHAPE, _TIMEOUTS,
- _RATELIMITS, _LANDED) = KNOBS
+ _RATELIMITS, _LANDED, _BADDATA, _LAGGED) = KNOBS
 # The knobs whose level is a plan of answers in front of the store, each in its own word
 # (`surface.fault_kind`); the three faults-shaped ones carry the retries in the reference,
 # and landed carries none, its one planned call going through.
@@ -132,6 +167,10 @@ _FAULT_CLAUSES = {
         "A call may answer that the tool is rate limited, with how long to wait; make the same "
         "call again after that."
     ),
+    # The two stale-data knobs plan no error, so the unavailable clause does not belong on their
+    # arms; each names its hazard and not what to do about it, at every level.
+    _BADDATA: "A read may answer with a value that is out of date or wrong.",
+    _LAGGED: "A read may answer with a record as it was before your last write.",
 }
 _READ = "read"
 _WRITE = "write"
@@ -149,12 +188,20 @@ _MOST_DEPTH = 8
 _FEWEST_ARGUMENTS = 2
 _MOST_ARGUMENTS = 8
 _ATTEMPTS = 256
+# How many times another value is drawn before a schema is taken to hold no other, and how many
+# times a carried value is drawn before an argument is taken to have none a read can carry.
+_FRESH_DRAWS = 32
+_CARRY_DRAWS = 16
 _NONE_PART = "none"
 _NAME_WORD = _re.compile(r"[A-Za-z0-9_-]+")
 _SENTENCE_END = _re.compile(r"(?<=[.!?])\s")
 _CALL = "call"
 _READ_THEN_CALL = "read then call"
 _FLOW = "flow"
+# The level of baddata whose first answer shows another key, and the one whose bad value is the
+# smallest change; level 2 holds another value under the asked key.
+_OTHER_KEY_LEVEL = 1
+_NEAR_LEVEL = 3
 _CLAUSE_2_ARGUMENTS = ("not", "an", "object")
 _OUTSIDE = "not_a_tool_of_this_block"
 
@@ -323,9 +370,27 @@ def _check_reads(toolset: _OwnToolSet, target: _OwnTool) -> list[_OwnTool]:
     return [t for t in _reads(toolset) if names & set(_checkable(t))]
 
 
+def _output_properties(tool: _OwnTool) -> dict[str, _Any] | None:
+    """The properties of the tool's output schema, or `None` where it has no output schema."""
+    if tool.output_schema is None:
+        return None
+    found = tool.output_schema.get("properties")
+    return dict(found) if isinstance(found, dict) else {}
+
+
+def _can_show(read: _OwnTool, target: _OwnTool) -> bool:
+    """Whether a read's answer can show one of the target write's arguments: it has no output
+    schema, so a whole write can show, or one of its output properties is named as one."""
+    properties = _output_properties(read)
+    return properties is None or any(name in properties for name in _properties(target))
+
+
 def _landed_targets(toolset: _OwnToolSet) -> list[_OwnTool]:
-    """The writes a landed task can target: those with a check read."""
-    return [t for t in _targets(toolset) if _check_reads(toolset, t)]
+    """The writes a landed task can target: those with a check read whose answer can show one
+    of the write's arguments, the key it was read by among them.  A read that answers the same
+    before the write and after it tells a model nothing about whether the write landed."""
+    return [t for t in _targets(toolset)
+            if any(_can_show(read, t) for read in _check_reads(toolset, t))]
 
 
 def _string_field(tool: _OwnTool) -> str | None:
@@ -635,6 +700,15 @@ def knob_levels(toolset: _Any, knob: str, *, flows: _Sequence[Flow] = ()) -> tup
         return _knobs.levels(knob)
     if knob == _LANDED:
         return _knobs.levels(knob) if _landed_targets(toolset) else ()
+    if knob == _BADDATA:
+        pairs = _carrier_pairs(toolset)
+        if not pairs:
+            return ()
+        if any(_names_its_key(read) for _target, _name, read in pairs):
+            return _knobs.levels(knob)
+        return tuple(level for level in _knobs.levels(knob) if level != _OTHER_KEY_LEVEL)
+    if knob == _LAGGED:
+        return _knobs.levels(knob) if _lagged_pairs(toolset) else ()
     if knob == _HISTORY:
         return _knobs.levels(knob) if _reads(toolset) else ()
     if knob == _BLOCK:
@@ -725,6 +799,9 @@ class _Design:
     request: str
     named_reads: list[tuple[str, dict[str, _Any], str]]
     block: list[_OwnTool]
+    # A baddata task's episode that believed the bad answer, above level 0: the read once and
+    # the write with the bad value.
+    trusted: list[tuple[str, dict[str, _Any]]] | None = None
 
 
 def _step(tool: _OwnTool, args: _Mapping[str, _Any], checked: _Sequence[str], *,
@@ -801,6 +878,314 @@ def _spread_design(toolset: _OwnToolSet, level: int, key: bytes, intents: _Mappi
     )
     return _Design(_READ_THEN_CALL if level == 1 else _FLOW, target, pairs, steps, reference,
                    request, named, list(toolset.tools))
+
+
+# ---------------------------------------------------------------------------
+# bad data: a value carried in a read's answer, whose first answer is wrong
+# ---------------------------------------------------------------------------
+
+
+def _near_value(schemas: _Sequence[_Any], value: _Any) -> _Any:
+    """The smallest change to `value` that conforms to every one of `schemas`, or `None` where
+    there is none: another member of an enum, a number off by one or by a half, a string with
+    its last character changed.  A boolean, a list and an object have none, and neither does a
+    string no last character can change and conform, a date-time among them, so none of those
+    is carried: a far value under the name of a near one would be level 2 again."""
+    if isinstance(value, bool) or not isinstance(value, str | int | float):
+        return None
+    first = schemas[0]
+    candidates: list[_Any]
+    if isinstance(first, dict) and isinstance(first.get("enum"), list):
+        candidates = list(first["enum"])
+    elif isinstance(value, int | float):
+        candidates = [value + 1, value - 1, value + 0.5]
+    else:
+        candidates = [value[:-1] + letter for letter in "zyxwvutsrq0123456789"] if value else []
+    for candidate in candidates:
+        if isinstance(candidate, bool) or _sim.same(candidate, value):
+            continue
+        if all(_sim.conforms(candidate, schema) for schema in schemas):
+            return candidate
+    return None
+
+
+def _fresh_value(schemas: _Sequence[_Any], avoid: _Sequence[_Any], key: bytes, salt: str) -> _Any:
+    """A value drawn afresh from the first of `schemas` that conforms to them all and is not
+    `avoid`'s first value, and where one can be drawn not its others either; `None` when every
+    draw is the first."""
+    kept: _Any = None
+    for attempt in range(_FRESH_DRAWS):
+        drawn = _value(schemas[0], key, f"{salt}/{attempt}")
+        if drawn is None or isinstance(drawn, bool) or _sim.same(drawn, avoid[0]):
+            continue
+        if not all(_sim.conforms(drawn, schema) for schema in schemas):
+            continue
+        if not any(_sim.same(drawn, other) for other in avoid[1:]):
+            return drawn
+        kept = drawn
+    return kept
+
+
+def _read_arguments(read: _OwnTool, key: bytes, salt: str) -> dict[str, _Any] | None:
+    """A keyed read's call, as spread draws its named reads': every required argument and the
+    first checkable one, or `None` where one of them has no value."""
+    values = _arguments_of(read, key, salt)
+    wanted = set(_required(read)) | set(_checkable(read)[:1])
+    args = {name: values[name] for name in _properties(read) if name in wanted}
+    return None if any(value is None for value in args.values()) else args
+
+
+def _match_keys(read: _OwnTool) -> list[str]:
+    """The arguments of a keyed read's call that identify it: the checkable ones."""
+    wanted = set(_required(read)) | set(_checkable(read)[:1])
+    checkable = _checkable(read)
+    return [name for name in _properties(read) if name in wanted and name in checkable]
+
+
+def _names_its_key(read: _OwnTool) -> bool:
+    """Whether a read's answer can name the key it was asked: it has no output schema, so the
+    key shows at the top level, or an output property is named as one of its keys."""
+    properties = _output_properties(read)
+    return properties is None or any(name in properties for name in _match_keys(read))
+
+
+def _carrier_field(read: _OwnTool, args: _Mapping[str, _Any], name: str, value: _Any) -> str | None:
+    """The field of the read's answer that holds a carried value: a property the value conforms
+    to and never one of the read's own arguments, the one named as the carried argument first
+    and else the first that conforms; `id` where the read has no output schema.  `None` where
+    the answer has no such field."""
+    properties = _output_properties(read)
+    if properties is None:
+        return None if _sim._ID in args else _sim._ID
+    fits = [str(field) for field, schema in properties.items()
+            if field not in args and _sim.conforms(value, schema)]
+    if name in fits:
+        return name
+    return fits[0] if fits else None
+
+
+@_dataclass(frozen=True)
+class _Carried:
+    """What a baddata task carries, every part drawn without the level: the write's arguments,
+    the names it states, the read's call, the field that holds the carried value, the value,
+    its smallest change (level 3's), another value (levels 1 and 2's), and the other key a
+    level-1 answer shows for each key the answer can name."""
+
+    args: dict[str, _Any]
+    stated: list[str]
+    read_args: dict[str, _Any]
+    field: str
+    value: _Any
+    near: _Any
+    older: _Any
+    other_key: dict[str, _Any]
+
+
+def _carried(target: _OwnTool, name: str, read: _OwnTool, key: bytes) -> _Carried | None:
+    """A value of `target`'s argument `name` that `read`'s answer can carry, with everything a
+    baddata task needs of it, or `None` where no draw of `_CARRY_DRAWS` gives one.  A draw is
+    taken again when the value has no smallest change, when the answer has no field for it, when
+    no other value can be drawn, or when a read that can name its key was asked a key no other
+    can stand in for."""
+    schema = _properties(target)[name]
+    output = _output_properties(read)
+    naming = _names_its_key(read)
+    keys = _match_keys(read)
+    for attempt in range(_CARRY_DRAWS):
+        salt = f"baddata/{attempt}"
+        # The carried value alone first, at the salt the write's whole draw gives it below.
+        value = _value(schema, key, f"{salt}/values/{name}")
+        if value is None or isinstance(value, bool) or not isinstance(value, str | int | float):
+            return None
+        read_args = _read_arguments(read, key, f"{salt}/read")
+        if read_args is None:
+            return None
+        field = _carrier_field(read, read_args, name, value)
+        if field is None:
+            continue
+        schemas = [schema] if output is None else [schema, output[field]]
+        near = _near_value(schemas, value)
+        if near is None:
+            continue
+        older = _fresh_value(schemas, [value, near], key, f"{salt}/older")
+        if older is None:
+            continue
+        other_key: dict[str, _Any] = {}
+        failed = False
+        for held in keys:
+            if held not in read_args:
+                continue
+            if output is not None and (
+                held not in output or not _sim.conforms(read_args[held], output[held])
+            ):
+                continue
+            held_schemas = [_properties(read)[held]]
+            if output is not None:
+                held_schemas.append(output[held])
+            other = _fresh_value(held_schemas, [read_args[held]], key, f"{salt}/key/{held}")
+            if other is None:
+                failed = True
+                break
+            other_key[held] = other
+        if failed or (naming and not other_key):
+            continue
+        stated = _stated_names(target, [name])
+        values = _arguments_of(target, key, f"{salt}/values")
+        args = _call_arguments(target, values, stated, {name: value})
+        if any(held is None for held in args.values()):
+            continue
+        return _Carried(args, stated, read_args, field, value, near, older, other_key)
+    return None
+
+
+def _carrier_pairs(toolset: _OwnToolSet) -> list[tuple[_OwnTool, str, _OwnTool]]:
+    """Every write, checkable argument and keyed read of the set a baddata task can be made of,
+    in the file's order: the ones a carried value can be drawn for at the set's probe."""
+    probe = _key(toolset, _EVAL, 0)
+    reads = [read for read in _reads(toolset) if _checkable(read)]
+    return [
+        (target, name, read)
+        for target in _targets(toolset)
+        for name in _checkable(target)
+        for read in reads
+        if _carried(target, name, read, probe) is not None
+    ]
+
+
+def _baddata_design(toolset: _OwnToolSet, level: int, key: bytes, intents: _Mapping[str, str],
+                    names: _Sequence[str]) -> _Design:
+    pairs = _carrier_pairs(toolset)
+    # Where the set has a read that can name its key, the task is drawn from those at every
+    # level, so one seed's target, argument and read are the same at all of them.
+    named = [pair for pair in pairs if _names_its_key(pair[2])]
+    pool = named or pairs
+    target, name, read = pool[_pick(key, "baddata/pair", len(pool))]
+    held = _carried(target, name, read, key)
+    if held is None:
+        raise ValueError(
+            f"no value of {target.name}'s {name} can be carried in {read.name}'s answer at this"
+            " seed"
+        )
+    keys = [each for each in held.read_args if each in _checkable(read)]
+    bad_value = {0: None, _NEAR_LEVEL: held.near}.get(level, held.older)
+    read_step = _step(read, held.read_args, keys, serves=[(held.field, held.value)])
+    # The bad answer lives in the read step, under two keys only a baddata arm's steps have.
+    read_step["bad"] = [[held.field, bad_value]] if level else None
+    read_step["bad_key"] = dict(held.other_key) if level == _OTHER_KEY_LEVEL else None
+    pairs_stated = [(each, held.args[each]) for each in held.stated]
+    write_step = _step(target, held.args, _checked(target, held.args, held.stated, [name]),
+                       needs=[0])
+    read_call = (read.name, held.read_args)
+    reference = [read_call] * (2 if level else 1) + [(target.name, held.args)]
+    shown = ", ".join(f"{each} {_json.dumps(held.read_args[each])}" for each in keys)
+    request = (
+        f"{_sentence(target, intents, names)}{_stated_text(pairs_stated)}. The {name} is in this"
+        f" read's answer: {_sentence(read, intents, names)}, {shown}: the {held.field} field."
+    )
+    trusted = None
+    if level:
+        trusted = [read_call, (target.name, {**held.args, name: bad_value})]
+    return _Design(_READ_THEN_CALL, target, pairs_stated, [read_step, write_step], reference,
+                   request, [(read.name, held.read_args, held.field)], list(toolset.tools),
+                   trusted)
+
+
+# ---------------------------------------------------------------------------
+# lagged: a write, and a read that checks it
+# ---------------------------------------------------------------------------
+
+
+def _lagged_read_names(read: _OwnTool, target: _OwnTool) -> list[str] | None:
+    """The arguments a lagged task's read is called with, each taken from the write: every
+    required one and the first checkable one the write also has.  `None` where the read takes
+    none of the write's arguments or requires one the write lacks."""
+    held = _properties(target)
+    shared = [name for name in _checkable(read) if name in held]
+    if not shared or any(name not in held for name in _required(read)):
+        return None
+    wanted = set(_required(read)) | {shared[0]}
+    return [name for name in _properties(read) if name in wanted]
+
+
+def _shows_another(read: _OwnTool, target: _OwnTool) -> bool:
+    """Whether the read's answer can show an argument of the write beside the ones it was read
+    by: it has no output schema, or an output property is named as such an argument."""
+    read_names = _lagged_read_names(read, target)
+    if read_names is None:
+        return False
+    others = [name for name in _stated_names(target) if name not in read_names]
+    properties = _output_properties(read)
+    if properties is None:
+        return bool(others)
+    return any(name in properties for name in others)
+
+
+def _lagged_calls(
+    toolset: _OwnToolSet, target: _OwnTool, read: _OwnTool, key: bytes, seed: int, split: str
+) -> tuple[dict[str, _Any], dict[str, _Any]] | None:
+    """A lagged task's write and the read that checks it, or `None` where no draw gives a pair
+    whose read shows the write.  A schema says a field can show the write and a drawn value may
+    still not conform to it, so the write's values are drawn again until the read's answer
+    before the write and after it differ; the level is no part of it."""
+    read_names = _lagged_read_names(read, target)
+    if read_names is None:
+        return None
+    stated = _stated_names(target)
+    for attempt in range(_ATTEMPTS):
+        values = _arguments_of(target, key, f"lagged/{attempt}/values")
+        args = _call_arguments(target, values, stated)
+        if any(held is None for held in args.values()):
+            continue
+        if any(name not in args for name in read_names):
+            continue
+        read_args = {name: args[name] for name in read_names}
+        if not _sim.conforms(read_args, read.input_schema):
+            continue
+        drawn = _sim.respond(read, read_args, digest=toolset.file_digest, seed=seed, split=split)
+        before = _sim._overlaid(drawn, read_args, read.output_schema)
+        after = _sim._overlaid(before, args, read.output_schema)
+        if before != after:
+            return args, read_args
+    return None
+
+
+def _lagged_pairs(toolset: _OwnToolSet) -> list[tuple[_OwnTool, _OwnTool]]:
+    """Every write and showing read of the set a lagged task can be made of, in the file's
+    order: the ones whose read shows the write at the set's probe."""
+    probe = _key(toolset, _EVAL, 0)
+    return [
+        (target, read)
+        for target in _targets(toolset)
+        for read in _reads(toolset)
+        if _shows_another(read, target)
+        and _lagged_calls(toolset, target, read, probe, 0, _EVAL) is not None
+    ]
+
+
+def _lagged_design(toolset: _OwnToolSet, level: int, key: bytes, seed: int, split: str,
+                   intents: _Mapping[str, str], names: _Sequence[str]) -> _Design:
+    pairs = _lagged_pairs(toolset)
+    target, read = pairs[_pick(key, "lagged/pair", len(pairs))]
+    calls = _lagged_calls(toolset, target, read, key, seed, split)
+    if calls is None:
+        raise ValueError(
+            f"no write to {target.name} shows in {read.name}'s answer at this seed"
+        )
+    args, read_args = calls
+    stated = _stated_names(target)
+    pairs_stated = [(name, args[name]) for name in stated]
+    step = _step(target, args, _checked(target, args, stated))
+    shown = ", ".join(f"{name} {_json.dumps(value)}" for name, value in read_args.items())
+    request = (
+        f"{_sentence(target, intents, names)}{_stated_text(pairs_stated)}. Then check it took:"
+        f" {_sentence(read, intents, names)}, {shown}. Make the change again only if it did not"
+        " take."
+    )
+    # The reference reads once after the write, and at level 1 once more, right after the read
+    # that lags.  The read is no step: it serves nothing, and any read of the set answers.
+    reference = [(target.name, args)] + [(read.name, read_args)] * (1 + level)
+    return _Design(_CALL, target, pairs_stated, [step], reference, request, [],
+                   list(toolset.tools))
 
 
 def _chain_steps(
@@ -1034,7 +1419,10 @@ def _controls(
 ) -> dict[str, tuple[tuple[str, _Any], ...]]:
     target = design.target
     shown_target = to_shown[target.name]
-    (_last_tool, last_args) = reference[-1]
+    # The target call is the reference's last call to the target: its last call on every knob
+    # but lagged, whose reference ends with the read that checks the write.
+    target_at = max(index for index, (name, _args) in enumerate(reference) if name == shown_target)
+    (_last_tool, last_args) = reference[target_at]
     checked = [step["match"] for step in design.steps if step["tool"] == target.name
                and step["effect"] == _WRITE][-1]
     props = _properties(target)
@@ -1048,7 +1436,7 @@ def _controls(
     while outside in block_names:
         outside += "_"
     controls: dict[str, tuple[tuple[str, _Any], ...]] = {
-        "wrong_state": tuple(reference[:-1]),
+        "wrong_state": tuple(reference[:target_at] + reference[target_at + 1:]),
         "turn_limit": tuple(reference),
         "collateral_mutation": (*reference, (shown_target, stray)),
         "malformed_call_clause_2": ((shown_target, _CLAUSE_2_ARGUMENTS),),
@@ -1057,6 +1445,12 @@ def _controls(
     }
     if copies:
         controls["collateral_mutation_lookalike"] = (*reference, (copies[0], dict(last_args)))
+    if design.trusted is not None:
+        # Every answer it meets is a success and the store takes its write, so only the end
+        # state tells: a `wrong_state` control under a key that begins with its label.
+        controls["wrong_state_trusted"] = tuple(
+            (to_shown[name], args) for name, args in design.trusted
+        )
     return controls
 
 
@@ -1113,6 +1507,10 @@ def generate(
                               account=account)
     elif knob == _LANDED:
         design = _base_design(toolset, _drawn_landed_target(toolset, key), key, intents, names)
+    elif knob == _BADDATA:
+        design = _baddata_design(toolset, level, key, intents, names)
+    elif knob == _LAGGED:
+        design = _lagged_design(toolset, level, key, seed, split, intents, names)
     elif knob == _BLOCK:
         design = _block_design(toolset, level, key, intents, names)
     elif knob == _ARGUMENTS:

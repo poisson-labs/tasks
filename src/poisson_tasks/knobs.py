@@ -37,7 +37,7 @@ Shapes the requirements name but do not define, decided here:
   where a row is enforced in prose, and a caller cannot act on prose.  `applies_to` names
   the knobs a row constrains: N4 is the knobs' whose block does not move with the level, N5
   is knob R's, N9 is knob D's because only knob D's control seeds history in `(H - dL)`
-  pairs, and each of N19 to N35 is its own knob's.
+  pairs, and each of N19 to N36 is its own knob's.
 * **A row can report and refuse at once.**  N29 and N33 carry the action `refuse`, which is
   what a caller acting on the row needs to know, and the block's growth they also measure
   goes in the report's `reported` list beside any refusal.  N7 is reported, and never
@@ -65,6 +65,18 @@ Shapes the requirements name but do not define, decided here:
   which N25 and N26 read (`surface.fault_kind` gives it per arm), and N24 to N26 apply to the
   new knobs as the 0.3.0 faults design says: N24 and N25 to all three, N26 to the two with a
   control.  Tested in `tests/test_f2_arms.py` and `tests/test_f2_lines_and_plan.py`.
+
+* **The two stale-data knobs of 0.4.0** (`baddata`, `lagged`) are knobs beside the twelve, with
+  the letters `b` and `g`.  `baddata`'s level is a rung and not a count: how little the first
+  answer of one named read gives away, from 0, a truthful read, to 3, the right answer but for
+  one small thing.  `lagged` is whether the first read after a write still shows the record as
+  it was, 0 or 1; it has its levels, its arm ids and its place in the ledger here, and its tasks
+  are made on a user's own tools only.  Neither plans an answer in the faults sense, so neither
+  is in `_FAULT_WORDS`.  Both join the knobs with no control arm, for a reason of their own: a
+  model that trusts the first answer makes exactly level 0's calls, and the one extra read is
+  made only by an episode that checks, so level 0 is already the control.  Row N36 holds
+  `baddata`'s two named reads and their answers, and N4 its block.  Tested in
+  `tests/test_bd_arms.py` and `tests/test_bd_builtin.py`.
 
 `measure_pins` is a read: it never writes to the bundle it is handed (P3).  Every entry
 point is pure -- no clock, no RNG, no IO beyond the frozen vocabulary table the engine
@@ -117,6 +129,8 @@ _SPREAD = "spread"
 _TIMEOUTS = "timeouts"
 _RATELIMITS = "ratelimits"
 _LANDED = "landed"
+_BADDATA = "baddata"
+_LAGGED = "lagged"
 _KNOBS = (
     _DEPTH,
     _DISTRACTOR,
@@ -130,6 +144,8 @@ _KNOBS = (
     _TIMEOUTS,
     _RATELIMITS,
     _LANDED,
+    _BADDATA,
+    _LAGGED,
 )
 
 # Candidate levels, not the pilot defaults: the pilot picks {1, 3, 8} for depth, and that
@@ -150,6 +166,8 @@ _LEVELS = {
     _TIMEOUTS: (0, 1, 2, 4),
     _RATELIMITS: (0, 1, 2, 4),
     _LANDED: (0, 1),
+    _BADDATA: (0, 1, 2, 3),
+    _LAGGED: (0, 1),
 }
 
 # The fixed block sizes, and knob R's fixed chain depth.
@@ -176,8 +194,10 @@ _LETTERS = {
     _TIMEOUTS: "o",
     _RATELIMITS: "r",
     _LANDED: "l",
+    _BADDATA: "b",
+    _LAGGED: "g",
 }
-_NO_CONTROL = (_SIMILARITY, _HISTORY, _SPREAD, _LANDED)
+_NO_CONTROL = (_SIMILARITY, _HISTORY, _SPREAD, _LANDED, _BADDATA, _LAGGED)
 # Why `landed` has no control: the lengths were measured on the faults design (one fault pair
 # against the shortest seeded read pair), and the landed line adds no call to make up for it.
 _FAULT_PAIR_TOKENS = 33
@@ -211,6 +231,23 @@ _SHAPE_WIDTHS = (1, 2, 4)
 
 # Spread: four reads are named at every level, and the level is how many carry a part.
 _SPREAD_READS = 4
+
+# Bad data: two reads are named at every level, the first naming the record and the second the
+# stage, and the level is how little the first answer of one of them gives away.  A read lags a
+# write at one level or not at all.
+_BADDATA_READS = 2
+_MAX_BADDATA = 3
+_MAX_LAGGED = 1
+# The baddata level whose bad answer is a stage one short, on the second read; at the levels
+# below it the bad answer is the other record, on the first.
+_BADDATA_SHORT = 3
+# The most counts a bad-data answer's fill is drawn at.  Measured on this build over 33,000 read
+# lines (1,500 seeds on each split, every level), 23 took a second draw, about one in 1,400, so
+# a second draw is rare and a run of this many is a broken table.
+_BADDATA_FILL_DRAWS = 64
+# What a named read's answer holds before its fill: the first word of the catalogue item it
+# answers for, a slash, and what it names.
+_WORD_END = "/"
 
 # The slot of the user prompt that is the knob itself, where a knob has one: N6 leaves it
 # out on that knob's arms, as the goal stage is depth's.
@@ -329,6 +366,13 @@ class ArmSpec:
                 f"ledger's {_N9_BAND} tokens, and landed level {self.level} cannot stand in "
                 f"for level {self.control}"
             )
+        if self.knob in (_BADDATA, _LAGGED):
+            raise ValueError(
+                f"{self.knob} has no control arm: a model that trusts the first answer makes "
+                f"exactly level 0's calls, and the one extra read is made only by an episode "
+                f"that checks, which is the one that passes, so level 0 is already the control "
+                f"and {self.knob} level {self.level} cannot stand in for level {self.control}"
+            )
         if self.knob in _NO_CONTROL:
             raise ValueError(
                 f"{self.knob} has no control arm: its levels differ in nothing a control "
@@ -354,7 +398,9 @@ class ArmSpec:
         stage calls; faults, timeouts and ratelimits one more call per planned answer; shape
         four stage calls at every width; spread its four reads and the two stage calls;
         landed the one call that lands and the reply.  A control follows its own level here
-        too.
+        too.  Bad data needs its two reads and the two stage calls, and above level 0 the bad
+        read made once more; lagged, which no built-in task is made for, the write and the read
+        that checks it, and at level 1 that read once more.
         """
         if self.knob == _DEPTH:
             return self.level + 1
@@ -366,6 +412,10 @@ class ArmSpec:
             return _SHAPE_CALLS + 1
         if self.knob == _SPREAD:
             return _SPREAD_READS + _D_B + 1
+        if self.knob == _BADDATA:
+            return _BADDATA_READS + (1 if self.level else 0) + _D_B + 1
+        if self.knob == _LAGGED:
+            return 2 + self.level + 1
         return _D_B + 1
 
     def max_turns(self, slack: int) -> int:
@@ -463,6 +513,16 @@ def _unbuildable(knob: str, level: int) -> str | None:
             f"landed level {level} cannot be built: the level is whether the write lands and "
             "answers a timeout, 0 or 1"
         )
+    if knob == _BADDATA and not 0 <= level <= _MAX_BADDATA:
+        return (
+            f"baddata level {level} cannot be built: the level is how little the first answer "
+            f"of a bad read gives away, from 0 to {_MAX_BADDATA}"
+        )
+    if knob == _LAGGED and not 0 <= level <= _MAX_LAGGED:
+        return (
+            f"lagged level {level} cannot be built: the level is whether the first read after "
+            f"a write still shows the record as it was, 0 or {_MAX_LAGGED}"
+        )
     if knob == _BLOCK and level > _MAX_BLOCK:
         return (
             f"block level {level} cannot be built: a block offers at most {_MAX_BLOCK} tools, "
@@ -543,8 +603,8 @@ def _parse_arm_id(rendered: str) -> _ParsedArm:
     raise ValueError(
         f"{rendered!r} is not an arm id: an arm id is a knob, a colon and a level, such as "
         "depth:d3, distractor:r8@k16, similarity:s3, faults:f2, history:t600, block:k32, "
-        "arguments:a6, shape:w2 or spread:p4; a control arm adds the level it stands in for, "
-        "as in depth:d1+h8 or faults:f0+len(f4)"
+        "arguments:a6, shape:w2, spread:p4 or baddata:b2; a control arm adds the level it "
+        "stands in for, as in depth:d1+h8 or faults:f0+len(f4)"
     )
 
 
@@ -566,7 +626,7 @@ def levels(knob: str) -> tuple[int, ...]:
 
 
 def pin_ledger(knob: str) -> list[PinRow]:
-    """The thirty rows, in the ledger's order: N1 to N13, then N19 to N35.
+    """The thirty-one rows, in the ledger's order: N1 to N13, then N19 to N36.
 
     The same ledger is used for every knob, so the row set does not vary with the knob;
     what varies is `applies_to`, which `check_pins` reads to decide whether a row is
@@ -616,7 +676,7 @@ def pin_ledger(knob: str) -> list[PinRow]:
             tolerance=f"equal; the block is K_D = {_K_D} tools, identical at every level",
             on_violation=_REFUSE,
             stage=_GENERATION,
-            applies_to=(_DEPTH, _FAULTS, _HISTORY, _ARGUMENTS, _SPREAD),
+            applies_to=(_DEPTH, _FAULTS, _HISTORY, _ARGUMENTS, _SPREAD, _BADDATA),
         ),
         PinRow(
             row_id="N5",
@@ -924,6 +984,18 @@ def pin_ledger(knob: str) -> list[PinRow]:
             stage=_GENERATION,
             applies_to=(_SPREAD,),
         ),
+        PinRow(
+            row_id="N36",
+            held="Bad data's reads",
+            measured=f"the {_BADDATA_READS} named reads; what each answers, call by call",
+            tolerance=(
+                f"the same {_BADDATA_READS} reads at every level; at level 0 each answers once; "
+                "above it exactly one read answers twice, its first head not its second"
+            ),
+            on_violation=_REFUSE,
+            stage=_GENERATION,
+            applies_to=(_BADDATA,),
+        ),
     ]
 
 
@@ -1098,10 +1170,20 @@ def _part(observation: str) -> str:
     return "" if head == _NO_PART else head
 
 
+def _head(observation: str) -> str:
+    """What a named read's answer says before its fill: everything of the payload up to its
+    first full stop, on a bad-data arm the item word, a slash and what the answer names.  An
+    answer whose payload has no full stop says nothing there."""
+    fields = observation.split()
+    if len(fields) < 3 or _PART_END not in fields[2]:
+        return ""
+    return fields[2].split(_PART_END, 1)[0]
+
+
 def measure_pins(bundle: _Bundle) -> PinRecord:
     """Measure every ledger row a bundle can answer, and name the reason for the rest.
 
-    Twenty-eight rows are measurable from a bundle.  Only N10 and N13 need something no
+    Twenty-nine rows are measurable from a bundle.  Only N10 and N13 need something no
     bundle carries -- a run's configuration and an episode's record for the serving pin,
     and the trace for realised tokens -- and each of those gets a reason rather than a
     silent absence.  Every row is measured on every bundle, whatever its knob: which rows
@@ -1250,6 +1332,16 @@ def measure_pins(bundle: _Bundle) -> PinRecord:
             ),
             tuple(_part(observation) for _call, observation in read_calls),
             code,
+        ),
+        # Bad data: each read call the reference makes, in its order, with the head of the
+        # answer it met.
+        "N36": tuple(
+            (
+                str(call[0]),
+                _json.dumps(call[1], sort_keys=True, separators=(",", ":")),
+                _head(observation),
+            )
+            for call, observation in read_calls
         ),
     }
     unmeasured = {
@@ -1668,6 +1760,46 @@ def _check_n35(c: _Contrast) -> str | None:
     return _joined(offenders)
 
 
+def _check_n36(c: _Contrast) -> str | None:
+    """The same two reads at every level, each answering once at level 0; above it exactly one
+    of them answers twice and the other once, and the two answers of the one that answers twice
+    differ in their heads.  Each offence wrong at one level names that level's arm; reads that
+    differ between levels are wrong between them and name none."""
+    offenders = []
+    named = {
+        arm: tuple(dict.fromkeys((tool, args) for tool, args, _head_said in c.value(arm, "N36")))
+        for arm in c.arm_ids
+    }
+    if len(set(named.values())) > 1:
+        offenders.append("the reads the reference makes differ between arms")
+    for arm in c.arm_ids:
+        heads: dict[tuple[str, str], list[str]] = {}
+        for tool, args, head in c.value(arm, "N36"):
+            heads.setdefault((tool, args), []).append(head)
+        if len(heads) != _BADDATA_READS:
+            offenders.append(f"{arm}: {len(heads)} reads named, expected {_BADDATA_READS}")
+        times = sorted(len(said) for said in heads.values())
+        wanted = [1] * _BADDATA_READS
+        if c.parsed[arm].level:
+            wanted[-1] = 2
+        if times != wanted:
+            if c.parsed[arm].level:
+                offenders.append(
+                    f"{arm}: the reads answer {times} times, expected exactly one read to "
+                    "answer twice and the other once"
+                )
+            else:
+                offenders.append(
+                    f"{arm}: the reads answer {times} times, expected each to answer once"
+                )
+        for (tool, _args), said in heads.items():
+            if len(said) > 1 and len(set(said[:2])) == 1:
+                offenders.append(
+                    f"{arm}: the two answers of {tool} say the same, so its first is not bad"
+                )
+    return _joined(offenders)
+
+
 def _check_row(row_id: str, c: _Contrast) -> tuple[str | None, str | None]:
     """One row over one contrast: what refuses it, and what is reported."""
     if row_id == "N2":
@@ -1702,6 +1834,7 @@ def _check_row(row_id: str, c: _Contrast) -> tuple[str | None, str | None]:
         "N28": _check_n28,
         "N31": _check_n31,
         "N35": _check_n35,
+        "N36": _check_n36,
     }
     if row_id in single:
         return single[row_id](c), None

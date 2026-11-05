@@ -34,6 +34,14 @@ retried through the same seam, each a knob of its own and not a kind field on th
 `landed`, a write that goes through and answers the timeout line, is a knob the generator
 refuses on the built-in tasks in one line that says why and names a user's own tools, where
 it is built (decided 2026-10-29, Q2 option a of the faults design).
+`tests/test_bd_*.py` pin the 0.4.0 bad-data knob: B's task with the request naming both records
+of the target ledger and two reads in place of stating which record and how far, the first
+read's answer naming the record and the second's the stage; at a level above 0 one of the two
+answers `ok` and wrong the first time it is asked and right from then on, the level being how
+little that first answer gives away; the block and the two stage calls B's at every level, the
+answers given in front of the engine by `surface.py`'s named reads, as spread's are.  `lagged`,
+a read that still shows a record as it was before a write, is refused here in one line, as
+`landed` is, since the ledger has no read of a record (ruled 2026-11-04, the stale-data spec).
 
 Everything here is a pure function of its arguments and the frozen vocabulary table:
 no clock, no RNG, no model, no network (G1, G2).  The engine's and the knobs module's
@@ -150,6 +158,9 @@ from poisson_tasks.engine import mutations as _mutations
 from poisson_tasks.engine import replay as _replay
 from poisson_tasks.knobs import (
     _ARGUMENT_CODES,
+    _BADDATA_FILL_DRAWS,
+    _BADDATA_READS,
+    _BADDATA_SHORT,
     _BLOCK_HEAD,
     _D_B,
     _ENGINE_ARGUMENTS,
@@ -158,9 +169,11 @@ from poisson_tasks.knobs import (
     _LOOKALIKES,
     _NUMBER_WIDTH,
     _OWN_SLOT,
+    _PART_END,
     _SHAPE_CALLS,
     _SHAPE_WIDTHS,
     _SPREAD_READS,
+    _WORD_END,
     _parse_arm_id,
     _split_evenly,
 )
@@ -169,7 +182,7 @@ from poisson_tasks.knobs import PinRecord as _PinRecord
 from poisson_tasks.knobs import arm_id as _arm_id
 from poisson_tasks.knobs import check_pins as _check_pins
 from poisson_tasks.knobs import measure_pins as _measure_pins
-from poisson_tasks.surface import _prf
+from poisson_tasks.surface import _answer_line, _prf
 from poisson_tasks.tokenizer import count_tokens as _count_tokens
 from poisson_tasks.tokenizer import reference_encoding as _reference_encoding
 
@@ -211,6 +224,8 @@ _SPREAD = "spread"
 _TIMEOUTS = "timeouts"
 _RATELIMITS = "ratelimits"
 _LANDED = "landed"
+_BADDATA = "baddata"
+_LAGGED = "lagged"
 _GENERATED_KNOBS = (
     _DEPTH,
     _DISTRACTOR,
@@ -223,6 +238,7 @@ _GENERATED_KNOBS = (
     _SPREAD,
     _TIMEOUTS,
     _RATELIMITS,
+    _BADDATA,
 )
 # The knobs whose level is a plan of answers in front of the engine: each is the faults knob's
 # design with its own status word and its own sentence (`surface.fault_kind`, below).  `landed`
@@ -281,6 +297,19 @@ _SHAPE_DOMAIN = b"task-generator/shape-ledgers/1"
 # A domain of its own, so no task of another knob moves with it and the scenario's draw stays
 # what it was.
 _SPREAD_DOMAIN = b"task-generator/spread-reads/1"
+# The bad-data knob's one draw: the two reads its request names, each with an item and a page,
+# the order the two records are listed in, and the catalogue item whose word a level-1 answer
+# carries.  A domain of its own, read from the seed and the split and never the level, so no
+# task of another knob moves with it and the four levels share every part of it.
+_BADDATA_DOMAIN = b"task-generator/baddata-reads/1"
+# The hex that fills a bad-data answer after its head: one fill per read, keyed by the task, the
+# read's place and a counter, and never by the level or by what the head says.  The counter is
+# there because hex splits unevenly in the reference tokenizer: a fill that leaves the line
+# outside N8's band at any number a reference can give it is drawn again at the next count.
+_BADDATA_FILL_DOMAIN = b"task-generator/baddata-fill/1"
+# The numbers a reference can give a named read's line: a bad-data reference is at most its two
+# reads, one of them made twice, and the two stage calls, numbered from 1.
+_BADDATA_NUMBERS = range(1, _BADDATA_READS + 1 + _D_B + 1)
 
 # The outcome vocabulary.  Closed, in the table's order: the first label that matches
 # wins, so this order is load-bearing and not decoration.
@@ -331,6 +360,11 @@ _RATELIMITS_SENTENCE = (
     "A call can come back `rate_limited` with a retry-after: nothing changed, and the same "
     "call can be made again after that long."
 )
+# The bad-data knob's one sentence, on a line of its own at every level, level 0 included, for
+# the faults sentence's reason: without it a task would also test whether a model guesses that a
+# read can be wrong, a second factor.  It names the hazard and not the remedy, so what a model
+# does about it is its own reasoning (ruled 2026-11-04, the stale-data spec's Q6).
+_BADDATA_SENTENCE = "A read can come back `ok` with a value that is out of date or wrong."
 _FAULT_SENTENCES = {
     _FAULTS: _FAULTS_SENTENCE,
     _TIMEOUTS: _TIMEOUTS_SENTENCE,
@@ -345,6 +379,7 @@ _TEMPLATE_ID = "ledger-chain/v1"
 _NUMBER_TEMPLATE_ID = "ledger-number/v1"
 _GOALS_TEMPLATE_ID = "ledger-goals/v1"
 _SPREAD_TEMPLATE_ID = "ledger-spread/v1"
+_BADDATA_TEMPLATE_ID = "ledger-baddata/v1"
 
 _SLOT_RECORD = "record_id"
 _SLOT_ENTRY = "entry_code"
@@ -360,6 +395,10 @@ _SLOT_GOALS = _OWN_SLOT[_SHAPE]
 # The spread knob's own slot: the four read lines, one per named read.  Not N6's exception,
 # because the lines are the same at every level; the knobs module names no slot for it.
 _SLOT_READS = "named_reads"
+# The bad-data knob's two slots of its own: the two records of the target ledger, in the order
+# the request lists them.  The same at every level, so neither is N6's exception.
+_SLOT_LISTED_FIRST = "first_record_id"
+_SLOT_LISTED_SECOND = "second_record_id"
 
 # The slots G15 masks: an id, an entry code, a ledger number and the stated values are
 # opaque strings the model copies, and none is structure.  Masking by slot name is what
@@ -368,6 +407,8 @@ _SLOT_READS = "named_reads"
 # and the target list the fingerprint carries for a shape arm.  The named reads are masked
 # whole too: their pages are opaque keys, which facet and item each names is a draw of the
 # task's and not its structure, and the parts are in answers no first request holds.
+# The two listed records of a bad-data request are masked as the record id is: which is listed
+# first is a keyed draw and no structure.
 _OPAQUE_SLOTS = (
     _SLOT_RECORD,
     _SLOT_ENTRY,
@@ -375,6 +416,8 @@ _OPAQUE_SLOTS = (
     _SLOT_STATED,
     _SLOT_GOALS,
     _SLOT_READS,
+    _SLOT_LISTED_FIRST,
+    _SLOT_LISTED_SECOND,
 )
 _MASK = "<opaque>"
 
@@ -442,6 +485,26 @@ _SPREAD_TEMPLATE = (
     "the parts. An answer that holds no part reads `none`.\n"
     "Each answer's payload is its part, a full stop, then filler.\n"
     "Open with the joined entry code; each later stage needs what the stage before returned."
+)
+
+# Bad data's template: the two records of the target ledger, named and neither marked; B's
+# stage-ladder line; one sentence on what each read names; the two named reads on a line each,
+# as spread lists its four; a line on the answers' shape; and B's entry-code line.  The request
+# states neither which record nor how far: the first read's answer names the record, by as many
+# of its id's words as tell it from the other, and the second's the stage.  Like spread's, the
+# prose carries pieces of read tools' and ledgers' names, so this template stays out of
+# `_check_template_words`: N7 cannot move on a bad-data contrast, whose request and block are
+# the same at every level.
+_BADDATA_TEMPLATE = (
+    "One of two records of the {" + _SLOT_CLASS + "} ledger is to advance: "
+    '"{' + _SLOT_LISTED_FIRST + '}" or "{' + _SLOT_LISTED_SECOND + '}".\n'
+    + _B_LINES[1] + "\n"
+    "The first read below names the record, by the first words of its id; the second names "
+    "the stage to raise it through, and no further.\n"
+    "The two reads:\n{" + _SLOT_READS + "}\n"
+    "Each answer's payload is the first word of the catalogue item it answers for, a slash, "
+    "what it names, a full stop, then filler.\n"
+    + _B_LINES[3]
 )
 
 _LADDER_SEPARATOR = " then "
@@ -1065,7 +1128,8 @@ def _block_names(
     Arguments: the same base block too (N4), its level being how many values the stage calls
     carry, which widens the stage tools' schemas and designates no slot.  Spread: the same
     base block too (N4), its level being how many of the four named reads answer with a
-    part, which changes the answers and designates no slot.
+    part, which changes the answers and designates no slot.  Bad data: the same base block
+    too (N4), its level being what one named read's first answer holds.
     """
     size = _block_size(spec)
     stage_tools = _stage_tools_of(spec, qualifier)
@@ -1080,7 +1144,10 @@ def _block_names(
             f"{len(base)} tools available"
         )
     names = [base[index] for index in permutation]
-    if arm.knob in (_DEPTH, *_PLANNED_KNOBS, _HISTORY, _ARGUMENTS, _SPREAD) or arm.level == 0:
+    if (
+        arm.knob in (_DEPTH, *_PLANNED_KNOBS, _HISTORY, _ARGUMENTS, _SPREAD, _BADDATA)
+        or arm.level == 0
+    ):
         return tuple(names)
 
     pool = _distractor_pool(spec, qualifier)
@@ -1393,6 +1460,143 @@ def _spread_parts(code: str, level: int) -> tuple[str, ...]:
     return tuple(parts) + ("",) * (_SPREAD_READS - level)
 
 
+def _baddata_draw(
+    spec: _EngineSpec, seed: int, split: str
+) -> tuple[tuple[_Call, _Call], bool, str]:
+    """A bad-data task's one draw: its two named reads in the order the request lists them, the
+    record's and then the stage's; whether the target is the first of the two records listed;
+    and the catalogue item whose first word a level-1 answer carries.
+
+    The reads are two different read tools of B's fourteen, each with a catalogue item of its
+    own and a page key.  The other item is one the request does not name, whose first word is
+    neither named item's, so an answer under it is plainly not for the read that was asked.
+    Everything is drawn from the knob's own domain by the seed and the split and never the
+    level, so the four levels share the request and no task of another knob moves (N36).  One
+    draw, one image: an ordered pair of tools, an ordered pair of items, a page each, the
+    order, and the other item.
+    """
+    reads = _read_names(spec)[: _block_size(spec) - _D_R]
+    items = _catalogue_items(spec)
+    pages = _page_keys(spec)
+    item_param = _param(spec, "item")
+    page_param = _param(spec, "page")
+    radices = (
+        tuple(range(len(reads), len(reads) - _BADDATA_READS, -1))
+        + tuple(range(len(items), len(items) - _BADDATA_READS, -1))
+        + (len(pages),) * _BADDATA_READS
+        + (2, max(1, len(items) - _BADDATA_READS))
+    )
+    digits = _mixed_radix(_prf(_BADDATA_DOMAIN, seed, split), radices)
+    tools = [reads[index] for index in _selection(digits[:_BADDATA_READS], len(reads))]
+    named = [
+        items[index]
+        for index in _selection(digits[_BADDATA_READS : 2 * _BADDATA_READS], len(items))
+    ]
+    first, second = (
+        (tool, {item_param: item, page_param: pages[digits[2 * _BADDATA_READS + position]]})
+        for position, (tool, item) in enumerate(zip(tools, named, strict=True))
+    )
+    words = {_item_word(item) for item in named}
+    others = [item for item in items if _item_word(item) not in words]
+    if not others:
+        raise ValueError(
+            "the vocabulary table has no catalogue item whose first word a bad-data request "
+            "does not already name"
+        )
+    target_first = digits[3 * _BADDATA_READS] == 0
+    other = others[digits[3 * _BADDATA_READS + 1] % len(others)]
+    return (first, second), target_first, other
+
+
+def _item_word(item: str) -> str:
+    """The first word of a catalogue item, which a bad-data answer says it answers for."""
+    return item.split(str(_SPEC.table["record_id_separator"]))[0]
+
+
+def _telling_words(record: str, other: str) -> str:
+    """As many of `record`'s words, from the first, as tell it from `other`: one word on all
+    but the few tasks whose two records share a first word, and never the whole id, which
+    does not fit a payload."""
+    separator = str(_SPEC.table["record_id_separator"])
+    words, others = record.split(separator), other.split(separator)
+    for count in range(1, len(words) + 1):
+        if words[:count] != others[:count]:
+            return separator.join(words[:count])
+    raise ValueError(f"the two records of a bad-data task are one id: {record!r}")
+
+
+def _baddata_payload(seed: int, split: str, position: int, word: str, names: str) -> str:
+    """What the named read at `position` answers on a bad-data arm: the first word of the
+    catalogue item it answers for, a slash, what it names, a full stop, and lowercase hex from a
+    keyed hash to the width of the table's payload field.
+
+    The fill is one string per read, keyed by the task, the read's place and a counter, and
+    never by the level, the word or what the answer names: so a read's bad answer and its true
+    one carry one fill wherever both hold the band, and differ only before the full stop.  The
+    counter starts at nothing and moves only when the line falls outside N8's band at one of the
+    numbers a reference can give it, since hex splits unevenly in the reference tokenizer; the
+    count is the line's own, so the same head reads the same at every level.
+    """
+    width: int = _SPEC.layout["payload_width"]
+    low, high = _SPEC.table["token_band"]
+    head = word + _WORD_END + names + _PART_END
+    if len(head) >= width:
+        raise ValueError(f"the head {head!r} leaves no room for a fill in {width} bytes")
+    for count in range(_BADDATA_FILL_DRAWS):
+        domain = _BADDATA_FILL_DOMAIN + f"/{position}/{count}".encode("ascii")
+        payload = head + _prf(domain, seed, split).hex()[: width - len(head)]
+        if all(
+            low <= _count_tokens(_answer_line(number, payload)) <= high
+            for number in _BADDATA_NUMBERS
+        ):
+            return payload
+    raise ValueError(
+        f"no fill of {_BADDATA_FILL_DRAWS} holds the head {head!r} inside the observation band"
+    )
+
+
+def _baddata_answers(
+    spec: _EngineSpec,
+    seed: int,
+    split: str,
+    level: int,
+    reads: tuple[_Call, _Call],
+    other_item: str,
+    record: str,
+    decoy: str,
+    goal: int,
+) -> tuple[tuple[str, _Args, str], ...]:
+    """A bad-data task's named reads and their answers, in the reference's order: each read
+    once with its true answer, and above level 0 the level's bad answer first, on the read it
+    is bad on, so that read is made twice in a row.
+
+    The first read's true answer names the target, the second's the goal stage, each under the
+    first word of the read's own catalogue item.  Level 1 answers the first read under another
+    item's word with the other record; level 2 under the read's own word with the other record;
+    level 3 answers the second read under its own word with the stage one short of the goal.
+    The block holds no stage above the goal, so the small error can only fall short.
+    """
+    item_param = _param(spec, "item")
+    words = tuple(_item_word(str(args[item_param])) for _tool, args in reads)
+    true = (_telling_words(record, decoy), spec.stage_names[goal - 1])
+    bad: dict[int, tuple[str, str]] = {}
+    if level == 1:
+        bad[0] = (_item_word(other_item), _telling_words(decoy, record))
+    elif level == 2:
+        bad[0] = (words[0], _telling_words(decoy, record))
+    elif level == _BADDATA_SHORT:
+        bad[1] = (words[1], spec.stage_names[goal - 2])
+    answers: list[tuple[str, _Args, str]] = []
+    for position, (tool, args) in enumerate(reads):
+        if position in bad:
+            word, names = bad[position]
+            answers.append((tool, args, _baddata_payload(seed, split, position, word, names)))
+        answers.append(
+            (tool, args, _baddata_payload(seed, split, position, words[position], true[position]))
+        )
+    return tuple(answers)
+
+
 def _prompt_slots(
     spec: _EngineSpec,
     arm: _ArmSpec,
@@ -1421,10 +1625,12 @@ def _prompt_slots(
 def _template_of(slots: tuple[tuple[str, str], ...]) -> tuple[str, str]:
     """The template id and the template the slots fill: the one that names the ledger by
     number when the slots carry a number, the one that lists goal lines when the slots carry
-    them, the one that names four reads when the slots carry them, else the one that names the
-    ledger by class."""
+    them, the one that lists two records when the slots carry them, the one that names four
+    reads when the slots carry them, else the one that names the ledger by class."""
     if any(name == _SLOT_NUMBER for name, _value in slots):
         return _NUMBER_TEMPLATE_ID, _NUMBER_TEMPLATE
+    if any(name == _SLOT_LISTED_FIRST for name, _value in slots):
+        return _BADDATA_TEMPLATE_ID, _BADDATA_TEMPLATE
     if any(name == _SLOT_GOALS for name, _value in slots):
         return _GOALS_TEMPLATE_ID, _GOALS_TEMPLATE
     if any(name == _SLOT_READS for name, _value in slots):
@@ -1802,8 +2008,14 @@ def _negative_controls(
     final_token: str | None,
     stated: dict[str, str] | None = None,
     targets: tuple[_Target, ...] | None = None,
+    trusted: tuple[_Call, ...] | None = None,
 ) -> dict[str, tuple[_Call, ...]]:
     """One control per system label a call sequence can produce.
+
+    `trusted` is a bad-data arm's episode that believed the bad answer, above level 0: the two
+    reads once each and then what the first answer asked for.  Every answer it meets says `ok`
+    and it ends in the wrong place, so it is a `wrong_state` control under a key of its own,
+    which begins with the label it earns as the similarity knob's lookalike control's does.
 
     `stated` is an arguments arm's stated values: a stage call this adds to the reference
     carries them too, or the check would refuse it and the control would pass instead of
@@ -1859,6 +2071,9 @@ def _negative_controls(
         controls[f"{_COLLATERAL}_lookalike"] = reference + (
             (lookalike, {record_param: record, entry_param: code}),
         )
+
+    if trusted is not None:
+        controls[f"{_WRONG_STATE}_trusted"] = trusted
 
     in_block = reference[0][0] if reference else block[0]
     controls[f"{_MALFORMED}_clause_2"] = ((in_block, ("not", "an", "object")),)
@@ -2279,7 +2494,9 @@ def structure_space(arm: _ArmSpec, spec: _EngineSpec | None = None) -> int:
     schemas the same at every level, and the stated values are masked with the record id.  A
     spread arm's count is B's at every level: its block, system prompt and the request's prose
     are B's but for the words every spread request carries, and the named reads are masked
-    with the record id.  A shape arm's count is B's too at the widths whose block holds one
+    with the record id.  A bad-data arm's count is B's at every level for the same reason: its
+    block is B's, and the two listed records and the two named reads are masked.  A shape arm's
+    count is B's too at the widths whose block holds one
     ledger's tools and on the control, the goal lines masked whole; at the width that advances
     the target record in four ledgers it is B's times the choice of the three other ledgers
     among the eleven, each set of four first-stage tools taking every order of the sixteen
@@ -2339,6 +2556,12 @@ def _refuse_a_knob_not_generated(arm: _ArmSpec) -> None:
             "no duplicate for the end-state check to catch; landed is offered on your own "
             "tools, whose store accepts a second write as yours would"
         )
+    if arm.knob == _LAGGED:
+        raise ValueError(
+            "no lagged task is generated on the built-in tasks: the ledger has no read of a "
+            "record and refuses a repeated stage call, so a read that lags a write has nothing "
+            "to show and a second write nothing to break; lagged is offered on your own tools"
+        )
     if arm.knob not in _GENERATED_KNOBS:
         raise ValueError(
             f"no {arm.knob} task can be generated yet: the {arm.knob} knob has its levels, its "
@@ -2386,6 +2609,19 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
             for slot in _prompt_slots(engine_spec, arm, record, code, qualifier, number)
             if slot[0] != _SLOT_ENTRY
         ) + ((_SLOT_READS, _spread_lines(engine_spec, spread_reads)),)
+    elif arm.knob == _BADDATA:
+        # Bad data: the target ledger, its two records in a keyed order, the ladder, the two
+        # named reads and the entry code (N36); the request states no record and no goal stage.
+        baddata_reads, target_first, other_item = _baddata_draw(engine_spec, seed, arm.split)
+        listed = (record, decoy) if target_first else (decoy, record)
+        slots = (
+            (_SLOT_CLASS, qualifier),
+            (_SLOT_LISTED_FIRST, listed[0]),
+            (_SLOT_LISTED_SECOND, listed[1]),
+            (_SLOT_LADDER, _LADDER_SEPARATOR.join(engine_spec.stage_names)),
+            (_SLOT_READS, _spread_lines(engine_spec, baddata_reads)),
+            (_SLOT_ENTRY, code),
+        )
     else:
         slots = _prompt_slots(engine_spec, arm, record, code, qualifier, number)
     instruction = _render_instruction(slots)
@@ -2414,6 +2650,8 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
     system_prompt = _SYSTEM_PROMPT
     if arm.knob in _PLANNED_KNOBS:
         system_prompt = system_prompt + "\n" + _FAULT_SENTENCES[arm.knob]
+    if arm.knob == _BADDATA:
+        system_prompt = system_prompt + "\n" + _BADDATA_SENTENCE
     prompt: str | tuple[dict[str, _Any], ...] = instruction
 
     if arm.knob == _HISTORY:
@@ -2536,6 +2774,27 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
         )
         reference_calls = spread_reads + chain_calls
         reference_observations = tuple(read_observations) + chain_observations
+    elif arm.knob == _BADDATA:
+        # Bad data: the two named reads, the one whose first answer is bad made twice in a
+        # row, each answered in front of the engine through the one function the tool server
+        # and `verify` answer them with, then B's two stage calls numbered after them (N36).
+        answers = _baddata_answers(
+            engine_spec, seed, arm.split, arm.level, baddata_reads, other_item, record, decoy,
+            goal,
+        )
+        state = _init_state(scenario, seq_start)
+        counts = {}
+        read_observations = []
+        for tool, args, _payload in answers:
+            state, counts, observation = _surface.apply_planned(
+                state, counts, (tool, args), {}, spread=answers
+            )
+            read_observations.append(observation)
+        chain_calls, chain_observations = _chain_calls(
+            engine_spec, scenario, qualifier, record, goal, seq_start + len(answers)
+        )
+        reference_calls = tuple((tool, args) for tool, args, _payload in answers) + chain_calls
+        reference_observations = tuple(read_observations) + chain_observations
     else:
         reference_calls, reference_observations = _chain_calls(
             engine_spec, scenario, qualifier, record, goal, seq_start
@@ -2560,9 +2819,18 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
         )
     final_token = _payload_of(reference_observations[-1]) if reference_observations else None
 
+    trusted: tuple[_Call, ...] | None = None
+    if arm.knob == _BADDATA and arm.level:
+        # What the bad answer asks for, after the reads once each: at levels 1 and 2 the other
+        # record raised through the goal, at level 3 the target raised one stage short.
+        moved, short = (record, 1) if arm.level == _BADDATA_SHORT else (decoy, 0)
+        trusted_calls, _trusted_observations = _chain_calls(
+            engine_spec, scenario, qualifier, moved, goal - short, seq_start
+        )
+        trusted = baddata_reads + trusted_calls
     controls = _negative_controls(
         engine_spec, scenario, arm, qualifier, record, decoy, arm.split, block,
-        reference_calls, final_token, stated, targets,
+        reference_calls, final_token, stated, targets, trusted,
     )
     # The reference and the controls call the tools as the block shows them, which `verify`
     # and the tool server map back to the engine; a control's call to a tool outside the

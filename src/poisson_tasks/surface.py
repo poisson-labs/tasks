@@ -36,11 +36,21 @@ named reads, read off the reference by `spread_answers`, are answered by `apply_
 front of the engine with the part of the entry code each holds, or `none`, a full stop and
 keyed hex (`spread_payload`), when a call names the read's tool, item and page exactly; every
 other read is the engine's (`tests/test_k8_only.py`, `tests/test_k8_live.py`).
+
+The bad-data knob of 0.4.0 answers through the same seam, so no reader is edited for it:
+`spread_answers` reads a `baddata` arm's named reads off its reference too, where the read whose
+first answer is bad appears twice, and `apply_planned` answers a named read's *n*th call with its
+*n*th entry and its last entry from then on, counting only that exact call, its tool and the
+same argument object, under a key of its own in `counts`.  A spread read has one entry, so a
+spread arm answers as it did.  The knob plans no answer in the faults sense: `fault_kind` is
+`None` and `fault_plan` empty on its arms and on `lagged`'s, whose tasks are made on a user's
+own tools (`tests/test_bd_builtin.py`, `tests/test_bd_seam.py`).
 """
 
 from __future__ import annotations
 
 import hashlib as _hashlib
+import json as _json
 from collections.abc import Callable as _Callable
 from collections.abc import Mapping as _Mapping
 from collections.abc import Sequence as _Sequence
@@ -54,6 +64,7 @@ from poisson_tasks.engine import EngineSpec as _EngineSpec
 from poisson_tasks.engine import apply as _apply
 from poisson_tasks.knobs import (
     _ARGUMENTS,
+    _BADDATA,
     _BLOCK,
     _D_B,
     _FAULT_WORDS,
@@ -485,12 +496,14 @@ def spread_answers(
     reference_calls: _Sequence[tuple[str, _Any]],
     reference_observations: _Sequence[str],
 ) -> _Spread | None:
-    """A spread arm's named reads and their answers: each read call the reference makes, under
-    the engine name its shown name stands for, with its arguments and the payload its
-    observation carries.  Read off the reference the generator already writes, so no bundle
-    field holds them, and derived the same way by the generator, `tasks.verify`, the tool
-    server and the record reader.  `None` on every other knob, whose reads are the engine's."""
-    if _parse_arm_id(arm_id).knob != _SPREAD:
+    """A spread or bad-data arm's named reads and their answers: each read call the reference
+    makes, under the engine name its shown name stands for, with its arguments and the payload
+    its observation carries, in the reference's order.  A bad-data arm above level 0 makes one
+    read twice, so that read has two entries, its first answer and its second.  Read off the
+    reference the generator already writes, so no bundle field holds them, and derived the same
+    way by the generator, `tasks.verify`, the tool server and the record reader.  `None` on
+    every other knob, whose reads are the engine's."""
+    if _parse_arm_id(arm_id).knob not in (_SPREAD, _BADDATA):
         return None
     answers: list[tuple[str, _Mapping[str, str], str]] = []
     for (name, arguments), observation in zip(reference_calls, reference_observations, strict=True):
@@ -506,6 +519,13 @@ _Step = _Callable[[_DomainState, tuple[str, _Any]], tuple[_DomainState, str]]
 # The status word the argument check refuses with: the engine's own for a call whose
 # arguments it cannot take, so a refused stage call reads as any refused call does.
 _BAD_ARGS = "bad_args"
+
+
+def _named_key(name: str, arguments: _Mapping[str, str]) -> str:
+    """The key a named read's own count is kept under in `counts`: the tool and its argument
+    object, keys sorted, so the same call with its keys in another order is the same call.  No
+    tool is named like it, so it never meets a tool's count."""
+    return name + "\x1f" + _json.dumps(dict(arguments), sort_keys=True, separators=(",", ":"))
 
 
 def _engine_parameters(engine: str) -> frozenset[str]:
@@ -577,12 +597,15 @@ def apply_planned(
     stands before the engine, so a wrong second stage call before the first is `bad_args`
     and not the engine's `not_ready`.
 
-    `spread` is a spread arm's named reads and their answers (`spread_answers`), and `None`
-    on any other arm.  A call naming one of them exactly, its tool and the same argument
-    object, its item and its page and nothing more, is answered `ok` at its number with the
-    read's payload and reaches no engine; the counter advances, as on every call, and the
-    records do not.  Any other read, the same read on another page, with another item, with
-    a key more or in another case included, is the engine's.
+    `spread` is a spread or bad-data arm's named reads and their answers (`spread_answers`),
+    and `None` on any other arm.  A call naming one of them exactly, its tool and the same
+    argument object, its item and its page and nothing more, is answered `ok` at its number with
+    the read's payload and reaches no engine; the counter advances, as on every call, and the
+    records do not.  A read with more than one entry answers its *n*th entry on its *n*th such
+    call and its last entry from then on: the count is that exact call's own, kept in `counts`
+    under a key no tool has, so a call that is not it neither takes an entry nor is given one.
+    Any other read, the same read on another page, with another item, with a key more or in
+    another case included, is the engine's.
     """
     name, arguments = call
     made = counts.get(name, 0)
@@ -592,10 +615,18 @@ def apply_planned(
         line = _status_line(seq, kind, _planned_payload(kind))
         return _replace(state, next_seq=seq + 1), after_counts, line
     if spread is not None and isinstance(arguments, _Mapping):
-        for read, read_arguments, payload in spread:
-            if name == read and dict(arguments) == read_arguments:
-                seq = state.next_seq
-                return _replace(state, next_seq=seq + 1), after_counts, _answer_line(seq, payload)
+        entries = [
+            (read_arguments, payload)
+            for read, read_arguments, payload in spread
+            if name == read and dict(arguments) == read_arguments
+        ]
+        if entries:
+            key = _named_key(name, entries[0][0])
+            asked = after_counts.get(key, 0)
+            after_counts[key] = asked + 1
+            _read_arguments, payload = entries[min(asked, len(entries) - 1)]
+            seq = state.next_seq
+            return _replace(state, next_seq=seq + 1), after_counts, _answer_line(seq, payload)
     if stated is not None and name in _SPEC.stage_tools and isinstance(arguments, _Mapping):
         checked = _checked_stage_call(name, arguments, stated)
         if checked is None:
