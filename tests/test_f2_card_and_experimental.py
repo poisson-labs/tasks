@@ -297,8 +297,10 @@ SURFACES: dict[str, tuple[Callable[[], str], Callable[[str, dict[str, str]], boo
         f"{knob} | {knob} (experimental)" in said and f" | {why[knob]}" in said
         for knob in ("timeouts", "ratelimits"))),
     "plan": (surface_plan, lambda said, why: said == "timeouts (experimental) at 0 and 4"),
+    # Retrofitted 2026-11-04 for 0.4.0: `custom` offers `baddata` too (the stale-data spec's section 8;
+    # ruled yes).
     "config": (surface_config, lambda said, why: said.split("#", 1)[1].strip()
-               == "depth | distractor | timeouts | ratelimits (experimental)"),
+               == "depth | distractor | timeouts | ratelimits | baddata (experimental)"),
     "export": (surface_export, lambda said, why: all(
         f"knob '{knob}'" in said
         and "EXPERIMENTAL: " + why[knob] in said[said.index(f"knob '{knob}'"):].split(" knob '")[0]
