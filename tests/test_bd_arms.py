@@ -16,7 +16,7 @@ Shapes decided here
 holds the lowest and the highest level as whole numbers, and it is held beside a control, a level in
 the range that is accepted.  `baddata:b-1` as text is not an arm id to the parser, whose refusal lists
 what an id is; the range is held on `ArmSpec(level=-1)`, as 0.3.0's negative level is, and the text is
-held refused and no more (put to the maintainer as a yes/no; nothing more is frozen on it).
+held refused and no more (ruled yes, 2026-11-04).
 
 **2. "A sentence naming why" is held to say something of the read**, the spec's reason being that the
 extra read is on the passing path only, and to be neither the shared sentence nor `landed`'s.

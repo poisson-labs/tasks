@@ -24,7 +24,7 @@ of one holds is the build's.
 
 **4. "A 0.3.x card is byte for byte" is held by digests of a card rendered on `main` at `acc3144`**
 (0.3.3) from records and a provenance the test writes: a timeouts card and an own-tools `landed` card.
-They are guards, true on `main` by construction, as 0.3.0's held bytes are; the repo holds no card
+They are guards, true on `main` by construction, as 0.3.0's held bytes are (ruled yes, 2026-11-04); the repo holds no card
 written by a 0.3.x run, and the published cards keep their own tests (`tests/test_cal_committed_cards.py`,
 `tests/test_fd4_published.py`).
 
