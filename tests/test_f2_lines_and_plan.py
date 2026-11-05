@@ -100,7 +100,8 @@ def test_fault_kind_names_each_arms_word_and_fault_plan_plans_each_knob() -> Non
 def test_n24_and_n25_apply_to_the_new_knobs_and_n26_to_two_of_them() -> None:
     """Shape 4."""
     rows = {row.row_id: row for row in knobs.pin_ledger("timeouts")}
-    assert len(rows) == 30
+    # Retrofitted 2026-11-04 for 0.4.0: N36 joins (the stale-data spec's Q10).
+    assert len(rows) == 31
     for row_id in ("N24", "N25"):
         assert {"faults", *NEW_KNOBS} <= set(rows[row_id].applies_to)
     assert {"faults", "timeouts", "ratelimits"} <= set(rows["N26"].applies_to)
