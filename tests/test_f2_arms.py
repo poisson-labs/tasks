@@ -48,7 +48,9 @@ def spec(knob: str, level: int, control: int | None = None) -> knobs.ArmSpec:
 
 
 def test_the_knobs_are_the_nine_then_the_three_with_their_levels() -> None:
-    assert knobs._KNOBS == (*NINE, *NEW_KNOBS)
+    """Retrofitted 2026-11-04 for 0.4.0: the two stale-data knobs follow the twelve (the stale-data
+    spec's Q1)."""
+    assert knobs._KNOBS == (*NINE, *NEW_KNOBS, "baddata", "lagged")
     assert [knobs.levels(knob) for knob in NEW_KNOBS] == [(0, 1, 2, 4), (0, 1, 2, 4), (0, 1)]
 
 
