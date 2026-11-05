@@ -58,7 +58,9 @@ def test_custom_takes_a_knob_offered_on_the_set_at_levels_it_reaches(
     (tmp_path / "tools.json").write_bytes(fixture("acme-mcp-tools-list.json"))
     plan = outcome('preset = "custom"\nknob = "depth"\nlevels = [2, 1]\nstrictness = "leaky"', tmp_path)
     assert [(a.knob, a.level, a.strictness, a.generator_version) for a in plan.arms] == [
-        ("depth", 1, "leaky", "own-2"), ("depth", 2, "leaky", "own-2")]
+        # Retrofitted 2026-11-04 for 0.4.0: the label moved from "own-2" to "own-3" (the stale-data
+        # spec's Q1).
+        ("depth", 1, "leaky", "own-3"), ("depth", 2, "leaky", "own-3")]
     assert outcome('preset = "custom"\nknob = "depth"\nlevels = [3]', tmp_path) == "measure.levels"
     faults = outcome('preset = "custom"\nknob = "faults"\nlevels = [0, 4]', tmp_path)
     # every knob the set reaches, shipped or not (decided 2026-10-13 23:26)
