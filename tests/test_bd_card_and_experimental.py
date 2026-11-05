@@ -28,9 +28,9 @@ They are guards, true on `main` by construction, as 0.3.0's held bytes are; the 
 written by a 0.3.x run, and the published cards keep their own tests (`tests/test_cal_committed_cards.py`,
 `tests/test_fd4_published.py`).
 
-**5. Where `card --json` carries the two figures** is put to the maintainer as a yes/no, and nothing is
-frozen on it until it is ruled: the spec says that it does and not under what.  Its `experimental` is
-held here through the function it prints.  No fixture-model run is here: `tests/fixtures/model_server.py`
+**5. `card --json` carries the two figures in each entry of `data.levels`** (ruled yes, 2026-11-04), four
+keys named as the cell's and left out where the cell has none, held on `_card._cells`, which writes that
+list.  Its `experimental` is held through the function it prints.  No fixture-model run is here: `tests/fixtures/model_server.py`
 reads B's request and answers a `baddata` request in text, so `card` refuses that run as `no_call`.  The
 run against a scripted model is the build's gate (the spec's section 10).
 """
@@ -40,13 +40,14 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from poisson_tasks import arms, config, export
 from poisson_tasks import calibration as cal
-from poisson_tasks.cli import _common, _init
+from poisson_tasks.cli import _card, _common, _init
 from tests.bd_support import (
     ABOVE_ZERO,
     ACTED,
@@ -309,6 +310,21 @@ def test_the_card_and_card_json_say_each_new_knob_is_experimental_with_its_reaso
     assert line("lagged", NOT_MEASURED) in cal.card_claims(lagged).not_claimed
     assert cal.experimental_knobs(baddata_artifact()) == {"baddata": NOT_MEASURED}
     assert cal.experimental_knobs(lagged) == {"lagged": NOT_MEASURED}
+
+
+def test_card_json_carries_the_two_figures_in_each_level_where_the_cell_has_them() -> None:
+    """Shape 5: `b3`'s entry holds the four keys, `b0`'s and a depth card's none, and an arm that did
+    not run none; the entries are what `card --json` prints as `levels`."""
+    keys = [f"{name}_{what}" for name in (ACTED, READ_AGAIN) for what in ("count", "share")]
+    nothing_missing = SimpleNamespace(not_run=())
+    levels = {entry["arm_id"]: entry for entry in _card._cells(baddata_artifact(), nothing_missing)}
+    assert [levels["baddata:b3"][key] for key in keys] == [3, 0.3, 7, 0.7]
+    assert not [key for key in levels["baddata:b0"] if key in keys], levels["baddata:b0"]
+    depth = built_in_artifact({"depth:d1": lambda i: row(i, "depth:d1", "passed")})
+    assert not [key for entry in _card._cells(depth, nothing_missing) for key in entry if key in keys]
+    (not_run,) = [entry for entry in _card._cells(baddata_artifact(), SimpleNamespace(not_run=("baddata:b1",)))
+                  if entry["arm_id"] == "baddata:b1"]
+    assert not [key for key in not_run if key in keys], not_run
 
 
 # --------------------------------------------------------------------------
