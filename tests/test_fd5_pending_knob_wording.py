@@ -29,7 +29,9 @@ from tests.fd5_support import World, config, error_lines, invoke, prog, world
 __all__ = ["prog", "world"]
 
 NOT_OFFERED = ["similarity", "faults", "history", "block", "arguments", "shape", "spread"]
-OFFERED = "depth, distractor, timeouts and ratelimits"
+# Retrofitted 2026-11-04 for 0.4.0: `custom` offers `baddata` too (the stale-data spec's Q11), and the
+# refusal lists the knobs it offers.
+OFFERED = "depth, distractor, timeouts, ratelimits and baddata"
 
 
 @pytest.mark.parametrize("knob", NOT_OFFERED)
