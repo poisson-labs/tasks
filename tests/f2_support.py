@@ -101,6 +101,10 @@ EXPERIMENTAL_REASONS = {
     "timeouts": NOT_MEASURED,
     "ratelimits": NOT_MEASURED,
     "landed": NOT_MEASURED,
+    # Retrofitted 2026-11-04 for 0.4.0: the mapping is six knobs and two reasons (the stale-data spec's
+    # section 8).
+    "baddata": NOT_MEASURED,
+    "lagged": NOT_MEASURED,
 }
 
 # `init`'s and `doctor`'s note on a set with no check read (section 4.3).
