@@ -526,7 +526,8 @@ def test_the_thirteen_old_rows_keep_their_text(knob: str) -> None:
 
 def test_every_knob_reads_the_one_ledger() -> None:
     rows = pin_ledger("depth")
-    assert len(rows) == 30
+    # Retrofitted 2026-11-04 for 0.4.0: N36 joins (the stale-data spec's Q10).
+    assert len(rows) == 31
     for knob in KNOBS:
         assert pin_ledger(knob) == rows, knob
 
