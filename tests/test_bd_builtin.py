@@ -19,8 +19,9 @@ Shapes decided here
 example lists the whole ladder and quotes ids and items, whose words can be anything, so "no request
 names the goal stage" is held on what is left.
 
-**2. N36's line is held to N36 and to one line.**  What "saying which" asks of its words is put to
-the maintainer as a yes/no, and nothing is frozen on it until it is ruled.
+**2. "Saying which" is held as the arm (ruled yes, 2026-11-04).**  N36's line is one line, and on the
+three plants wrong at one level it names that level's arm id; a changed read is wrong between levels
+and is held to one line.
 
 **3. The bad and true payloads share nothing the test reads but what the spec says**: the test parses
 item word, head and hex, and compares a named field, never two whole lines that differ in a drawn fill
@@ -455,7 +456,7 @@ def plants(level_two: Any, level_zero: Any) -> dict[str, Any]:
 
 @pytest.mark.parametrize("plant", ["a second bad read", "a bad answer at level 0", "a bad, bad pair",
                                    "a changed read at one level"])
-def test_n36_refuses_each_plant_in_one_line(plant: str) -> None:
+def test_n36_refuses_each_plant_in_a_line_saying_which(plant: str) -> None:
     """Shape 2, at six card seeds; the contrast without the plant is held refused by nothing above."""
     for seed in CARD_SEEDS[:6]:
         bundles = {level: baddata(level, seed) for level in LEVELS}
@@ -464,6 +465,10 @@ def test_n36_refuses_each_plant_in_one_line(plant: str) -> None:
         said = dict(report.violations)
         assert "N36" in said, (plant, seed, report.violations)
         assert "\n" not in said["N36"], said["N36"]
+        named = {"a second bad read": "baddata:b2", "a bad answer at level 0": "baddata:b0",
+                 "a bad, bad pair": "baddata:b2"}.get(plant)
+        if named is not None:
+            assert named in said["N36"], (plant, said["N36"])
 
 
 def test_the_two_reads_are_the_same_at_every_level_each_with_its_own_item() -> None:
