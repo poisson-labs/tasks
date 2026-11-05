@@ -584,6 +584,21 @@ def test_only_one_read_lags_in_an_episode(label: str) -> None:
         assert first == lagging and second == after, (label, seed)
 
 
+def test_a_lagged_write_is_drawn_again_until_the_read_shows_it() -> None:
+    """Added after the build's mutation pass (the survivor `Y8`, ruled 2026-11-05): a schema says a
+    field can show the write, and a drawn value may still be the one the read already answers.  On
+    a set whose read shows a two-member enum, half of all first draws are: the write is drawn again
+    until the read's answer before it and after it differ, so at every seed level 1's lagging read
+    differs from the next.  At the fixture sets' draws the first draw always shows, so nothing else
+    reaches the redraw."""
+    toolset = named_set(obj(item_id=S12, status=AB))
+    for seed in range(20):
+        one = own_task(toolset, "lagged", 1, seed)
+        write, read = lag_calls(one)
+        _written, lagging, after = answers_of(one, [write, read, read])
+        assert lagging != after, seed
+
+
 @pytest.mark.parametrize("label", LAGGED_SETS)
 def test_lagged_passes_on_the_reference_and_write_read_write_is_a_duplicate(
     label: str, tmp_path: Path
