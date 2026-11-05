@@ -336,8 +336,9 @@ def test_doctor_names_each_new_knob_experimental_in_its_rows_and_json(
             f"experimental: {NOT_MEASURED}")
         assert words in found[0], found[0]
     _ran, document = invoke_json(["doctor", "--offline"], monkeypatch)
+    # Retrofitted 2026-11-04 for 0.4.0: acme reaches `baddata` too (the stale-data spec's section 8).
     assert data_of(document)["tools"]["experimental"] == {
-        knob: NOT_MEASURED for knob in ("timeouts", "ratelimits", "landed")}
+        knob: NOT_MEASURED for knob in ("timeouts", "ratelimits", "landed", "baddata")}
 
 
 def test_the_recipes_and_the_probes_record_are_those_of_main() -> None:
