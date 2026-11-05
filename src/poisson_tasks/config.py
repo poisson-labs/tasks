@@ -97,14 +97,24 @@ _PRESETS = (*(name for name, recipe in RECIPES.items() if recipe.offered), "cust
 _OWN_PRESETS = (*RECIPES, "custom")
 # The knobs `[measure] preset = "custom"` offers on the built-in tasks, each with its control
 # pairs: the published cards' two, and since 0.3.0 the timeouts and ratelimits knobs, whose one
-# control pair is the knob's lowest and highest level (the faults design, Q5).  Not
+# control pair is the knob's lowest and highest level (the faults design, Q5), and since 0.4.0
+# the baddata knob, which has no control arm (the stale-data spec, Q7 and Q11).  Not
 # `arms._CONTROL_PAIRS`, which says which arms the published cards measured.
 _CUSTOM_CONTROLS: dict[str, tuple[tuple[int, int], ...]] = {
     **_CONTROL_PAIRS,
     "timeouts": ((0, 4),),
     "ratelimits": ((0, 4),),
+    "baddata": (),
 }
 _KNOBS = tuple(_CUSTOM_CONTROLS)
+# Why a knob `custom` offers has no control arm, said when `controls = true` asks for one.
+_NO_CONTROL_ARM = {
+    "baddata": (
+        "baddata has no control arm: a model that trusts the first answer makes exactly "
+        "level 0's calls, and the one extra read is made only by an episode that checks, so "
+        "level 0 is already the control"
+    ),
+}
 # The knobs offered on your own tools, and not on the built-in tasks, with the reason in one
 # line: a knob the library has and this file does not take on the built-in tasks is refused
 # naming the knobs it does take, and this one is refused naming where it is offered.
@@ -114,15 +124,21 @@ _OWN_ONLY = {
         "call is refused and changes nothing, so a write that landed and answered a timeout "
         "has no duplicate for the end-state check to catch"
     ),
+    "lagged": (
+        "lagged is offered on your own tools only: the built-in ledger has no read of a "
+        "record and refuses a repeated stage call, so a read that lags a write has nothing to "
+        "show and a second write nothing to break"
+    ),
 }
 # The knobs on a user's own tools, in the own generator's order (`own.generator.KNOBS`, which
 # cannot be imported here: it loads the tokenizer).  The tests hold this copy equal to it.
 _OWN_KNOBS = ("similarity", "faults", "history", "block", "arguments", "spread", "depth", "shape",
-              "timeouts", "ratelimits", "landed")
+              "timeouts", "ratelimits", "landed", "baddata", "lagged")
 _OWN_FORMATS = ("auto", "openai", "mcp", "openapi")
-_OWN_GENERATOR_VERSION = "own-2"
-# The own-tools label before 0.3.0, refused in a settings file in one line that says what moved.
-_OWN_GENERATOR_VERSION_BEFORE = "own-1"
+_OWN_GENERATOR_VERSION = "own-3"
+# The own-tools labels before this one, each with the release whose generator change retired
+# it: refused in a settings file in one line that says what moved and what the label is now.
+_OWN_GENERATOR_VERSIONS_BEFORE = {"own-1": "0.3.0", "own-2": "0.4.0"}
 OWN_LIST_FILE = "tools.mcp.json"
 """Where `init --mcp-command` saves the listed tools, beside the settings file."""
 _STRICTNESSES = ("strict", "leaky")
@@ -837,6 +853,8 @@ class _Reader:
             key = "measure.controls"
             controls = self.switch(key, given["controls"])
             pairs = _CUSTOM_CONTROLS[knob]
+            if controls and knob in _NO_CONTROL_ARM:
+                raise self.refusal(key, f"{self.name(key)} is true, and {_NO_CONTROL_ARM[knob]}")
             if controls and not any(low in chosen and high in chosen for low, high in pairs):
                 both = _listed([f"{low} and {high}" for low, high in pairs], "or")
                 raise self.refusal(
@@ -1199,7 +1217,7 @@ def dump_config(config: ProjectConfig) -> str:
     presets = _OWN_PRESETS if own is not None else _PRESETS
     knob_words = (
         _listed(_OWN_KNOBS, "or") if own is not None
-        else "depth | distractor | timeouts | ratelimits (experimental)"
+        else "depth | distractor | timeouts | ratelimits | baddata (experimental)"
     )
 
     out = [
@@ -1981,10 +1999,11 @@ def resolve_plan(config: ProjectConfig, *, root: str | os.PathLike[str] | None =
     own: dict[str, Any] | None = None
 
     if config.own is not None:
-        if tasks.generator_version == _OWN_GENERATOR_VERSION_BEFORE:
+        if tasks.generator_version in _OWN_GENERATOR_VERSIONS_BEFORE:
+            moved = _OWN_GENERATOR_VERSIONS_BEFORE[tasks.generator_version]
             raise ConfigError(
                 f"[tasks] generator_version is {_show(tasks.generator_version)}; the generator "
-                f'on your tools changed in 0.3.0 and is "{_OWN_GENERATOR_VERSION}" now, so '
+                f'on your tools changed in {moved} and is "{_OWN_GENERATOR_VERSION}" now, so '
                 "leave it unset",
                 key="tasks.generator_version",
             )

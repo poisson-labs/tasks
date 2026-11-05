@@ -28,6 +28,7 @@ from __future__ import annotations
 import datetime
 import os
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -77,6 +78,8 @@ KNOBS = (
      "and must be made again", arms.EXPERIMENTAL_KNOBS["timeouts"]),
     ("ratelimits", "ratelimits (experimental): how many calls on the way are rate limited, with "
      "a retry-after, and must be made again", arms.EXPERIMENTAL_KNOBS["ratelimits"]),
+    ("baddata", "baddata (experimental): how little a read that says ok and is wrong gives away, "
+     "the same read made again being right", arms.EXPERIMENTAL_KNOBS["baddata"]),
 )
 
 
@@ -584,10 +587,39 @@ def _read_own(ctx: Context, settings: list[tuple[str, str | None]]) -> _OwnSetup
     return _OwnSetup(reading, toolset, flows, table.file)
 
 
+def stale_data_notes(toolset: Any, offered: Sequence[str], flows: Any) -> list[tuple[str, str]]:
+    """What a set lacks for baddata and lagged, each as a label and one line that says so in
+    the own generator's sentence: no read that can carry a value (`carrier read`), no read
+    whose answer names what it was asked, so baddata has no level 1 (`named key`), and no read
+    that shows a write (`showing read`).  Nothing on a set with no write to target, which no
+    knob reaches.  `init` says each line as a warning and `doctor` as a note row under its
+    label."""
+    from poisson_tasks.own.generator import (
+        BADDATA_NEEDS_A_CARRIER,
+        BADDATA_NEEDS_A_NAMED_KEY,
+        LAGGED_NEEDS_A_SHOWING_READ,
+        knob_levels,
+    )
+
+    notes: list[tuple[str, str]] = []
+    if "faults" not in offered:
+        return notes
+    if "baddata" not in offered:
+        notes.append(("carrier read",
+                      f"baddata is not offered on this set. {BADDATA_NEEDS_A_CARRIER}"))
+    elif 1 not in knob_levels(toolset, "baddata", flows=flows):
+        notes.append(("named key",
+                      f"baddata has no level 1 on this set. {BADDATA_NEEDS_A_NAMED_KEY}"))
+    if "lagged" not in offered:
+        notes.append(("showing read",
+                      f"lagged is not offered on this set. {LAGGED_NEEDS_A_SHOWING_READ}"))
+    return notes
+
+
 def _say_summary(ctx: Context, setup: _OwnSetup) -> None:
     """One summary line, then each refusal, the sentence on landed when the set has a write to
-    target and no read that can check it, and the sentence on depth and shape when no flow is
-    declared."""
+    target and no read that can check it, the sentences on baddata and lagged when the set lacks
+    what each needs, and the sentence on depth and shape when no flow is declared."""
     from poisson_tasks.own import recipes
     from poisson_tasks.own.generator import LANDED_NEEDS_A_CHECK_READ, UNAVAILABLE_WITHOUT_FLOWS
 
@@ -602,6 +634,8 @@ def _say_summary(ctx: Context, setup: _OwnSetup) -> None:
     offered = recipes.offered_knobs(setup.toolset, flows=setup.flows)
     if "faults" in offered and "landed" not in offered:
         ui.say(f"landed is not offered on this set. {LANDED_NEEDS_A_CHECK_READ}", status="warn")
+    for _label, line in stale_data_notes(setup.toolset, offered, setup.flows):
+        ui.say(line, status="warn")
     if not setup.flows:
         ui.say("depth and shape are not offered without a flow, a link you declare from one "
                "tool's output field into another tool's input (--own-flow "
