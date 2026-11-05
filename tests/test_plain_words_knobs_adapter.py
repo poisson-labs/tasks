@@ -8,7 +8,8 @@ They cited references a reader of this repository cannot look up:
 
 The check reads every string literal in the two modules that is not a docstring, with the
 calibration module's pattern widened by three kinds of reference these modules carried.  Three things are allowed, each for a reason:
-- a ledger row id on its own (`"N3"`): the rows N1 to N13 and N19 to N35 are the ledger's
+- a ledger row id on its own (`"N3"`): the rows N1 to N13 and N19 to N36 (N36 retrofitted 2026-11-04
+  for 0.4.0, the stale-data spec's Q10) are the ledger's
   public names, and
   `docs/knobs-and-arms.md` lists every one;
 - "N18" in N10's held text: the test `test_n18_1` requires it there, as the ledger's
@@ -34,7 +35,7 @@ from poisson_tasks.tasks import generate
 from tests.helpers import INTERNAL
 
 REPO = Path(__file__).resolve().parent.parent
-ROW_ID = re.compile(r"N(?:[1-9]|1[0-3]|19|2\d|3[0-5])")
+ROW_ID = re.compile(r"N(?:[1-9]|1[0-3]|19|2\d|3[0-6])")
 # The calibration modules' pattern, and three more kinds of reference these two modules
 # carried: a landscape check's id (KC3), an upstream note's id (VN-7) and a bare
 # specification section, "(2.3".
