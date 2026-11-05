@@ -44,6 +44,14 @@ is written by the build, so it is read by name and a tree without it reads no di
 and fails the knob set, naming what is missing.  The literal below was moved by the build to the
 hash it measured, with the digests, as shape 3 says a deliberate change does; the labels moved to
 "2" and "own-2" with it (Q4).
+
+Retrofitted 2026-11-04 for 0.4.0 (the stale-data spec's ruled change to both generators, Q1): the
+`baddata` knob's content digests, kept in `tests/test_bd_kept.py` as the K-sessions' were (eval at the
+sixty card seeds, train at twelve, `tests/k4_support.py`), are read here beside the nine, so the knob
+set this file holds grows to ten.  `lagged` has no built-in tasks (Q5), so it has no digest here; its
+own-tools tasks are kept in the same file's own-tools half.  The kept file is written by the build, so
+it is read by name, and a tree without it fails the knob set.  The literal below is left for the
+build's first commit, with the hash it measures, as shape 3 says a deliberate change does.
 """
 
 from __future__ import annotations
@@ -98,6 +106,7 @@ KEPT: tuple[tuple[str, dict[tuple[str, str], str], dict[str, tuple[int, ...]]], 
     ("shape", test_k8_kept.MAIN, dict(SPLITS)),
     ("spread", test_k8b_kept.MAIN, dict(SPLITS)),
     ("timeouts and ratelimits", kept_by_name("test_f2_kept"), BOTH_AT_CARD_SEEDS),
+    ("baddata", kept_by_name("test_bd_kept"), dict(SPLITS)),
 )
 DIGESTS: dict[tuple[str, str], tuple[str, tuple[int, ...]]] = {
     (arm_id, split): (digest, seeds[split])
@@ -155,11 +164,11 @@ def test_the_generator_is_the_frozen_one_and_the_driver_expects_it() -> None:
 
 
 def test_every_knob_with_kept_digests_is_read_here() -> None:
-    """Shape 2: the nine knobs whose tasks the kept files pin, each at every card level
-    (retrofitted for 0.3.0: seven before it)."""
+    """Shape 2: the ten knobs whose tasks the kept files pin, each at every card level
+    (retrofitted for 0.3.0: seven before it; for 0.4.0: nine before it)."""
     knobs = {arm_id.partition(":")[0] for arm_id, _split in DIGESTS}
     assert knobs == {"similarity", "faults", "history", "block", "arguments", "shape", "spread",
-                     "timeouts", "ratelimits"}
+                     "timeouts", "ratelimits", "baddata"}
     assert all(split in {"eval", "train"} for _arm, split in DIGESTS)
 
 
