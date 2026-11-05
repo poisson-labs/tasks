@@ -78,7 +78,9 @@ def test_an_own_tools_request_states_every_value_its_goal_needs() -> None:
     for label in ("petstore", "acme-mcp", "everything"):
         toolset = fixture_sets()[label]
         for spec in every_arm(toolset):
-            if spec.knob in ("arguments", "spread"):
+            # Retrofitted 2026-11-04 for 0.4.0: `baddata` carries one value by design, as `spread` does
+            # (the stale-data spec's section 1.3; ruled yes).
+            if spec.knob in ("arguments", "spread", "baddata"):
                 continue
             for seed in range(4):
                 bundle = generator().generate(toolset, spec, seed)
