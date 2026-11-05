@@ -577,7 +577,8 @@ def test_a_clean_contrast_of_each_new_knob_refuses_nothing(knob: str) -> None:
 
 
 def test_every_bundle_measures_every_row_but_the_two_run_time_ones() -> None:
-    expected = {f"N{i}" for i in (*range(1, 10), 11, 12, *range(19, 36))}
+    # Retrofitted 2026-11-04 for 0.4.0: N36 is measured on every bundle (the stale-data spec's Q10).
+    expected = {f"N{i}" for i in (*range(1, 10), 11, 12, *range(19, 37))}
     for knob, make in CLEAN.items():
         for bundle in make():
             record = measure_pins(bundle)
