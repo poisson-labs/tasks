@@ -25,6 +25,11 @@ Computed on the build, branch `f2-build`, the built-in generator at
 ``.  It passes on that tree by design; a change that
 moves any of these tasks fails here.  What a deliberate change updates: the digests of the arms
 whose tasks moved, and the two hashes in their records.
+
+Re-pinned 2026-11-05 for 0.4.0: Petstore's two `landed` digests, and no other row.  `landed` now
+draws only a write whose check read's answer can show one of the write's arguments (the stale-data
+spec's Q14), so on Petstore `deleteOrder` and `deletePet` are no longer drawn and the seeds that
+drew them draw another write.  Every other digest here, built-in and own, is as 0.3.0 pinned it.
 """
 
 from __future__ import annotations
@@ -119,8 +124,8 @@ OWN = {
     ("petstore", "ratelimits:r1"): "f208b71d67d2e6fce179a9cf6228e7c3676d2dbb0ccc87ded712127145b6b59c",
     ("petstore", "ratelimits:r2"): "4d3e11789dfd63594632ebfe548668a61274ee6fe4a8b240c134865e07481f5a",
     ("petstore", "ratelimits:r4"): "57479d5950289fa0c045fbf8b612d35579cdf0de27f48a41df92d2abe1624ce7",
-    ("petstore", "landed:l0"): "a91c27147ddff709c876a1a92d916483dc113b2825a0f1eec3ce831b2c65ed92",
-    ("petstore", "landed:l1"): "a92c238606c46a8bc1853e3e76bc24a0d21c20589093485cea3adbec99abb5c8",
+    ("petstore", "landed:l0"): "9a7127141335d59dabcd1a4520a05c5f2a850b7d020b344bed4e0aff30c56f8a",
+    ("petstore", "landed:l1"): "36a5b44fcdb15c605f458d2ce58a3faef792d9d94e69063633e7619bdca06b59",
     ("everything", "timeouts:o0"): "305cb022a72e6a570e5c721844ff8b43b6d20ab02d043d329f19f7d4c94cbc44",
     ("everything", "timeouts:o1"): "fc19bf8e846a30114fe04cf4e12b3a1116a20bcd876ed3ec0f47b0b698d2d275",
     ("everything", "timeouts:o2"): "b18ff6e6030f3ec1c8fcf73c2b637d90cddeaf8abbbf6d68f85fc16e01421c0d",

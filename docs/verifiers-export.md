@@ -26,10 +26,23 @@ strict, on the eval split, at the generator version the package uses; a leaky ar
 its six fields. The dotted form, `--env.taskset.arm.<field>`, is not a way to give an arm: its
 values reach the taskset as text and are refused (`level "3" is not a whole number`), and beside
 an id `eval`'s own parser drops them before the taskset sees them, so the arm stays strict. The
-seeds are a list. `generator_version` is the label that goes into every task's id; `"1"` is the
-one the package uses, and [python.md](python.md) says what the label is. With no harness named,
+seeds are a list. `generator_version` is the label that goes into every task's id; the command
+above gives `"1"`, the package's own is `"3"` since 0.4.0, and [python.md](python.md) says what
+the label is. With no harness named,
 the run uses the measured harness (below) in a local subprocess; both are this taskset's own
 defaults and both show in the run's saved config.
+
+The option's help names every knob with its levels, and says which are experimental and
+why. Of the two added in 0.4.0, `baddata` and `lagged`, it says:
+
+```text
+knob 'baddata' (levels 0, 1, 2, 3) sets how little a bad read gives away: the request names two reads in place of stating which record and how far, and above level 0 one of them answers ok and wrong the first time it is made and right from then on, at 1 for another record under another item's word, at 2 for another record with nothing to say so, at 3 a stage one short; level 0 is its own control, so it has no control arm; EXPERIMENTAL: no model has been measured on it yet.
+knob 'lagged' (levels 0, 1) sets whether the first read after a write still shows the record as it was, so a model that believes the read writes again; it is offered on your own tools only, since the built-in ledger has no read of a record; EXPERIMENTAL: no model has been measured on it yet.
+```
+
+`--env.taskset.arm baddata:b2` runs like any other arm. This taskset refuses a `lagged` arm,
+since the generator makes no lagged task on the built-in ledger; on your own tools,
+`poisson-tasks export --to verifiers` writes a config for each lagged arm of your plan (below).
 
 That command, run against OpenAI on 2026-09-22 with `MODEL=gpt-5-nano` on a machine with no
 environment prepared, printed this:

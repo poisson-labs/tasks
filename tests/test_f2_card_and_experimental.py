@@ -297,8 +297,10 @@ SURFACES: dict[str, tuple[Callable[[], str], Callable[[str, dict[str, str]], boo
         f"{knob} | {knob} (experimental)" in said and f" | {why[knob]}" in said
         for knob in ("timeouts", "ratelimits"))),
     "plan": (surface_plan, lambda said, why: said == "timeouts (experimental) at 0 and 4"),
+    # Retrofitted 2026-11-04 for 0.4.0: `custom` offers `baddata` too (the stale-data spec's section 8;
+    # ruled yes).
     "config": (surface_config, lambda said, why: said.split("#", 1)[1].strip()
-               == "depth | distractor | timeouts | ratelimits (experimental)"),
+               == "depth | distractor | timeouts | ratelimits | baddata (experimental)"),
     "export": (surface_export, lambda said, why: all(
         f"knob '{knob}'" in said
         and "EXPERIMENTAL: " + why[knob] in said[said.index(f"knob '{knob}'"):].split(" knob '")[0]
@@ -336,8 +338,9 @@ def test_doctor_names_each_new_knob_experimental_in_its_rows_and_json(
             f"experimental: {NOT_MEASURED}")
         assert words in found[0], found[0]
     _ran, document = invoke_json(["doctor", "--offline"], monkeypatch)
+    # Retrofitted 2026-11-04 for 0.4.0: acme reaches `baddata` too (the stale-data spec's section 8).
     assert data_of(document)["tools"]["experimental"] == {
-        knob: NOT_MEASURED for knob in ("timeouts", "ratelimits", "landed")}
+        knob: NOT_MEASURED for knob in ("timeouts", "ratelimits", "landed", "baddata")}
 
 
 def test_the_recipes_and_the_probes_record_are_those_of_main() -> None:

@@ -131,7 +131,9 @@ def test_a_plan_on_own_tools_runs_end_to_end_and_its_replay_holds_each_tool_mess
 
     cal = calibration()
     plan, folder = own_run.plan, own_run.folder
-    assert [spec.generator_version for spec in plan.arms] == ["own-2"] * len(plan.arms)
+    # Retrofitted 2026-11-04 for 0.4.0: the label moved from "own-2" to "own-3" (the stale-data
+    # spec's Q1).
+    assert [spec.generator_version for spec in plan.arms] == ["own-3"] * len(plan.arms)
     held = json.loads((folder / "plan.json").read_text(encoding="utf-8"))
     assert held["plan"]["own"]["file_digest"] == plan.own["file_digest"]
     by_id = {bundle.task_id: bundle for bundle in own_run.bundles}

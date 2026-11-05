@@ -41,7 +41,9 @@ def test_calls_made_in_one_turn_replay_in_the_order_the_harness_sent_them(
     with reference_model() as model:
         cfg = config()
         data = (tmp_path / "tools.json").read_bytes()
-        spec = arm_from_id("spread:p4", generator_version="own-2")
+        # Retrofitted 2026-11-04 for 0.4.0: the label moved from "own-2" to "own-3" (the stale-data
+        # spec's Q1).
+        spec = arm_from_id("spread:p4", generator_version="own-3")
         plan = cfg.Plan(
             preset="custom", arms=(spec,), seeds=(404,), attempts=1,
             model=cfg.ModelConfig(provider="openai-compatible", name="scripted", base_url=model.base_url,

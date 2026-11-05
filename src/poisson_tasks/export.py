@@ -353,6 +353,16 @@ class ExportTasksetConfig(_vf.TasksetConfig):
             "so a blind retry is a duplicate; it is offered on your own tools only, whose store "
             "accepts a second write, since on the built-in ledger a repeated stage call is refused "
             f"and changes nothing; EXPERIMENTAL: {_EXPERIMENTAL_KNOBS['landed']}. "
+            "knob 'baddata' (levels 0, 1, 2, 3) sets how little a bad read gives away: the "
+            "request names two reads in place of stating which record and how far, and above "
+            "level 0 one of them answers ok and wrong the first time it is made and right from "
+            "then on, at 1 for another record under another item's word, at 2 for another record "
+            "with nothing to say so, at 3 a stage one short; level 0 is its own control, so it "
+            f"has no control arm; EXPERIMENTAL: {_EXPERIMENTAL_KNOBS['baddata']}. "
+            "knob 'lagged' (levels 0, 1) sets whether the first read after a write still shows "
+            "the record as it was, so a model that believes the read writes again; it is offered "
+            "on your own tools only, since the built-in ledger has no read of a record; "
+            f"EXPERIMENTAL: {_EXPERIMENTAL_KNOBS['lagged']}. "
             "See docs/calibration.md."
         ),
     )

@@ -37,13 +37,14 @@ FMT = FormatSpec(name="reference", markers=())
 LETTER = {
     "similarity": "s", "faults": "f", "history": "t", "block": "k",
     "arguments": "a", "spread": "p", "depth": "d", "shape": "w",
-    "timeouts": "o", "ratelimits": "r", "landed": "l",
+    "timeouts": "o", "ratelimits": "r", "landed": "l", "baddata": "b", "lagged": "g",
 }
 # The knobs that have levels, in the knobs' order (cost and time has none).  Retrofitted
 # 2026-10-29 for 0.3.0: the faults spec's three new knobs follow the eight, so `generator.KNOBS`
-# is eleven (ruled, Q1).
+# is eleven (ruled, Q1).  Retrofitted 2026-11-04 for 0.4.0: the stale-data spec's two knobs follow the
+# eleven, so it is thirteen (ruled, its Q1, Q2 and Q5).
 KNOBS = ("similarity", "faults", "history", "block", "arguments", "spread", "depth", "shape",
-         "timeouts", "ratelimits", "landed")
+         "timeouts", "ratelimits", "landed", "baddata", "lagged")
 ACME_READS = ("get_order", "search_orders", "list_channels")
 
 

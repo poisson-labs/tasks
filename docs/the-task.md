@@ -46,6 +46,22 @@ dial: whether the call went through is not known) and `rate_limited` (the rateli
 with `retry-after=1s` at the start of the payload: nothing changed, and the hint is read, not
 waited on). The sequence number advances on these as on every call.
 
+The `baddata` dial adds no status word. Its bad answer is an ordinary `ok` line, so nothing
+in the status field marks it: one read the request names answers `ok` with a wrong payload
+the first time it is made, and the same read made again is right from then on.
+
+```
+000001 ok           found/national.2db275c9510066a4b
+000002 ok           found/able.2db275c9510066a4ba067
+```
+
+A `baddata` request has a shape of its own. It does not state the record or the goal stage:
+it names both records of the ledger and two reads, the first of which names the record and
+the second the stage to raise it through, and says how to read their payloads (the first
+word of the catalogue item an answer is for, a slash, what it names, a full stop, then
+filler). [knobs-and-arms.md](knobs-and-arms.md) shows one in full, with what each level's
+first answer holds.
+
 Beside the stage tools a task needs, the block holds **read tools** (`lookup_region`,
 `scan_capacity`, ...), which answer questions about a catalogue and mutate nothing. The
 decoy-tools dial (`distractor`) puts decoys in their place: stage tools of other ledger

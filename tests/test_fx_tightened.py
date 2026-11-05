@@ -98,15 +98,18 @@ def test_fx38_2_a_read_with_no_checkable_argument_answers_as_before_the_write(na
     assert loaded(looked_after)["order_id"] == args["order_id"], "the control: the write is shown"
 
 
-def test_fx38_3_the_shared_reasons_are_the_four_experimental_dials() -> None:
-    """The reasons the notes are held to are the mapping's own, and it is the four."""
+def test_fx38_3_the_shared_reasons_are_the_six_experimental_dials() -> None:
+    """The reasons the notes are held to are the mapping's own, and it is the six (retrofitted
+    2026-11-04 for 0.4.0: four before the stale-data spec's section 8)."""
     assert experimental() == EXPERIMENTAL_REASONS
 
 
 def test_fx38_3_the_built_in_menus_notes_are_the_reasons_exactly() -> None:
     reasons = experimental()
     menu = {name: (label, note) for name, label, note in _init.KNOBS}
-    assert {name for name in menu if name in reasons} == {"distractor", "timeouts", "ratelimits"}
+    # Retrofitted 2026-11-04 for 0.4.0: the menu offers `baddata` too (the stale-data spec's Q11).
+    assert {name for name in menu if name in reasons} == {"distractor", "timeouts", "ratelimits",
+                                                          "baddata"}
     for name in ("distractor", "timeouts", "ratelimits"):
         label, note = menu[name]
         assert note == reasons[name], (name, note)

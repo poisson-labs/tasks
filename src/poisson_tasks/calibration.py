@@ -313,11 +313,12 @@ _KNOBS = (_DEPTH, _DISTRACTOR)
 # of it (faults), or whose answers are numbered from after earlier tool work the prompt holds
 # (history), or served under read copies' names the engine does not know (block), or refused
 # by the argument check in front of it (arguments), or answered with the parts of a split
-# entry code in front of it (spread), so that the tool server and the verifier applying any
-# of these differently, or starting their numbers apart, is a failure the records would
-# otherwise never show.
+# entry code in front of it (spread), or with a named read's first answer and then its second
+# in front of it (baddata), so that the tool server and the verifier applying any of these
+# differently, or starting their numbers apart, is a failure the records would otherwise never
+# show.
 _REPLAY_CHECKED = ("similarity", "faults", "history", "block", "arguments", "shape", "spread",
-                   "timeouts", "ratelimits")
+                   "timeouts", "ratelimits", "baddata")
 _REPLAY_MISMATCH = "replay_mismatch"
 # The own-tools provenance kind, and the keys its block carries.
 _OWN_KIND = "own"
@@ -331,6 +332,14 @@ _UNAVAILABLE = "unavailable"
 # answer it can retry after (0.3.0).
 _GIVE_UP_KNOBS = ("faults", "timeouts", "ratelimits")
 _LANDED = "landed"
+# The two knobs whose arms answer a read wrongly once (0.4.0): a card holding either prints what
+# the model did about it.
+_BADDATA = "baddata"
+_LAGGED = "lagged"
+_BAD_DATA_KNOBS = (_BADDATA, _LAGGED)
+# The baddata level whose bad answer is a stage one short, where the two below it name the
+# other record.
+_BADDATA_SHORT = 3
 
 
 # ---------------------------------------------------------------------------
@@ -370,6 +379,16 @@ class EpisodeRecord:
     write repeated an earlier accepted write, the same tool with the same arguments; `None` on
     a built-in arm.  Each is left out of the written line when `None`, so a record written
     before the two existed writes back as the line it was.
+
+    `acted_on_bad_data` and `read_again_after_bad` are the baddata and lagged knobs' (0.4.0),
+    above level 0.  The first is whether the episode received the arm's one bad answer and then
+    did what it asked: on the built-in tasks the other record moved (levels 1 and 2) or the
+    episode ended with the target one stage short (level 3); on own tools an accepted write
+    carried the bad value, or on a lagged arm the target write was accepted again after the
+    lagging read.  The second is whether, after the bad answer, the model called that read again
+    by its name before its next stage call or write, whether or not the harness forwarded either
+    call.  An episode that never received the bad answer reads `False` on both.  Each is `None`
+    on every other arm and at level 0, and then left out of the written line.
     """
 
     task_id: str
@@ -395,6 +414,8 @@ class EpisodeRecord:
     gave_up_after_fault: bool | None = None
     retried_after_landed: bool | None = None
     duplicate_write: bool | None = None
+    acted_on_bad_data: bool | None = None
+    read_again_after_bad: bool | None = None
 
     def __post_init__(self) -> None:
         if self.label not in OUTCOME_LABELS:
@@ -444,11 +465,12 @@ _SECONDS_FIELDS = ("episode_seconds", "model_seconds", "harness_seconds", "setup
 _OPTIONAL_FIELDS = (*_SECONDS_FIELDS, "first_request_prompt_tokens")
 """The record's fields that a trace may not have measured: `None` in the record and absent
 from its written line."""
-_FIGURE_FIELDS = ("gave_up_after_fault", "retried_after_landed", "duplicate_write")
-"""The per-episode figures of what the model did after a fault, each `None` where it does not
-apply."""
+_FIGURE_FIELDS = ("gave_up_after_fault", "retried_after_landed", "duplicate_write",
+                  "acted_on_bad_data", "read_again_after_bad")
+"""The per-episode figures of what the model did after a fault or a bad answer, each `None`
+where it does not apply."""
 _LEFT_OUT_WHEN_NONE = (*_OPTIONAL_FIELDS, *_FIGURE_FIELDS)
-"""Every field a written line leaves out when it is `None`: the unmeasured ones, and the three
+"""Every field a written line leaves out when it is `None`: the unmeasured ones, and the five
 figures where they do not apply."""
 
 Cell = _Sequence[EpisodeRecord]
@@ -1416,6 +1438,8 @@ def _cell_figures(
     # records carry no verdict has neither key, so no published artifact moves.
     # The two figures of 0.3.0 the same way: retried after a landed timeout (landed arms) and
     # duplicate writes (every own-tools arm), each over the scored episodes that carry a value.
+    # And the two of 0.4.0: acted on bad data and read again after a bad answer (baddata and
+    # lagged arms above level 0).
     for name in _FIGURE_FIELDS:
         judged = [row for row in kept if getattr(row, name) is not None]
         if judged:
@@ -1689,12 +1713,16 @@ def _concurrency(prov: Provenance) -> str:
 # The columns a card prints for what the model did after a fault, each with the cell key it
 # reads: on a card holding faults, timeouts or ratelimits arms, *gave up after a fault*; on one
 # holding landed arms, *retried after a landed timeout*; on an own-tools card, *duplicate
-# writes*.  A card's columns are decided from its arms once and printed at the end of every
-# table that lists arms, so the published cards, which hold none of the three, keep their bytes.
+# writes*; on one holding baddata or lagged arms, *acted on bad data* and *read again after a
+# bad answer*, the last two columns.  A card's columns are decided from its arms once and printed
+# at the end of every table that lists arms, so the published cards, which hold none of the
+# five, keep their bytes.
 _FIGURE_COLUMNS = (
     ("gave up after a fault", "gave_up_after_fault_share"),
     ("retried after a landed timeout", "retried_after_landed_share"),
     ("duplicate writes", "duplicate_write_share"),
+    ("acted on bad data", "acted_on_bad_data_share"),
+    ("read again after a bad answer", "read_again_after_bad_share"),
 )
 _Columns = _Sequence[tuple[str, str]]
 
@@ -1708,7 +1736,7 @@ def _knobs_of(artifact: Artifact) -> set[str]:
 
 def _figure_columns(artifact: Artifact) -> list[tuple[str, str]]:
     knobs = _knobs_of(artifact)
-    gave_up, retried, duplicate = _FIGURE_COLUMNS
+    gave_up, retried, duplicate, acted, read_again = _FIGURE_COLUMNS
     out: list[tuple[str, str]] = []
     if knobs & set(_GIVE_UP_KNOBS):
         out.append(gave_up)
@@ -1716,6 +1744,8 @@ def _figure_columns(artifact: Artifact) -> list[tuple[str, str]]:
         out.append(retried)
     if artifact.provenance.tools is not None:
         out.append(duplicate)
+    if knobs & set(_BAD_DATA_KNOBS):
+        out += [acted, read_again]
     return out
 
 
@@ -2972,6 +3002,143 @@ def _gave_up_after_fault(data: _Any, trace: _Any) -> bool | None:
     return False
 
 
+def _bad_data_figures(data: _Any, trace: _Any) -> tuple[bool | None, bool | None]:
+    """A built-in episode's two bad-data figures, acted on bad data and read again after a bad
+    answer; `None` and `None` on an arm that is not a baddata arm above level 0.
+
+    The bad read is the named read the reference makes twice, and the bad answer is what its
+    first call that reached the server was given: the calls that reached it are replayed as the
+    replay check replays them, so "received" is read off the same count the server kept.  Acted
+    is that answer received and then, at levels 1 and 2, the other record of the target ledger
+    moved by a later call, or, at level 3, the episode ended with the target one stage short of
+    the goal.  Read again is, after that answer, a sampled call by the bad read's name before the
+    next sampled call by a stage tool's name, whether or not the harness forwarded either: a
+    model that wrote its second read badly still read again, as a badly written retry is still a
+    retry.  An episode that never received the bad answer is `False` on both, whatever it did.
+    """
+    from poisson_tasks import surface as _surface
+    from poisson_tasks.engine import EngineSpec as _EngineSpec
+    from poisson_tasks.engine import init_state as _init_state
+    from poisson_tasks.export import _sampled_exchanges, _seq_of, bundle_from_data
+    from poisson_tasks.tasks import scenario_for as _scenario_for
+
+    spec = _spec_for(str(data.arm_id))
+    if spec is None or spec.knob != _BADDATA or not spec.level:
+        return None, None
+    bundle = bundle_from_data(data)
+    shown = _surface.display_map(
+        bundle.seed, bundle.split, bundle.arm_id, bundle.goal,
+        tuple(str(tool["name"]) for tool in bundle.tools),
+    )
+    named = _surface.spread_answers(
+        bundle.arm_id, shown, bundle.reference_calls, bundle.reference_observations
+    ) or ()
+    reads = [(tool, dict(arguments)) for tool, arguments, _payload in named]
+    twice = [read for index, read in enumerate(reads) if read in reads[index + 1:]]
+    if not twice:
+        return None, None
+    bad_tool, bad_arguments = twice[0]
+    stage_tools = _EngineSpec.load().stage_tools
+    scenario = _scenario_for(bundle.seed, bundle.split)
+    ledger, target, goal = bundle.goal
+    others = [record for held, record in scenario.records if held == ledger and record != target]
+    plan = _surface.reference_plan(bundle.arm_id, shown, bundle.reference_calls)
+    kind = _surface.fault_kind(bundle.arm_id) or _UNAVAILABLE
+    stated = _surface.stated_values(bundle.arm_id, shown, bundle.reference_calls)
+    state = _init_state(scenario, bundle.seq_start)
+    counts: dict[str, int] = {}
+    received = moved = read_again = looking = False
+    for content, (name, arguments) in _sampled_exchanges(trace):
+        engine = _surface.engine_name(shown, name)
+        if looking and engine == bad_tool:
+            read_again, looking = True, False
+        elif looking and engine in stage_tools:
+            looking = False
+        if _seq_of(content) is None:
+            continue
+        before = [state.records[(ledger, other)].stage for other in others]
+        first = (
+            not received and engine == bad_tool and isinstance(arguments, _Mapping)
+            and dict(arguments) == bad_arguments
+        )
+        state, counts, _observation = _surface.apply_planned(
+            state, counts, (engine, arguments), plan, stated=stated, spread=named, kind=kind
+        )
+        if first:
+            received = looking = True
+        elif received and [state.records[(ledger, other)].stage for other in others] != before:
+            moved = True
+    if spec.level == _BADDATA_SHORT:
+        acted = received and state.records[(ledger, target)].stage == goal - 1
+    else:
+        acted = moved
+    return acted, read_again
+
+
+def _own_bad_data_figures(
+    bundle: _Any, exchanges: _Sequence[tuple[_Any, tuple[str, _Any]]], block: _Mapping[str, _Any]
+) -> tuple[bool | None, bool | None]:
+    """An own-tools episode's two bad-data figures; `None` and `None` on an arm that is not a
+    baddata or lagged arm above level 0.
+
+    The calls that reached the server are stepped through the simulator as the replay check
+    steps them, so the bad answer is the one the store gave: on a baddata arm the first answer
+    of the task's read step, on a lagged arm the one lagging read (`State.lagged`).  Acted is
+    that answer received and then, on baddata, an accepted write of the target carrying the bad
+    value where the task carries the true one, read off the store's writes, or, on lagged, the
+    target write accepted again.  Read again is, after that answer, a sampled call by that
+    read's name before the next sampled call by a write tool's name, whether or not the harness
+    forwarded either.  An episode that never received the bad answer is `False` on both.
+    """
+    from poisson_tasks.own import simulator as _own_sim
+
+    arm = _parse_arm_id(str(bundle.arm_id))
+    if arm.knob not in _BAD_DATA_KNOBS or not arm.level:
+        return None, None
+    effects = dict(bundle.effects)
+    target = str(bundle.target)
+    argument: str | None = None
+    bad_value: _Any = None
+    if arm.knob == _BADDATA:
+        bad_step = next((step for step in bundle.steps if step.get("bad")), None)
+        if bad_step is None:
+            return None, None
+        ((_path, bad_value),) = bad_step["bad"]
+        # The carried argument is the one the target call holds and the request does not state.
+        stated = {name for name, _value in bundle.stated}
+        target_call = next(args for name, args in reversed(bundle.reference_calls)
+                           if name == target)
+        (argument,) = [name for name in target_call if name not in stated]
+    state = _own_sim.start(bundle)
+    received = acted = read_again = looking = False
+    bad_read: str | None = None
+    for _content, (name, arguments) in exchanges:
+        if looking and name == bad_read:
+            read_again, looking = True, False
+        elif looking and name in block and effects.get(name) != "read":
+            looking = False
+        if not _own_sim.reaches_the_server(name, arguments, block):
+            continue
+        before = state
+        state, _answer = _own_sim.step(bundle, state, (name, arguments))
+        accepted = [write for write in state.writes[len(before.writes):] if write[0] == target]
+        if arm.knob == _BADDATA:
+            first = not received and state.served != before.served
+            if received and any(
+                argument in held and _own_sim.same(held[argument], bad_value)
+                for held in (_json.loads(written) for _tool, written in accepted)
+            ):
+                acted = True
+        else:
+            first = state.lagged and not before.lagged
+            if received and any(write in before.writes for write in accepted):
+                acted = True
+        if first:
+            received = looking = True
+            bad_read = name
+    return acted, read_again
+
+
 def _is_own_task(dumped: _Mapping[str, _Any]) -> bool:
     """Whether an episode's task data is an own-tools task's: it names the tool file's digest
     and the set, which no built-in task data carries."""
@@ -2987,7 +3154,8 @@ def _own_record(
     answers and store: gave up after a fault on a faults, timeouts or ratelimits arm, keyed on
     the arm's word; retried after a landed timeout on a landed arm, any later sampled call by
     the landed tool's name, forwarded or not; and a duplicate write, an accepted write equal to
-    an earlier one, on every arm."""
+    an earlier one, on every arm.  On a baddata or lagged arm above level 0, the two bad-data
+    figures too (`_own_bad_data_figures`)."""
     from poisson_tasks import surface as _surface
     from poisson_tasks.export import _sampled_exchanges
     from poisson_tasks.own import simulator as _own_sim
@@ -3002,6 +3170,8 @@ def _own_record(
     gave_up: bool | None = None
     retried: bool | None = None
     duplicate: bool | None = None
+    acted: bool | None = None
+    read_again: bool | None = None
     if instrument is not None or trace is None:
         strict, leaky, label = False, False, instrument or "api_error"
     else:
@@ -3028,6 +3198,7 @@ def _own_record(
                     f"disagree (strict={strict}, leaky={leaky}, label={label!r})"
                 )
             duplicate = len(state.writes) != len(set(state.writes))
+            acted, read_again = _own_bad_data_figures(bundle, exchanges, block)
             word = _surface.fault_kind(str(data.arm_id))
             knob = _parse_arm_id(str(data.arm_id)).knob
             if bundle.fault_plan and word is not None and knob == _LANDED:
@@ -3062,6 +3233,8 @@ def _own_record(
         gave_up_after_fault=gave_up,
         retried_after_landed=retried,
         duplicate_write=duplicate,
+        acted_on_bad_data=acted,
+        read_again_after_bad=read_again,
     )
 
 
@@ -3119,6 +3292,7 @@ def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecor
                         f"episode {episode.id}: the recorded reward and the re-read verdict "
                         f"disagree (strict={strict}, leaky={leaky}, label={label!r})"
                     )
+        acted, read_again = _bad_data_figures(data, trace) if trace is not None else (None, None)
         out.append(EpisodeRecord(
             task_id=str(data.task_id), arm_id=str(data.arm_id), model=model,
             seed=int(data.seed), attempt=attempt, strict=strict, leaky=leaky, label=label,
@@ -3131,6 +3305,8 @@ def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecor
             cost=float(usage.cost) if usage and usage.cost is not None else None,
             **(_time_from_trace(trace) if trace is not None else {}),
             gave_up_after_fault=_gave_up_after_fault(data, trace) if trace is not None else None,
+            acted_on_bad_data=acted,
+            read_again_after_bad=read_again,
         ))
     return out
 

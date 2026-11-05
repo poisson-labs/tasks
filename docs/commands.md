@@ -195,8 +195,8 @@ options:
   --recipe NAME         what to measure: first-look, card or custom, or a
                         recipe your tools reach (default: first-look)
   --measure NAME        an alias of --recipe, kept for one release
-  --knob NAME           with --recipe custom: depth, distractor, timeouts or
-                        ratelimits (default: depth)
+  --knob NAME           with --recipe custom: depth, distractor, timeouts,
+                        ratelimits or baddata (default: depth)
   --levels L,L,…        with --recipe custom: the levels, comma-separated
                         (default: every level of the knob)
   --controls            with --recipe custom: add the control arms
@@ -318,8 +318,8 @@ options:
   --arm ID              an arm to generate, as depth:d3; repeatable (default:
                         the settings file's plan)
   --knob NAME           instead of --arm: the knob, depth, distractor,
-                        timeouts or ratelimits; on your own tools, any knob
-                        the set reaches (default: none)
+                        timeouts, ratelimits or baddata; on your own tools,
+                        any knob the set reaches (default: none)
   --levels L,L,…        with --knob: the levels, comma-separated (default:
                         every level)
   --controls            with --knob: add the control arms (default: no)

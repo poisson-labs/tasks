@@ -44,21 +44,24 @@ __all__ = [
 
 # "1" from 0.1.0, when the seven knobs changed the generator and every task id moved; "2" from
 # 0.3.0, when the three transport-fault knobs changed it again (decided 2026-10-29), so that
-# one label names one generator.
-DEFAULT_GENERATOR_VERSION = "2"
+# one label names one generator; "3" from 0.4.0, when the two stale-data knobs changed it a third
+# time (ruled 2026-11-04).
+DEFAULT_GENERATOR_VERSION = "3"
 
-# The knobs that are experimental, each with the reason in words: the one place the four are
+# The knobs that are experimental, each with the reason in words: the one place the six are
 # listed, read by every surface that names a knob (the card's claims and `--json`, `doctor`'s
 # rows and `--json`, `init`'s choices, the plan's words, the settings file's comment, the
 # export's arm help, the own-tools card's probe lines), so the word never appears beside a knob
 # without its reason.  The distractor dial did not make tasks harder on either calibrated
-# model; the three knobs of 0.3.0 have not been measured on any model yet, and a later release
-# measures them.  `knob_status()` is untouched: it is the probe's record.
+# model; the three knobs of 0.3.0 and the two of 0.4.0 have not been measured on any model yet,
+# and a later release measures them.  `knob_status()` is untouched: it is the probe's record.
 EXPERIMENTAL_KNOBS: _Mapping[str, str] = _types.MappingProxyType({
     "distractor": "it did not make tasks harder for either calibrated model",
     "timeouts": "no model has been measured on it yet",
     "ratelimits": "no model has been measured on it yet",
     "landed": "no model has been measured on it yet",
+    "baddata": "no model has been measured on it yet",
+    "lagged": "no model has been measured on it yet",
 })
 
 # The published cards' control arms, as (level, the level it stands in for): equal to
@@ -107,9 +110,9 @@ def arm_from_id(
 
 
 # The knobs whose arms the built-in tasks take, for the refusal of a text that is not an arm id;
-# `landed` is the twelfth and is offered on your own tools only.
+# `landed` and `lagged` are the other two and are offered on your own tools only.
 _BUILT_IN_KNOBS = ("depth", "distractor", "similarity", "faults", "history", "block", "arguments",
-                   "shape", "spread", "timeouts", "ratelimits")
+                   "shape", "spread", "timeouts", "ratelimits", "baddata")
 
 
 def _known_arm_ids() -> list[str]:

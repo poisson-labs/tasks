@@ -281,7 +281,8 @@ OTHER = re.compile(
     r"\bKC\d+\b|\bSF\d+\b|\bPG-\d+|\bTG-|\bfrozen\b|\boracle\b|\bSession [AB]\b|\bFD\d\b"
     r"|\bK(?:10|[0-9])\b|\bO[12]\b|\bPT4\b|\bP(?:[1-9]|1[0-5])\b|\bruled \d{4}-|\byes/no\b"
 )
-ROW_ID = re.compile(r"N(?:[1-9]|1[0-3]|19|2\d|3[0-5])")
+# Retrofitted 2026-11-04 for 0.4.0: the rows run to N36 (the stale-data spec's Q10; ruled yes).
+ROW_ID = re.compile(r"N(?:[1-9]|1[0-3]|19|2\d|3[0-6])")
 ROW_WORD = re.compile(r"\brows?\b")
 TEXT_FENCES = {"bibtex"}
 

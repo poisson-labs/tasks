@@ -30,6 +30,18 @@ arm the one planned call reaches the store as any call does, accepted, a stray w
 by its schema, and its answer is replaced by the timeout.  `respond` itself is unchanged: the
 echo and the reflection are `step`'s, read off the call and the store.
 
+Since 0.4.0 (the stale-data spec, ruled 2026-11-04) two knobs' arms answer a read wrongly once.
+On a `baddata` or `lagged` arm, and on no other, every read's answer names what it was asked:
+the call's arguments are echoed into it by the write echo's rule, so an answer for another
+record can be told from one for the record asked.  On a `baddata` arm above level 0 the task's
+one read step carries `bad`, the value its first answer holds in place of the one it serves, and
+at level 1 `bad_key`, the key that answer shows in place of the one asked; the first call that
+matches the step answers from those and every later one from `serves`, read off the step's
+`served` flag, which already says whether the step has been asked.  On a `lagged` arm at level 1
+the first read that would reflect an accepted write of the target answers as if the write had
+not landed, once in an episode (`State.lagged`); every later read reflects it.  Neither is an
+error and neither plans an answer: the fault plan is empty on both.
+
 Pure: no clock but `CLOCK` (dates are arithmetic on it, never read from the machine), no
 randomness but the keyed draw, no network.  Output schema keywords the draw cannot honour
 (`OUTPUT_PASSED_OVER`) are taken out before a value is drawn; `anyOf` takes its first branch
@@ -50,6 +62,8 @@ from dataclasses import dataclass as _dataclass
 from dataclasses import replace as _dc_replace
 from typing import Any as _Any
 
+from poisson_tasks.knobs import _BADDATA as _BADDATA_KNOB
+from poisson_tasks.knobs import _LAGGED as _LAGGED_KNOB
 from poisson_tasks.knobs import _LANDED as _LANDED_KNOB
 from poisson_tasks.knobs import _parse_arm_id
 from poisson_tasks.own._types import OwnTool as _OwnTool
@@ -132,7 +146,8 @@ class State:
     serves a value, the accepted writes it did not expect, every call the server received, how
     many times each tool was called (the fault plan's counter), and every accepted write,
     expected or not, as `(tool, canonical arguments)` in the order the server received them.
-    A duplicate write is an accepted write equal to an earlier one, read off `writes`."""
+    A duplicate write is an accepted write equal to an earlier one, read off `writes`.
+    `lagged` is whether a lagged arm's one lagging answer has been given."""
 
     done: tuple[bool, ...]
     side_effects: tuple[_Any, ...]
@@ -140,6 +155,7 @@ class State:
     served: tuple[bool, ...] = ()
     counts: tuple[tuple[str, int], ...] = ()
     writes: tuple[tuple[str, str], ...] = ()
+    lagged: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -729,37 +745,56 @@ def _overlaid(value: _Any, arguments: _Mapping[str, _Any], output_schema: _Any) 
     return out
 
 
-def _reflected(state: State, tool: _OwnTool, arguments: _Mapping[str, _Any],
-               checkable: _Sequence[str]) -> _Mapping[str, _Any] | None:
-    """The arguments of the latest accepted write a read of `tool` reflects: one whose
-    arguments hold every checkable argument of the read, under the same names with the same
-    values, there being at least one; `None` when no write does."""
+def _reflected_write(state: State, arguments: _Mapping[str, _Any],
+                     checkable: _Sequence[str]) -> tuple[str, _Mapping[str, _Any]] | None:
+    """The latest accepted write a read with `arguments` reflects, its tool and its arguments:
+    one whose arguments hold every checkable argument of the read, under the same names with
+    the same values, there being at least one; `None` when no write does."""
     keys = [name for name in checkable if name in arguments]
     if not keys:
         return None
-    for _name, written in reversed(state.writes):
+    for name, written in reversed(state.writes):
         held = _json.loads(written)
         if isinstance(held, dict) and all(
             key in held and same(held[key], arguments[key]) for key in keys
         ):
-            return dict(held)
+            return str(name), dict(held)
     return None
+
+
+def _reflected(state: State, tool: _OwnTool, arguments: _Mapping[str, _Any],
+               checkable: _Sequence[str]) -> _Mapping[str, _Any] | None:
+    """The arguments of the latest accepted write a read of `tool` reflects
+    (`_reflected_write`); `None` when no write does."""
+    found = _reflected_write(state, arguments, checkable)
+    return None if found is None else found[1]
 
 
 def _served_answer(task: _Any, tool: _OwnTool, arguments: _Mapping[str, _Any],
                    step_: _Mapping[str, _Any] | None, *,
-                   echoed: _Mapping[str, _Any] | None = None) -> Answer:
-    """An accepted call's answer: the drawn object, the echo (`echoed`, the write's own
+                   echoed: _Mapping[str, _Any] | None = None,
+                   asked: _Mapping[str, _Any] | None = None, bad: bool = False) -> Answer:
+    """An accepted call's answer: the drawn object, what the read was asked (`asked`, a read's
+    own arguments on a baddata or lagged arm, or none), the echo (`echoed`, the write's own
     arguments on a write and the reflected write's on a read, or none), then the values the
-    task serves, placed last so a served value is never overwritten."""
+    task serves, placed last so a served value is never overwritten.  With `bad`, the step's
+    one bad answer: the key it shows in place of the one asked, where it has one, and the value
+    it holds in place of the one it serves."""
     value = respond(tool, arguments, digest=task.file_digest, seed=task.seed, split=task.split)
+    if asked is not None:
+        value = _overlaid(value, asked, tool.output_schema)
     if echoed is not None:
         value = _overlaid(value, echoed, tool.output_schema)
         if tool.output_schema is None and tool.effect != "read" and isinstance(value, dict):
             value[_OK] = True
-    if step_ is not None and step_["serves"]:
+    serves = step_["serves"] if step_ is not None else []
+    if bad and step_ is not None:
+        serves = step_["bad"]
+        if step_.get("bad_key"):
+            value = _overlaid(value, step_["bad_key"], tool.output_schema)
+    if serves:
         key = _key_of(task.file_digest, task.seed, task.split, tool.name, arguments)
-        for path, placed in step_["serves"]:
+        for path, placed in serves:
             value = _place(value, str(path), placed, tool.output_schema, key)
     return success(task.source_format, tool, value)
 
@@ -778,6 +813,29 @@ def _is_landed(task: _Any) -> bool:
         return _parse_arm_id(str(task.arm_id)).knob == _LANDED_KNOB
     except ValueError:
         return False
+
+
+def _arm_of(task: _Any) -> tuple[str, int] | None:
+    """The task's knob and level, or `None` where its arm id names no arm."""
+    try:
+        arm = _parse_arm_id(str(task.arm_id))
+    except ValueError:
+        return None
+    return arm.knob, arm.level
+
+
+def _names_what_it_was_asked(task: _Any) -> bool:
+    """Whether the task's reads echo what they were asked: on a baddata or lagged arm, at every
+    level, and on no other, whose reads answer as they did."""
+    arm = _arm_of(task)
+    return arm is not None and arm[0] in (_BADDATA_KNOB, _LAGGED_KNOB)
+
+
+def _lags(task: _Any) -> bool:
+    """Whether the task's first read after the target write lags it: a lagged arm at level 1.
+    Read off the arm id, so no bundle field holds it and the fault plan stays empty."""
+    arm = _arm_of(task)
+    return arm is not None and arm[0] == _LAGGED_KNOB and arm[1] > 0
 
 
 def _planned_error(fmt: str, kind: str, name: str) -> Answer:
@@ -822,10 +880,19 @@ def _applied(task: _Any, after: State, tool: _OwnTool, name: str,
     checkable = [n for n, s in (properties.items() if isinstance(properties, dict) else ())
                  if not _free_text(s)]
     if tool.effect == "read":
-        echoed = _reflected(state, tool, arguments, checkable)
+        asked = arguments if _names_what_it_was_asked(task) else None
+        reflected = _reflected_write(state, arguments, checkable)
+        echoed = None if reflected is None else reflected[1]
+        if reflected is not None and reflected[0] == task.target and _lags(task) and (
+            not state.lagged
+        ):
+            # The one lagging answer: the write landed, and this read answers as if it had not.
+            after = _with(after, lagged=True)
+            echoed = None
         keyed = [i for i, s in enumerate(task.steps) if s["effect"] == "read" and s["tool"] == name]
         if not keyed:
-            return after, _served_answer(task, tool, arguments, None, echoed=echoed)
+            return after, _served_answer(task, tool, arguments, None, echoed=echoed,
+                                         asked=asked)
         matching = [i for i in keyed if _matches(task.steps[i], name, arguments, checkable)]
         if not matching:
             return after, error(fmt, "not_found", f"{name} holds nothing for these arguments")
@@ -834,10 +901,14 @@ def _applied(task: _Any, after: State, tool: _OwnTool, name: str,
         if not _met(task, state, task.steps[index], writes, reads):
             return after, error(fmt, "not_ready", f"{name} cannot answer this yet: a step it"
                                 " depends on has not been made")
+        # A step that carries a bad answer gives it to the first call that matches it, and the
+        # value it serves to every later one.
+        bad = bool(task.steps[index].get("bad")) and not state.served[reads[index]]
         served = list(after.served)
         served[reads[index]] = True
         after = _with(after, served=tuple(served))
-        return after, _served_answer(task, tool, arguments, task.steps[index], echoed=echoed)
+        return after, _served_answer(task, tool, arguments, task.steps[index], echoed=echoed,
+                                     asked=asked, bad=bad)
     expected = [i for i, s in enumerate(task.steps) if s["effect"] == "write"
                 and _matches(s, name, arguments, checkable)]
     pending = [i for i in expected if not state.done[writes[i]]]

@@ -140,7 +140,9 @@ def test_for_plan_writes_the_kind_and_the_own_generators_hash(tmp_path: Any) -> 
     assert prov.as_dict()["tools"] == {
         "kind": "own", "name": "acme-support", "tools": 5, "source_format": "mcp",
         "file_digest": hashlib.sha256(fixture("acme-mcp-tools-list.json")).hexdigest(),
-        "intents": ["refund_order"], "flows": 2, "generator": "own-2"}
+        # Retrofitted 2026-11-04 for 0.4.0: the label moved from "own-2" to "own-3" (the stale-data
+        # spec's Q1).
+        "intents": ["refund_order"], "flows": 2, "generator": "own-3"}
 
 
 # --------------------------------------------------------------------------

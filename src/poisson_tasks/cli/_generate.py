@@ -222,7 +222,12 @@ def generate(ctx: Context) -> Result:
             "generator's own construction, and there is no built-in table to hold fixed"
         )
     for index, seed in enumerate(plan.seeds if plan.own is None else ()):
-        bundles = {spec: tasks.generate(spec, seed) for spec in plan.arms}
+        try:
+            bundles = {spec: tasks.generate(spec, seed) for spec in plan.arms}
+        except ValueError as refused:
+            # The generator's own refusal, in its one line: an arm it makes no built-in task
+            # for (`landed` and `lagged` are on your own tools), or a level it cannot build.
+            raise Refusal(str(refused)) from None
         for spec, bundle in bundles.items():
             made[spec].append(bundle)
         for knob in dict.fromkeys(spec.knob for spec in plan.arms):
@@ -305,7 +310,10 @@ def _one_task(plan: Any, spec: Any, seed: int) -> Any:
             return runs.own_bundles(plan, spec, [seed])[0]
         except ValueError as refused:
             raise Refusal(str(refused)) from None
-    return tasks.generate(spec, seed)
+    try:
+        return tasks.generate(spec, seed)
+    except ValueError as refused:
+        raise Refusal(str(refused)) from None
 
 
 def pick_task(plan: Any, spec: Any, place: int | None, seed: int | None) -> tuple[Any, str]:

@@ -108,7 +108,10 @@ def test_every_stated_value_is_in_the_request_as_json() -> None:
         for spec in every_arm(toolset, flows):
             for seed in range(5):
                 bundle = generator().generate(toolset, spec, seed, flows=flows)
-                assert bundle.stated or spec.knob == "spread"
+                # Retrofitted 2026-11-05 for 0.4.0: `baddata` may carry a write's only argument, so its
+                # request may state nothing, as `spread`'s may (the stale-data spec's section 1.3;
+                # ruled yes).
+                assert bundle.stated or spec.knob in ("spread", "baddata")
                 for name, value in bundle.stated:
                     assert json.dumps(value) in bundle.request, (label, spec, name, value)
 

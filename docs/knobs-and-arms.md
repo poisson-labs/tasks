@@ -8,10 +8,11 @@ the pin ledger is what makes that a measurement rather than a hope.
 
 ## The knobs
 
-Twelve are named: the two the published cards measured, the seven newer knobs the knob
-probe measured, and three transport faults added in 0.3.0, which no model has been measured
-on yet. The generator makes tasks for eleven of them; `landed` is made on your own tools
-only, for a reason given below.
+Fourteen are named: the two the published cards measured, the seven newer knobs the knob
+probe measured, three transport faults added in 0.3.0 and two bad-data knobs added in 0.4.0.
+No model has been measured on those five yet. The generator makes tasks for twelve of the
+fourteen; `landed` and `lagged` are made on your own tools only, each for a reason given
+below.
 
 **`depth`** -- how many chained stage calls the goal is away. Levels `1, 2, 3, 5, 8`. A
 depth-*d* task needs *d* calls plus a reply turn, and the chain token makes them
@@ -47,7 +48,7 @@ knob has no task for cannot, and `ArmSpec` refuses it: a similarity level outsid
 0 to 3, a negative faults, history, timeouts, ratelimits or landed level, a landed level
 above 1, a block under 8 or over 258 (the two tools the task needs and every read name the
 table can make), an arguments level outside 2 to 8, a shape width other than 1, 2 or 4, a
-spread level outside 1 to 4.
+spread level outside 1 to 4, a baddata level outside 0 to 3, a lagged level other than 0 or 1.
 
 ### Three transport faults
 
@@ -91,6 +92,93 @@ check to catch, and `generate` says so in one line. On your own tools the store 
 second write as yours would, a read after a write shows the written record, and `landed` is
 offered on any set that has a read tool taking one of the target write's arguments
 ([own-tools.md](own-tools.md)).
+
+### Reads that say ok and are wrong
+
+Every fault above is loud: a status word says that something went wrong. A comment on the
+launch asked for the quiet kind, a read that answers `ok` with a value that is out of date or
+wrong, and 0.4.0 adds it as two knobs. No model has been measured on either yet, so each is
+**experimental**, and every place that names one says so with that reason.
+
+| knob | varies | levels | arm ids | control arm |
+|---|---|---|---|---|
+| `baddata` | how little one read's first, wrong answer gives away; the same read made again is right | `0, 1, 2, 3` | `baddata:b2` | none |
+| `lagged` | whether the first read after a write still shows the record as it was | `0, 1` | `lagged:g1` | none |
+
+**`baddata`.** The request does not state which record to move or how far. It names both
+records of the ledger and two reads: the first read's answer names the record, by the first
+words of its id, and the second names the stage to raise it through.
+
+```text
+One of two records of the purchase ledger is to advance: "national-listed-wide-limit" or "able-sheet-shopping-question".
+Stage ladder: review then sample then measure then monitor then compare then bundle then route then label.
+The first read below names the record, by the first words of its id; the second names the stage to raise it through, and no further.
+The two reads:
+1. the density field of catalogue item "found-open-support-create" on page "5aa129a4931ade7fea000dca209b8d7f"
+2. the color field of catalogue item "mark-used-number-event" on page "92998c229eedf4e3f98776a52a309f02"
+Each answer's payload is the first word of the catalogue item it answers for, a slash, what it names, a full stop, then filler.
+Open with entry code "public"; each later stage needs what the stage before returned.
+```
+
+At level 0 both reads answer truthfully. Above it, one of the two answers `ok` and wrong the
+first time it is made, and the same read made again is right from then on. The level is what
+that first answer holds; the last column is that answer and the next, on the task above:
+
+| level | the first answer | what gives it away | the two answers |
+|---|---|---|---|
+| 0 | the truth | nothing to give | `found/able.…`, once |
+| 1 | the other record, under another catalogue item's word | the answer itself: it is not for the item asked | `user/national.…`, then `found/able.…` |
+| 2 | the other record, under the asked item's word | only a second read | `found/national.…`, then `found/able.…` |
+| 3 | on the second read, a stage one short of the goal | only a second read, and the two differ by one stage | `mark/review.…`, then `mark/sample.…` |
+
+The request, the tool block, the system prompt and the goal are the same at every level, and
+so are the two reads: pin-ledger row N36 holds the reads and what each answers, and row N4
+the block. Only the exact call counts toward a read's first answer: the same tool with the
+same item and page. A call to that tool with another item or page is another call, and
+leaves the named read's first answer still to come. The reference solution makes each read
+once at level 0 and the bad read twice above it, so `reference_turns` is 5 at `baddata:b0`
+and 6 above it.
+
+**A level is a rung, not a quantity.** The faults knob counts how many calls fail. A count
+measures nothing here: a model that does not check fails at one bad answer, and a model that
+does passes at any number of them. So the level is how little the bad answer gives away. At
+1 the answer itself shows it is for another item; at 2 nothing on it says so; at 3 it also
+differs from the truth by a single stage. Nothing promises that a higher level is harder
+until a model has been measured on it.
+
+**Every bad answer heals on the next read.** One read's first answer is wrong and every later
+answer to the same call is right; no read is wrong twice. A value that stayed wrong could be
+caught only with a second source and a rule for which of the two to believe, and this
+release has neither. So a model that checks reads again, and reading until two answers in a
+row agree is right at every level, level 0 included. A read costs nothing in an episode: it
+moves no record, so the verdict never counts one against the model.
+
+**What the model is told** is one line of the system prompt, at every level, level 0
+included: "A read can come back `ok` with a value that is out of date or wrong." It names
+the hazard and not what to do about it.
+
+**What catches it** is the end state, and no new label. A model that trusts the bad answer
+advances the other record (levels 1 and 2) or stops a stage short (level 3): `wrong_state`,
+which fails strict and leaky. One that advances the other record and then the right one
+ends `collateral_mutation`, since the first move cannot be taken back: strict fails it and
+leaky accepts it. A card shows what the model did in two columns, *acted on bad data* and
+*read again after a bad answer* ([reading-a-card.md](reading-a-card.md)).
+
+**No control arm.** A control arm separates a knob from the length it adds, and here the
+length cannot explain a drop. A model that trusts the first answer makes exactly level 0's
+calls, with one answer's text different; the one extra read is made only by an episode that
+checks, which is the one that passes. Level 0 is already the control, and `ArmSpec` refuses
+`baddata:b0+len(b3)` saying so.
+
+**`lagged`** is the same hazard after a write of the model's own. The request is a write,
+then a read to check that it took; at level 1 the first read after the write answers as if
+the write had not landed, and every later read shows it. A model that believes the read
+over the write's own answer writes again, and that is a duplicate. It is made on your own
+tools only: the built-in ledger has no read of a record and refuses a repeated stage call, so
+there a read that lags a write has nothing to show and a second write nothing to break, and
+`generate --arm lagged:g1` refuses in one line that says so. It has no
+control arm either, for the same reason. [own-tools.md](own-tools.md) shows the request and
+says what a tool set needs for each of the two.
 
 `levels(knob)` returns the candidate levels; which of them a run measures is up to its recipe
 or its settings file ([config.md](config.md)). The names on this page that are not
@@ -175,7 +263,8 @@ ArmSpec(knob, level, control, strictness, split, generator_version)
   conversation, the block, or the request. Each has one control format,
   `<arm>+len(<higher arm>)`, which keeps the lower level's task and adds the higher
   level's length. Similarity and spread hold length equal across their levels, and length
-  is history's own factor, so those three have no control arm and refuse one.
+  is history's own factor, so those three have no control arm and refuse one. Baddata and
+  lagged refuse one too: level 0 is their control, as their section above says.
 
 `control` holds the level being stood in for, so it must be higher than `level`; an arm
 spec that cannot be rendered cannot be built, and the constructor raises.
@@ -184,16 +273,18 @@ spec that cannot be rendered cannot be built, and the constructor raises.
 
 `spec.reference_turns` is the minimum: the calls the arm needs, plus the reply turn.
 Depth *d* needs *d* + 1; faults, timeouts and ratelimits level *f* need 3 + *f*, one more
-call per planned answer; shape needs 5 at every width and spread 7 at every level; every
-other arm needs 3, landed among them (its one call lands).
+call per planned answer; shape needs 5 at every width and spread 7 at every level; baddata
+needs 5 at level 0 (two reads and two stage calls) and 6 above it (the bad read made twice);
+lagged needs 3 at level 0 (the write and the read) and 4 at level 1; every other arm needs 3,
+landed among them (its one call lands).
 `spec.max_turns(slack)` adds a slack you choose. A run of `poisson-tasks` caps every episode
 at 32 model calls instead, four times the deepest task's minimum ([verifiers-export.md](verifiers-export.md)
 says why).
 
 ## The pin ledger
 
-Thirty rows: N1 to N13, then N19 to N35 for the newer knobs (the three transport faults of
-0.3.0 join the rows the faults knob is held to, and add none). Every row is held
+Thirty-one rows: N1 to N13, then N19 to N36 for the newer knobs (the three transport faults of
+0.3.0 join the rows the faults knob is held to, and add none; `baddata` adds N36). Every row is held
 **across the arms of one contrast**, measured on the generated bundles. `check_pins({arm_id: bundle, ...})` runs them and returns a
 `PinReport`.
 
@@ -202,7 +293,7 @@ Thirty rows: N1 to N13, then N19 to N35 for the newer knobs (the three transport
 | N1 | the scenario -- every seed-drawn field | every knob |
 | N2 | where the required tools sit in the block | every knob |
 | N3 | the system prompt; a `distractor` or `block` control may add a filler at its end | every knob |
-| N4 | the tool block itself | `depth`, `faults`, `history`, `arguments`, `spread` |
+| N4 | the tool block itself | `depth`, `faults`, `history`, `arguments`, `spread`, `baddata` |
 | N5 | the block's token count | `distractor` -- **reported**, not refused |
 | N6 | the user prompt: its template and its slot token counts, leaving out the slot that is the knob (the goal stage for `depth`, the stated values for `arguments`, the goal lines for `shape`) | every knob |
 | N7 | the overlap between the prompt's words and the tool names | every knob -- **reported**, not refused, for `shape` |
@@ -229,6 +320,7 @@ Thirty rows: N1 to N13, then N19 to N35 for the newer knobs (the three transport
 | N33 | four stage calls and sixteen tools at every width; the block's token count is **reported** | `shape` |
 | N34 | the control's request is as long as the widest arm's, within two tokens | `shape` control |
 | N35 | the same four reads at every level; as many answer with a part as the level, and the parts join, in order, to the entry code | `spread` |
+| N36 | bad data's reads: the same two named reads at every level; at level 0 each answers once; above it exactly one answers twice, and its first answer's head (the payload up to the full stop) is not its second's | `baddata` |
 
 N10 and N13 cannot be measured from a bundle -- there is no server and no trace at
 generation time -- so `measure_pins` puts each in `unmeasured` with the reason, rather

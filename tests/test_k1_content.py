@@ -67,7 +67,8 @@ OLD_TASK_ID_DOMAIN = b"task-generator/task_id/1\n"
 # The fields that may move, and the ledger rows that existed before the change.
 MOVING = ("task_id", "generator_hash", "pins")
 OLD_MEASURED = ("N1", "N2", "N3", "N4", "N5", "N6", "N7", "N8", "N9", "N11")
-NEW_ROWS = tuple(f"N{i}" for i in range(19, 36))
+# Retrofitted 2026-11-04 for 0.4.0: N36 joins the pin record's rows (the stale-data spec's Q10).
+NEW_ROWS = tuple(f"N{i}" for i in range(19, 37))
 
 
 @lru_cache(maxsize=1)

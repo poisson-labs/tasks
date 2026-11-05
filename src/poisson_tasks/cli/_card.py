@@ -113,6 +113,10 @@ def _plan_words_of(folder: Path) -> tuple[str, str]:
     return plan_words(plan), str(plan.model.name)
 
 
+_BAD_DATA_KEYS = ("acted_on_bad_data_count", "acted_on_bad_data_share",
+                  "read_again_after_bad_count", "read_again_after_bad_share")
+
+
 def _cells(artifact: Any, verdict: Any) -> list[dict[str, Any]]:
     prov = artifact.provenance
     held: list[dict[str, Any]] = []
@@ -126,6 +130,11 @@ def _cells(artifact: Any, verdict: Any) -> list[dict[str, Any]]:
             "tasks": int(cell["S_observed"]), "tasks_planned": int(cell["S_declared"]),
             "attempts": int(cell["n_declared"]),
         })
+        # The two bad-data figures (0.4.0), under the cell's own keys, on a cell that has them:
+        # a baddata or lagged arm above level 0.  Left out everywhere else, never written null.
+        for key in _BAD_DATA_KEYS:
+            if key in cell:
+                held[-1][key] = cell[key]
     for arm in verdict.not_run:
         held.append({"arm_id": arm, "state": "not run", "pass_at_1": None, "interval": None,
                      "leaky_at_1": None, "overshoot": None, "tasks": 0,

@@ -281,6 +281,12 @@ def _own_rows(ctx: Context, settings: Any) -> tuple[list[Row], dict[str, Any]]:
     if "faults" in offered and "landed" not in offered:
         rows.append(Row("check read", f"landed is not offered on this set. "
                                       f"{LANDED_NEEDS_A_CHECK_READ}", "note"))
+    # What the set lacks for the two stale-data knobs, each a note row under its own label and
+    # not a knob's name, as `check read` is: `carrier read`, `named key`, `showing read`.
+    from poisson_tasks.cli._init import stale_data_notes
+
+    for label, words in stale_data_notes(toolset, offered, flows):
+        rows.append(Row(label, words, "note"))
     if not flows:
         from poisson_tasks.own.generator import UNAVAILABLE_WITHOUT_FLOWS
 

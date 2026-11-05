@@ -33,7 +33,7 @@ Run it from the repository root. A bare `pytest` collects the same tests: `pypro
 
 The suite needs the network: every test that runs an episode through the `null` harness needs PyPI and astral.sh, because the `verifiers` wheel installs `uv` and the harness's dependencies before each episode ([`tests/conftest.py`](tests/conftest.py) says how). Those tests skip when `uv` is missing, and the CI jobs install it. A run that starts from a background job should leave `SIGINT` at its default.
 
-At 0.3.2 the suite is 4,798 tests: 4,437 pass and 361 skip on a checkout without Prove. The skipped ones need Prove (the adapter's, and the bridge between the two scorers) and say so. They run with the extra installed, `pip install -e ".[dev,prove]"`, which brings `poisson-prove` from PyPI. [docs/prove.md](docs/prove.md) shows how.
+At 0.4.0 the suite is 5,127 tests: 4,766 pass and 361 skip on a checkout without Prove. The skipped ones need Prove (the adapter's, and the bridge between the two scorers) and say so. They run with the extra installed, `pip install -e ".[dev,prove]"`, which brings `poisson-prove` from PyPI. [docs/prove.md](docs/prove.md) shows how.
 
 Type checks and lint, which CI runs too:
 
@@ -48,7 +48,7 @@ Type checks and lint, which CI runs too:
 
 Each module was built against tests written before it, and the suite is not edited to suit a build. Comments and docstrings in a test file may be corrected; assertions may not. A frozen test that looks wrong is a question for the maintainers, not an edit. When the maintainers rule that a frozen test must change (a docs page added, a literal that named a version), the change is its own commit, says which test and why, and the test's docstring says it was retrofitted and for what; 0.1.0, 0.2.1 and the docs rewrite after it each carried one. [`tests/conftest.py`](tests/conftest.py) is outside that freeze and holds the skip for the tests that need Prove.
 
-The generator's three source files (`tasks.py`, `surface.py` and `knobs.py`) are frozen until the published cards are measured again: their bytes are in the generator hash, so an edit moves every task id and makes both published cards stale. They were changed once, by ruling, for 0.3.0, to add the three transport-fault knobs (every task id moved and no built-in task's content did), and are frozen again at the new hash, which `tests/test_frozen_generator.py` holds; the own-tools generator's hash moved with them and is held by `tests/test_o2b_kept.py`. `engine.py` and the vocabulary table do not change either. What a run records about what produced it is computed in `provenance.py`, which no module in either generator's hash imports, so recording it moves no task. A test regenerates the 840 tasks of each published card, and every knob's kept tasks, and compares them with the recorded ones; it is the first thing to run after touching anything near them.
+The generator's three source files (`tasks.py`, `surface.py` and `knobs.py`) are frozen until the published cards are measured again: their bytes are in the generator hash, so an edit moves every task id and makes both published cards stale. They were changed by ruling for 0.3.0, to add the three transport-fault knobs (every task id moved and no built-in task's content did), and again for 0.4.0, to add the two bad-data knobs (every task id moved again, and no other built-in task's content did), and are frozen again at the new hash, which `tests/test_frozen_generator.py` holds; the own-tools generator's hash moved with them both times and is held by `tests/test_o2b_kept.py`, and the content of the two new knobs' tasks by `tests/test_bd_kept.py`. `engine.py` and the vocabulary table do not change either. What a run records about what produced it is computed in `provenance.py`, which no module in either generator's hash imports, so recording it moves no task. A test regenerates the 840 tasks of each published card, and every knob's kept tasks, and compares them with the recorded ones; it is the first thing to run after touching anything near them.
 
 ## Build the wheel
 
@@ -92,7 +92,7 @@ It prints each block's exit and each output block's lines that differ, and exits
 
 ## Words in the docs
 
-The README, `docs/` (but the three standards, `repo-hygiene.md`, `cli-look.md` and `releasing.md`) and `CHANGELOG.md` are for users. They carry no internal identifiers, no decision ids and no names of work sessions; "knob", "arm" and "level" are each explained where they first appear, and a number is shown with its unit. The pin ledger's row ids (`N1` to `N35`) appear only beside their names. A test reads the files with the same pattern the card text is held to.
+The README, `docs/` (but the three standards, `repo-hygiene.md`, `cli-look.md` and `releasing.md`) and `CHANGELOG.md` are for users. They carry no internal identifiers, no decision ids and no names of work sessions; "knob", "arm" and "level" are each explained where they first appear, and a number is shown with its unit. The pin ledger's row ids (`N1` to `N36`) appear only beside their names. A test reads the files with the same pattern the card text is held to.
 
 ## Notes for maintainers
 

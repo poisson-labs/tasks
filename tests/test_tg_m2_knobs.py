@@ -115,7 +115,9 @@ K_D = 16
 K_R = 16
 D_R = 2
 
-LEDGER_ROWS = tuple(f"N{i}" for i in (*range(1, 14), *range(19, 36)))
+# Retrofitted 2026-11-04 for 0.4.0: the rows run to N36 here and in the tables below (the stale-data
+# spec's Q10).
+LEDGER_ROWS = tuple(f"N{i}" for i in (*range(1, 14), *range(19, 37)))
 
 # Where each row is enforced, and what happens when it fails.  Read off the ledger
 # table's *On violation* column: "generation refuses" -> generation/refuse,
@@ -127,14 +129,14 @@ ROW_STAGE = {
     "N5": "generation", "N6": "generation", "N7": "generation", "N8": "engine",
     "N9": "generation", "N10": "adapter", "N11": "adapter", "N12": "adapter",
     "N13": "analysis",
-    **{f"N{i}": "generation" for i in range(19, 36)},
+    **{f"N{i}": "generation" for i in range(19, 37)},
 }
 ROW_ACTION = {
     "N1": "refuse", "N2": "refuse", "N3": "refuse", "N4": "refuse",
     "N5": "report", "N6": "refuse", "N7": "refuse", "N8": "engine_test",
     "N9": "refuse", "N10": "stop_run", "N11": "refuse_start", "N12": "refuse_start",
     "N13": "void_contrast",
-    **{f"N{i}": "refuse" for i in range(19, 36)},
+    **{f"N{i}": "refuse" for i in range(19, 37)},
 }
 # The rows that constrain one knob only.  N4 is written "(knob D)" and N5 "(knob R)".
 # N9 is written "(control arms)", which reads as both - but only knob D's control
@@ -143,7 +145,7 @@ ROW_ACTION = {
 # is depth's notation.  So N9 is knob D's, and saying so here is what stops a module
 # from evaluating it against an R control that has no seeded pairs to measure.
 ROW_KNOBS = {
-    "N4": ("depth", "faults", "history", "arguments", "spread"),
+    "N4": ("depth", "faults", "history", "arguments", "spread", "baddata"),
     "N5": ("distractor",),
     "N9": ("depth",),
     **{row: ("similarity",) for row in ("N19", "N20", "N21", "N22")},
@@ -157,18 +159,23 @@ ROW_KNOBS = {
     **{row: ("arguments",) for row in ("N30", "N31", "N32")},
     **{row: ("shape",) for row in ("N33", "N34")},
     "N35": ("spread",),
+    # N36 and N4 retrofitted 2026-11-04 for 0.4.0: the stale-data spec's row, and `baddata` holding
+    # its block equal across levels (its section 4 and Q10).
+    "N36": ("baddata",),
 }
 # Retrofitted 2026-10-29 for 0.3.0: the three transport-fault knobs join the nine (the faults
 # design, Q1), so the rows that apply to every knob apply to twelve.
+# Retrofitted 2026-11-04 for 0.4.0: the two stale-data knobs follow, so every-knob rows apply to
+# fourteen (the stale-data spec, Q1).
 EVERY_KNOB = ("depth", "distractor", "similarity", "faults", "history", "block", "arguments",
-              "shape", "spread", "timeouts", "ratelimits", "landed")
+              "shape", "spread", "timeouts", "ratelimits", "landed", "baddata", "lagged")
 # Where a row is enforced is not the same question as whether a *bundle* carries
 # what it measures.  N11 and N12 are enforced when the adapter starts, and both are
 # measurable at generation: strictness is `bundle.verifier.strictness` and the two
 # hashes are bundle fields.  Only N10 and N13 need something no bundle has - a cfg
 # and an episode's `meta` for the serving pin, and the trace for realised tokens.
 MEASURABLE_ROWS = tuple(f"N{i}" for i in range(1, 10)) + ("N11", "N12") + tuple(
-    f"N{i}" for i in range(19, 36))
+    f"N{i}" for i in range(19, 37))
 UNMEASURABLE_ROWS = ("N10", "N13")
 
 # N9's declared band, in reference-tokenizer tokens, over the aggregate.
@@ -699,9 +706,10 @@ def test_id5_levels_are_the_specs_candidate_sets():
 # --------------------------------------------------------------------------
 
 
-def test_nrows_1_the_ledger_is_thirty_rows_in_order_for_both_knobs():
-    """N-rows: "Every row above has a frozen test."  First the table itself: thirty
-    rows, N1 to N13 and then N19 to N35, in the ledger's own order, for each knob.  The
+def test_nrows_1_the_ledger_is_thirty_one_rows_in_order_for_both_knobs():
+    """N-rows: "Every row above has a frozen test."  First the table itself: thirty-one
+    rows, N1 to N13 and then N19 to N36 (retrofitted 2026-11-04 for 0.4.0, the stale-data spec's
+    Q10), in the ledger's own order, for each knob.  The
     same ledger is used for every knob, so the row set does not vary with the knob."""
     k = knobs()
     for knob in ("depth", "distractor"):
@@ -732,7 +740,7 @@ def test_nrows_3_the_knob_specific_rows_say_so():
 
 
 def test_nrows_4_every_row_is_measured_or_declared_unmeasurable_exactly_once():
-    """N-rows: a `PinRecord` accounts for all thirty.  A row that is silently absent
+    """N-rows: a `PinRecord` accounts for all thirty-one.  A row that is silently absent
     from both halves is a pin nobody checks, which is the failure the ledger exists to
     prevent."""
     k = knobs()

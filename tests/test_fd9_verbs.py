@@ -375,8 +375,10 @@ def test_fd9_19_c_g14_doctor_words_each_row_by_what_it_is(
     reading = own.read_tools(PETSTORE.read_bytes(), name="petstore")
     knobs = set(recipes.offered_knobs(reading.toolset, flows=()))
     ran = invoke(["doctor", "--offline"], prog=PROG, monkeypatch=monkeypatch)
+    # Retrofitted 2026-11-04 for 0.4.0: a label may be two words, as `named key` is (the stale-data
+    # spec's section 5.3; ruled yes).
     rows = [match.groups() for line in ran.lines
-            if (match := re.match(r"^  (\S+)\s+(ok|note|refused|not ok)\s{2,}\S", line))]
+            if (match := re.match(r"^  (\S+(?: \S+)?)\s+(ok|note|refused|not ok)\s{2,}\S", line))]
     labels = [label for label, _ in rows]
     assert len(rows) == len(ran.lines) - 1, ran
     words = dict(rows)
