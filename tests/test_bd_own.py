@@ -27,8 +27,8 @@ absent on every other's is held.
 **2. A read's answer differing is held on the named field**, as the brief's trap says, and a lagging
 read is held equal, byte for byte, to the same read made before any write.
 
-**3. "The next member of an enum" is "another member"**: section 1.1 says next and section 1.3 says
-another, and `_other_value` takes the first other; the test holds another.
+**3. "The next member of an enum" is "another member"** (ruled yes, 2026-11-04): section 1.1 says next
+and section 1.3 says another, and `_other_value` takes the first other; the test holds another.
 """
 
 from __future__ import annotations
@@ -246,16 +246,20 @@ def test_the_read_echoes_what_it_was_asked_and_level_1_alone_shows_another_key(
 
 @pytest.mark.parametrize("label", SET_LABELS)
 def test_level_3s_value_is_near_and_level_2s_differs_from_the_truth_and_from_it(label: str) -> None:
-    """Shape 3.  Level 3: a number off by one or a half, a string with its last character changed,
-    another member of an enum.  Level 2: not the truth, and not level 3's where the schema has a
-    third value."""
+    """Shape 3.  Level 3, over 300 seeds as well as the own seeds (ruled yes, 2026-11-04: a set carries
+    only an argument whose near value is the smallest change, so a date-time, which no last character
+    can change, is not carried): a number off by one or a half, a string with its last character
+    changed, another member of an enum.  Level 2, at the own seeds: not the truth, and not level 3's
+    where the schema has a third value."""
     sim = simulator()
-    for seed in OWN_SEEDS:
+    for seed in (*OWN_SEEDS, *range(300)):
         near_task = own_task(label, "baddata", 3, seed)
         held = carried(near_task)
         schema = input_properties(near_task, held.write[0])[held.argument]
         near = first_and_later(near_task)[0][held.field]
         assert is_near(schema, held.value, near), (label, seed, held.value, near)
+        if seed not in OWN_SEEDS:
+            continue
         older = first_and_later(own_task(label, "baddata", 2, seed))[0][held.field]
         assert not sim.same(older, held.value), (label, seed)
         if has_a_third_value(schema):
@@ -405,13 +409,17 @@ def named_set(output: Any) -> Any:
                          read_tool("look", {"key": S12}, ["key"]), name="built"), ()),
         (lambda: mcp_set(write_tool("set_tags", {"tags": {"type": "array", "items": S12}}, ["tags"]),
                          read_tool("look", {"key": S12}, ["key"]), name="built"), ()),
+        (lambda: mcp_set(write_tool("set_when", {"when": {"type": "string", "format": "date-time"}},
+                                    ["when"]),
+                         read_tool("look", {"key": S12}, ["key"]), name="built"), ()),
         (lambda: mcp_set(write_tool("set_status", {"status": AB}, ["status"]),
                          read_tool("look_all", {}, []), name="built"), ()),
         (lambda: mcp_set(write_tool("set_status", {"status": AB}, ["status"]),
                          write_tool("set_other", {"other": AB}, ["other"]), name="built"), ()),
     ],
     ids=["names-its-key", "does-not-name-its-key", "no-output-schema", "field-only-the-key",
-         "no-field-fits", "boolean-write", "list-write", "read-with-no-key", "no-read"],
+         "no-field-fits", "boolean-write", "list-write", "date-time-write", "read-with-no-key",
+         "no-read"],
 )
 def test_baddata_needs_a_carrier_and_level_1_needs_a_named_key(toolset: Any, reach: tuple[int, ...]) -> None:
     """Section 5.2 on the fewest tools: a write with a checkable scalar argument, and a keyed read
