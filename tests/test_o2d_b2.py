@@ -229,6 +229,9 @@ def test_doctor_lists_every_knob_the_set_reaches_shipped_first_with_its_status(
     rows = doctor_rows(ran)
     reached = recipes.offered_knobs(toolset, flows=flows)
     # Retrofitted with the guided session: a knob's probe line is information, `note`.
+    # Retrofitted 2026-11-04 for 0.4.0: `doctor_rows` keys a row by its first word, and the three rows
+    # that say what a set lacks are notes and not knobs (the stale-data spec's section 5.3; ruled yes).
+    rows = {label: held for label, held in rows.items() if label not in ("carrier", "named", "showing")}
     assert all(status == ("note" if label in reached else "ok")
                for label, (status, _) in rows.items()), rows
     lead = recipes.shipped_knobs(toolset, flows=flows)
