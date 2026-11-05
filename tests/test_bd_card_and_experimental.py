@@ -419,7 +419,9 @@ def test_doctor_names_each_new_knob_experimental_in_its_rows_and_json(
     lines = ran.said.splitlines()
     for knob in ("baddata", "lagged"):
         (found,) = [text for text in lines if text.split()[:1] == [knob]]
-        assert f"experimental: {NOT_MEASURED}" in found and "note" in found.split(), found
+        # Ruled yes 2026-11-04: today's comma, where the spec's section 8 prints a semicolon.
+        assert f"experimental: {NOT_MEASURED}, not on the published cards" in found, found
+        assert "note" in found.split(), found
     _ran, document = invoke_json(["doctor", "--offline"], monkeypatch)
     held = data_of(document)["tools"]["experimental"]
     assert held["baddata"] == NOT_MEASURED and held["lagged"] == NOT_MEASURED, held
