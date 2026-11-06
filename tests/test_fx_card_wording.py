@@ -167,3 +167,19 @@ def test_fx35_8_the_cap_question_on_your_tools_says_the_estimate_is_the_built_in
     assert "at the published card's usage" not in own, own
     assert own.startswith("This plan: 40 episodes, about $0.02")
     assert own.endswith("The cap is what holds.")
+
+
+@needs_uv
+def test_fx35_9_the_run_log_has_the_line_the_card_points_at(fd4_runs: RunFolders) -> None:
+    """A guard for what the card now says of its concurrency: that `run.log` holds, for each part
+    of the run, how many episodes ran at once.  Green by construction once the runs exist; it
+    holds the card's sentence to the log.  `failed_once_resumed` is two parts of one run, so two
+    lines, each with the scenario's concurrency (4)."""
+    import re
+
+    from tests.fd4_support import SCENARIOS
+
+    made = fd4_runs["failed_once_resumed"]
+    log = (made.folder / "run.log").read_text(encoding="utf-8")
+    found = re.findall(r"run of \d+ episodes, \d+ kept, at concurrency (\d+)", log)
+    assert found == [str(SCENARIOS["failed_once"].concurrency)] * 2, log
