@@ -606,13 +606,18 @@ def test_fd9_9_each_word_of_the_closed_set_runs_its_action(
     word: str, states: States, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A verb's word shows its verb's `same as` command; a view's word shows what it reads.  Red
-    before the build: there is no session."""
+    before the build: there is no session.  Retrofitted for #34: in state D the card is built, and
+    its word `card` is a view that draws `card/card.md` and runs no verb; it ran `card --force`."""
     state = "E" if word in ("flow", "replies") else "D"
     work = here(states, state, world)
     folder = run_folder(work)
     session = in_session(Keys([word, "quit"], answer=answering(flow=word == "flow")),
                          monkeypatch)
     after = stripped("".join(session.log.screens()[1:]))
+    if word == "card":
+        assert not session.same_as(), session
+        assert "What it does not claim" in " ".join(after.split()), after
+        return
     if word in VERB_OF:
         commands = session.same_as()
         assert commands and commands[0][1] == VERB_OF[word], session
