@@ -497,7 +497,8 @@ def test_fd9_8_every_offered_step_runs_as_a_command_without_a_refusal(
 ) -> None:
     """Each step of `next`, picked by its number in a session on a copy of the state, then its
     `same as` command run from a shell in another copy (a run answered yes): no exit 1 or 2.  A step
-    with no command (`home`, `replies`) is a view.  In state D with a refused card, step 1 is the
+    with no command (`home`, `replies`) is a view; so is `card` where the card is built (states D
+    and E), retrofitted for #34, which found that reading it ran `card --force`.  In state D with a refused card, step 1 is the
     replies view (decided 2026-10-20) and `card` is offered below it; that `card` step shows the
     refusal and exits 1 by the command's exit codes, the one exception to offering no step the verb
     refuses (decided yes 2026-10-21), pinned by the test below.  Red before the build: no
@@ -520,6 +521,8 @@ def test_fd9_8_every_offered_step_runs_as_a_command_without_a_refusal(
             continue
         if state == "D-refused" and word == "card":
             continue
+        if state in ("D", "E") and word == "card":
+            continue  # the card, built and current, is a view (#34)
         mine = states.copy(state, world.tmp / f"{number}-session")
         theirs = states.copy(state, world.tmp / f"{number}-shell")
         locks = [hold_lock(run_folder(path)) for path in (mine, theirs)] if state == "C2" else []
