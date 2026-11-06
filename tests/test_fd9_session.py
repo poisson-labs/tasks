@@ -591,14 +591,15 @@ def test_fd9_9_after_an_action_next_is_the_new_states_and_the_status_block_is_no
 def test_fd9_9_enter_picks_step_1_and_a_number_picks_that_step(
     states: States, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Red before the build: there is no session."""
+    """Red before the build: there is no session.  Retrofitted for #34: step 1 of a built card is
+    the card view, which runs no verb, so Enter shows no command and step 2 shows its own; both
+    steps showed a `same as` command, step 1's `card --force`."""
     here(states, "D", world)
     session = in_session(Keys(["", "2", "quit"], answer=answering()), monkeypatch)
     steps = steps_of(first_home(session))
     commands = session.same_as()
-    assert len(commands) == 2, session
-    assert commands[0][1] == VERB_OF[steps[0]] and commands[1][1] == VERB_OF[steps[1]], (
-        steps, commands)
+    assert steps[0] == "card" and len(commands) == 1, (steps, commands, session)
+    assert commands[0][1] == VERB_OF[steps[1]], (steps, commands)
 
 
 @pytest.mark.parametrize("word", [w for w in WORDS if w != "quit"])
