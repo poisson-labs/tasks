@@ -149,6 +149,14 @@ def steps_for(folder: Any) -> list[Step]:
             argv.append("--force")
         return argv
 
+    def read_card(run: Any, label: str, *, word: str = "card", named: bool = False) -> Step:
+        """A built card is read where it is, a view that runs no verb and writes nothing; one the
+        run has gone on from is built again, which is the verb with `--force`."""
+        if run.card_current:
+            return Step(label, word, None)
+        return Step("Build the card again: the run has gone on since it was built", word,
+                    card_of(run, named=named))
+
     if newest is None:
         out += [Step("Run it; the plan and its cost come before it spends", "run", ["run"]),
                 task, setup, export]
@@ -162,8 +170,8 @@ def steps_for(folder: Any) -> list[Step]:
         finished = [run for run in mine if run.kept >= run.total and run.card == "built"]
         if finished:
             number = list(folder.runs).index(finished[0]) + 1
-            out.append(Step("Read the card of the finished run", f"card {number}",
-                            card_of(finished[0], named=True)))
+            out.append(read_card(finished[0], "Read the card of the finished run",
+                                 word=f"card {number}", named=True))
         out.append(task)
     elif newest.card is None:
         out += [Step("Build the card (free)", "card", ["card"]), task, again]
@@ -176,14 +184,14 @@ def steps_for(folder: Any) -> list[Step]:
     elif own:
         worst = _lowest(folder.levels)
         flows = folder.tools.flows if folder.tools is not None else 0
-        out += [Step("Read the card", "card", card_of(newest)),
+        out += [read_card(newest, "Read the card"),
                 Step(f"Read the replies at {worst}, where it broke most" if worst
                      else "Read the replies", "replies", None),
                 Step("Add a flow, so depth and shape can run on your tools" if not flows
                      else f"Add another flow to your tools ({flows} declared)", "flow", None),
                 setup, export]
     else:
-        out += [Step("Read the card", "card", card_of(newest)),
+        out += [read_card(newest, "Read the card"),
                 Step("Hand these tasks to verifiers", "export", ["export", "--force"]),
                 again, setup]
     if is_windows():
@@ -198,7 +206,11 @@ def first_step_command(prog: str, args: Any) -> str | None:
 
     config_path = args.config or "tasks.toml"
     step = steps_for(read_folder(config_path))[0]
-    argv = step.argv if step.argv is not None else (["init"] if step.word == "setup" else None)
+    argv = step.argv
+    if argv is None:
+        # A view has no command.  The run-through is `init`; a built card, which the session
+        # reads where it is, is the verb that makes one, which needs `--force` to replace it.
+        argv = {"setup": ["init"], "card": ["card", "--force"]}.get(step.word)
     if argv is None:
         return None
     words = [*shlex.split(prog), *argv]
@@ -410,7 +422,8 @@ class Session:
             return
         step = self.steps[number - 1]
         if step.argv is None:
-            getattr(self, "word_" + step.word)("")
+            head, _, rest = step.word.partition(" ")
+            getattr(self, "word_" + head)(rest)
         else:
             self.act(step.argv)
 
@@ -680,12 +693,26 @@ class Session:
         if run is None:
             self.act(["card"])
             return
+        if run.card == "built" and run.card_current and self._read_card(run):
+            return
         argv = ["card"]
         if rest:
             argv.append(_relative(run.path))
         if run.card == "built":
             argv.append("--force")
         self.act(argv)
+
+    def _read_card(self, run: Any) -> bool:
+        """Draw the card a run already has, from its file: no verb runs and nothing is written.
+        `False` when the file cannot be read, and the card is then built again."""
+        path = run.path / "card" / "card.md"
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            return False
+        self.draw(f"card of {run.name}", text)
+        self.write(f"  read from {_relative(path)}; nothing was written", "dim")
+        return True
 
     def word_task(self, rest: str) -> None:
         argv = ["generate", "--show"]

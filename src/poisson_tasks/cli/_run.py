@@ -367,19 +367,49 @@ def _refuse_held(path: Path) -> None:
         fcntl.flock(handle, fcntl.LOCK_UN)
 
 
+def _same_file(handle: Any, lock: Path) -> bool:
+    """Whether `lock` names the file `handle` has open: the same device and inode."""
+    try:
+        named = os.stat(lock)
+    except OSError:
+        return False
+    held = os.fstat(handle.fileno())
+    return (named.st_dev, named.st_ino) == (held.st_dev, held.st_ino)
+
+
 @contextlib.contextmanager
 def _locked(path: Path) -> Iterator[None]:
-    """The run's length holding `<run folder>/run.lock`, with the pid and start time in it."""
+    """The run's length holding `<run folder>/run.lock`, with the pid and start time in it; the
+    file is removed when the run ends, by the run that holds it and by no other.
+
+    The hold is an advisory `flock`, so a process that dies loses it whatever it was doing, and a
+    file left by one that was killed is only a file: the next run takes it and removes it in its
+    turn.  Removing the file at the end opens one race, and the first lines below close it.  A
+    run that opened the file just before the run holding it removed it would be given a `flock`
+    on a file that has no name, while a third run made a new file and held that: two holders.  So
+    after the `flock` the file is checked to be the one the path names now, and if it is not, the
+    run opens the path again.  The holder removes the file while it still holds it, and only if
+    the path still names the file it holds (someone may have removed it and another run made it
+    again, and that run's file is not ours to remove)."""
     import fcntl
     import time
 
-    handle = open(path / LOCK_FILE, "a+", encoding="utf-8")
-    try:
+    lock = path / LOCK_FILE
+    while True:
+        handle = open(lock, "a+", encoding="utf-8")
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
+            handle.close()
             raise Refusal(f"{shown(path)} is being run by another process{_holder(path)}; "
                           "nothing was spent") from None
+        except BaseException:
+            handle.close()
+            raise
+        if _same_file(handle, lock):
+            break
+        handle.close()
+    try:
         handle.seek(0)
         handle.truncate()
         handle.write(json.dumps({"pid": os.getpid(), "since": time.strftime(
@@ -387,6 +417,11 @@ def _locked(path: Path) -> Iterator[None]:
         handle.flush()
         yield
     finally:
+        try:
+            if _same_file(handle, lock):
+                lock.unlink()
+        except OSError:
+            pass
         handle.close()
 
 
