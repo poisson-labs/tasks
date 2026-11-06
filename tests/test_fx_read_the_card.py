@@ -31,6 +31,7 @@ What each test holds:
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -42,6 +43,8 @@ from tests.fd9_support import (
     States,
     folder_module,
     in_session,
+    pretty_env,
+    pty_session,
     run_folder,
     states,
 )
@@ -212,3 +215,28 @@ def test_fx34_18_the_card_read_is_the_card_on_disk(
     session = _read_in_the_session(["card", "quit"], states, work, monkeypatch)
     assert "A sentence only the file on disk has." in flat(session.out), session
     assert path.read_text(encoding="utf-8") == marked
+
+
+def test_fx34_19_in_the_pretty_look_the_word_card_draws_the_card_and_writes_nothing(
+    states: States, world: World
+) -> None:
+    """The look on a terminal, with the card as long as the screen and the pager that takes it:
+    the word `card` puts the card's first heading on the screen, `q` leaves the pager and the
+    session is at its prompt again, and no file of the run folder was touched.  Red before the
+    change: the card is built again and its files are written."""
+    work, folder = _state_d(states, world)
+    before = _snapshot(folder)
+    with pty_session([], env=pretty_env(world), cwd=work) as session:
+        session.quiet(1.5)
+        mark = len(session.plain)
+        session.type("card", settle=0)
+        session.quiet(2.0)
+        drawn = " ".join(session.plain[mark:].split())
+        assert CARD_TEXT in drawn, drawn
+        assert "same as" not in drawn, drawn
+        if shutil.which("less") is not None:
+            session.send("q")
+            session.quiet(1.0)
+        session.type("quit", settle=0)
+        assert session.wait() == 0
+    assert _snapshot(folder) == before, "reading the card wrote to the run folder"
