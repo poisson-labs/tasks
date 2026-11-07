@@ -7,9 +7,12 @@ usage, so one call costs `call_dollars()` at `PRICE` and `CALL_TOKENS` tokens, a
 d takes d + 1 calls.  So a test knows what a run spends without asking the code under test.
 
 **The harness's bootstrap.**  Before the first episode of every process, verifiers 0.3.1 runs
-`pip install --user uv`, or astral's installer when that pip refuses, and `run` makes it refuse.  So
-that no test installs anything, `harness_env` puts a `pip` first on `PATH` that does nothing and
-succeeds; the bootstrap then finds the `uv` already on `PATH` (the CI job installs one).
+`pip install --user uv`, or astral's installer when that pip refuses, and `run` makes it refuse.
+Since 0.4.1 `run` puts a guard in front of it (`runs.guard_uv_bootstrap`): a `uv` on `PATH` that
+takes `--script` in `uv sync` and in `uv python find`, as the CI job's does, is used and the
+bootstrap does nothing.  So that no test installs anything, `harness_env` still puts a `pip` first
+on `PATH` that does nothing and succeeds, for the cases where the bootstrap does run; a test that
+needs it to run, to watch or to hang it, puts `old_uv_in` first as well (`stub_bin(old_uv=True)`).
 `uv sync --script` still fetches the harness program's packages, or finds them in uv's cache: that
 is the harness's own documented fetch.  Nothing the tests themselves do leaves this machine: every
 run in this process is made inside `network_guard`, which refuses any connection that is not to
@@ -167,11 +170,34 @@ def arm_dir(spec: Any) -> str:
     return str(knobs().arm_id(spec)).replace("/", "-").replace(":", "-").replace("@", "-")
 
 
-def stub_bin(where: Path, *, pip: str = "#!/bin/sh\nexit 0\n") -> Path:
-    """A folder holding one `pip`, for the bootstrap to find first on `PATH`."""
+def stub_bin(where: Path, *, pip: str = "#!/bin/sh\nexit 0\n", old_uv: bool = False) -> Path:
+    """A folder holding one `pip`, for the bootstrap to find first on `PATH`; with `old_uv`, a `uv`
+    too old for the harness beside it (`old_uv_in`), so that the bootstrap does run and so does
+    that `pip`."""
     where.mkdir(parents=True, exist_ok=True)
     script = where / "pip"
     script.write_text(pip, encoding="utf-8")
+    script.chmod(script.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    if old_uv:
+        old_uv_in(where)
+    return where
+
+
+def old_uv_in(where: Path) -> Path:
+    """A `uv` that answers as 0.6.9 does, with no `--script` in `uv python find --help`, and is the
+    real one for everything else, so that a run can go on after its bootstrap.  A run guards the
+    bootstrap (`runs.guard_uv_bootstrap`): with a uv that can run the harness it asks pip nothing
+    and fetches nothing, and a test that needs the bootstrap to run, as the stuck-bootstrap and
+    bootstrap-environment tests do, puts this first on the `PATH`."""
+    real = shutil.which("uv")
+    assert real is not None, "old_uv_in needs a uv on the PATH to hand everything else to"
+    script = where / "uv"
+    script.write_text(
+        "#!/bin/sh\n"
+        'case "$1 $2 $3" in\n'
+        '  "python find --help"*) echo "  --python <PYTHON>  the interpreter" ;;\n'
+        f'  *) exec "{real}" "$@" ;;\n'
+        "esac\n", encoding="utf-8")
     script.chmod(script.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     return where
 

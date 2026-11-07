@@ -304,21 +304,6 @@ def test_fx34_30_the_installed_verifiers_has_the_bootstrap_the_guard_was_written
 # ---------------------------------------------------------------------------
 
 
-def old_uv_in(where: Path) -> Path:
-    """A `uv` that answers as a 0.6.9 does (no `--script` in `python find --help`) and is the real
-    one for everything else, so the run can go on after the bootstrap."""
-    real = shutil.which("uv")
-    assert real is not None
-    write_script(where / "uv", (
-        "#!/bin/sh\n"
-        'case "$1 $2 $3" in\n'
-        '  "python find --help"*) echo "  --python <PYTHON>  the interpreter" ;;\n'
-        f'  *) exec "{real}" "$@" ;;\n'
-        "esac\n"
-    ))
-    return where
-
-
 def one_episode(base: Path, model: FixtureModel, *, old: bool) -> dict[str, Any]:
     """One episode in a process of its own, with a fake `curl` and a refusing `pip` first on its
     `PATH`, and the old-uv `uv` ahead of them when `old`.  The lines the fakes wrote, and the
@@ -326,10 +311,8 @@ def one_episode(base: Path, model: FixtureModel, *, old: bool) -> dict[str, Any]
     home, cwd = base / "home", base / "cwd"
     for folder in (home, cwd):
         folder.mkdir(parents=True)
-    stubs = stub_bin(base / "bin", pip=REFUSING_PIP)
+    stubs = stub_bin(base / "bin", pip=REFUSING_PIP, old_uv=old)
     write_script(stubs / "curl", FAKE_CURL)
-    if old:
-        old_uv_in(stubs)
     log = base / "fakes.txt"
     log.write_text("", encoding="utf-8")
     mark = new_mark()
