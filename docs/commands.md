@@ -385,7 +385,7 @@ plan  30 episodes against gpt-5-nano-2025-08-07: about $0.02, and the run stops 
   calls     150 if every task is solved the shortest way · about 190 expected · at most 960 (32 per episode)
   cost      about $0.02 expected · the run stops at $1.00
   estimate  from the published gpt-5-nano card for this model
-  harness   the first episode runs uv's installer (astral.sh inside a virtualenv) and fetches four packages and their dependencies from PyPI
+  harness   the first episode sets up uv with astral.sh's installer unless uv 0.6.10 or later is already on your PATH, and fetches four packages and their dependencies from PyPI
   folder    runs/first-look-gpt-5-nano-2025-08-07 (a new run)
 ```
 
