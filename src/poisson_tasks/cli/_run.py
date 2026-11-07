@@ -57,6 +57,24 @@ def _cap_words(caps: dict[str, float | int | None]) -> str:
     return " or ".join(parts)
 
 
+def _estimate_words(estimate: Any, *, own: bool) -> str:
+    """The plan's `estimate` row: where the figure comes from.  On the built-in tasks it is the
+    published card's own per-arm means.  On your own tools it is not: the card measured the
+    built-in tasks, and the estimate takes its mean usage per model call and scales it to the size
+    of your tool block (`runs._own_estimate`), which the row says (#35)."""
+    if own:
+        words = (f"from the published {estimate.source} card" + (
+            " for this model: " if estimate.same_model else ": ")
+            + "its per-call usage on the built-in tasks, scaled to your tools' size")
+        if not estimate.same_model:
+            words += "; your model's usage will differ, and the cap is what holds"
+        return words
+    if estimate.same_model:
+        return f"from the published {estimate.source} card for this model"
+    return (f"from the published {estimate.source} card; your model's usage will differ, and the "
+            "cap is what holds")
+
+
 def _suggested_cap(expected: float) -> str:
     return f"{config.default_spend_cap(expected):.2f}"
 
@@ -247,12 +265,7 @@ def run(ctx: Context) -> Result:
             rows.append(Row("cost", f"no price, so no dollar figure: about "
                                     f"{_format.count(expected_tokens or 0)} tokens expected · "
                                     f"the run stops at {cap_words}"))
-        if estimate.same_model:
-            rows.append(Row("estimate", f"from the published {estimate.source} card for this "
-                                        "model"))
-        else:
-            rows.append(Row("estimate", f"from the published {estimate.source} card; your "
-                                        "model's usage will differ, and the cap is what holds"))
+        rows.append(Row("estimate", _estimate_words(estimate, own=plan.own is not None)))
     else:
         rows.append(Row("cost", f"no estimate for this install; the run stops at {cap_words}"))
     rows.append(Row("harness", HARNESS_LINE))
