@@ -81,6 +81,8 @@ calibration card's subject, not this page's: see [Reading a card](reading-a-card
 Paths are elided above; nothing else is. That run predates the turn limit described below,
 which is why its limits line reads "no turn cap"; a run today shows the 32-call cap there.
 
+**Reading the display.** Everything `eval` prints is verifiers', not this taskset's. `[success ]` is verifiers' word for an episode that ended without an error; it is not the verdict, and an episode that scored 0.00 is a `[success ]` too (the run above has one, `reward=0.00`). The score is the `reward=` beside it. The `usage` line counts each conversation once, but every model call sends the conversation again and is billed for it, so a run spent more than the line implies: the run above made ten model calls that sent 8,363 prompt tokens, where its usage line shows 2.2K in. The spend of an exported run is the sum, over the lines of `traces.jsonl` in its output folder, of the usage of each call in each trace (`calls`, then each call's `usage`: `prompt_tokens`, `cached_input_tokens` and `completion_tokens`), priced at the model's rates. That is the arithmetic the card uses, and `poisson-tasks run` does it for you, with a cap.
+
 **If the run goes quiet, it has not hung on the model.** At 0.3.1 a run's env server is a
 child process, and if it dies during startup -- a config it refuses, a missing dependency --
 the parent keeps waiting: no top-level error, no non-zero exit, and `traces.jsonl` stays 0
@@ -99,12 +101,13 @@ poisson-tasks init --yes --no-check-key --provider openai --recipe first-look > 
 ```
 <!-- docs-check: run -->
 ```bash
-poisson-tasks export --to verifiers | head -n 4
+poisson-tasks export --to verifiers | head -n 5
 ```
 <!-- docs-check: output -->
 ```
 ok  wrote 3 verifiers configs, one per arm: depth at 1, 3 and 8, 10 tasks each
   note  run that way, eval leaves out what run adds (the plan, the instrument tally, the out-of-credit stop, the failure-streak stop and the watchdog), and it exits 0 when every episode errored
+  note  eval marks [success ] on every episode that ended without an error, whatever it scored (reward= is the score), and its usage line counts each conversation once, so the dollars it implies are less than the run spent
 
 Each of these runs calls the model and spends money with no cap; poisson-tasks run is the way with a cap.
 ```

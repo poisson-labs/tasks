@@ -36,6 +36,17 @@ LEAVES_OUT = (
     "out-of-credit stop, the failure-streak stop and the watchdog), and it exits 0 when every "
     "episode errored"
 )
+DISPLAY = (
+    "eval marks [success ] on every episode that ended without an error, whatever it scored "
+    "(reward= is the score), and its usage line counts each conversation once, so the dollars "
+    "it implies are less than the run spent"
+)
+"""What verifiers 0.3.1's `eval` display means (#30).  Both words are verifiers': the label is
+`"error" if t.has_error else "success"` and the usage line sums `num_input_tokens`, the input
+counted once, where every model call sends the conversation again and is billed for it.  The
+card and `run` price each call's own usage, and the page `docs/verifiers-export.md` says where
+the real figure is.  `tests/test_fx_export_display_note.py` holds the note to the installed
+verifiers."""
 SPENDS = ("Each of these runs calls the model and spends money with no cap; {run} is the way "
           "with a cap.")
 """The warning printed right above the commands (pass two's N6), in plain English."""
@@ -92,8 +103,8 @@ def export(ctx: Context) -> Result:
         schema=SCHEMA, verdict="ok",
         sentence=f"wrote {_format.plural(len(paths), 'verifiers config')}, one per arm: "
                  f"{plan_words(plan)}",
-        rows=[Row("note", LEAVES_OUT)],
+        rows=[Row("note", LEAVES_OUT), Row("note", DISPLAY)],
         document=[Part(SPENDS.format(run=ctx.command('run')), "lines", commands)],
         data={"files": [str(path) for path in paths], "commands": commands,
-              "produced_by": record},
+              "notes": [LEAVES_OUT, DISPLAY], "produced_by": record},
     )
