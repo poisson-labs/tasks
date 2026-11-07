@@ -297,8 +297,9 @@ def test_fd5_19_nothing_happening_stops_with_exit_3_quoting_run_log(
     lines of its log, says nothing raw on stderr, and leaves nothing running."""
     mark = "fd5-watchdog-" + os.urandom(6).hex()
     started = tmp_path_factory.mktemp("hanging-pip-ran") / "pid"
+    # a uv too old for the harness first, so that the bootstrap runs and its `pip` hangs (0.4.1)
     stubs = stub_bin(tmp_path_factory.mktemp("hanging-pip"),
-                     pip=f"#!/bin/sh\necho $$ > {started}\nsleep 300\n")
+                     pip=f"#!/bin/sh\necho $$ > {started}\nsleep 300\n", old_uv=True)
     write_config(world.work / "tasks.toml", fixture_flags(fixture.base_url))
     try:
         ran = fresh(["run", "--yes"], prog=prog, world=world,

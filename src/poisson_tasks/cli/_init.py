@@ -282,6 +282,17 @@ def _fetch_problem(reason: BaseException) -> str:
     return f"the tokenizer file could not be fetched ({reason})"
 
 
+def _cap_hint(estimate: Any, expected: float, *, own: bool) -> str:
+    """The line under the cap question: what the plan is expected to cost and where the figure
+    comes from.  On the built-in tasks it is the published card's usage; on your own tools it is
+    the same card's per-call usage on the built-in tasks, scaled to the size of your tools, and
+    the line says so (#35)."""
+    where = ("worked out from the published card's per-call usage on the built-in tasks and "
+             "scaled to your tools' size" if own else "at the published card's usage")
+    return (f"This plan: {_format.count(estimate.episodes)} episodes, about "
+            f"{_format.about(expected)}{',' if own else ''} {where}. The cap is what holds.")
+
+
 def _estimate(made: Any, root: Path | None = None) -> Any:
     try:
         plan = config.resolve_plan(made, root=root)
@@ -505,9 +516,7 @@ def _dialogue(
         expected = estimate.dollars_expected if estimate is not None else None
         cap_default = config.default_spend_cap(expected)
         if estimate is not None and expected is not None:
-            hint = (f"This plan: {_format.count(estimate.episodes)} episodes, about "
-                    f"{_format.about(expected)} at the published card's usage. The cap is what "
-                    "holds.")
+            hint = _cap_hint(estimate, expected, own=so_far.own is not None)
         else:
             hint = ("This plan's estimate cannot be shown without the tokenizer file. The cap "
                     "is what holds.")

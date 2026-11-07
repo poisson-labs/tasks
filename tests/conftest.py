@@ -18,10 +18,11 @@ by refusing to collect, and `pytest -q` reports the count and the reason.
 **The network.** Generation needs none, but every test that runs an episode through the
 `null` harness does. Before each episode's harness starts, the `verifiers` wheel makes sure
 of the latest `uv`: it runs `pip install --user uv`, and where that cannot install (inside a
-virtualenv it never can) it downloads uv's installer from astral.sh with curl. Then
-`uv sync --script` installs the harness program's own dependencies from PyPI. That is the
-wheel's behaviour, not this package's, and it happens even when `uv` is already installed.
-Without the network those tests fail at the harness's setup, with the wheel's error.
+virtualenv it never can) it downloads uv's installer from astral.sh with curl. A run guards that
+(since 0.4.1, `runs.guard_uv_bootstrap`): a `uv` that takes `--script` in `uv sync` and in
+`uv python find` is used and nothing is fetched. Then `uv sync --script` installs the harness
+program's own dependencies from PyPI. Without the network those tests fail at the harness's
+setup, with the wheel's error.
 
 **Hypothesis profiles.** Property tests draw new examples on every run by default, so what
 one run catches can differ from the next. `HYPOTHESIS_PROFILE=ci` (which the CI workflow

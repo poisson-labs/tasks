@@ -61,6 +61,16 @@ that holds one anywhere else is masked there too, string by string, and stays JS
 open files is raised as far as the hard limit allows for the run's length too, and a run that
 needs more open files than that is refused before anything is written (`_open_files`).
 
+**The uv the harness runs on**: verifiers 0.3.1's bootstrap ensures the *latest* uv before the
+first episode of every process, and with pip kept out of the user site (`PIP_REQUIRE_VIRTUALENV`,
+decided 2026-10-02, so that its branch does not depend on the first `pip` on the `PATH`) that
+meant astral's installer was fetched on every run, with a uv already installed, and replaced it.
+For the run's length the bootstrap is the same text with a guard in front of it
+(`guard_uv_bootstrap`): a uv that takes `--script` in `uv sync` and in `uv python find`, the two
+commands the harness runs, is used as it is, and the bootstrap runs only without one.  Measured
+2026-11-07: `uv sync --script` is in 0.6.0, `uv python find --script` in 0.6.10, so uv 0.6.10 or
+later is what a run uses when it finds it, and the plan's `harness` line says so.
+
 **A plan on the user's own tools** runs the same way: its eval config
 names the taskset `poisson-tasks-own` and carries the plan's `own` whole, its `plan.json` holds
 `own`, its task hashes are the own export's, and its estimate scales the published card's
@@ -1048,17 +1058,49 @@ def _metered_client(meter: _Meter, state: _State) -> Iterator[None]:
         eval_client.EvalClient.get_response = real
 
 
+_BOOTSTRAP_HEAD = 'export PATH="$HOME/.local/bin:$PATH" UV_INSTALL_DIR="$HOME/.local/bin"; '
+"""How verifiers 0.3.1's bootstrap (`verifiers.v1.runtimes.base._ENSURE_UV`) begins: the two
+exports, `~/.local/bin` first on the `PATH`."""
+
+_UV_CAN_RUN_THE_HARNESS = (
+    "{ uv sync --help 2>/dev/null | grep -q -e --script "
+    "&& uv python find --help 2>/dev/null | grep -q -e --script; }"
+)
+"""True when the first `uv` on the `PATH` takes `--script` in the two commands the harness runs
+(`uv sync --script` and `uv python find --script`).  It asks uv rather than reading a version
+number; the two were added in 0.6.0 and 0.6.10, measured 2026-11-07, so the floor is 0.6.10."""
+
+
+def guard_uv_bootstrap(bootstrap: str) -> str:
+    """`bootstrap` with a guard in front of everything after its two exports: a uv that can run
+    the harness is used and nothing is installed; otherwise the text runs as it was.  A text that
+    does not begin with the two exports is not the one this package was written against
+    (verifiers 0.3.1's), and is returned as it is."""
+    if not bootstrap.startswith(_BOOTSTRAP_HEAD):
+        return bootstrap
+    rest = bootstrap[len(_BOOTSTRAP_HEAD):]
+    return f"{_BOOTSTRAP_HEAD}{_UV_CAN_RUN_THE_HARNESS} || {{ {rest}; }}"
+
+
 @contextlib.contextmanager
 def _harness_environment() -> Iterator[None]:
-    """The harness's environment for the run's length: pip kept to a virtualenv, so
-    the bootstrap takes uv's installer every time, and that installer told not to edit shell
-    start-up files."""
+    """The harness's environment for the run's length: pip kept to a virtualenv, so the
+    bootstrap's branch does not depend on the first `pip` on the `PATH`, the installer told not to
+    edit shell start-up files, and the bootstrap itself guarded, so that a uv which can run the
+    harness is used and the installer is fetched only without one."""
     saved = {name: os.environ.get(name) for name in ("PIP_REQUIRE_VIRTUALENV", "UV_NO_MODIFY_PATH")}
     os.environ["PIP_REQUIRE_VIRTUALENV"] = "1"
     os.environ["UV_NO_MODIFY_PATH"] = "1"
+    from verifiers.v1.runtimes import base
+
+    bootstrap = getattr(base, "_ENSURE_UV", None)
+    if isinstance(bootstrap, str):
+        base._ENSURE_UV = guard_uv_bootstrap(bootstrap)
     try:
         yield
     finally:
+        if isinstance(bootstrap, str):
+            base._ENSURE_UV = bootstrap
         for name, value in saved.items():
             if value is None:
                 os.environ.pop(name, None)

@@ -93,7 +93,7 @@ The session opens with its banner, then one of two screens:
 
 The prompt takes a step's number (Enter is step 1) or a word: `run`, `again`, `card`, `more`, `replies`, `task`, `verify`, `runs`, `settings`, `setup`, `flow`, `export`, `check`, `home`, `help` and `quit`. A word may take one argument: `card 2` is the second run listed, `task 3` the third task of the first arm, `task d3` the first task of the arm whose id ends `d3`. Tab completes a word; `help` lists them.
 
-Every action is one of the seven verbs' command lines, run through the same parser and verb as the command, so what it writes is byte for byte what that command writes from a shell; under its result the session prints `same as  <the command>`, dim. Nothing calls a model until you answer yes at `run`'s own question, and the session never passes `--yes` to `run`. The home screen, the card view, `task`, `runs`, `settings`, `replies`, `more` and `flow` open no socket; `check` runs `doctor --offline` and then offers the key check as a step.
+Every action is one of the seven verbs' command lines, run through the same parser and verb as the command, so what it writes is byte for byte what that command writes from a shell; under its result the session prints `same as  <the command>`, dim. The exception is reading a card that is built: `card`, and the step that offers it, draw the run's `card/card.md` as it stands, run no verb and write nothing, so they print no `same as`; a run with no card has one built by `card`, and a card the run has gone on from (it was made from what ran, and the run has finished since) is built again, with `--force`. Nothing calls a model until you answer yes at `run`'s own question, and the session never passes `--yes` to `run`. The home screen, the card view, `task`, `runs`, `settings`, `replies`, `more` and `flow` open no socket; `check` runs `doctor --offline` and then offers the key check as a step.
 
 Ctrl-C at a question inside a step stops that step as the command does (nothing written) and the session returns to its prompt; during a run it is the run's own interrupt, and step 1 is then the resume; at the prompt it clears the line, and twice on an empty line it leaves. `quit` and Ctrl-D leave the same way. Leaving at the prompt exits 0. An unexpected failure inside an action is its one `error:` line, and the session stays open; one in the session itself exits 3.
 
@@ -385,7 +385,7 @@ plan  30 episodes against gpt-5-nano-2025-08-07: about $0.02, and the run stops 
   calls     150 if every task is solved the shortest way · about 190 expected · at most 960 (32 per episode)
   cost      about $0.02 expected · the run stops at $1.00
   estimate  from the published gpt-5-nano card for this model
-  harness   the first episode runs uv's installer (astral.sh inside a virtualenv) and fetches four packages and their dependencies from PyPI
+  harness   the first episode sets up uv with astral.sh's installer unless uv 0.6.10 or later is already on your PATH, and fetches four packages and their dependencies from PyPI
   folder    runs/first-look-gpt-5-nano-2025-08-07 (a new run)
 ```
 
@@ -602,16 +602,17 @@ examples:
 
 Writes the plan's tasks as configs another runner reads. There is one target now, `--to verifiers`: one eval config for every arm, `eval-<arm>.json`, holding the taskset, the arm, the seeds, the model, the endpoint, the name of the key's variable (never the key) and the decoding, with `push` off. It prints, for each file, the command that runs it, with verifiers' `eval` by its absolute path in this environment, so that the shell's own `eval` builtin cannot take its place ([verifiers-export.md](verifiers-export.md) says why that matters). Beside the configs it writes `produced_by.json`: what produces the plan's tasks (the package and verifiers versions, the generator's hash, on your own tools the own-tools generator's and your tool file's contract hash, the plan's hash and its seeds), with no time in it, so two exports of one plan write the same bytes; `--json` carries it as `produced_by`. The configs carry nothing of it: they are what `run` sends. `export` reads no key and opens no socket, and refuses to replace files that are already there unless you pass `--force`.
 
-Run that way, `eval` runs what `run` runs for the arm, without what `run` adds: the plan, the spend cap, the tally of failures that are not the model's, the stop when the account is out of credit, the stop for a streak of failures, and the watchdog. It also exits 0 when every episode errored. So each printed command calls the model and spends money with no cap and no estimate, and `export` says so in the line above them.
+Run that way, `eval` runs what `run` runs for the arm, without what `run` adds: the plan, the spend cap, the tally of failures that are not the model's, the stop when the account is out of credit, the stop for a streak of failures, and the watchdog. It also exits 0 when every episode errored. So each printed command calls the model and spends money with no cap and no estimate, and `export` says so in the line above them. Its display is verifiers', and `export` says what it means in a second note: `[success ]` beside an episode means it ended without an error, whatever it scored, and the usage line counts each conversation once, so it shows less than the run spent ([verifiers-export.md](verifiers-export.md) says where the real figure is).
 
 <!-- docs-check: run -->
 ```bash
-poisson-tasks export --to verifiers | head -n 4
+poisson-tasks export --to verifiers | head -n 5
 ```
 <!-- docs-check: output -->
 ```
 ok  wrote 3 verifiers configs, one per arm: depth at 1, 3 and 8, 10 tasks each
   note  run that way, eval leaves out what run adds (the plan, the instrument tally, the out-of-credit stop, the failure-streak stop and the watchdog), and it exits 0 when every episode errored
+  note  eval marks [success ] on every episode that ended without an error, whatever it scored (reward= is the score), and its usage line counts each conversation once, so the dollars it implies are less than the run spent
 
 Each of these runs calls the model and spends money with no cap; poisson-tasks run is the way with a cap.
 ```

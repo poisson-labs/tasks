@@ -234,7 +234,8 @@ def test_fd3_10_a_run_stuck_before_its_first_model_call_stops_quoting_run_log(
     """The harness's bootstrap never returns.  With a three-second limit the run stops soon
     after, having called nothing, quoting where it was; the stuck bootstrap is stopped too."""
     pid_file = tmp_path / "pip.pid"
-    stubs = stub_bin(tmp_path / "bin", pip=HANGING_PIP.format(pid=pid_file))
+    # a uv too old for the harness first, so that the bootstrap runs and its `pip` hangs (0.4.1)
+    stubs = stub_bin(tmp_path / "bin", pip=HANGING_PIP.format(pid=pid_file), old_uv=True)
     mark = new_mark()
     (tmp_path / "home").mkdir()
     env = child_env(home=tmp_path / "home", stubs=stubs, mark=mark)

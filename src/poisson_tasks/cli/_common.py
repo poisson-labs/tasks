@@ -20,8 +20,8 @@ from poisson_tasks.cli._result import Refusal, Usage
 
 DEFAULT_SETTINGS = "tasks.toml"
 HARNESS_LINE = (
-    "the first episode runs uv's installer (astral.sh inside a virtualenv) and fetches four "
-    "packages and their dependencies from PyPI"
+    "the first episode sets up uv with astral.sh's installer unless uv 0.6.10 or later is "
+    "already on your PATH, and fetches four packages and their dependencies from PyPI"
 )
 WINDOWS_LINE = (
     "runs need macOS or Linux (the harness uses a POSIX shell); generate, card, verify and "

@@ -57,6 +57,24 @@ def _cap_words(caps: dict[str, float | int | None]) -> str:
     return " or ".join(parts)
 
 
+def _estimate_words(estimate: Any, *, own: bool) -> str:
+    """The plan's `estimate` row: where the figure comes from.  On the built-in tasks it is the
+    published card's own per-arm means.  On your own tools it is not: the card measured the
+    built-in tasks, and the estimate takes its mean usage per model call and scales it to the size
+    of your tool block (`runs._own_estimate`), which the row says (#35)."""
+    if own:
+        words = (f"from the published {estimate.source} card" + (
+            " for this model: " if estimate.same_model else ": ")
+            + "its per-call usage on the built-in tasks, scaled to your tools' size")
+        if not estimate.same_model:
+            words += "; your model's usage will differ, and the cap is what holds"
+        return words
+    if estimate.same_model:
+        return f"from the published {estimate.source} card for this model"
+    return (f"from the published {estimate.source} card; your model's usage will differ, and the "
+            "cap is what holds")
+
+
 def _suggested_cap(expected: float) -> str:
     return f"{config.default_spend_cap(expected):.2f}"
 
@@ -247,12 +265,7 @@ def run(ctx: Context) -> Result:
             rows.append(Row("cost", f"no price, so no dollar figure: about "
                                     f"{_format.count(expected_tokens or 0)} tokens expected · "
                                     f"the run stops at {cap_words}"))
-        if estimate.same_model:
-            rows.append(Row("estimate", f"from the published {estimate.source} card for this "
-                                        "model"))
-        else:
-            rows.append(Row("estimate", f"from the published {estimate.source} card; your "
-                                        "model's usage will differ, and the cap is what holds"))
+        rows.append(Row("estimate", _estimate_words(estimate, own=plan.own is not None)))
     else:
         rows.append(Row("cost", f"no estimate for this install; the run stops at {cap_words}"))
     rows.append(Row("harness", HARNESS_LINE))
@@ -367,19 +380,49 @@ def _refuse_held(path: Path) -> None:
         fcntl.flock(handle, fcntl.LOCK_UN)
 
 
+def _same_file(handle: Any, lock: Path) -> bool:
+    """Whether `lock` names the file `handle` has open: the same device and inode."""
+    try:
+        named = os.stat(lock)
+    except OSError:
+        return False
+    held = os.fstat(handle.fileno())
+    return (named.st_dev, named.st_ino) == (held.st_dev, held.st_ino)
+
+
 @contextlib.contextmanager
 def _locked(path: Path) -> Iterator[None]:
-    """The run's length holding `<run folder>/run.lock`, with the pid and start time in it."""
+    """The run's length holding `<run folder>/run.lock`, with the pid and start time in it; the
+    file is removed when the run ends, by the run that holds it and by no other.
+
+    The hold is an advisory `flock`, so a process that dies loses it whatever it was doing, and a
+    file left by one that was killed is only a file: the next run takes it and removes it in its
+    turn.  Removing the file at the end opens one race, and the first lines below close it.  A
+    run that opened the file just before the run holding it removed it would be given a `flock`
+    on a file that has no name, while a third run made a new file and held that: two holders.  So
+    after the `flock` the file is checked to be the one the path names now, and if it is not, the
+    run opens the path again.  The holder removes the file while it still holds it, and only if
+    the path still names the file it holds (someone may have removed it and another run made it
+    again, and that run's file is not ours to remove)."""
     import fcntl
     import time
 
-    handle = open(path / LOCK_FILE, "a+", encoding="utf-8")
-    try:
+    lock = path / LOCK_FILE
+    while True:
+        handle = open(lock, "a+", encoding="utf-8")
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
+            handle.close()
             raise Refusal(f"{shown(path)} is being run by another process{_holder(path)}; "
                           "nothing was spent") from None
+        except BaseException:
+            handle.close()
+            raise
+        if _same_file(handle, lock):
+            break
+        handle.close()
+    try:
         handle.seek(0)
         handle.truncate()
         handle.write(json.dumps({"pid": os.getpid(), "since": time.strftime(
@@ -387,6 +430,11 @@ def _locked(path: Path) -> Iterator[None]:
         handle.flush()
         yield
     finally:
+        try:
+            if _same_file(handle, lock):
+                lock.unlink()
+        except OSError:
+            pass
         handle.close()
 
 

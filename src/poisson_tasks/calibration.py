@@ -90,7 +90,10 @@ Shapes decided here, where the tests leave them open
   time and its first request's size only when the trace measured them
   (`_time_from_trace`); a cell's time figures are over the scored episodes that recorded
   them and are `None` when none did, and the card prints *not recorded*.  Both published
-  cards were run before time was kept, so every time figure on them is missing.
+  cards were run before time was kept, so every time figure on them is missing.  On the card of
+  a run of a plan, the concurrency and the budget say why instead (`IN_THE_RUN_LOG`,
+  `_budget_line`), and the paragraph on a resumed run is there only when the run was resumed;
+  the published cards, which hold no plan's arms, print what they always did (#35).
 * **Time is printed and never compared.**  Seconds belong to the serving and its load as
   much as to the level, so the card prints the run's concurrency wherever it prints
   seconds.  No pair, ordering or verdict reads a time figure, and `concurrency` is not
@@ -1704,9 +1707,18 @@ def _seconds(value: float | None) -> str:
     return NOT_RECORDED if value is None else f"{value:.1f}"
 
 
+IN_THE_RUN_LOG = (
+    "not on this card; run.log in the run folder says how many episodes ran at once in each part "
+    "of the run"
+)
+"""What the card of a run of a plan says for a concurrency it does not carry.  The run logs one
+line for each part of the run, `run of N episodes, K kept, at concurrency C`; the card reads no
+log, so it says where the figure is, and not that nobody recorded it (#35)."""
+
+
 def _concurrency(prov: Provenance) -> str:
     if prov.concurrency is None:
-        return NOT_RECORDED
+        return NOT_RECORDED if prov.arms is None else IN_THE_RUN_LOG
     return f"{prov.concurrency} episode{'' if prov.concurrency == 1 else 's'} at once"
 
 
@@ -1811,6 +1823,15 @@ def _depth_stop_note(axis: _Sequence[int]) -> str:
     )
 
 
+_RESUMED_PARAGRAPH = (
+    "**A resumed run is the same run in this sense and no other.** A run that was "
+    "interrupted and resumed serves the same tasks, each with its full number of "
+    "attempts, none run twice and none skipped. It does not reproduce the interrupted "
+    "attempts byte for byte: the decoding is deliberately not deterministic, so a resumed "
+    "attempt is a fresh attempt and not an identical copy of the one it replaces."
+)
+
+
 def render_document(
     artifact: Artifact, *, claims: bool = False, resumes: _Sequence[str] = ()
 ) -> str:
@@ -1846,12 +1867,12 @@ def render_document(
         "the generator changes.** It is not regenerated automatically; a card whose "
         "generator hash differs from the package's is stale and says so here.",
         "",
-        "**A resumed run is the same run in this sense and no other.** A run that was "
-        "interrupted and resumed serves the same tasks, each with its full number of "
-        "attempts, none run twice and none skipped. It does not reproduce the interrupted "
-        "attempts byte for byte: the decoding is deliberately not deterministic, so a resumed "
-        "attempt is a fresh attempt and not an identical copy of the one it replaces.",
-        "",
+    ]
+    if prov.arms is None or prov.resumed:
+        # The published cards say it of every run. A run of a plan says it of a run that was
+        # resumed, and a run that was never interrupted has no resume to explain (#35).
+        lines += [_RESUMED_PARAGRAPH, ""]
+    lines += [
         "Every number is one model's. No figure pools or ranks models, and a difference "
         "between two levels is printed only under the two-clause rule below.",
         "",
@@ -2156,10 +2177,16 @@ def render_document(
 def _budget_line(prov: Provenance) -> str:
     """The published design's budget as it has always been printed; a run of a plan has caps,
     not a budget, and its block records none, which prints as not recorded, never as a limit
-    the run did not have."""
+    the run did not have.  On the card of a run of a plan (its block holds the plan's arms) the
+    line says why there is none: the run had a cap, and no file of its folder records it."""
     tokens = prov.budget.get("tokens")
     wall = prov.budget.get("wall_clock_seconds")
     if tokens is None and wall is None:
+        if prov.arms is not None:
+            return (
+                f"- budget: {NOT_RECORDED}, because a run of a plan has none: it stops at the "
+                "spend or token cap it was given, and no file of the run folder records that cap"
+            )
         return f"- budget: {NOT_RECORDED}"
     return (
         f"- budget: {tokens} tokens, {wall} s wall "
@@ -3979,6 +4006,17 @@ _OWN_LINES = (
 )
 
 
+_WORD_MATCH_ON_A_RUNS_CARD = (
+    "Without an intent for every tool (an intent is the line you write for a tool in "
+    "`[own.intents]` for requests to say in place of its description), choosing a tool was "
+    "partly a word match with its description."
+)
+"""`own_word_match` as the card of a run of a plan says it: it says what an intent is (#35).  The
+line in `_OWN_LINES` is what a card says whose provenance holds no plan's arms, which is how an
+artifact written before the explanation renders again byte for byte (`test_bd_card_and_experimental`
+holds the digest of one)."""
+
+
 def _own_claims(artifact: Artifact, model: str) -> Claims:
     """What an own-tools card means and does not claim: its lines are
     `_OWN_LINES`, every one that applies, one line per experimental knob it holds, `stale`
@@ -4010,7 +4048,10 @@ def _own_claims(artifact: Artifact, model: str) -> Claims:
         "level is called different from its knob's first level only when the paired interval "
         f"excludes zero and the gap is at least {prov.delta_star:.2f}."
     )
-    lines = [line for flag, line in _OWN_LINES if flag in flags]
+    lines = [
+        _WORD_MATCH_ON_A_RUNS_CARD if flag == "own_word_match" and prov.arms is not None else line
+        for flag, line in _OWN_LINES if flag in flags
+    ]
     lines += [_experimental_line(knob) for knob in experimental]
     for flag, line in (("self_served", _LINE_SELF_SERVED), ("stale", _LINE_STALE),
                        ("resumed", _LINE_RESUMED)):

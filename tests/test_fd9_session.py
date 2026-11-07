@@ -497,7 +497,8 @@ def test_fd9_8_every_offered_step_runs_as_a_command_without_a_refusal(
 ) -> None:
     """Each step of `next`, picked by its number in a session on a copy of the state, then its
     `same as` command run from a shell in another copy (a run answered yes): no exit 1 or 2.  A step
-    with no command (`home`, `replies`) is a view.  In state D with a refused card, step 1 is the
+    with no command (`home`, `replies`) is a view; so is `card` where the card is built (states D
+    and E), retrofitted for #34, which found that reading it ran `card --force`.  In state D with a refused card, step 1 is the
     replies view (decided 2026-10-20) and `card` is offered below it; that `card` step shows the
     refusal and exits 1 by the command's exit codes, the one exception to offering no step the verb
     refuses (decided yes 2026-10-21), pinned by the test below.  Red before the build: no
@@ -520,6 +521,8 @@ def test_fd9_8_every_offered_step_runs_as_a_command_without_a_refusal(
             continue
         if state == "D-refused" and word == "card":
             continue
+        if state in ("D", "E") and word == "card":
+            continue  # the card, built and current, is a view (#34)
         mine = states.copy(state, world.tmp / f"{number}-session")
         theirs = states.copy(state, world.tmp / f"{number}-shell")
         locks = [hold_lock(run_folder(path)) for path in (mine, theirs)] if state == "C2" else []
@@ -591,14 +594,15 @@ def test_fd9_9_after_an_action_next_is_the_new_states_and_the_status_block_is_no
 def test_fd9_9_enter_picks_step_1_and_a_number_picks_that_step(
     states: States, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Red before the build: there is no session."""
+    """Red before the build: there is no session.  Retrofitted for #34: step 1 of a built card is
+    the card view, which runs no verb, so Enter shows no command and step 2 shows its own; both
+    steps showed a `same as` command, step 1's `card --force`."""
     here(states, "D", world)
     session = in_session(Keys(["", "2", "quit"], answer=answering()), monkeypatch)
     steps = steps_of(first_home(session))
     commands = session.same_as()
-    assert len(commands) == 2, session
-    assert commands[0][1] == VERB_OF[steps[0]] and commands[1][1] == VERB_OF[steps[1]], (
-        steps, commands)
+    assert steps[0] == "card" and len(commands) == 1, (steps, commands, session)
+    assert commands[0][1] == VERB_OF[steps[1]], (steps, commands)
 
 
 @pytest.mark.parametrize("word", [w for w in WORDS if w != "quit"])
@@ -606,13 +610,18 @@ def test_fd9_9_each_word_of_the_closed_set_runs_its_action(
     word: str, states: States, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A verb's word shows its verb's `same as` command; a view's word shows what it reads.  Red
-    before the build: there is no session."""
+    before the build: there is no session.  Retrofitted for #34: in state D the card is built, and
+    its word `card` is a view that draws `card/card.md` and runs no verb; it ran `card --force`."""
     state = "E" if word in ("flow", "replies") else "D"
     work = here(states, state, world)
     folder = run_folder(work)
     session = in_session(Keys([word, "quit"], answer=answering(flow=word == "flow")),
                          monkeypatch)
     after = stripped("".join(session.log.screens()[1:]))
+    if word == "card":
+        assert not session.same_as(), session
+        assert "What it does not claim" in " ".join(after.split()), after
+        return
     if word in VERB_OF:
         commands = session.same_as()
         assert commands and commands[0][1] == VERB_OF[word], session

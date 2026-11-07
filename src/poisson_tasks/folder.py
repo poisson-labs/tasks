@@ -24,8 +24,12 @@ class RunFacts:
     counts them; `spent_usd` from its ledger (`None` without a price); `card`, `"built"`,
     `"refused"` or `None`; `locked`, whether a process holds its `run.lock` now, and `holder`,
     the pid and start time that process wrote in it, when it did; `this_plan`, whether it holds
-    the settings file's plan; and `silent_arms`, the arms of a refused card whose every attempt
-    made no tool call (the card's records say so)."""
+    the settings file's plan; `silent_arms`, the arms of a refused card whose every attempt
+    made no tool call (the card's records say so); and `card_current`, for a built card, whether
+    it is the card of the run as it stands: its `episodes.jsonl` holds one record for each
+    episode the run has kept, so the run has not gone on since the card was built (a run
+    stopped, carded from what ran and then finished has a card that is not current).  It is true
+    for a run with no built card, which has nothing to be behind."""
 
     name: str
     path: Path
@@ -37,6 +41,7 @@ class RunFacts:
     this_plan: bool
     holder: tuple[int, str] | None = None
     silent_arms: tuple[str, ...] = ()
+    card_current: bool = True
 
 
 @dataclasses.dataclass(frozen=True)
@@ -135,6 +140,11 @@ def _kept(folder: Path, arms: list[Any], per_arm: int) -> int:
                 count += 1
         kept += min(count, per_arm)
     return kept
+
+
+def _card_is_current(card_dir: Path, kept: int) -> bool:
+    """Whether a built card holds a record for each of the `kept` episodes of its run."""
+    return len(_whole_lines(card_dir / "episodes.jsonl")) == kept
 
 
 def _spent(folder: Path, priced: bool) -> float | None:
@@ -257,6 +267,7 @@ def read_folder(config_path: str | os.PathLike[str]) -> Folder:
                 this_plan=wanted is not None and _same_plan(wanted, plan),
                 holder=_holder(child / "run.lock"),
                 silent_arms=_silent_arms(card_dir / "episodes.jsonl") if card == "refused" else (),
+                card_current=card != "built" or _card_is_current(card_dir, kept),
             )
             found.append(((plan_file.stat().st_mtime_ns, child.name), facts))
     ordered = tuple(facts for _, facts in sorted(found, key=lambda item: item[0], reverse=True))

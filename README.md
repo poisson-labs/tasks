@@ -68,7 +68,7 @@ A task moves one record of a mock ledger up a fixed ladder of eight stages, with
 **What gets written outside your folder.** `init` and `run` write only to the folder you work in (`tasks.toml`, `runs/`, `tasks/`), apart from the following, which the first run does once or on every run:
 
 - the tokenizer file, 3.6 MB, fetched once from openaipublic.blob.core.windows.net into the installed package (it is not shipped with the package; `poisson-tasks doctor --fix` fetches it too);
-- on every run, the first episode runs the harness's setup: uv's installer from astral.sh puts `uv` and `uvx` in `~/.local/bin` (and its receipt in `~/.config/uv`), replacing the uv already there when a newer one exists, and four packages and their dependencies come from PyPI into uv's cache. `run` sets `UV_NO_MODIFY_PATH=1` so the installer does not edit your shell start-up files. The plan prints this in its `harness` line;
+- on every run, the first episode runs the harness's setup. With uv 0.6.10 or later already on your `PATH` (or in `~/.local/bin`, which the setup looks in first), the installer is not fetched and your uv is left as it is. Without one, uv's installer from astral.sh puts `uv` and `uvx` in `~/.local/bin` (and its receipt in `~/.config/uv`), replacing an older uv there. Either way, four packages and their dependencies come from PyPI into uv's cache. `run` sets `UV_NO_MODIFY_PATH=1` so the installer does not edit your shell start-up files. The plan prints this in its `harness` line;
 - verifiers' cache, in `~/.cache/verifiers`;
 - one `/tmp/vf-port-<hex>` file per episode, which verifiers leaves behind;
 - one empty `uv-<16 hex>.lock` file in the temporary folder, which uv writes for the harness's script environment and keeps.

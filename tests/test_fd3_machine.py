@@ -133,7 +133,8 @@ def machine_run(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, 
     for folder in (home, cwd, tmp):
         folder.mkdir()
     record = base / "bootstrap-env.txt"
-    stubs = stub_bin(base / "bin", pip=RECORDING_PIP.format(record=record))
+    # a uv too old for the harness first, so that the bootstrap runs and its `pip` records (0.4.1)
+    stubs = stub_bin(base / "bin", pip=RECORDING_PIP.format(record=record), old_uv=True)
     writes = base / "writes.txt"
     mark = new_mark()
     model = FixtureModel()
