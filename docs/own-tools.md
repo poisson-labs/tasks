@@ -129,8 +129,8 @@ plan  20 episodes against gpt-5-nano-2025-08-07: about $0.005, and the run stops
   model       gpt-5-nano-2025-08-07 at api.openai.com · key in OPENAI_API_KEY: not checked (--offline)
   calls       50 if every task is solved the shortest way · about 50 expected · at most 640 (32 per episode)
   cost        about $0.005 expected · the run stops at $1.00
-  estimate    from the published gpt-5-nano card for this model
-  harness     the first episode runs uv's installer (astral.sh inside a virtualenv) and fetches four packages and their dependencies from PyPI
+  estimate    from the published gpt-5-nano card for this model: its per-call usage on the built-in tasks, scaled to your tools' size
+  harness     the first episode sets up uv with astral.sh's installer unless uv 0.6.10 or later is already on your PATH, and fetches four packages and their dependencies from PyPI
   folder      runs/first-look-gpt-5-nano-2025-08-07 (a new run)
 ```
 
