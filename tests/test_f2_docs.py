@@ -80,6 +80,8 @@ def test_the_changelog_and_contributing_say_what_0_3_0_moved() -> None:
     # it is found by its heading; and CONTRIBUTING's count sentence is the newest release's.
     # Retrofitted again 2026-11-04 for 0.3.2: the count sentence may say 0.3.0, 0.3.1 or 0.3.2.
     # Retrofitted again 2026-11-04 for 0.4.0: or 0.4.0 (the stale-data spec's section 7.4).
+    # Retrofitted again 2026-11-08 for 0.4.1: or 0.4.1 (the maintainer's ruling of 2026-11-08, the
+    # 0.4.1 release-prep step).
     first = re.search(r"^## (0\.3\.0) \(", changelog, re.MULTILINE)
     assert first is not None and first.group(1) == "0.3.0"
     section = changelog[first.start(): changelog.index("\n## ", first.end())]
@@ -90,4 +92,4 @@ def test_the_changelog_and_contributing_say_what_0_3_0_moved() -> None:
     frozen = contributing[contributing.index("## The test files are frozen"):]
     frozen = frozen[: frozen.index("\n## ", 1)]
     assert "0.3.0" in frozen, frozen
-    assert re.search(r"At 0\.(?:3\.[012]|4\.0) the suite is [\d,]+ tests", contributing)
+    assert re.search(r"At 0\.(?:3\.[012]|4\.[01]) the suite is [\d,]+ tests", contributing)
