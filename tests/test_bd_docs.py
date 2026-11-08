@@ -123,5 +123,7 @@ def test_contributing_names_the_re_freeze_and_the_count() -> None:
     frozen = contributing[contributing.index("## The test files are frozen"):]
     frozen = frozen[: frozen.index("\n## ", 1)]
     assert "0.3.0" in frozen and "0.4.0" in frozen, frozen
-    assert re.search(r"At 0\.4\.0 the suite is [\d,]+ tests", contributing), contributing[:0]
+    # Retrofitted 2026-11-08 for 0.4.1: CONTRIBUTING's count sentence is the newest release's, so it
+    # may say 0.4.0 or 0.4.1 (the maintainer's ruling of 2026-11-08, the 0.4.1 release-prep step).
+    assert re.search(r"At 0\.4\.[01] the suite is [\d,]+ tests", contributing), contributing[:0]
     assert "`N1` to `N36`" in contributing
