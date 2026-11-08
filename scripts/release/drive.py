@@ -155,6 +155,13 @@ class Driver:
             if re.search(r"Start\? \[y/N\]\s*$", last_line):
                 self.answer(START, start, since=since)
                 continue
+            if self.look == "pretty" and last_line.strip() in (":", "(END)"):
+                # A long card is drawn through `less -R` in the pretty look, which holds the screen at its
+                # prompt until a key.  Since 0.4.1 the word `card` draws a card that is built (it no longer
+                # builds it again), so the gate meets the pager there.  `q` leaves it.
+                self.note("pager: q")
+                self.pty.send("q", settle=1.5)
+                continue
             if self.at_prompt(since):
                 return
             self.pty.live.write_text(self.pty.plain, encoding="utf-8")
