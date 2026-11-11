@@ -70,8 +70,11 @@ def test_the_task_page_and_the_own_tools_page_name_the_new_answers() -> None:
     dials = dials[: dials.index("\n## ", 1)]
     for knob in NEW:
         assert f"`{knob}`" in dials, knob
+    # Retrofitted 2026-11-11 for 0.4.2 (#51): the errors table, with the 504 and 429 statuses,
+    # moved with how the responses are made to docs/own-tools-reference.md.
+    reference = read("docs/own-tools-reference.md")
     for code in ("504", "429", "`timeout`", "`rate_limited`"):
-        assert code in own, code
+        assert code in reference, code
 
 
 def test_the_changelog_and_contributing_say_what_0_3_0_moved() -> None:
