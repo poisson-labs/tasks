@@ -2,6 +2,18 @@
 
 All notable changes to Poisson Tasks.
 
+## 0.4.2
+
+### Docs
+
+- **The README leads with install, a first run and reading the card (#41).** It is about 15 kB where it was about 19 kB. The reference material it held moved to the docs pages it links: each dial's levels and depth's full numbers to `docs/knobs-and-arms.md`, and the cost and footprint list to a new page. It keeps the dials with their evidence, the published cards, the commands and what is not claimed, and links to poissonlabs.ai.
+- **New page, for the site's sidebar: `docs/before-a-run.md`**, "Before a run: what it costs, and what it changes on your machine". Every item a first run writes outside your folder (the tokenizer file, uv for the harness, verifiers' cache and the temporary files), the limit on open files a run raises, the commands verifiers installs beside `poisson-tasks`, and what goes over the network.
+- **The densest docs pages are in shorter sections (#51).** `docs/knobs-and-arms.md` gains the fourteen dials at a glance, which recipes reach which dial, the turn budgets as a table, and checked blocks for the pin ledger on the block knob and for the two refusals of `baddata` and `lagged`. `docs/own-tools.md` breaks its longest runs (the simulator's rules, the refusals, the card) into subsections, lists and tables, with checked blocks for the `[own]` table `init` writes, a flow task and `verify`'s refusal. No fact or figure was dropped from either page.
+
+### Tests
+
+- **An existing test was edited, in its own commit**: the test that holds the exact set of pages under `docs/` gains `before-a-run.md`.
+
 ## 0.4.1 (2026-11-08)
 
 ### Fixes
