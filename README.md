@@ -56,7 +56,7 @@ Python 3.11 to 3.13, on macOS or Linux. A first run against `gpt-5-nano` is 30 e
 
 **People training models.** Checkable tool-use tasks at a difficulty you choose, scored exactly, with a card for each model you run. `poisson-tasks export --to verifiers` hands the same tasks to [verifiers](https://github.com/willccbb/verifiers) to run under your own loop ([verifiers-export.md](https://github.com/poisson-labs/tasks/blob/main/docs/verifiers-export.md)).
 
-**Agent teams.** Tasks built on your own tools. Bring an OpenAI tools file, an MCP tool list (or an MCP server, started with `--mcp-command`) or an OpenAPI document. Tasks simulates the responses from your schemas, never calls your backend, and the card shows where your setup breaks ([own-tools.md](https://github.com/poisson-labs/tasks/blob/main/docs/own-tools.md)).
+**Agent teams.** Tasks built on your own tools. Bring an OpenAI tools file, an MCP tool list (or an MCP server, started with `--mcp-command`) or an OpenAPI document. Tasks simulates the responses from your schemas, never calls your backend, and the card shows where your setup breaks ([own-tools.md](https://github.com/poisson-labs/tasks/blob/main/docs/own-tools.md); how the responses are made and the contract hash are in [own-tools-reference.md](https://github.com/poisson-labs/tasks/blob/main/docs/own-tools-reference.md)).
 
 Both start the same way: `poisson-tasks` on a terminal, or the commands above. For your own tools, one command sets up a folder, with the file beside `tasks.toml` (the session's setup asks the same, as its first question):
 
