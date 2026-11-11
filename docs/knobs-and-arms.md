@@ -257,9 +257,9 @@ leaves the named read's first answer still to come.
 The reference solution makes each read once at level 0 and the bad read twice above it, so
 `reference_turns` is 5 at `baddata:b0` and 6 above it.
 
-#### `baddata`: how it is built
+#### `baddata`: a level is a rung, not a quantity
 
-**A level is a rung, not a quantity.** The faults knob counts how many calls fail. A count
+The faults knob counts how many calls fail. A count
 measures nothing here: a model that does not check fails at one bad answer, and a model that
 does passes at any number of them. So the level is how little the bad answer gives away:
 
@@ -269,7 +269,9 @@ does passes at any number of them. So the level is how little the bad answer giv
 
 Nothing promises that a higher level is harder until a model has been measured on it.
 
-**Every bad answer heals on the next read.** One read's first answer is wrong and every later
+#### `baddata`: every bad answer heals on the next read
+
+One read's first answer is wrong and every later
 answer to the same call is right; no read is wrong twice. A value that stayed wrong could be
 caught only with a second source and a rule for which of the two to believe, and this
 release has neither.
@@ -277,6 +279,8 @@ release has neither.
 So a model that checks reads again, and reading until two answers in a row agree is right at
 every level, level 0 included. A read costs nothing in an episode: it moves no record, so the
 verdict never counts one against the model.
+
+#### `baddata`: what the model is told, and what catches it
 
 **What the model is told** is one line of the system prompt, at every level, level 0
 included: "A read can come back `ok` with a value that is out of date or wrong." It names
@@ -292,7 +296,9 @@ the hazard and not what to do about it.
 A card shows what the model did in two columns, *acted on bad data* and *read again after a bad
 answer* ([reading-a-card.md](reading-a-card.md)).
 
-**No control arm.** A control arm separates a knob from the length it adds, and here the
+#### `baddata`: no control arm
+
+A control arm separates a knob from the length it adds, and here the
 length cannot explain a drop. A model that trusts the first answer makes exactly level 0's
 calls, with one answer's text different; the one extra read is made only by an episode that
 checks, which is the one that passes. Level 0 is already the control, and `ArmSpec` refuses
@@ -393,7 +399,9 @@ The probe ran in two phases on each model: phase 1, one attempt at each of three
 one of its eighteen arms, checked that the run worked before the full measurement, phase 2, was
 spent.
 
-**1. Phase 1's check changed after its first result (gpt-5-nano).** As written before the run,
+#### 1. Phase 1's check changed after its first result (gpt-5-nano).
+
+As written before the run,
 phase 1 stopped the probe if any base-arm episode made no tool call, and gpt-5-nano's first
 phase 1 stopped on 1 of 21 (the model asked for the record id in plain text; nothing on our side
 failed).
@@ -404,7 +412,9 @@ was read again once under it, with no episode run again: 1 of 21, so it passed, 
 went on in the same folder within the same $4.00 cap. Qwen3-8B's phase 1 passed under the first
 rule.
 
-**2. A crash at the start, and one arm run again (gpt-5-nano).** The run crashed at its start
+#### 2. A crash at the start, and one arm run again (gpt-5-nano).
+
+The run crashed at its start
 on macOS's limit on open files, with its first arm, `similarity:s0`, in flight. The limit was
 raised and the run resumed.
 
@@ -413,7 +423,9 @@ every other arm 0.000) and was run once more, as the probe's rules, written befo
 once for a cause on our side. The void attempt is kept. In all, gpt-5-nano cost $1.5981 of the
 $4.00 cap.
 
-**3. More time for Qwen3-8B.** The Qwen3-8B run on Colab reached its two-hour allowance with 14
+#### 3. More time for Qwen3-8B.
+
+The Qwen3-8B run on Colab reached its two-hour allowance with 14
 of its 18 arms done and stopped cleanly. It was given more time and resumed, the 14 finished arms
 kept and the last four run with the same settings; it used 2.56 hours in all.
 
