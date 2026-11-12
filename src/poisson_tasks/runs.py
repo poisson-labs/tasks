@@ -91,7 +91,7 @@ import signal
 import statistics
 import threading
 from collections import Counter
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Callable, Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -121,6 +121,9 @@ _TRACES_FILE = calibration.TRACES_FILE
 _NOT_SENT = "not sent"
 _GRACE_SECONDS = 10.0
 """How long the first Ctrl-C lets the episodes in flight finish."""
+_CHILD_WAIT_SECONDS = 5.0
+"""How long a run, as it ends, waits for the child processes it started to be reported ended,
+before it closes them and again after (`_children_closed`)."""
 _STREAK = 5
 """Failed episodes in a row, before any was scored, that stop a run."""
 _LOG_TAIL_LINES = 20
@@ -1082,6 +1085,67 @@ def guard_uv_bootstrap(bootstrap: str) -> str:
     return f"{_BOOTSTRAP_HEAD}{_UV_CAN_RUN_THE_HARNESS} || {{ {rest}; }}"
 
 
+@contextlib.asynccontextmanager
+async def _children_closed() -> AsyncIterator[None]:
+    """For the run's length, every child process started on the running loop is recorded; as the
+    run ends, each one still open is closed while the loop can still close it.
+
+    The harness kills the processes of an episode that is cancelled (the watchdog, a cap, Ctrl-C),
+    and nothing waits for them.  A killed process, or one it started outside its process group, can
+    hold its end of the output pipes for a while; a transport whose pipes are still open when
+    `asyncio.run` closes the loop is closed later, by the garbage collector, on the closed loop, and
+    prints `Exception ignored … RuntimeError: Event loop is closed` on stderr.  So each transport
+    still open gets up to `_CHILD_WAIT_SECONDS` for its process to be reported ended, is closed
+    (which kills a process still running, as dropping the transport would), and its end is waited
+    for again, so that no report reaches the loop after it has closed.  A loop whose methods cannot
+    be shadowed records nothing and is left as it was."""
+    loop = asyncio.get_running_loop()
+    made: list[asyncio.SubprocessTransport] = []
+    hooked: list[str] = []
+    for name in ("subprocess_exec", "subprocess_shell"):
+        try:
+            setattr(loop, name, _recording(getattr(loop, name), made))
+        except AttributeError:
+            continue
+        hooked.append(name)
+    try:
+        yield
+    finally:
+        for name in hooked:
+            delattr(loop, name)
+        still_open = [transport for transport in made if not transport.is_closing()]
+        if still_open:
+            await _until_ended(still_open)
+            for transport in still_open:
+                transport.close()
+            await _until_ended(still_open)
+            # the pipes' own ends, which closing them put on the loop's queue
+            for _ in range(3):
+                await asyncio.sleep(0)
+
+
+def _recording(
+    start: Callable[..., Any], made: list[asyncio.SubprocessTransport]
+) -> Callable[..., Any]:
+    """`start` (a loop's `subprocess_exec` or `subprocess_shell`), adding each transport it makes
+    to `made`."""
+
+    async def recording(*args: Any, **kwargs: Any) -> Any:
+        transport, protocol = await start(*args, **kwargs)
+        made.append(transport)
+        return transport, protocol
+
+    return recording
+
+
+async def _until_ended(transports: Sequence[asyncio.SubprocessTransport]) -> None:
+    """Until every one of `transports` has its process reported ended, or `_CHILD_WAIT_SECONDS`."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + _CHILD_WAIT_SECONDS
+    while any(t.get_returncode() is None for t in transports) and loop.time() < deadline:
+        await asyncio.sleep(0.02)
+
+
 @contextlib.contextmanager
 def _harness_environment() -> Iterator[None]:
     """The harness's environment for the run's length: pip kept to a virtualenv, so the
@@ -1320,23 +1384,24 @@ async def _run(
     watch = loop.create_task(watchdog())
     _logger.info("run of %d episodes, %d kept, at concurrency %d", total, kept_before, concurrency)
     try:
-        with _harness_environment(), _metered_client(meter, state):
-            for spec in plan.arms:
-                if state.stop_reason is not None or state.error is not None:
-                    break
-                await _run_arm_of_plan(
-                    plan,
-                    spec,
-                    path,
-                    ledger=ledger,
-                    meter=meter,
-                    state=state,
-                    events=events,
-                    scrub=scrub,
-                    concurrency=concurrency,
-                    kept_before=kept_before,
-                    total=total,
-                )
+        async with _children_closed():
+            with _harness_environment(), _metered_client(meter, state):
+                for spec in plan.arms:
+                    if state.stop_reason is not None or state.error is not None:
+                        break
+                    await _run_arm_of_plan(
+                        plan,
+                        spec,
+                        path,
+                        ledger=ledger,
+                        meter=meter,
+                        state=state,
+                        events=events,
+                        scrub=scrub,
+                        concurrency=concurrency,
+                        kept_before=kept_before,
+                        total=total,
+                    )
     finally:
         watch.cancel()
         if grace is not None:
