@@ -21,7 +21,7 @@ All notable changes to Poisson Tasks.
 ### Tests
 
 - **Existing tests were edited, each in its own commit**: the test that holds the exact set of pages under `docs/` gains `before-a-run.md`, and then `own-tools-reference.md`; the test that looks for the `504` and `429` statuses on the own-tools page looks for them on the reference page, where the errors table moved.
-- **More existing tests were edited, each in its own commit, with no assertion changed**: the two tests that compare the pretty look's first line and error lines on a terminal with the plain look's read a line that wraps as the one line it is; and four tests of the model-B install start its driver from the package the test imported, not the checkout's `src/`, so they pass where the package is installed from a wheel beside the checkout's tests, as they did not (#53).
+- **More existing tests were edited, each in its own commit, with no assertion changed**: the two tests that compare the pretty look's first line and error lines on a terminal with the plain look's, and the two that read the guided session's `latest card` row, read a line that wraps as the one line it is; and four tests of the model-B install start its driver from the package the test imported, not the checkout's `src/`, so they pass where the package is installed from a wheel beside the checkout's tests, as they did not (#53).
 - **New tests**: the wrap rule, both looks and the guided session at 60 and 80 columns (`tests/test_fx_layout.py`), and a run stopped while its bootstrap's pipes are still open (`tests/test_fx_run_reaps_children.py`).
 
 ## 0.4.1 (2026-11-08)
