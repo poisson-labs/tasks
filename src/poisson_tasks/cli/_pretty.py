@@ -82,9 +82,10 @@ class Pretty:
 
     def show(self, result: Result) -> None:
         out = self.stdout
-        # the verdict line is never hard-wrapped: the first line carries the whole sentence
-        out.print(Text.assemble((result.verdict, TONE.get(result.tone, "bold")),
-                                "  " + result.sentence), soft_wrap=True)
+        # the verdict line wraps as the plain look's does, at its hanging indent (the word and
+        # two spaces), never inside a path, a command or a quoted value
+        print_wrapped(out, Text.assemble((result.verdict, TONE.get(result.tone, "bold")), "  "),
+                      result.sentence, len(result.verdict) + 2, prog=self.prog)
         marked = any(isinstance(row, Row) and row.status for row in result.rows)
         width = out.width
 
@@ -296,7 +297,8 @@ class Pretty:
         self.stdout.print(Text(text), soft_wrap=True)
 
     def error(self, message: str, next: Sequence[str] = ()) -> None:
-        self.stderr.print(Text.assemble(("error:", "bold red"), " " + message), soft_wrap=True)
+        print_wrapped(self.stderr, Text.assemble(("error:", "bold red"), " "), message, 2,
+                      prog=self.prog)
         for command in next:
             self.stderr.print(Text.assemble(("  next: ", "dim"), (command, "bold")),
                               soft_wrap=True)

@@ -265,6 +265,34 @@ def test_a_task_in_the_pretty_look_splits_no_value_and_folds_nothing(width: int)
     assert all(line.startswith("  ") for line in body.splitlines() if line.strip()), body
 
 
+@pytest.mark.parametrize("width", WIDTHS)
+def test_the_verdict_line_and_an_error_keep_their_indent_in_the_pretty_look(width: int) -> None:
+    """The verdict line wraps at its hanging indent and an error two spaces in, as in the plain
+    look; before, the terminal folded both back to column 0."""
+    from poisson_tasks.cli._result import Result
+
+    sentence = ("depth:d1 task 1 (seed 13553586): the reference solution passes and each of the "
+                "7 wrong answers earns its outcome")
+    message = (f"there is no settings file at missing-and-a-rather-long-file-name.toml; {PROG} "
+               "init --config missing-and-a-rather-long-file-name.toml writes one")
+
+    def draw(console: Any) -> None:
+        ui = pretty().Pretty(PROG, out=console, err=console)
+        ui.show(Result(schema="poisson-tasks.test/1", verdict="ok", tone="good",
+                       sentence=sentence))
+        ui.error(message)
+
+    lines = plain_text(rendered(width, draw)).splitlines()
+    error_at = next(index for index, line in enumerate(lines) if line.startswith("error: "))
+    verdict, error = lines[:error_at], lines[error_at:]
+    assert len(verdict) > 1 and all(line.startswith("    ") for line in verdict[1:]), verdict
+    assert " ".join(line.strip() for line in verdict) == f"ok  {sentence}"
+    assert len(error) > 1 and all(line.startswith("  ") for line in error[1:]), error
+    command = f"{PROG} init --config missing-and-a-rather-long-file-name.toml"
+    assert any(command in line for line in error), error
+    assert too_wide("\n".join(lines), width, (command,)) == [], lines
+
+
 # ---------------------------------------------------------------------------
 # the plain look, on a terminal of the width
 # ---------------------------------------------------------------------------
