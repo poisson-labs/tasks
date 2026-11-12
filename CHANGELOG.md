@@ -2,6 +2,20 @@
 
 All notable changes to Poisson Tasks.
 
+## 0.4.2
+
+### Docs
+
+- **The README leads with install, a first run and reading the card (#41).** It is about 15 kB where it was about 19 kB. The reference material it held moved to the docs pages it links: each dial's levels and depth's full numbers to `docs/knobs-and-arms.md`, and the cost and footprint list to a new page. It keeps the dials with their evidence, the published cards, the commands and what is not claimed, and links to poissonlabs.ai.
+- **New page, for the site's sidebar: `docs/before-a-run.md`**, "Before a run: what it costs, and what it changes on your machine". Every item a first run writes outside your folder (the tokenizer file, uv for the harness, verifiers' cache and the temporary files), the limit on open files a run raises, the commands verifiers installs beside `poisson-tasks`, and what goes over the network.
+- **New page, for the site's sidebar: `docs/own-tools-reference.md`**, "Your own tools: how the responses are made, and the contract hash". The reference half of `docs/own-tools.md`, moved whole: the answers to calls, reads and writes, the errors in each format's idiom, the store, the reads on the bad-data dials, and how a tool file's contract hash is computed and what moves it.
+- **The densest docs pages are in shorter sections (#51).** `docs/knobs-and-arms.md` gains the fourteen dials at a glance, which recipes reach which dial, the turn budgets as a table, and checked blocks for the pin ledger on the block knob and for the two refusals of `baddata` and `lagged`. `docs/own-tools.md` keeps the guide (what you can bring, a first run, the refusals, the dials, the settings and the card) in subsections, lists and tables, with checked blocks for the `[own]` table `init` writes, a flow task and `verify`'s refusal, and links the reference page for the rest. No fact or figure was dropped. `docs/calibration.md` is unchanged: it is rendered by the card code, and a shorter rendering waits for a release that changes that code.
+- **The contract hash's example is corrected.** Among what does not move the hash, the page read "`é` against `é`", the same character twice; it now reads "`\u00e9` against `é`", a JSON escape against the character it stands for.
+
+### Tests
+
+- **Existing tests were edited, each in its own commit**: the test that holds the exact set of pages under `docs/` gains `before-a-run.md`, and then `own-tools-reference.md`; the test that looks for the `504` and `429` statuses on the own-tools page looks for them on the reference page, where the errors table moved.
+
 ## 0.4.1 (2026-11-08)
 
 ### Fixes

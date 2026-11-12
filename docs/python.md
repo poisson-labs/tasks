@@ -234,7 +234,7 @@ print(own.summary(reading).splitlines()[0])
 
 `poisson_tasks.provenance` holds what a run records about what produced it ([reading-a-card.md](reading-a-card.md) says what each value covers):
 
-- `tool_spec_hash(data)` is a tool file's contract hash, from its bytes: the SHA-256 of the file as canonical JSON. A value JSON cannot carry is a `ValueError` of one line naming its place. [own-tools.md](own-tools.md) gives the rule.
+- `tool_spec_hash(data)` is a tool file's contract hash, from its bytes: the SHA-256 of the file as canonical JSON. A value JSON cannot carry is a `ValueError` of one line naming its place. [own-tools-reference.md](own-tools-reference.md#your-tool-files-contract-hash) gives the rule.
 - `produced_by(plan)` is the record a run of a `config.Plan` by this install writes, as a dict with the same keys every time; a key that does not apply is `None`.
 - `read_run(folder)` is what a run folder recorded, as a card reads it (with `resumed_with`, the later versions that resumed it), or `None` for a run that recorded nothing.
 

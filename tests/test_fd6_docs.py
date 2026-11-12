@@ -35,6 +35,11 @@ Retrofitted for the docs rewrite after 0.2.1, as ruled on 2026-10-26: the set ga
 for an optional route, is no longer linked from the README, while staying under plain words.
 Retrofitted for 0.3.1: that page is `docs/prove.md`, under Prove's published name; the set and the
 list of pages the README does not link name it so.
+Retrofitted for 0.4.2 (#41): the set gains `docs/before-a-run.md`, which holds what a first run
+costs and writes outside the folder, the open-files limit, verifiers' commands and the network,
+moved from the README, which links it.
+Retrofitted again for 0.4.2 (#51): the set gains `docs/own-tools-reference.md`, the reference half
+of the own-tools page (how the responses are made, and the contract hash), which the README links.
 `docs/commands.md` holds each command's help, which this file holds equal to what the command
 prints.
 """
@@ -57,8 +62,8 @@ CHANGELOG = REPO / "CHANGELOG.md"
 CONTRIBUTING = REPO / "CONTRIBUTING.md"
 STANDARDS = ("repo-hygiene.md", "cli-look.md", "releasing.md")
 DOC_SET = {
-    "calibration.md", "cli-look.md", "commands.md", "config.md", "knobs-and-arms.md",
-    "own-tools.md", "prove.md", "published-cards.md", "python.md", "reading-a-card.md",
+    "before-a-run.md", "calibration.md", "cli-look.md", "commands.md", "config.md", "knobs-and-arms.md",
+    "own-tools.md", "own-tools-reference.md", "prove.md", "published-cards.md", "python.md", "reading-a-card.md",
     "releasing.md", "repo-hygiene.md", "the-task.md", "verifiers-export.md",
 }
 LINKED_FROM_README = DOC_SET - set(STANDARDS) - {"prove.md"}

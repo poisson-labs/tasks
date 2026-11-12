@@ -1,8 +1,12 @@
 # Tasks on your own tools
 
-Bring the tool definitions you already have, and Tasks makes tasks on those tools: checkable, at a difficulty you choose, with a card that shows where your setup breaks. This page is for teams that build an agent. If you train models, [the README](https://github.com/poisson-labs/tasks/blob/main/README.md) is the place to start.
+Bring the tool definitions you already have, and Tasks makes tasks on those tools: checkable, at a difficulty you choose, with a card that shows where your setup breaks.
 
-**What the result measures.** Tasks never calls your backend. Every response your tools give in an episode is made by Tasks' simulator, shaped by your schemas. So a result on your tools measures how a model chooses, fills in, sequences and recovers with tools that look like yours. It does not measure whether your real tools' outputs are understandable, whether your backend's errors are recoverable, or whether your app works. The card says so first.
+This page is for teams that build an agent. If you train models, [the README](https://github.com/poisson-labs/tasks/blob/main/README.md) is the place to start.
+
+**What the result measures.** Tasks never calls your backend. Every response your tools give in an episode is made by Tasks' simulator, shaped by your schemas. So a result on your tools measures how a model chooses, fills in, sequences and recovers with tools that look like yours.
+
+It does not measure whether your real tools' outputs are understandable, whether your backend's errors are recoverable, or whether your app works. The card says so first.
 
 ## What you can bring
 
@@ -12,11 +16,28 @@ Bring the tool definitions you already have, and Tasks makes tasks on those tool
 | an MCP tool list | the result of `tools/list` as JSON, bare or in its JSON-RPC envelope, merged across pages; or a server of yours, started with `--mcp-command` | `readOnlyHint: true` reads; annotations present and no `readOnlyHint` is a write; no annotations is unknown |
 | an OpenAPI document | version 3.0 or 3.1, as YAML or JSON | `GET` and `HEAD` read; `POST`, `PUT`, `PATCH` and `DELETE` write |
 
-`--own-format auto` (the default) tells them apart by shape, and refuses a file that is none of the three, naming the three. With `--mcp-command 'python my_server.py'`, Tasks starts your server once, with your consent (`--yes` is the consent), only to list its tools, writes them to `tools.mcp.json` beside `tasks.toml`, and stops the server. The command itself is kept nowhere. It never calls any of your server's tools.
+`--own-format auto` (the default) tells them apart by shape, and refuses a file that is none of the three, naming the three.
+
+### An MCP server of yours
+
+<!-- docs-check: skip reason="starts an MCP server of the reader's own, which the check does not have" -->
+```bash
+poisson-tasks init --yes --own-file tools.mcp.json --mcp-command 'python my_server.py'
+```
+
+With `--mcp-command 'python my_server.py'`, Tasks:
+
+- starts your server once, with your consent (`--yes` is the consent), only to list its tools;
+- writes them to `tools.mcp.json` beside `tasks.toml`;
+- stops the server.
+
+The command itself is kept nowhere. It never calls any of your server's tools.
 
 ## A first run
 
-Save a tool file. This one is a small order-support set in the OpenAI format:
+### Save a tool file
+
+This one is a small order-support set in the OpenAI format:
 
 <!-- docs-check: run -->
 ```bash
@@ -51,7 +72,9 @@ cat > tools.json <<'EOF'
 EOF
 ```
 
-Point `init` at it. An OpenAI tools file does not say which tools only read, so the options say so; `--own-flow` says that the `id` in what `get_order` returns is what `refund_order` takes as its `order_id`:
+### Point `init` at it
+
+An OpenAI tools file does not say which tools only read, so the options say so. `--own-flow` says that the `id` in what `get_order` returns is what `refund_order` takes as its `order_id`:
 
 <!-- docs-check: run -->
 ```bash
@@ -67,7 +90,39 @@ ok  wrote tasks.toml: the first-look recipe on your tools (acme), 10 tasks each,
 next: poisson-tasks run
 ```
 
-The first lines are the summary of your file: how many tools, how many read and write, how many Tasks could not use, and the file's digest. The read and write counts are of your set as you declared it: the three tools named with `--own-read` count as reads, and the two that nothing has said anything about stay "not known (treated as write)". A tool Tasks cannot use is refused in one line, and the rest of the set still runs. The digest goes into every task's id, so a task is a pure function of your file's bytes, the arm and the seed.
+The first lines are the summary of your file: how many tools, how many read and write, how many Tasks could not use, and the file's digest.
+
+- The read and write counts are of your set as you declared it. The three tools named with `--own-read` count as reads, and the two that nothing has said anything about stay "not known (treated as write)".
+- A tool Tasks cannot use is refused in one line, and the rest of the set still runs.
+- The digest goes into every task's id, so a task is a pure function of your file's bytes, the arm and the seed.
+
+What `init` wrote for your tools is the `[own]` table of `tasks.toml`, with the flow as an `[[own.flow]]` table:
+
+<!-- docs-check: run -->
+```bash
+sed -n '/^\[own\]/,$p' tasks.toml
+```
+<!-- docs-check: output -->
+```
+[own]                               # your tools: the tasks are made on them, with simulated responses
+file = "tools.json"                 # an OpenAI tools file, an MCP tool list, or an OpenAPI document
+format = "auto"                     # auto | openai | mcp | openapi
+name = "acme"                       # shown on the card
+read = ["get_order", "search_orders", "list_channels"] # effects Tasks could not read from the file
+write = []
+
+# One line per tool, what a request says instead of the tool's name:
+# [own.intents]
+# refund_order = "refund a customer's order"
+
+[[own.flow]]                        # a value from one tool's output into another's input
+from = "get_order"
+field = "id"
+to = "refund_order"
+param = "order_id"
+```
+
+### Check the set with `doctor`
 
 `doctor` reads the file again and reports the same summary, each refusal, which dials your set reaches, and what the knob probe found for each on the built-in tasks:
 
@@ -102,7 +157,9 @@ ok  this environment is ready to run tasks.toml
   platform    ok      …
 ```
 
-Make the tasks and look at the plan. Neither sends anything:
+### Make the tasks and look at the plan
+
+Neither command sends anything:
 
 <!-- docs-check: run -->
 ```bash
@@ -134,39 +191,55 @@ plan  20 episodes against gpt-5-nano-2025-08-07: about $0.005, and the run stops
   folder      runs/first-look-gpt-5-nano-2025-08-07 (a new run)
 ```
 
-`run` and `card` then work as they do on the built-in tasks ([commands.md](commands.md)): `run` asks, runs every episode against your model and stops at the cap, and `card` says what each level was worth. The plan's estimate scales the published card's per-call figures by the size of your tool block, so it is a rough guide, and the cap is what holds.
+### Run it and read the card
+
+`run` and `card` then work as they do on the built-in tasks ([commands.md](commands.md)): `run` asks, runs every episode against your model and stops at the cap, and `card` says what each level was worth.
+
+The plan's estimate scales the published card's per-call figures by the size of your tool block, so it is a rough guide, and the cap is what holds.
 
 ## What Tasks refuses
 
-A refusal is per tool where it can be, in one line, and a set with some refused tools still runs on the rest. A tool is refused when:
+A refusal is per tool where it can be, in one line, and a set with some refused tools still runs on the rest.
 
-- its name, after one fixed renaming, is not 1 to 64 characters of letters, digits, `_` and `-` (the providers' rule), or repeats another's. Characters outside that set become `_`; a name over 64 characters is cut and given 8 characters of its digest. The original name is kept as the tool's title, and `init` and `doctor` list both;
+### A tool that is refused
+
+A tool is refused when:
+
+- its name, after one fixed renaming, is not 1 to 64 characters of letters, digits, `_` and `-` (the providers' rule), or repeats another's. The renaming:
+  - characters outside that set become `_`;
+  - a name over 64 characters is cut and given 8 characters of its digest;
+  - the original name is kept as the tool's title, and `init` and `doctor` list both;
 - its argument schema is not a JSON object schema;
 - its schema uses what the simulator cannot check exactly: `anyOf`, `oneOf`, `allOf`, `not`, `patternProperties`, `propertyNames`, `if`, `then`, `else`, `dependentSchemas`, `dependentRequired`, `dependencies`, `contains`, `minContains`, `maxContains`, `uniqueItems`, `multipleOf`, `minProperties`, `maxProperties`, `unevaluatedItems`, `unevaluatedProperties`, `$dynamicRef`, `$recursiveRef`, `contentSchema`, a recursive reference, a schema-valued `additionalProperties`, or nesting deeper than three levels;
 - it takes a file, a binary string or a stream;
 - (OpenAPI) two of its parameters in different places (path, query, header) share a name, or a parameter has the same name as a field of the request body, since the arguments are one object.
 
-A tool can be offered but never be a task's target when its only arguments are free text with no format, enum or bound (a lone `query: string`): no exact argument can be checked, so it can stand in a block, be a lookalike or be called in history, but no task requires a call to it with particular values.
+### A tool that is never a target
+
+A tool can be offered but never be a task's target when its only arguments are free text with no format, enum or bound (a lone `query: string`). No exact argument can be checked, so it can stand in a block, be a lookalike or be called in history, but no task requires a call to it with particular values.
+
+### A set that is refused
 
 A set is refused as a whole when fewer than 2 usable tools remain, more than 256, or no usable tool can be a target.
 
 ## Which tools read and which write
 
-A stray write is a side effect, and a stray read is not, so Tasks has to know. MCP and OpenAPI say it; an OpenAI tools file does not. A tool whose effect is unknown is treated as a write (an extra call to it counts against the model) until you say otherwise: `read = ["get_order"]` and `write = [...]` in `tasks.toml`, or `--own-read` and `--own-write` to `init`, which asks once when it is run with questions. The summary `init` and `doctor` print counts what you declared, and what you answered to that question, as well as what the file says: three tools declared as reads read `3 read`, and what is left is `not known`.
+A stray write is a side effect, and a stray read is not, so Tasks has to know. MCP and OpenAPI say it; an OpenAI tools file does not.
+
+A tool whose effect is unknown is treated as a write (an extra call to it counts against the model) until you say otherwise:
+
+- `read = ["get_order"]` and `write = [...]` in `tasks.toml`, as in the `[own]` table above;
+- or `--own-read` and `--own-write` to `init`, which asks once when it is run with questions.
+
+The summary `init` and `doctor` print counts what you declared, and what you answered to that question, as well as what the file says: three tools declared as reads read `3 read`, and what is left is `not known`.
 
 ## How the responses are made
 
-- A call the task expects, or any read, answers with a JSON object. When the tool has an output schema, the object conforms to it, with values drawn from the file's digest, the seed, the tool and its arguments; otherwise it is `{"ok": true, "id": "<value>"}`. Strings respect `format`, enums and bounds. The draw depends on the call's content and not on its position, so the same call in the same episode always gets the same answer.
-- The values a task needs (a value that one call hands the next) sit in a named string field of a response, chosen when the task is made.
-- A write that is accepted answers with what it was sent: every argument under its name, into the matching field of the tool's output schema when the value fits that field (drawn as usual when it does not), or beside `ok` and `id` when the tool has no output schema (an argument named `id` is the answer's `id`). The values a task hands from one call to the next are placed after that, so a value the task serves is never overwritten.
-- Errors come in each format's own idiom: for OpenAI tools, `{"error": {"code": "...", "message": "..."}}`; for MCP, a result with `isError: true` and the message as text; for OpenAPI, `{"status": 404, "detail": "..."}`. The codes are `not_found` (404), `invalid_arguments` (422), `not_ready` (409, a step before its prerequisite), `unavailable` (503, a planned fault), `timeout` (504, a planned timeout: whether the call went through is not known) and `rate_limited` (429, a planned rate limit, with `retry_after: 1` beside the message in the OpenAI and OpenAPI idioms).
-- A small store of records keyed by the values the task names. A write the task expects moves its record; any other accepted write is recorded as a side effect. The store keeps every accepted write, and a read reflects them: after a write, a read whose checkable arguments all name values the write was sent, under the same names, answers with the written values (the latest such write wins); before any such write, and for a read that shares no argument name with a write, it answers as it always did. The expected write made a second time is accepted and recorded as a side effect and as a duplicate write, because Tasks cannot know that a write of yours is idempotent.
-- On a `baddata` or `lagged` arm, and on no other, a read's answer also says what it was asked: the call's arguments are placed in it by the rule a write's answer follows, each under its own name in the matching field of the output schema when the value fits that field, or beside `ok` and `id` when the tool has no output schema. An answer for another record can then be told from an answer for the record asked. A read whose output schema has no field named as one of its arguments cannot say it. On every other dial a read answers as before.
-- On a `baddata` arm above level 0, the one read the request names answers wrongly the first time it is made and correctly from then on. On a `lagged` arm at level 1, the first read that would show the target write answers as if the write had not landed, once in an episode, and every later read shows it. Neither is an error: both come back in the tool's ordinary answer shape, with nothing on them to say so.
-
-Everything is pure: no clock but a fixed one, no randomness but the keyed draw, and no network.
+Every answer in an episode comes from Tasks' simulator, made from your schemas with no clock, no randomness but a keyed draw, and no network. [own-tools-reference.md](own-tools-reference.md#how-the-responses-are-made) has every rule: the answers to calls, reads and writes, the errors in each format's idiom, the store, and the reads on the bad-data dials.
 
 ## A task on your tools, and how it is checked
+
+### The three forms
 
 | form | the model must | needs |
 |---|---|---|
@@ -174,15 +247,63 @@ Everything is pure: no clock but a fixed one, no randomness but the keyed draw, 
 | read then call | read a value with one of your read tools and use it in the write call | a read tool with an argument, and a write tool |
 | flow | follow a chain of your tools where an output feeds the next input, as you declared | flows in `tasks.toml` |
 
-The verdict is the same vocabulary as on the built-in tasks, judged by replaying the model's calls through the simulator: `passed` (the store ends exactly as expected and the episode ends with a reply), `collateral_mutation` (the goal was reached but another write was accepted), `wrong_state` (it was not reached), `malformed_call` (a call named a tool outside the block, or broke its schema) and `turn_limit`. Arguments compare exactly: strings byte for byte, numbers by value, booleans and enums exactly. On your tools every dial, depth included, is read on strict pass@1 against its first level, because a tool of yours has no stage past its goal, and what the leaky rate accepts is a side effect.
+A flow task on the first run's tools, at depth 2, follows the declared link from `get_order`'s `id` into `refund_order`'s `order_id`:
+
+<!-- docs-check: run -->
+```bash
+poisson-tasks generate --arm depth:d2 --show | head -n 20
+```
+<!-- docs-check: output -->
+```
+ok  depth:d2 task 1 (seed 13553586): needs 2 tool calls and a reply (3 model calls); a run allows 32 model calls
+  task id  …
+
+what the model is shown
+  You work with the tools of acme. Make one tool call per turn, with its arguments as JSON. A call may answer that the tool is unavailable; make the same call again. Reply in plain text once the request is done, and make no other change.
+
+  First, Look up one order by its id: order_id "weqthd". Then refund part or all of an order, with order_id taken from id of that answer: amount 48.0, reason "other".
+
+the tools it may call
+  get_order        (order_id)  needed
+  search_orders    (query)
+  refund_order     (order_id, amount, reason)  needed
+  notify_customer  (order_id, channel)
+  list_channels    ()
+
+the reference solution
+  1. get_order(order_id="weqthd")
+     -> {"id":"vrywgg","ok":true}
+  2. refund_order(order_id="vrywgg", amount=48.0, reason="other")
+     -> {"amount":48.0,"id":"a6z3tqb5ys5139p9","ok":true,"order_id":"vrywgg","reason":"other"}
+```
+
+### The verdict
+
+The verdict is the same vocabulary as on the built-in tasks, judged by replaying the model's calls through the simulator:
+
+- `passed`: the store ends exactly as expected and the episode ends with a reply;
+- `collateral_mutation`: the goal was reached but another write was accepted;
+- `wrong_state`: it was not reached;
+- `malformed_call`: a call named a tool outside the block, or broke its schema;
+- `turn_limit`.
+
+Arguments compare exactly: strings byte for byte, numbers by value, booleans and enums exactly.
+
+On your tools every dial, depth included, is read on strict pass@1 against its first level, because a tool of yours has no stage past its goal, and what the leaky rate accepts is a side effect.
+
+### What the request says
 
 The request names what to do without naming the tool, or choosing the tool would be a word match. With a line of intent per tool (`[own.intents]`), requests use it; without, they use the first sentence of the tool's description, and the card says that choosing was partly a word match.
 
-The request states every value the call takes that Tasks can make up from the schema, required or not, so the model never has to ask which record to change or what to change it to: `Update an existing pet: id 482, name "mjmkhns", ...` rather than `Update an existing pet: photoUrls ["stvfi"].` A free-text value is stated and not checked. On the arguments dial the number of values stated is the level, so there the request states that many.
+The request states every value the call takes that Tasks can make up from the schema, required or not, so the model never has to ask which record to change or what to change it to: `Update an existing pet: id 482, name "mjmkhns", ...` rather than `Update an existing pet: photoUrls ["stvfi"].`
+
+A free-text value is stated and not checked. On the arguments dial the number of values stated is the level, so there the request states that many.
 
 ## The dials on your tools
 
-All the dials are offered on your tools, within what each set can support, whether or not the knob probe showed them to bite; the recipes lead with the ones it did. The probe ran on the built-in tasks and two models, so the statuses `doctor` prints beside each dial are about those, not about your tools; the card on your tools measures your tools.
+All the dials are offered on your tools, within what each set can support, whether or not the knob probe showed them to bite; the recipes lead with the ones it did.
+
+The probe ran on the built-in tasks and two models, so the statuses `doctor` prints beside each dial are about those, not about your tools; the card on your tools measures your tools.
 
 | dial | how it is applied to your tools | what it needs |
 |---|---|---|
@@ -200,9 +321,41 @@ All the dials are offered on your tools, within what each set can support, wheth
 | `baddata` | one argument of the target write is carried in a read's answer, and above level 0 that read's first answer is wrong; the same read made again is right | a read with a checkable argument, and a write with a checkable argument that the read's answer has a field for; levels 0, 1, 2, 3, or 0, 2, 3 on a set whose answers cannot name what they were asked for; experimental |
 | `lagged` | the request is the write and a read that checks it; at level 1 the first read after the write answers as if it had not landed | a read that takes one of the target write's arguments and whose answer shows another of them; levels 0, 1; experimental |
 
-The decoy-tools dial (`distractor`) is not offered on your tools, and no dial has a control arm there. The three dials added in 0.3.0 and the two added in 0.4.0 are experimental, no model having been measured on them yet, and `doctor` and `init` say so beside each; on a set that has a write to target but no read taking one of its arguments, both say in one line why `landed` is not offered. Since 0.4.0 `landed` also needs that read's answer to be able to show one of the write's arguments: a read that answers the same before the write and after it tells a model nothing. A flow is a link you declare from one tool's output field into another tool's input, such as the `id` that `get_order` returns into `refund_order`'s `order_id`: `--own-flow get_order.id:refund_order.order_id` to `init`, or `[[own.flow]]` in `tasks.toml`. Tasks will not guess one. Without flows, depth and shape are listed as unavailable, and `init` says so in a note that names both ways to declare one. In the guided session (a bare `poisson-tasks` on a terminal), the `flow` step asks which tool's output, which field, into which tool and which input, and writes the flow through `init --force` with the file's own settings, keeping the old `tasks.toml` as `tasks.toml.bak`.
+### What is not offered, and what is experimental
 
-**The two bad-data dials.** `baddata` and `lagged` are reads that answer wrongly once and say nothing about it; [knobs-and-arms.md](knobs-and-arms.md) has the design. A `baddata` request leaves one argument of the write unstated and says which read's answer holds it, and in which field. The write waits on that read: made first, it answers `not_ready`. At level 0 the read is truthful. Above it the read's first answer is wrong and the same read made again is right: at level 1 it shows another value under another key, at 2 another value under the key that was asked, and at 3 the smallest change to the true value (a number off by one or by a half, a string with its last character changed, another member of an enum). Only an argument that has such a smallest change is carried, so a date-time, a boolean or a list never is. On the tool file of the first run, at level 2:
+- The decoy-tools dial (`distractor`) is not offered on your tools, and no dial has a control arm there.
+- The three dials added in 0.3.0 and the two added in 0.4.0 are experimental, no model having been measured on them yet, and `doctor` and `init` say so beside each.
+- On a set that has a write to target but no read taking one of its arguments, both say in one line why `landed` is not offered.
+- Since 0.4.0 `landed` also needs that read's answer to be able to show one of the write's arguments: a read that answers the same before the write and after it tells a model nothing.
+
+### Flows, for depth and shape
+
+A flow is a link you declare from one tool's output field into another tool's input, such as the `id` that `get_order` returns into `refund_order`'s `order_id`. Declare it either way:
+
+- `--own-flow get_order.id:refund_order.order_id` to `init`, as in the first run above;
+- or `[[own.flow]]` in `tasks.toml`, as `init` wrote it there.
+
+Tasks will not guess one. Without flows, depth and shape are listed as unavailable, and `init` says so in a note that names both ways to declare one.
+
+In the guided session (a bare `poisson-tasks` on a terminal), the `flow` step asks which tool's output, which field, into which tool and which input. It writes the flow through `init --force` with the file's own settings, keeping the old `tasks.toml` as `tasks.toml.bak`.
+
+### The two bad-data dials
+
+`baddata` and `lagged` are reads that answer wrongly once and say nothing about it; [knobs-and-arms.md](knobs-and-arms.md) has the design.
+
+#### `baddata`
+
+A `baddata` request leaves one argument of the write unstated and says which read's answer holds it, and in which field. The write waits on that read: made first, it answers `not_ready`.
+
+At level 0 the read is truthful. Above it the read's first answer is wrong and the same read made again is right:
+
+| level | the first answer shows |
+|---|---|
+| 1 | another value under another key |
+| 2 | another value under the key that was asked |
+| 3 | the smallest change to the true value (a number off by one or by a half, a string with its last character changed, another member of an enum) |
+
+Only an argument that has such a smallest change is carried, so a date-time, a boolean or a list never is. On the tool file of the first run, at level 2:
 
 <!-- docs-check: run -->
 ```bash
@@ -236,6 +389,8 @@ the reference solution
 
 A model that sends the first answer's value has made a wrong write and not the right one: `wrong_state`, which fails strict and leaky. One that sends it and then the right value ends `collateral_mutation`.
 
+#### `lagged`
+
 A `lagged` request is the write, then a read to check that it took, and it says to make the change again only if it did not take. At level 0 the read shows the write. At level 1 the first read after the write answers as if the write had not landed, once in an episode, and every later read shows it:
 
 <!-- docs-check: run -->
@@ -268,9 +423,13 @@ the reference solution
      -> {"amount":91.5,"id":"8fzdljqwltpf7fdl","ok":true,"order_id":"hfwicz","reason":"other"}
 ```
 
-A model that believes the lagging read over the write's own answer writes again. The store accepts the second write, so the episode ends `collateral_mutation`: strict fails it, and leaky passes it, since the goal was reached. Read a `lagged` table on strict. On both dials a read costs nothing, and reading until two answers in a row agree is right at every level.
+A model that believes the lagging read over the write's own answer writes again. The store accepts the second write, so the episode ends `collateral_mutation`: strict fails it, and leaky passes it, since the goal was reached. Read a `lagged` table on strict.
 
-What a set needs for each, in the words `init` warns with and `doctor` notes (under the rows `carrier read`, `named key` and `showing read`):
+On both dials a read costs nothing, and reading until two answers in a row agree is right at every level.
+
+#### What a set needs for each
+
+In the words `init` warns with and `doctor` notes (under the rows `carrier read`, `named key` and `showing read`):
 
 - "baddata is not offered on this set. Bad data needs a read whose answer holds a value a write then takes, so baddata needs a read tool with a checkable argument and a write with a checkable argument that read's answer has a field for. This set has none."
 - "baddata has no level 1 on this set. Level 1 of baddata needs a read whose answer names what it was asked for. This set's answers do not, so it reaches 0, 2 and 3." The Petstore example document is such a set: none of its reads returns a field named as the argument it was read by.
@@ -290,13 +449,34 @@ An `[own]` table in `tasks.toml` means the tasks are on your tools; the rest of 
 | `[[own.flow]]` | `--own-flow FROM.FIELD:TO.PARAM` (repeatable) | a value from one tool's output (a path in it, such as `orders[].order_id`) into another's input |
 | | `--mcp-command CMD` | list an MCP server's tools, with your consent |
 
-Beside `[own]`, `[measure] preset` names any recipe the set supports (not `card`), or `custom` with any knob the set reaches; `controls = true` is refused. `[tasks] generator_version`, when set, must be `own-3`, the label of the generator that makes tasks on your tools; `own-1` and `own-2`, its labels before 0.3.0 and before 0.4.0, are each refused in one line that names the release and `own-3`.
+Beside `[own]`:
+
+- `[measure] preset` names any recipe the set supports (not `card`), or `custom` with any knob the set reaches;
+- `controls = true` is refused;
+- `[tasks] generator_version`, when set, must be `own-3`, the label of the generator that makes tasks on your tools. `own-1` and `own-2`, its labels before 0.3.0 and before 0.4.0, are each refused in one line that names the release and `own-3`.
 
 ## The card on your tools
 
-Its first lines say: "Measured on your tools (acme, 5 tools from an OpenAI tools file), with responses simulated from your schemas. Your backend was never called." Then each dial's table against its first level, and beside it what the knob probe found for that dial on the built-in tasks, with the plain statement that the probe's statuses come from those tasks on two models, not from your tools; for a dial the probe did not run and no model has been measured on, the line says it is experimental and why. Every table on a card of your tools has a *duplicate writes* column, the share of scored attempts in which an accepted write repeated an earlier one; a table of the `landed` dial has *retried after a landed timeout* beside it, and one of the faults, timeouts or ratelimits dials *gave up after a fault*. A card that holds the `baddata` or `lagged` dial ends every table with two more: *acted on bad data*, the share of scored attempts that received the bad answer and then sent its value in an accepted write to the target (on `lagged`, made the target write again after the lagging read), and *read again after a bad answer*, the share that called that read again before their next write. None of the five gates the card.
+### Its first lines
 
-What it does not claim, every line that applies:
+"Measured on your tools (acme, 5 tools from an OpenAI tools file), with responses simulated from your schemas. Your backend was never called."
+
+Then each dial's table against its first level, and beside it what the knob probe found for that dial on the built-in tasks, with the plain statement that the probe's statuses come from those tasks on two models, not from your tools. For a dial the probe did not run and no model has been measured on, the line says it is experimental and why.
+
+### The columns only a card on your tools has
+
+- Every table on a card of your tools has a *duplicate writes* column, the share of scored attempts in which an accepted write repeated an earlier one.
+- A table of the `landed` dial has *retried after a landed timeout* beside it.
+- A table of the faults, timeouts or ratelimits dials has *gave up after a fault*.
+- A card that holds the `baddata` or `lagged` dial ends every table with two more:
+  - *acted on bad data*: the share of scored attempts that received the bad answer and then sent its value in an accepted write to the target (on `lagged`, made the target write again after the lagging read);
+  - *read again after a bad answer*: the share that called that read again before their next write.
+
+None of the five gates the card.
+
+### What it does not claim
+
+Every line that applies:
 
 - it says nothing about your real tools' outputs, errors or latency, or about your app;
 - it is not comparable with the published cards or with built-in runs: the tasks differ;
@@ -304,41 +484,46 @@ What it does not claim, every line that applies:
 - without an intent for every tool, choosing a tool was partly a word match with its description;
 - a knob that shows no effect here may still matter in your app, and the reverse.
 
-The card's result names its run (the folder, the dollars spent, episodes kept of total) and says in one row how it stands beside the published cards: `different tasks, so none of its figures reads against theirs`. `poisson-tasks card --compare published` reads the card already written (no `--force` needed), prints that verdict in one line, `different  ...`, and writes `card/compare.md`, which holds your card beside the published card of the same model when one measured it, each whole and pooling nothing; it prints neither card. `card` never suggests the comparison on your tools, since the verdict is already on the screen. In the guided session, `replies` lists the episodes of the arm where the model broke most, each with its outcome and last reply, and opens one: every call with its arguments and the simulated answer, and the model's last reply, read from the run's own traces.
+### Beside the published cards
+
+The card's result names its run (the folder, the dollars spent, episodes kept of total) and says in one row how it stands beside the published cards: `different tasks, so none of its figures reads against theirs`.
+
+<!-- docs-check: skip reason="reads a card from a run, which needs a model; the run on this page is a dry run" -->
+```bash
+poisson-tasks card --compare published
+```
+
+`poisson-tasks card --compare published` reads the card already written (no `--force` needed), prints that verdict in one line, `different  ...`, and writes `card/compare.md`. That file holds your card beside the published card of the same model when one measured it, each whole and pooling nothing; the command prints neither card.
+
+`card` never suggests the comparison on your tools, since the verdict is already on the screen.
+
+### The replies, in the guided session
+
+In the guided session, `replies` lists the episodes of the arm where the model broke most, each with its outcome and last reply, and opens one: every call with its arguments and the simulated answer, and the model's last reply, read from the run's own traces.
 
 ## Your tool file's contract hash
 
-Every run on your tools records, before its first request, two hashes of your file beside the generators' ([reading-a-card.md](reading-a-card.md) shows where the card prints them). The file's own hash is the SHA-256 of its bytes, the digest `init` shows. The **contract hash** is the SHA-256 of what the file says, written one fixed way, so that two files that say the same thing have the same contract hash however they are laid out:
-
-1. Read the file's bytes. Each command makes its plan from the file as it is when the command starts; a plan already made, such as the one an exported config carries, refuses a file whose bytes have changed since, because its tasks have changed.
-2. Parse them as Tasks parses a tool file: as JSON, or else as YAML.
-3. Write what was parsed in JSON's own terms: a YAML date or time becomes its ISO text (`2026-10-26`), and a key that is not text becomes its JSON text (an OpenAPI document's unquoted `200:` becomes `"200"`). A value JSON cannot carry (NaN, an infinity, binary data, a set, or two keys that become one, such as `200` and `"200"`) is refused in one line that names the place, and nothing is spent or written.
-4. Write it as JSON with the keys sorted, no spaces, the text as UTF-8 and no escapes for characters beyond ASCII.
-5. Take the SHA-256 of those bytes, in lower-case hex, with nothing added in front.
-
-For a JSON file that is three lines of Python, with nothing of this package; on the file of the first run above it gives the same value as `poisson_tasks.provenance.tool_spec_hash`:
-
-<!-- docs-check: run -->
-```python
-import hashlib, json
-doc = json.loads(open("tools.json", "rb").read())
-print(hashlib.sha256(json.dumps(doc, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")).hexdigest())
-
-from poisson_tasks import provenance
-print(provenance.tool_spec_hash(open("tools.json", "rb").read()))
-```
-<!-- docs-check: output -->
-```
-cf8af7f03f9931e506b7ba9a67ad16386c55be943bc2eb31e1f97e1d0b659157
-cf8af7f03f9931e506b7ba9a67ad16386c55be943bc2eb31e1f97e1d0b659157
-```
-
-**What does not move it:** whitespace and indentation, the order of the keys in any object, JSON against YAML for the same document, `é` against `é`, and a YAML date against the same text in quotes. **What moves it:** any change to a string (one character of a description is enough), the order of a list, a value added or removed, and a number's type (`1` and `1.0` are two values). Text is hashed as it was written, with no Unicode normalisation, so an `é` written as one character and as `e` with an accent are two contracts.
-
-The hash covers the whole file you gave, not only the tools Tasks kept from it: the file is the contract you bring and version, so a change Tasks does not read, such as a refused tool, an `info.version` or a server URL, moves it too.
-
-**A reformatted file keeps its contract hash and still gives other tasks.** Tasks draws every task from the file's bytes, so the same tools with other whitespace give other tasks, with other ids. `card --compare` between two such runs says so: they share one tool contract, but the file was reformatted, and tasks are drawn from the file's bytes, so their tasks differ, and no figure of one is set beside the other's.
+Every run on your tools records two hashes of your file: the SHA-256 of its bytes, and a **contract hash** of what the file says, which two files that say the same thing share however they are laid out. [own-tools-reference.md](own-tools-reference.md#your-tool-files-contract-hash) says how it is computed, with three lines of Python that give the same value, and what moves it and what does not.
 
 ## `verify`, `export` and `doctor` on your tools
 
-In this release `poisson-tasks verify` refuses tasks made on your own tools, in one line, which verify does not judge on its own yet: a run on your tools is judged by replaying the model's calls through the simulator, and its card reports it ([commands.md](commands.md) gives both refusals). `export --to verifiers` writes eval configs that name the taskset `poisson-tasks-own` and carry your set whole, so verifiers' own `eval` can run them; [verifiers-export.md](verifiers-export.md) describes the command. Beside them it writes `produced_by.json`: what produces the plan's tasks, with both generators' hashes and your file's contract hash and file hash, and the configs carry nothing of it. `doctor` also says when the newest run on the same tool file carries another digest than the file has now, because the tasks changed. A changed file changes every task's id, so the next run on it starts a new run folder and says why.
+### `verify`
+
+In this release `poisson-tasks verify` refuses tasks made on your own tools, in one line, which verify does not judge on its own yet:
+
+<!-- docs-check: run exit=1 -->
+```bash
+poisson-tasks verify --self-check --arm depth:d1 --task 1
+```
+
+A run on your tools is judged by replaying the model's calls through the simulator, and its card reports it ([commands.md](commands.md) gives both refusals).
+
+### `export`
+
+`export --to verifiers` writes eval configs that name the taskset `poisson-tasks-own` and carry your set whole, so verifiers' own `eval` can run them; [verifiers-export.md](verifiers-export.md) describes the command.
+
+Beside them it writes `produced_by.json`: what produces the plan's tasks, with both generators' hashes and your file's contract hash and file hash, and the configs carry nothing of it.
+
+### `doctor`
+
+`doctor` also says when the newest run on the same tool file carries another digest than the file has now, because the tasks changed. A changed file changes every task's id, so the next run on it starts a new run folder and says why.
