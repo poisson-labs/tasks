@@ -32,7 +32,7 @@ under `<scratch>` the installs of step 11 write to (default `matrix`). Commands 
   hash); the release itself is built again from `origin/main` after the merge (step 2), and its
   hashes must equal the tip's.
 - [ ] `CHANGELOG.md` opens with `## X.Y.Z (YYYY-MM-DD)`, dated the UTC day the upload is expected
-  to land. A patch release's section holds fixes and tests only.
+  to land. A patch release's section holds fixes, docs and tests only.
 - [ ] `pyproject.toml` says `version = "X.Y.Z"`.
 - [ ] If the test count changed, CONTRIBUTING's sentence on the suite gives the whole suite's count
   on the commit being released.
