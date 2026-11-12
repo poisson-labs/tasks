@@ -2,7 +2,7 @@
 
 All notable changes to Poisson Tasks.
 
-## 0.4.2
+## 0.4.2 (2026-11-12)
 
 ### Fixes
 
