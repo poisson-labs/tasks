@@ -130,6 +130,18 @@ def first(text: str) -> str:
     return next((l.rstrip() for l in text.splitlines() if l.strip()), "")
 
 
+def reads_as_first_line(pretty: str, plain: str) -> bool:
+    """Whether the pretty look's first line is the plain look's.  They are equal when the line fits the terminal.  Since 0.4.2 (#33)
+    the pretty look wraps a line that does not fit the terminal's 100 columns at a space and carries it on under its indent, so then
+    the pretty look's first line must be the plain line cut at a space inside 100 columns, and its words must go on, under it, with
+    the rest of the plain line's words."""
+    shown = first(pretty)
+    if shown == plain:
+        return True
+    return (len(shown) <= 100 and plain.startswith(shown) and plain[len(shown):len(shown) + 1] == " "
+            and pretty.split()[:len(plain.split())] == plain.split())
+
+
 def both(home: Path, cwd: Path, argv: list[str], *, expect: int | None) -> tuple[int, str, str, int, str, str]:
     """Run once piped and once on a terminal; return both results."""
     name = " ".join(argv)
@@ -143,9 +155,9 @@ def both(home: Path, cwd: Path, argv: list[str], *, expect: int | None) -> tuple
     else:
         say(f"    (recorded, not asserted: plain exit {code}, first line {first(out or err)[:100]!r})")
     check(tcode == code, f"{name} (pretty) exits the same ({tcode})")
-    pf = first(stripped(tout)) or first(stripped(terr))
+    pretty = stripped(tout) if first(stripped(tout)) else stripped(terr)
     pl = first(out) or first(err)
-    check(pf == pl, f"{name}: the same first line in both looks")
+    check(reads_as_first_line(pretty, pl), f"{name}: the same first line in both looks")
     check("\x1b[" in tout or "\x1b[" in terr, f"{name}: the pretty look drew (escape codes on the terminal)")
     return code, out, err, tcode, tout, terr
 
