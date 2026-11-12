@@ -75,6 +75,21 @@ Installing the package also installs verifiers, and verifiers installs commands 
 `poisson-tasks`: `eval`, `init`, `debug`, `replay`, `validate`, `gepa` and `vf-*`. A bare
 `init` is verifiers' command, not this package's; this package's is `poisson-tasks init`.
 
+## The versions it was tested with
+
+Only `verifiers` and `tiktoken` are pinned, so `pip install poisson-tasks` takes the newest release
+of everything else that the package allows, which can be newer than what a release was tested
+with. Each release carries the exact versions its tests passed on, in `constraints.txt` at its
+tag on GitHub. To install those and no others, save that file and give it to pip:
+
+<!-- docs-check: skip reason="installs the published package from PyPI with a release's constraints file" -->
+```bash
+pip install poisson-tasks -c constraints.txt
+```
+
+A package the install does not need is not installed by the file. The `prove` extra is not in it:
+Prove is tested on every published release, so it installs as the extra allows.
+
 ## What goes over the network
 
 A run sends your key to your model's endpoint and nowhere else, and uploads nothing: it runs
