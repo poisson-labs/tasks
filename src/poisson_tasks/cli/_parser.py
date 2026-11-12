@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import sys
 from collections.abc import Sequence
 from typing import Any
 
@@ -44,7 +45,9 @@ class Parser(argparse.ArgumentParser):
         raise Usage(_plain_words(message))
 
     def print_help(self, file: Any = None) -> None:
-        if _UI and _UI[0].pretty:
+        # either look draws the help on stdout: the plain look's is argparse's own text, which it
+        # wraps only on a terminal
+        if _UI and file in (None, sys.stdout):
             _UI[0].help(self)
         else:
             super().print_help(file)

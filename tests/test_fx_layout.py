@@ -363,6 +363,21 @@ def test_plain_help_wraps_its_examples_at_their_column(
 
 
 @pytest.mark.parametrize("width", WIDTHS)
+@pytest.mark.parametrize("argv", [["--help"], ["run", "--help"]], ids=["top", "run"])
+def test_plain_help_on_a_terminal_wraps_and_piped_is_argparses(
+    argv: list[str], width: int, world: World,
+) -> None:
+    env = look_env(world, "plain")
+    code, out, _ = in_terminals(argv, env, world, columns=width)
+    assert code == 0
+    shown = stripped(out)
+    assert all(len(line) <= width for line in shown.splitlines()), [
+        line for line in shown.splitlines() if len(line) > width]
+    _, whole, _ = piped(argv, env, world)
+    assert " ".join(shown.split()) == " ".join(whole.decode().split())
+
+
+@pytest.mark.parametrize("width", WIDTHS)
 def test_a_command_to_copy_fits_the_terminal_and_is_unchanged_at_78(width: int) -> None:
     from poisson_tasks.cli._plain import COMMAND_WIDTH, command_width, continued_command
 

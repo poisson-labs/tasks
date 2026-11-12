@@ -238,18 +238,23 @@ class PlainUI:
         its text starts in, its command left whole."""
         text = parser.format_help()
         width = self.out_width
-        if width is None:
+        if width is not None:
+            shown: list[str] = []
+            for line in text.rstrip("\n").split("\n"):
+                column = _HELP_COLUMN.match(line)
+                if len(line) <= width or column is None:
+                    shown.append(line)
+                    continue
+                head = column.group(1)
+                lines = _wrap.lines(line[len(head):], width, first=len(head), indent=len(head),
+                                    prog=self.prog)
+                shown.append(head + "\n".join(lines))
+            text = "\n".join(shown) + "\n"
+        # as argparse prints it: a closed stdout is not an error
+        try:
             sys.stdout.write(text)
-            return
-        for line in text.rstrip("\n").split("\n"):
-            column = _HELP_COLUMN.match(line)
-            if len(line) <= width or column is None:
-                sys.stdout.write(line + "\n")
-                continue
-            head = column.group(1)
-            rest = line[len(head):]
-            lines = _wrap.lines(rest, width, first=len(head), indent=len(head), prog=self.prog)
-            sys.stdout.write(head + "\n".join(lines) + "\n")
+        except (AttributeError, OSError):
+            pass
 
     def error(self, message: str, next: Sequence[str] = ()) -> None:
         self.err(f"error: {message}", indent="  ")
