@@ -57,7 +57,6 @@ from tests.helpers import (
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
-SRC = REPO / "src"
 FAKE = HERE / "fake_vllm.py"
 FIXTURE = HERE / "fixtures" / "qwen3-8b-chat-template.json"
 
@@ -71,7 +70,17 @@ def _driver(*args: str) -> list[str]:
 
 
 def _driver_env(**extra: str) -> dict[str, str]:
-    return {**os.environ, "PYTHONPATH": str(SRC), **extra}
+    """The driver's environment: the folder of the `poisson_tasks` this test imported first on
+    its path, so the driver it starts is the package under test.
+
+    Retrofitted for 0.4.2 (#53): it put the checkout's `src/` there, which is the same folder
+    under the editable install CONTRIBUTING sets up, but not where the package is installed from
+    a wheel with this checkout's tests beside it (the release's driver venv): there the driver ran
+    the checkout's copy, which has no encoding file, and the four tests that start it failed."""
+    import importlib
+
+    imported = Path(importlib.import_module("poisson_tasks").__file__ or "").resolve().parent
+    return {**os.environ, "PYTHONPATH": str(imported.parent), **extra}
 
 
 def _after_stop(output: str) -> str:
