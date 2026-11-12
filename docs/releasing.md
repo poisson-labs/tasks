@@ -198,7 +198,7 @@ worktree of its own once the tag is made, and holds three things, each committed
 
 <!-- docs-check: skip reason="pushes and merges the site's changelog entry" -->
 ```bash
-if ! gh release view vX.Y.Z --repo poisson-labs/tasks > /dev/null 2>&1; then echo "stopped, nothing pushed: the GitHub release vX.Y.Z does not exist yet; run block two first"; else cd <site worktree> && git push -u origin changelog-tasks-X-Y-Z && git switch --detach -q && gh pr create --repo TaylorKolasinski/poisson-labs-site --base main --head changelog-tasks-X-Y-Z --title "The site gets Tasks X.Y.Z" --body-file <pr body file> && gh pr merge changelog-tasks-X-Y-Z --repo TaylorKolasinski/poisson-labs-site --merge --admin --delete-branch; fi
+if ! gh release view vX.Y.Z --repo poisson-labs/tasks > /dev/null 2>&1; then echo "stopped, nothing pushed: the GitHub release vX.Y.Z does not exist yet; run block two first"; else cd <site worktree> && git push -u origin changelog-tasks-X-Y-Z && git switch --detach -q && gh pr create --repo TaylorKolasinski/poisson-labs-site --base main --head changelog-tasks-X-Y-Z --title "The site gets Tasks X.Y.Z" --body-file <pr body file> && gh pr merge changelog-tasks-X-Y-Z --repo TaylorKolasinski/poisson-labs-site --merge --admin --delete-branch --author-email taylor@poissonlabs.ai; fi
 ```
 
 ## 10. After the blocks
