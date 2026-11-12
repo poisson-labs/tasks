@@ -21,7 +21,6 @@ import contextlib
 import json
 import os
 import sys
-import textwrap
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from pathlib import Path
@@ -36,8 +35,8 @@ from rich.progress import BarColumn, Progress, TextColumn
 from rich.table import Table
 from rich.text import Text
 
-from poisson_tasks.cli import _format
-from poisson_tasks.cli._plain import continued_command
+from poisson_tasks.cli import _format, _wrap
+from poisson_tasks.cli._plain import command_width, continued_command
 from poisson_tasks.cli._result import Bullets, Command, Levels, Part, Result, Row
 
 TONE = {"good": "bold green", "neutral": "bold", "warn": "bold yellow", "bad": "bold red"}
@@ -47,6 +46,18 @@ WIDTH = 104
 """The widest the pretty style draws, so a wide terminal does not stretch its lines."""
 SEPARATOR = " · "
 """What joins the items of a row such as `run` or `made with`: a line breaks only here."""
+
+
+def print_wrapped(console: Console, prefix: Text, text: str, indent: int, *, style: str = "",
+                  prog: str | None = None, keep: Sequence[str] = ()) -> None:
+    """`prefix`, then `text` broken by `_wrap`'s rule at the console's width, each later line
+    `indent` spaces in, in `style`: a note, an error or a line of the dialogue keeps its indent
+    when it wraps, and no path, URL, command or quoted value in it is split."""
+    lines = _wrap.lines(text, console.width, first=len(prefix.plain), indent=indent, prog=prog,
+                        keep=keep) or [""]
+    console.print(Text.assemble(prefix, (lines[0], style)), soft_wrap=True)
+    for line in lines[1:]:
+        console.print(Text(line, style=style), soft_wrap=True)
 
 
 def make_console(stream: Any, *, stderr: bool = False) -> Console:
@@ -104,8 +115,7 @@ class Pretty:
                     continue
                 if lines:
                     lines[-1] += SEPARATOR.rstrip()
-                lines += textwrap.wrap(item, room - mark, break_long_words=False,
-                                       break_on_hyphens=False) or [""]
+                lines += _wrap.lines(item, room - mark, prog=self.prog) or [""]
             return lines
 
         def emit(prefix: Text, value: str, indent: int, style: str = "") -> None:
@@ -117,8 +127,7 @@ class Pretty:
                 if SEPARATOR in part and len(part) > room:
                     lines += items(part, room)
                     continue
-                lines += textwrap.wrap(part, room, break_long_words=False,
-                                       break_on_hyphens=False) or [""]
+                lines += _wrap.lines(part, room, prog=self.prog) or [""]
             first = Text.assemble(prefix, (lines[0], style))
             out.print(first, soft_wrap=True)
             for line in lines[1:]:
@@ -157,7 +166,8 @@ class Pretty:
                 out.print()
             elif isinstance(row, Command):
                 out.print(Text("  " + row.label, style="dim"))
-                out.print(Text("\n".join(continued_command(row.argv))), soft_wrap=True)
+                out.print(Text("\n".join(continued_command(row.argv, width=command_width(width)))),
+                          soft_wrap=True)
         for part in result.document:
             out.print()
             if part.kind == "document":
@@ -171,15 +181,6 @@ class Pretty:
             out.print(Text.assemble(("next: ", "dim"), (command, "bold")), soft_wrap=True)
 
     @staticmethod
-    def _items(items: Sequence[str]) -> Table:
-        made = Table.grid(padding=(0, 1))
-        made.add_column(width=1, style="dim")
-        made.add_column(overflow="fold")
-        for item in items:
-            made.add_row("•", item)
-        return made
-
-    @staticmethod
     def _value(row: Row) -> Text:
         value = row.value
         if row.label == "wrote" and ", " in value:
@@ -190,43 +191,55 @@ class Pretty:
         return text
 
     def _part(self, part: Part) -> None:
+        """A part of a result, each of its lines wrapped by `_wrap`'s rule at its own indent: a
+        call, a JSON reply or a quoted value breaks between its members or not at all."""
         out = self.stdout
+        width = out.width
         if part.kind == "quote":
-            out.print(Padding(Panel(Text(str(part.body)), box=box.ROUNDED, border_style="dim",
-                                    padding=(0, 1)), (0, 0, 0, 2)))
-        elif part.kind == "text":
-            out.print(Padding(Text(str(part.body)), (0, 0, 0, 2)))
-        elif part.kind == "code":
-            out.print(Padding(Text(str(part.body), style="dim"), (0, 0, 0, 2)))
-        elif part.kind == "lines":
-            out.print(Padding(Text("\n".join(str(line) for line in part.body)), (0, 0, 0, 2)))
+            body = str(part.body).split("\n")
+            inner = width - 2 - 4
+            lines = [line for text in body for line in (_wrap.lines(text, inner) or [""])]
+            if all(len(line) <= inner for line in lines):
+                out.print(Padding(Panel(Text("\n".join(lines), no_wrap=True), box=box.ROUNDED,
+                                        border_style="dim", padding=(0, 1)), (0, 0, 0, 2)))
+            else:
+                # a piece too long for the box is not cut to fit one: the lines go unboxed
+                for text in body:
+                    print_wrapped(out, Text("  "), text, 2)
+        elif part.kind in ("text", "code", "lines"):
+            body = (str(part.body).split("\n") if part.kind != "lines"
+                    else [str(line) for line in part.body])
+            for text in body:
+                print_wrapped(out, Text("  "), text, 2, style="dim" if part.kind == "code" else "")
         elif part.kind == "tools":
-            grid = Table.grid(padding=(0, 2))
-            grid.add_column(width=1)
-            grid.add_column(no_wrap=True)
-            grid.add_column(style="dim", overflow="fold")
+            names = max((len(name) for name, _, _ in part.body), default=0)
             for name, params, needed in part.body:
-                grid.add_row(Text("●" if needed else " "),
-                             Text(name, style="bold" if needed else "dim"), f"({params})")
-            out.print(Padding(grid, (0, 0, 0, 2)))
+                prefix = Text.assemble("  ", ("●" if needed else " "), "  ",
+                                       (name.ljust(names), "bold" if needed else "dim"), "  ")
+                print_wrapped(out, prefix, f"({params})", len(prefix.plain), style="dim")
             out.print(Text("  ● the reference solution calls it", style="dim"))
         elif part.kind == "steps":
-            grid = Table.grid(padding=(0, 1))
-            grid.add_column(no_wrap=True)
-            grid.add_column(overflow="fold")
             for index, (name, arguments, returns) in enumerate(part.body, 1):
-                grid.add_row(f"{index}.", Text.assemble((name, "bold"), f"({arguments})"))
-                grid.add_row("", Text(f"→ {returns}", style="dim"))
-            out.print(Padding(grid, (0, 0, 0, 2)))
+                head = f"{index}."
+                print_wrapped(out, Text(f"  {head} "), f"{name}({arguments})", 3 + len(head))
+                print_wrapped(out, Text(" " * (3 + len(head)) + "→ ", style="dim"), str(returns),
+                              5 + len(head), style="dim")
         elif part.kind == "answers":
-            grid = Table.grid(padding=(0, 3))
-            grid.add_column(no_wrap=True)
-            grid.add_column(no_wrap=True)
-            grid.add_column(style="dim", overflow="fold")
+            what_width = max((len(what) for what, _, _ in part.body), default=0)
+            outcome_width = max((len(outcome) for _, outcome, _ in part.body), default=0)
+            beside = 2 + what_width + 3 + outcome_width + 3
             for what, outcome, extra in part.body:
-                grid.add_row(what, Text(outcome, style="bold green" if outcome == "passed"
-                                        else "bold"), extra or "")
-            out.print(Padding(grid, (0, 0, 0, 2)))
+                prefix = Text.assemble("  ", what.ljust(what_width), "   ",
+                                       (outcome.ljust(outcome_width),
+                                        "bold green" if outcome == "passed" else "bold"))
+                if not extra:
+                    out.print(prefix)
+                elif width - beside >= 24:
+                    print_wrapped(out, prefix + Text("   "), extra, beside, style="dim")
+                else:
+                    # too narrow for a third column: the explanation goes under its row
+                    out.print(prefix)
+                    print_wrapped(out, Text("    "), extra, 4, style="dim")
 
     def help(self, parser: Any) -> None:
         """The same help argparse prints, from the same parser: the usage, the description,
@@ -289,7 +302,8 @@ class Pretty:
                               soft_wrap=True)
 
     def note(self, message: str) -> None:
-        self.stderr.print(Text.assemble(("note:", "yellow"), " " + message), soft_wrap=True)
+        print_wrapped(self.stderr, Text.assemble(("note:", "yellow"), " "), message, 2,
+                      prog=self.prog)
 
     # -- the dialogue (all of it on stderr) --------------------------------------------------
 
@@ -312,8 +326,14 @@ class Pretty:
 
     def intro(self, text: str) -> None:
         first, _, rest = text.partition(". ")
-        self.stderr.print(Text.assemble((first + ("." if rest else ""), "bold"),
-                                        (" " + rest if rest else "", "dim")))
+        wrapped = "\n".join(_wrap.lines(text, self.stderr.width, prog=self.prog))
+        shown = Text(wrapped)
+        if len(wrapped) == len(text):
+            # each break took the place of one space, so the sentence's span is where it was
+            bold = len(first) + (1 if rest else 0)
+            shown.stylize("bold", 0, bold)
+            shown.stylize("dim", bold)
+        self.stderr.print(shown, soft_wrap=True)
 
     def gap(self) -> None:
         self.stderr.print()
@@ -321,15 +341,19 @@ class Pretty:
     def say(self, text: str, status: str | None = None) -> None:
         if status in MARK:
             mark, style = MARK[status]
-            self.stderr.print(Text.assemble((f"   {mark} ", style), text))
-        else:
-            self.stderr.print(Text("\n".join(f"   {line}" if line else ""
-                                             for line in text.split("\n")), style="dim"))
+            print_wrapped(self.stderr, Text(f"   {mark} ", style=style), text, 5, prog=self.prog)
+            return
+        for line in text.split("\n"):
+            if line:
+                print_wrapped(self.stderr, Text("   "), line, 3, style="dim", prog=self.prog)
+            else:
+                self.stderr.print()
 
     def confirm(self, question: str, default: bool, *, indent: str = "") -> bool:
         preface, _, ask = question.rpartition(". ")
         if preface:
-            self.stderr.print(Text(indent + preface.replace("\n", " ") + "."))
+            print_wrapped(self.stderr, Text(indent), preface.replace("\n", " ") + ".",
+                          len(indent), prog=self.prog)
         tokens = [("class:question", f"{indent}{ask} "),
                   ("class:instruction", "[Y/n] " if default else "[y/N] ")]
         while True:
@@ -340,7 +364,8 @@ class Pretty:
                 return True
             if answer in ("n", "no"):
                 return False
-            self.stderr.print(Text(f"{indent}Answer y or n.", style="yellow"))
+            print_wrapped(self.stderr, Text(indent), "Answer y or n.", len(indent),
+                          style="yellow")
 
     def choice(self, number: int | None, question: str, options: Sequence[tuple[str, str]],
                default: int) -> int:
@@ -384,10 +409,16 @@ class Pretty:
         bracket = ([("class:instruction", f"[{shown if shown is not None else default}] ")]
                    if default is not None else [])
         head = f"{number}. {question}" if number is not None else f"   {question}"
-        if hint:
-            self.stderr.print(Text(head, style="bold"))
-            self.stderr.print(Text("\n".join(f"   {line}" for line in hint.split("\n")),
-                                   style="dim"))
+        shown_bracket = bracket[0][1] if bracket else ""
+        if hint or len(head) + 1 + len(shown_bracket) > self.stderr.width:
+            # a question that does not fit beside its answer is printed above it, wrapped at
+            # its indent, and the answer is asked on a line of its own
+            print_wrapped(self.stderr, Text(""), head, 3, style="bold", prog=self.prog)
+            for line in (hint or "").split("\n") if hint else []:
+                if line:
+                    print_wrapped(self.stderr, Text("   "), line, 3, style="dim", prog=self.prog)
+                else:
+                    self.stderr.print()
             tokens = [("class:question", "   › ")] + bracket
         else:
             tokens = [("class:question", head + " ")] + bracket
@@ -396,7 +427,7 @@ class Pretty:
             problem = validate(answer) if validate else None
             if problem is None:
                 return answer
-            self.stderr.print(Text(f"   {problem}", style="yellow"))
+            print_wrapped(self.stderr, Text("   "), problem, 3, style="yellow", prog=self.prog)
             tokens = [("class:question", "   › ")] + bracket
 
     @contextlib.contextmanager

@@ -173,9 +173,11 @@ def plan_words(plan: Any) -> str:
 
 def own_words(settings: Any) -> str:
     """`your tools (acme-support)`, or `your tools (tools.json)` when the set is unnamed, from
-    the settings file alone."""
+    the settings file alone.  An unnamed set is called by its file's name, not the path the
+    settings give: these words go on the lines a long path made run to two (the settings line,
+    `init`'s closing line, the session's summary), and `doctor` names the whole path once."""
     own = settings.own
-    name = own.name if own.name is not None else own.file
+    name = own.name if own.name is not None else Path(own.file).name
     return f"your tools ({name})"
 
 
