@@ -266,25 +266,66 @@ class Session:
                 self._console.width = WIDTH
         return self._console
 
-    def write(self, text: str = "", style: str | None = None) -> None:
-        """One line of the session's own: `style` is Rich's, used in the pretty look only."""
+    def write(self, text: str = "", style: str | None = None, *,
+              keep: Sequence[str] = (), wrap: bool = True) -> None:
+        """One line of the session's own: `style` is Rich's, used in the pretty look only.  On a
+        terminal too narrow for it, it is wrapped by `_wrap`'s rule at its own indent, with each
+        of `keep` (a path it names) whole; a line that is a command to copy (`wrap=False`) never
+        is."""
+        if not wrap:
+            if self.pretty:
+                from rich.text import Text
+
+                self.console.print(Text(text, style=style or ""), soft_wrap=True)
+            else:
+                sys.stdout.write(text + "\n")
+                sys.stdout.flush()
+            return
+        lead = text[: len(text) - len(text.lstrip(" "))]
+        self.wrapped(lead, text[len(lead):], len(lead), style=style, keep=keep)
+
+    def wrapped(self, prefix: Any, text: str, indent: int, *, style: str | None = None,
+                keep: Sequence[str] = ()) -> None:
+        """`prefix` (Rich text in the pretty look, a string in the others), then `text`, each
+        line after the first `indent` spaces in, wrapped only on a terminal."""
+        from poisson_tasks.cli import _wrap
+        from poisson_tasks.cli._plain import terminal_width
+
         if self.pretty:
             from rich.text import Text
 
-            self.console.print(Text(text, style=style or ""), soft_wrap=True)
-        else:
-            sys.stdout.write(text + "\n")
-            sys.stdout.flush()
+            from poisson_tasks.cli._pretty import print_wrapped
 
-    def row(self, label: str, value: str, width: int, style: str | None = None) -> None:
-        """A `label  value` line of the status block, the label dim in the pretty look."""
+            head = prefix if isinstance(prefix, Text) else Text(prefix)
+            print_wrapped(self.console, head, text, indent, style=style or "", prog=self.prog,
+                          keep=keep)
+            return
+        start = str(prefix)
+        width = terminal_width(sys.stdout)
+        lines = ([text] if width is None else
+                 _wrap.lines(text, width, first=len(start), indent=indent, prog=self.prog,
+                             keep=keep)) or [""]
+        sys.stdout.write(start + "\n".join(lines) + "\n")
+        sys.stdout.flush()
+
+    def fits(self, text: str) -> bool:
+        """Whether `text` fits on one line of the terminal (always, off a terminal)."""
+        from poisson_tasks.cli._plain import terminal_width
+
+        width = self.console.width if self.pretty else terminal_width(sys.stdout)
+        return width is None or len(text) <= width
+
+    def row(self, label: str, value: str, width: int, style: str | None = None, *,
+            keep: Sequence[str] = ()) -> None:
+        """A `label  value` line of the status block, the label dim in the pretty look; a value
+        that wraps keeps the column it starts at."""
         if self.pretty:
             from rich.text import Text
 
-            self.console.print(Text.assemble((label.ljust(width), "dim"), "  ",
-                                             (value, style or "")), soft_wrap=True)
+            prefix: Any = Text.assemble((label.ljust(width), "dim"), "  ")
         else:
-            self.write(f"{label.ljust(width)}  {value}")
+            prefix = f"{label.ljust(width)}  "
+        self.wrapped(prefix, value, width + 2, style=style, keep=keep)
 
     def heading(self, text: str) -> None:
         self.write()
@@ -292,11 +333,24 @@ class Session:
             from rich.text import Text
 
             head, _, rest = text.partition(" · ")
-            self.console.print(Text.assemble((head, f"bold {COBALT}"), (" · " + rest, "bold")),
-                               soft_wrap=True)
+            if self.fits(text):
+                self.console.print(Text.assemble((head, f"bold {COBALT}"), (" · " + rest, "bold")),
+                                   soft_wrap=True)
+            else:
+                self.wrapped("", text, 0, style="bold")
         else:
             self.write(text)
         self.write()
+
+    def menu_line(self, index: int, text: str) -> None:
+        """A numbered line too long for the terminal: its text wrapped past the number."""
+        if self.pretty:
+            from rich.text import Text
+
+            prefix: Any = Text.assemble("  ", (str(index), f"bold {COBALT}"), "  ")
+        else:
+            prefix = f"  {index}  "
+        self.wrapped(prefix, text, 4 + len(str(index)))
 
     def width(self) -> int:
         return shutil.get_terminal_size().columns
@@ -453,7 +507,7 @@ class Session:
                       config_given=self.config_given, json=False, typed=list(argv))
         code = dispatch(ctx)
         self.write()
-        self.write(f"same as  {self.command(argv)}", "dim")
+        self.write(f"same as  {self.command(argv)}", "dim", wrap=False)
         if then:
             offered = list(extra)
             if ctx.refused is not None:
@@ -501,7 +555,8 @@ class Session:
 
         folder = self.folder()
         root = Path(self.config_path).parent
-        rows: list[tuple[str, str, str | None]] = [("folder", _home_words(root), None)]
+        where = _home_words(root)
+        rows: list[tuple[str, str, str | None]] = [("folder", where, None)]
         if folder.settings is None:
             rows.append(("settings", folder.problem or
                          f"none yet: setup writes {Path(self.config_path).name} here", None))
@@ -562,7 +617,7 @@ class Session:
             rows.append(("latest card", f"{levels}  {measure}", None))
         width = max(len(label) for label, _, _ in rows)
         for label, value, style in rows:
-            self.row(label, value, width, style)
+            self.row(label, value, width, style, keep=(where,))
         self.write()
         self.show_next(folder)
 
@@ -572,14 +627,15 @@ class Session:
         self.write("next", "bold")
         width = max(len(step.label) for step in self.steps)
         for index, step in enumerate(self.steps, 1):
-            if self.pretty:
+            line = f"  {index}  {step.label.ljust(width)}  {step.word}"
+            if self.pretty and self.fits(line):
                 from rich.text import Text
 
                 self.console.print(Text.assemble("  ", (str(index), f"bold {COBALT}"), "  ",
                                                  step.label.ljust(width), "  ",
                                                  (step.word, "dim")), soft_wrap=True)
             else:
-                self.write(f"  {index}  {step.label.ljust(width)}  {step.word}")
+                self.menu_line(index, f"{step.label}  {step.word}")
         self.write()
 
     # -- the run-through ------------------------------------------------------------------
@@ -587,19 +643,22 @@ class Session:
     def run_through(self) -> None:
         where = _home_words(Path(self.config_path).parent)
         self.write(f"There is no {Path(self.config_path).name} in {where}, so this starts with "
-                   "setup.")
+                   "setup.", keep=(where,))
         self.write()
         width = max(len(name) for name, _, _ in STEPS)
         room = max(len(note) for _, note, _ in STEPS)
         for index, (name, note, free) in enumerate(STEPS, 1):
-            if self.pretty:
+            line = f"  {index}  {name.ljust(width)}  {note.ljust(room)}  {free}".rstrip()
+            if not self.fits(line):
+                self.menu_line(index, f"{name.ljust(width)}  {note}  {free}".rstrip())
+            elif self.pretty:
                 from rich.text import Text
 
                 self.console.print(Text.assemble("  ", (str(index), f"bold {COBALT}"), "  ",
                                                  name.ljust(width), "  ", note.ljust(room), "  ",
                                                  (free, "dim")), soft_wrap=True)
             else:
-                self.write(f"  {index}  {name.ljust(width)}  {note.ljust(room)}  {free}".rstrip())
+                self.write(line)
         self.write()
         self.write("Nothing calls a model until you say yes to the run's cost. Ctrl-C stops the "
                    "step you are in and leaves the folder as it was; you can leave at any prompt "
@@ -1030,10 +1089,9 @@ class Session:
             if self.pretty:
                 from rich.text import Text
 
-                self.console.print(Text.assemble("  ", (f"{word:<9}", "bold"), " ", HELP[word]),
-                                   soft_wrap=True)
+                self.wrapped(Text.assemble("  ", (f"{word:<9}", "bold"), " "), HELP[word], 12)
             else:
-                self.write(f"  {word:<9} {HELP[word]}")
+                self.wrapped(f"  {word:<9} ", HELP[word], 12)
         self.write()
 
     def word_quit(self, rest: str) -> None:

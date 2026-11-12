@@ -84,11 +84,13 @@ jobs:
         with:
           version: "0.11.14"
           enable-cache: false
+      # The versions the suite is tested with (constraints.txt); the jobs with Prove install
+      # without them, the newest the package allows.
       - &install-without-prove
         name: Install
         run: |
           python -m venv .venv
-          .venv/bin/python -m pip install -e ".[dev]"
+          .venv/bin/python -m pip install -c constraints.txt -e ".[dev]"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - &fetch-encoding
         name: Fetch the reference tokenizer's encoding file

@@ -57,6 +57,22 @@ def _flat(text: str) -> str:
     return " ".join(text.split())
 
 
+def _latest_card_row(block: list[str]) -> str:
+    """The home screen's `latest card` row, read whole.
+
+    Retrofitted for 0.4.2 (#33): the session wraps a row too long for the terminal at the column
+    its value starts in, so the lines under the row at that column are read with it, as the one
+    row they are.  Before, the session wrapped nothing and the row was one line."""
+    at = next(index for index, line in enumerate(block) if line.startswith("latest card"))
+    column = len(re.match(r"^latest card\s+", block[at]).group(0))
+    row = block[at]
+    for more in block[at + 1:]:
+        if not (more.startswith(" " * column) and more[column:column + 1].strip()):
+            break
+        row += " " + more.strip()
+    return row
+
+
 @pytest.fixture(scope="module")
 def first_look(states: States, tmp_path_factory: pytest.TempPathFactory) -> Path:
     """A folder set up with setup's defaults (the first look: depth at 1, 3 and 8, 10 tasks a
@@ -143,7 +159,7 @@ def test_g2_on_a_depth_plan_the_summary_and_the_latest_card_row_read_leaky_and_n
     text = _flat(stripped(session.out))
     summary = re.search(r"You have a card for .*?From here:", text)
     assert summary is not None, session
-    row = next(line for line in home_blocks(session.out)[-1] if line.startswith("latest card"))
+    row = _latest_card_row(home_blocks(session.out)[-1])
     for said in (summary.group(0), row):
         assert "leaky pass@1" in said and "strict" not in said, said
         assert all(strict[arm] not in said for arm in differ), (said, strict)
@@ -198,7 +214,7 @@ def test_g2_the_latest_card_row_stays_on_strict_where_the_card_reads_strict(
                        .read_text(encoding="utf-8"))["cells"]
     assert any(str(cell["arm_id"]).startswith("depth:") for cell in cells), cells
     session = in_session(Keys(["quit"]), monkeypatch)
-    row = next(line for line in home_blocks(session.out)[0] if line.startswith("latest card"))
+    row = _latest_card_row(home_blocks(session.out)[0])
     assert "strict pass@1" in row and "leaky" not in row, row
 
 

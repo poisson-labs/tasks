@@ -1,5 +1,7 @@
 # The fast lane, on every pull request and every push to main, twice: once without Prove and
-# once with Prove installed. Each job first checks that Prove is, or is not, importable, so a
+# once with Prove installed. The job without Prove installs the versions the suite is tested with
+# (constraints.txt); the job with Prove installs the newest that the package allows, so a new
+# release of any dependency is met there before a user meets it. Each job first checks that Prove is, or is not, importable, so a
 # job's name always says what it ran against. It runs ruff, mypy, the two generator hashes, the
 # digest and published-content tests, and a wheel built from the tree, installed fresh and
 # started on a terminal; the job without Prove then runs the docs' marked blocks from that
@@ -53,10 +55,12 @@ jobs:
         with:
           version: "0.11.14"
           enable-cache: false
+      # The versions the suite is tested with (constraints.txt), so a dependency's new release
+      # cannot turn this job red; the job with Prove installs without them and meets it there.
       - name: Install
         run: |
           python -m venv .venv
-          .venv/bin/python -m pip install -e ".[dev]"
+          .venv/bin/python -m pip install -c constraints.txt -e ".[dev]"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Fetch the reference tokenizer's encoding file
         run: python -m poisson_tasks.fetch_encoding
@@ -137,7 +141,7 @@ jobs:
       - name: Install the wheel in a fresh environment
         run: |
           python -m venv "$RUNNER_TEMP/wheel"
-          "$RUNNER_TEMP/wheel/bin/python" -m pip install "$RUNNER_TEMP"/dist/*.whl
+          "$RUNNER_TEMP/wheel/bin/python" -m pip install -c constraints.txt "$RUNNER_TEMP"/dist/*.whl
       # A bare `poisson-tasks` from the wheel, in an empty folder with its own HOME: on a
       # terminal it shows the first screen and `quit` leaves without writing anything; off a
       # terminal it starts no session.

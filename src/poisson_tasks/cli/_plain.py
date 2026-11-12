@@ -11,15 +11,15 @@ stdin, as `input()` does, so `init > file` leaves the file holding only the resu
 from __future__ import annotations
 
 import contextlib
+import re
 import shlex
 import shutil
 import sys
-import textwrap
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from typing import Any
 
-from poisson_tasks.cli import _format
+from poisson_tasks.cli import _format, _wrap
 from poisson_tasks.cli._result import Bullets, Command, Levels, Part, Result, Row
 
 _ASCII = str.maketrans({
@@ -53,16 +53,31 @@ def terminal_width(stream: Any) -> int | None:
     return max(20, shutil.get_terminal_size().columns)
 
 
+def command_width(terminal: int | None) -> int:
+    """Where a command to copy is broken before a flag: `COMMAND_WIDTH`, or the terminal's width
+    when it is narrower, so that no line of the command is folded by the terminal (a flag and
+    its value are never parted)."""
+    return COMMAND_WIDTH if terminal is None else min(COMMAND_WIDTH, terminal)
+
+
 def continued_command(
     argv: Sequence[str], indent: str = "    ", width: int = COMMAND_WIDTH
 ) -> list[str]:
-    """A command as lines joined by backslashes, broken only before a flag."""
+    """A command as lines joined by backslashes, broken only before a flag.  At `COMMAND_WIDTH` a
+    line breaks where the flag itself would pass it, as every command has been printed; narrower
+    (a terminal narrower than that), where the flag, its value and the backslash would, so that
+    no line is wider than the terminal unless one flag and its value are."""
     words = [shlex.quote(word) if word else '""' for word in argv]
     lines: list[str] = []
     current = indent
+    narrow = width < COMMAND_WIDTH
     for index, word in enumerate(words):
         breakable = word.startswith("--") and index > 0
-        if breakable and len(current) + len(word) > width:
+        need = len(word)
+        if narrow and breakable:
+            value = words[index + 1] if index + 1 < len(words) else "--"
+            need += (0 if value.startswith("--") else 1 + len(value)) + len(" \\")
+        if breakable and len(current) + need > width and current.strip():
             lines.append(current.rstrip() + " \\")
             current = indent + "  "
         current += word + " "
@@ -127,11 +142,10 @@ class PlainUI:
     def _write(self, stream: Any, text: str, *, indent: str = "", wrap: bool = True) -> None:
         width = self.err_width if stream is sys.stderr else self.out_width
         text = self.text(text, stream)
-        if wrap and width is not None and len(text) > width:
-            lines = textwrap.wrap(text, width, subsequent_indent=indent,
-                                  break_long_words=False, break_on_hyphens=False,
-                                  drop_whitespace=True, replace_whitespace=False)
-            text = "\n".join(lines) if lines else text
+        if wrap and width is not None and (len(text) > width or "\n" in text):
+            # by `_wrap`'s rule: at a space, never inside a path, a URL, a command or a quoted
+            # value, each line after the first at the row's indent
+            text = "\n".join(_wrap.lines(text, width, indent=len(indent), prog=self.prog))
         stream.write(text + "\n")
 
     def out(self, text: str = "", *, indent: str = "", wrap: bool = True) -> None:
@@ -172,7 +186,7 @@ class PlainUI:
                     self.out(f"    - {item}", indent="      ")
             elif isinstance(row, Command):
                 self.out(f"  {row.label}")
-                for line in continued_command(row.argv):
+                for line in continued_command(row.argv, width=command_width(self.out_width)):
                     self.out(line, wrap=False)
         for part in result.document:
             self.out()
@@ -191,7 +205,7 @@ class PlainUI:
     def _part(self, part: Part) -> None:
         if part.kind in ("quote", "text", "code"):
             for line in str(part.body).splitlines() or [""]:
-                self.out(f"  {line}", indent="  ", wrap=part.kind != "quote")
+                self.out(f"  {line}", indent="  ")
         elif part.kind == "lines":
             for line in part.body:
                 self.out(f"  {line}", indent="    ")
@@ -219,7 +233,28 @@ class PlainUI:
         self.out(text, wrap=False)
 
     def help(self, parser: Any) -> None:
-        parser.print_help(sys.stdout)
+        """argparse's help, as it prints it.  On a terminal, a line of it still too wide (the
+        examples and the exit codes, which argparse leaves as written) is wrapped at the column
+        its text starts in, its command left whole."""
+        text = parser.format_help()
+        width = self.out_width
+        if width is not None:
+            shown: list[str] = []
+            for line in text.rstrip("\n").split("\n"):
+                column = _HELP_COLUMN.match(line)
+                if len(line) <= width or column is None:
+                    shown.append(line)
+                    continue
+                head = column.group(1)
+                lines = _wrap.lines(line[len(head):], width, first=len(head), indent=len(head),
+                                    prog=self.prog)
+                shown.append(head + "\n".join(lines))
+            text = "\n".join(shown) + "\n"
+        # as argparse prints it: a closed stdout is not an error
+        try:
+            sys.stdout.write(text)
+        except (AttributeError, OSError):
+            pass
 
     def error(self, message: str, next: Sequence[str] = ()) -> None:
         self.err(f"error: {message}", indent="  ")
@@ -252,8 +287,7 @@ class PlainUI:
         if width is not None and len(prompt) > width:
             head, bracket = _split_bracket(prompt)
             indent = " " * (len(head) - len(head.lstrip()))
-            lines = textwrap.wrap(head, width, subsequent_indent=indent,
-                                  break_long_words=False, break_on_hyphens=False) or [head]
+            lines = _wrap.lines(head, width, indent=len(indent), prog=self.prog) or [head]
             if bracket:
                 if len(lines[-1]) + 1 + len(bracket) <= width:
                     lines[-1] = lines[-1] + " " + bracket
@@ -338,6 +372,11 @@ class PlainUI:
     def progress(self, *, total: int, arms: Sequence[tuple[str, int, int]],
                  folder: str) -> _Progress:
         return _Progress(self, total)
+
+
+_HELP_COLUMN = re.compile(r"^(\s+\S.*?\s{2,}|\s+)(?=\S)")
+"""A help line's first column and the spaces after it (an example's command, an exit code), or
+its indent alone: where its text starts."""
 
 
 def _split_bracket(prompt: str) -> tuple[str, str]:

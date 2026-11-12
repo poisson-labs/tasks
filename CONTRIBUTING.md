@@ -20,6 +20,12 @@ python3.11 -m venv .venv
 .venv/bin/python -m poisson_tasks.fetch_encoding
 ```
 
+To install the versions the suite is tested with, the ones CI's jobs without Prove use, add
+`-c constraints.txt` to the install. `constraints.txt` pins every package that install brings, at
+the version the whole suite last passed on; its header says how it is made again. The package's own
+dependencies keep floors and two pins (`verifiers`, `tiktoken`) and no ceilings, and CI's jobs with
+Prove install without the file, so a new release of a dependency is met there first.
+
 The last step fetches the o200k_base encoding file, about 3.6 MB, once. It is not shipped in this repository or in the distribution; [`NOTICE`](NOTICE) records why and what was checked. Generating tasks touches nothing else on the network, and the tokenizer never does.
 
 ## Run the tests

@@ -16,7 +16,14 @@ import pytest
 
 from tests.fd5_support import World, world
 from tests.o1_support import FAKE_MCP_SERVER, fixture
-from tests.test_fd5_look import first_verdict, in_terminals, piped, pretty_env, stripped
+from tests.test_fd5_look import (
+    first_verdict,
+    in_terminals,
+    joined_errors,
+    piped,
+    pretty_env,
+    stripped,
+)
 
 FIXTURES = (world,)
 """The command tests' world, used here by name."""
@@ -101,7 +108,7 @@ def test_l16_in_a_terminal_the_first_line_and_the_exit_code_are_plains_on_own_to
     else:
         assert first_verdict(shown) == first_verdict(out.decode()), (shown, out.decode())
     plain_errors = [line for line in err.decode().splitlines() if line.startswith("error: ")]
-    shown_errors = [line for line in stripped(tty_err).splitlines()
-                    if line.startswith("error: ")]
+    # retrofitted for 0.4.2 (#33): an error line the pretty look wraps is read whole
+    shown_errors = joined_errors(stripped(tty_err))
     assert [line.split(";")[0] for line in shown_errors] == [
         line.split(";")[0] for line in plain_errors], (tty_err, err.decode())

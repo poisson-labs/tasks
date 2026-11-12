@@ -200,12 +200,47 @@ def in_terminals(
 
 
 def first_verdict(text: str) -> tuple[str, str] | None:
-    for line in text.splitlines():
+    """The first line's verdict word and sentence.
+
+    Retrofitted for 0.4.2 (#33): on a terminal too narrow for it, the pretty look wraps the verdict
+    line as the plain look does, at its hanging indent (the word and two spaces), so the lines
+    directly under it at that indent are read with it, as the one line they are.  A row is two
+    spaces in and is never read as part of it."""
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
         if not line.strip():
             continue
         match = VERDICT_LINE.match(line.rstrip())
-        return (match.group(1), match.group(2).rstrip()) if match else None
+        if not match:
+            return None
+        sentence = match.group(2).rstrip()
+        hang = " " * (len(match.group(1)) + 2)
+        for more in lines[index + 1:]:
+            if not (more.startswith(hang) and more[len(hang):len(hang) + 1].strip()):
+                break
+            sentence += " " + more.strip()
+        return (match.group(1), sentence)
     return None
+
+
+def joined_errors(text: str) -> list[str]:
+    """Each `error:` line of `text`.
+
+    Retrofitted for 0.4.2 (#33): on a terminal too narrow for it, the pretty look wraps an error
+    line two spaces in, as the plain look does, so the lines under it that are two spaces in are
+    read with it, until a `next:` line, which is not part of it."""
+    found: list[str] = []
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if not line.startswith("error: "):
+            continue
+        joined = line.rstrip()
+        for more in lines[index + 1:]:
+            if not more.startswith("  ") or more.lstrip().startswith("next:"):
+                break
+            joined += " " + more.strip()
+        found.append(joined)
+    return found
 
 
 # ---------------------------------------------------------------------------
@@ -276,8 +311,7 @@ def test_l16_in_a_terminal_the_first_line_and_the_exit_code_are_plains(
     else:
         assert first_verdict(shown) == first_verdict(out.decode()), (shown, out.decode())
     plain_errors = [line for line in err.decode().splitlines() if line.startswith("error: ")]
-    shown_errors = [line for line in stripped(tty_err).splitlines()
-                    if line.startswith("error: ")]
+    shown_errors = joined_errors(stripped(tty_err))
     assert [line.split(";")[0] for line in shown_errors] == [
         line.split(";")[0] for line in plain_errors], (tty_err, err.decode())
 
