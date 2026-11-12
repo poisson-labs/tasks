@@ -4,6 +4,12 @@ All notable changes to Poisson Tasks.
 
 ## 0.4.2
 
+### Fixes
+
+- **In a narrow terminal nothing folds back to the left edge that could keep its indent, and nothing is split inside a value (#33).** In both looks, on a terminal, a line breaks only at a space, keeps its indent when it wraps, and never splits a path, a URL, a command or a quoted value; a piece too long for any line is left whole for the terminal to fold. At 60 and 80 columns: the verdict line, `error:` and `note:` lines, the lines of a verb's questions (such as the note under `init`'s question on the model's name) and every line of the guided session keep their indent in the pretty look, where the terminal started them again at the left edge, and the session wraps its rows and its numbered steps in both looks, where it wrapped nothing; the reference solution's call and its reply, a JSON value on your own tools among them, break only between their members, where a quoted string was cut in two; what the model is shown, the tools and the wrong answers wrap at their indent; a command to copy, broken before its flags at 78 columns, is broken to fit a narrower terminal, a flag never parted from its value; and in the plain look the examples and exit codes of `--help` wrap at their column. Piped output is unchanged, and `--json` is never wrapped.
+- **An unnamed set of your own tools is called by its file's name (#33).** The settings line, `init`'s closing line and the guided session's summary said `your tools (<the path in tasks.toml>)`, which a long path ran to two lines on each; they now name the file (`your tools (petstore-openapi-3.0.json)`), and `doctor` gives the whole path once. A named set is called by its name, as before.
+- **A run stopped before its first model call no longer prints a raw `Event loop is closed` (#52).** When the start-up watchdog, a cap or Ctrl-C cancels an episode, the harness kills its processes and does not wait for them. If one of them still held its output pipes when the run ended, they were closed later, after the run's event loop had closed, and three raw lines (`Exception ignored in …`, a traceback, `RuntimeError: Event loop is closed`) reached stderr, how often depending on how busy the machine was. A run now waits for each process it started to be reported ended, and closes it, before its event loop closes.
+
 ### Docs
 
 - **The README leads with install, a first run and reading the card (#41).** It is about 15 kB where it was about 19 kB. The reference material it held moved to the docs pages it links: each dial's levels and depth's full numbers to `docs/knobs-and-arms.md`, and the cost and footprint list to a new page. It keeps the dials with their evidence, the published cards, the commands and what is not claimed, and links to poissonlabs.ai.
@@ -15,6 +21,8 @@ All notable changes to Poisson Tasks.
 ### Tests
 
 - **Existing tests were edited, each in its own commit**: the test that holds the exact set of pages under `docs/` gains `before-a-run.md`, and then `own-tools-reference.md`; the test that looks for the `504` and `429` statuses on the own-tools page looks for them on the reference page, where the errors table moved.
+- **More existing tests were edited, each in its own commit, with no assertion changed**: the two tests that compare the pretty look's first line and error lines on a terminal with the plain look's read a line that wraps as the one line it is; and four tests of the model-B install start its driver from the package the test imported, not the checkout's `src/`, so they pass where the package is installed from a wheel beside the checkout's tests, as they did not (#53).
+- **New tests**: the wrap rule, both looks and the guided session at 60 and 80 columns (`tests/test_fx_layout.py`), and a run stopped while its bootstrap's pipes are still open (`tests/test_fx_run_reaps_children.py`).
 
 ## 0.4.1 (2026-11-08)
 
