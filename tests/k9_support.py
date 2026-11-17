@@ -276,6 +276,20 @@ KNOB_DRIVER = textwrap.dedent("""
 """)
 
 
+def _imported_root() -> Path:
+    """The folder of the `poisson_tasks` the tests imported first on their path, for the
+    `PYTHONPATH` of the processes they start, so a process runs the package under test.
+
+    Retrofitted (#57): `knob_rig` and `module_run` put the checkout's `src/` there, which is the
+    same folder under the editable install CONTRIBUTING sets up, but not where the package is
+    installed from a wheel with this checkout's tests beside it: there the driver ran the
+    checkout's copy, which has no encoding file. `test_cal_qwen_install_fix` was retrofitted the
+    same way for #53."""
+    import importlib
+
+    return Path(importlib.import_module("poisson_tasks").__file__ or "").resolve().parent.parent
+
+
 def knob_rig(tmp: Path, behaviour: Behaviour, cache: Path) -> Any:
     """The notebook's filesystem and processes on a laptop (`helpers.Rig`), running the knob
     probe's design against the fake model as its vLLM."""
@@ -304,7 +318,7 @@ def knob_rig(tmp: Path, behaviour: Behaviour, cache: Path) -> Any:
             "K9_FAKE_SEEDS": json.dumps([*probe.PHASE1_SEEDS, *probe.PROBE_SEEDS[:2]]),
             "K9_FAKE_BEHAVIOUR": json.dumps(behaviour.as_mapping()),
             "K9_FAKE_CACHE": str(cache),
-            "PYTHONPATH": f"{REPO / 'src'}{os.pathsep}{REPO}",
+            "PYTHONPATH": f"{_imported_root()}{os.pathsep}{REPO}",
         }
     )
     return rig
@@ -322,6 +336,6 @@ def module_run(argv: Sequence[str], **kwargs: Any) -> subprocess.CompletedProces
         [sys.executable, "-m", *argv],
         capture_output=True,
         text=True,
-        env={**os.environ, "PYTHONPATH": str(REPO / "src")},
+        env={**os.environ, "PYTHONPATH": str(_imported_root())},
         **kwargs,
     )

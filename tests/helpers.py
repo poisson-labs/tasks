@@ -239,9 +239,18 @@ REDUCED = textwrap.dedent("""
 
 class Rig:
     """The notebook's filesystem and processes, on a laptop: a local disk, a durable folder,
-    a fake `vllm` and a fake `nvidia-smi` on PATH, and the driver run as a subprocess."""
+    a fake `vllm` and a fake `nvidia-smi` on PATH, and the driver run as a subprocess.
+
+    The driver's `PYTHONPATH` is the folder of the `poisson_tasks` the tests imported, so the
+    driver is the package under test. Retrofitted (#57): it was the checkout's `src/`, which is
+    the same folder under the editable install CONTRIBUTING sets up, but not where the package is
+    installed from a wheel with this checkout's tests beside it: there the driver ran the
+    checkout's copy, which has no encoding file. `test_cal_qwen_install_fix` was retrofitted the
+    same way for #53."""
 
     def __init__(self, tmp: Path, mode: str = "reference", delay: float = 0.0) -> None:
+        import importlib
+
         self.tmp = tmp
         self.local = tmp / "local"
         self.durable = tmp / "durable"
@@ -256,11 +265,12 @@ class Rig:
         self.driver = tmp / "driver.py"
         self.driver.write_text(REDUCED)
         self.port = free_port()
+        imported = Path(importlib.import_module("poisson_tasks").__file__ or "").resolve().parent
         self.env = {
             **os.environ,
             "PATH": f"{self.bin}{os.pathsep}{os.environ['PATH']}",
             "FAKE_MODE": mode, "FAKE_DELAY": str(delay), "FAKE_SEEDS": "404,55,2121",
-            "PYTHONPATH": str(REPO / "src"),
+            "PYTHONPATH": str(imported.parent),
         }
         self.env.pop("FAKE_VERSION", None)
         self.started: list[subprocess.Popen[bytes]] = []

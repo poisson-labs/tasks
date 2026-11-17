@@ -18,11 +18,11 @@ import hashlib
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
 from poisson_tasks import calibration as cal
-from tests.k9_support import REPO
 
 DERIVATION = "poisson-tasks/knob-probe/seeds/v1"
 
@@ -102,15 +102,23 @@ def test_the_seed_lists_hashes_are_the_cards_digest_of_each_list() -> None:
 
 
 def test_another_process_makes_the_same_lists() -> None:
+    """Retrofitted (#57): the other process's `PYTHONPATH` was the checkout's `src/`, which is the
+    package under test under the editable install CONTRIBUTING sets up, but not where the package
+    is installed from a wheel with this checkout's tests beside it: there the process imported the
+    checkout's copy, which has no encoding file. It is now the folder of the `poisson_tasks` this
+    test imported, as `test_cal_qwen_install_fix` was for #53."""
+    import importlib
+
     code = (
         "from poisson_tasks import knob_probe as p; import json; "
         "print(json.dumps([p.PHASE1_SEEDS, p.PROBE_SEEDS, p.PROBE_SEED_LIST_HASH]))"
     )
+    imported = Path(importlib.import_module("poisson_tasks").__file__ or "").resolve().parent
     done = subprocess.run(
         [sys.executable, "-c", code],
         capture_output=True,
         text=True,
-        env={"PYTHONPATH": str(REPO / "src"), "PYTHONHASHSEED": "7", "PATH": "/usr/bin:/bin"},
+        env={"PYTHONPATH": str(imported.parent), "PYTHONHASHSEED": "7", "PATH": "/usr/bin:/bin"},
         timeout=300,
     )
     assert done.returncode == 0, done.stderr
