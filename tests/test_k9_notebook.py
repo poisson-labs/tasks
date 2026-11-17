@@ -370,6 +370,13 @@ def test_a_void_arm_is_set_aside_on_both_folders_once_and_run_again(flow: dict[s
 
 
 def test_the_command_line_reads_both_models_records_into_one_outcome(tmp_path: Path) -> None:
+    """Retrofitted (#57): the command's `PYTHONPATH` was the checkout's `src/`, which is the
+    package under test under the editable install CONTRIBUTING sets up, but not where the package
+    is installed from a wheel with this checkout's tests beside it: there the command ran the
+    checkout's copy, which has no encoding file. It is now the folder of the `poisson_tasks` this
+    test imported, as `test_cal_qwen_install_fix` was for #53."""
+    import importlib
+
     from poisson_tasks import knob_probe as probe
 
     for model, passes in ((MODEL, {"similarity:s3": 30}), (OTHER, {"faults:f4": 30})):
@@ -377,6 +384,7 @@ def test_the_command_line_reads_both_models_records_into_one_outcome(tmp_path: P
         probe.write_model_records(
             tmp_path / model.split("/")[0], made["records"], {}, reruns=[], facts={"concurrency": 8}
         )
+    imported = Path(importlib.import_module("poisson_tasks").__file__ or "").resolve().parent
     done = subprocess.run(
         [
             sys.executable,
@@ -393,7 +401,7 @@ def test_the_command_line_reads_both_models_records_into_one_outcome(tmp_path: P
         capture_output=True,
         text=True,
         timeout=600,
-        env={"PYTHONPATH": str(REPO / "src"), "PATH": "/usr/bin:/bin"},
+        env={"PYTHONPATH": str(imported.parent), "PATH": "/usr/bin:/bin"},
     )
     assert done.returncode == 0, done.stderr
     result = json.loads((tmp_path / "out" / "outcome.json").read_text())
