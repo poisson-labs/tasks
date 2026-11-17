@@ -38,7 +38,6 @@ from tests.helpers import run_module
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
-SRC = REPO / "src"
 TEMPLATE_FIXTURE = HERE / "fixtures" / "qwen3-8b-chat-template.json"
 FAILURE_LOG = HERE / "fixtures" / "vllm-serve-ninja-failure.log"
 NINJA = "FileNotFoundError: [Errno 2] No such file or directory: 'ninja'"
@@ -131,13 +130,23 @@ def test_the_missing_ninja_names_the_setting_that_avoids_it() -> None:
 @pytest.fixture
 def runtime(tmp_path: Path) -> Iterator[dict[str, Any]]:
     """The pinned template's tokenizer config, the runtime's folders, and an environment that
-    sets the sampler the other way, so the pin has to win."""
+    sets the sampler the other way, so the pin has to win.
+
+    The environment's `PYTHONPATH` is the folder of the `poisson_tasks` this test imported, so
+    the driver it starts is the package under test. Retrofitted (#57): it was the checkout's
+    `src/`, which is the same folder under the editable install CONTRIBUTING sets up, but not
+    where the package is installed from a wheel with this checkout's tests beside it: there the
+    driver ran the checkout's copy, which has no encoding file. `test_cal_qwen_install_fix` was
+    retrofitted the same way for #53."""
+    import importlib
+
     data = json.loads(TEMPLATE_FIXTURE.read_text(encoding="utf-8"))
     tokenizer = tmp_path / "tokenizer_config.json"
     tokenizer.write_text(json.dumps({"chat_template": data["chat_template"]}), encoding="utf-8")
     local = tmp_path / "local"
     common = ["--local", str(local), "--durable", str(tmp_path / "durable"), "--port", "1"]
-    env = {**os.environ, "PYTHONPATH": str(SRC), SETTING: "1"}
+    imported = Path(importlib.import_module("poisson_tasks").__file__ or "").resolve().parent
+    env = {**os.environ, "PYTHONPATH": str(imported.parent), SETTING: "1"}
     state: dict[str, Any] = {"tmp": tmp_path, "tokenizer": tokenizer, "local": local,
                              "common": common, "env": env}
     yield state
