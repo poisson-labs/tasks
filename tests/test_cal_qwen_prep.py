@@ -842,13 +842,22 @@ def test_the_notebook_types_no_pin_of_its_own() -> None:
 def test_install_vllm_names_the_pinned_wheel_its_hash_and_the_cuda_backend(tmp_path: Path) -> None:
     """The install is the driver's, so the notebook cannot install another build: the
     release's CUDA 12.9 wheel, checked against its published sha256 before it is installed,
-    with the PyTorch build for the same CUDA, into a virtualenv of its own."""
+    with the PyTorch build for the same CUDA, into a virtualenv of its own.
+
+    Retrofitted (#57): the driver's `PYTHONPATH` was the checkout's `src/`, which is the package
+    under test under the editable install CONTRIBUTING sets up, but not where the package is
+    installed from a wheel with this checkout's tests beside it: there the driver ran the
+    checkout's copy, which has no encoding file. It is now the folder of the `poisson_tasks` this
+    test imported, as `test_cal_qwen_install_fix` was for #53."""
+    import importlib
+
     module = run_module()
     pin = module.QWEN3_8B
+    imported = Path(importlib.import_module("poisson_tasks").__file__ or "").resolve().parent
     done = subprocess.run(
         [sys.executable, "-m", "poisson_tasks.calibration_run", "install-vllm",
          "--venv", str(tmp_path / "vllm-venv"), "--dry-run"],
-        capture_output=True, text=True, timeout=120, env={**os.environ, "PYTHONPATH": str(REPO / "src")},
+        capture_output=True, text=True, timeout=120, env={**os.environ, "PYTHONPATH": str(imported.parent)},
     )
     assert done.returncode == 0, done.stderr
     out = done.stdout
