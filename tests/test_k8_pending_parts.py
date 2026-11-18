@@ -7,6 +7,11 @@ yes, the parts are in the first P reads in the order the request lists them, and
 the four are drawn in decides which read holds what.  Dropped if the answer is no: which reads carry
 the parts is then the build's, inside the frozen tests (exactly P, in the listed order, joining to
 the code).
+
+Retrofitted 2026-11-18 for 0.5.0 (the spread fix, ruled 2026-11-15): the reads after the first P
+answer with an empty head, nothing before the full stop, where they answered `none`.  `NONE` is
+`tests/k8_support.py`'s, now the empty string, so the expected heads are the parts and then empty
+strings.  No line of code here changed.
 """
 
 from __future__ import annotations
