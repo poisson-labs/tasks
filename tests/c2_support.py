@@ -572,6 +572,22 @@ def card_v2_rig(
                 return made
             return [*made[:2], command, "--design", DESIGN, *made[3:]]
 
+        def run(self, command: str, *extra: str, check: bool = True) -> Any:
+            """Retrofitted 2026-11-18, ruled yes by Taylor in the build session: at the
+            registered size a step is not stopped after the rig's 600 seconds, which the 16,800
+            episodes of phase 3 cannot fit in.  At the smaller size the rig's own `run` is used,
+            unchanged."""
+            if not full_size():
+                return super().run(command, *extra, check=check)
+            import subprocess
+
+            done = subprocess.run(self.argv(command, *extra), env=self.env, capture_output=True,
+                                  text=True, timeout=None)
+            if check and done.returncode != 0:
+                raise AssertionError(
+                    f"{command} exited {done.returncode}\n{done.stdout}\n{done.stderr}")
+            return done
+
     tmp.mkdir(parents=True, exist_ok=True)
     (tmp / "tokenizer_config.json").write_text(json.dumps({"chat_template": "{{ messages }}"}))
     rig = CardV2Rig(tmp)
