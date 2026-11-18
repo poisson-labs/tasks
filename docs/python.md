@@ -31,7 +31,7 @@ print(verdict.label)
 ```
 <!-- docs-check: output -->
 ```
-42a193a13c6f97e5821f39591f826cd4072449a959782597cf1e3c76d6f986fa
+6e74f5d8d64618452501004f317f64fe412ec389675f6406163bc4be687cfdf6
 passed
 ```
 
