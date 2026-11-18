@@ -28,6 +28,12 @@ reports nothing on was written and removed before the freeze: no deliberate bug 
 another `test_k8_*` test did not (the ledger's rows for spread are each held field by field in
 `tests/test_k8_fixed.py`, `tests/test_k8_parts.py` and `tests/test_k8_reads.py`, and
 `generate_contrast` raises on a refused contrast, so its flag could not fail).
+
+Retrofitted 2026-11-18 for 0.5.0 (the spread fix, ruled 2026-11-15): an answer that holds no part
+has an empty head, so the heads of all four joined are the entry code itself and no longer a wrong
+join.  Shape 2's first wrong join is now a join that keeps filler: the four answers' payloads
+joined whole, below level 4 as before.  The verdict it is held to, and the reversed join, are as
+they were.
 """
 
 from __future__ import annotations
@@ -36,6 +42,7 @@ from typing import Any
 
 from poisson_tasks.tasks import Turn, verify
 from tests.k3_support import FMT, SPEC, verdict_of
+from tests import k8_support
 from tests.k8_support import LEVELS, NONE, SPLITS, heads, named, spread
 
 ENTRY = SPEC.parameter_names["entry"]
@@ -99,7 +106,12 @@ def test_the_reads_batched_pass_and_a_wrong_join_never_leaves_stage_zero() -> No
                 verdict = verify(bundle, batched(bundle), True, False, FMT)
                 assert (verdict.label, verdict.leaky_pass) == ("passed", True), where
                 said = heads(bundle)
-                wrong = ["".join(said)] if NONE in said else []
+                found = k8_support.answers(bundle)
+                whole = "".join(
+                    k8_support.payload(found[k8_support.key(read)])
+                    for read in k8_support.listed(bundle)
+                )
+                wrong = [whole] if NONE in said else []
                 if level > 1:
                     wrong.append("".join(head for head in reversed(said) if head != NONE))
                 for code in wrong:

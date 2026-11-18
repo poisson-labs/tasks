@@ -10,6 +10,9 @@ four reads at every level and has the first level-many hold a part, the others `
 reads and their order drawn per seed and kept across levels; `level` of them hold a part of the
 value, in order, and the others hold `none` in the same field.  Level 1 is the design's "read then
 call".  If it is declined, the build names exactly `level` reads.
+
+Retrofitted 2026-11-18 for 0.5.0 (ruled 2026-11-18): the reads that hold no part hold the empty
+string in that field, where they held `none`.
 """
 
 from __future__ import annotations
@@ -39,4 +42,4 @@ def test_four_reads_at_every_level_and_the_rest_hold_none() -> None:
                 assert len({json.dumps(list(r[:2])) for r in bundle.named_reads}) == 4
                 held = [field_value(text, path) for text, (_t, _a, path)
                         in zip(bundle.reference_observations, bundle.named_reads, strict=False)]
-                assert sum(value == "none" for value in held) == 4 - level, held
+                assert sum(value == "" for value in held) == 4 - level, held

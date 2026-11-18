@@ -3,8 +3,9 @@
 A task is a pure function of the tool file's bytes (through the set's digest), the arm and the
 seed: every draw is a keyed hash of those and of nothing else, no set or dict built from a set is
 ever iterated, and the task id is a content hash over every other field.  The version label is
-`own-3` (it was `own-1` until 0.3.0 changed the generator and `own-2` until 0.4.0 changed it
-again, each with the ruled change to the frozen built-in one); `generator_hash` covers this
+`own-4` (it was `own-1` until 0.3.0 changed the generator, `own-2` until 0.4.0 changed it
+again and `own-3` until 0.5.0 changed what a spread answer that holds no part says, each with
+the ruled change to the frozen built-in one); `generator_hash` covers this
 module's bytes and every module of the package that
 importing the generator, the simulator and the verdict loads (`HASHED_MODULES`), the shared
 `surface.py` and `knobs.py` among them, and none of `arms`, so a knob shipping moves no task.
@@ -27,7 +28,8 @@ What a task is made of, by knob (as decided 2026-10-13):
 - **arguments** states the required checkable parameters first and then the others in a drawn
   order, `level` of them, and the call must carry exactly those; **spread** names four reads
   with a checkable argument, `level` of them holding a part of a target value in order and the
-  rest `none`; **depth** follows the longest declared chain, level d its last d calls; **shape**
+  rest an empty string (the word `none` until 0.5.0, which a model joined into the value);
+  **depth** follows the longest declared chain, level d its last d calls; **shape**
   runs the longest keyed chain four times, width 1 in sequence, width 2 as two sequences side by
   side, width 4 all side by side;
 - **timeouts** and **ratelimits** (0.3.0) plan `surface.fault_plan`'s answers as faults does,
@@ -106,7 +108,7 @@ __all__ = [
     "generate",
 ]
 
-GENERATOR_VERSION = "own-3"
+GENERATOR_VERSION = "own-4"
 KNOBS = ("similarity", "faults", "history", "block", "arguments", "spread", "depth", "shape",
          "timeouts", "ratelimits", "landed", "baddata", "lagged")
 # Every `poisson_tasks` module a fresh interpreter loads for the generator, the simulator and the
@@ -192,7 +194,9 @@ _ATTEMPTS = 256
 # times a carried value is drawn before an argument is taken to have none a read can carry.
 _FRESH_DRAWS = 32
 _CARRY_DRAWS = 16
-_NONE_PART = "none"
+# What the field of a spread read that holds no part of the value holds: the empty string, so
+# the four fields joined are the value at every level (ruled 2026-11-15, with the built-in fix).
+_NONE_PART = ""
 _NAME_WORD = _re.compile(r"[A-Za-z0-9_-]+")
 _SENTENCE_END = _re.compile(r"(?<=[.!?])\s")
 _CALL = "call"
@@ -874,7 +878,7 @@ def _spread_design(toolset: _OwnToolSet, level: int, key: bytes, intents: _Mappi
     request = (
         f"{_sentence(target, intents, names)}{_stated_text(pairs)}. The {carried_name} is split"
         " across the answers of these four reads, in the order listed: join the parts. An answer"
-        f" that holds no part reads \"{_NONE_PART}\".\n" + "\n".join(lines)
+        " that holds no part has nothing in its field: leave it out.\n" + "\n".join(lines)
     )
     return _Design(_READ_THEN_CALL if level == 1 else _FLOW, target, pairs, steps, reference,
                    request, named, list(toolset.tools))

@@ -89,11 +89,12 @@ def test_the_same_bytes_arm_and_seed_make_the_same_task_in_every_process() -> No
     assert first == "\n".join(here) + "\n"
 
 
-def test_the_label_is_own_3_and_an_arm_at_another_version_is_refused() -> None:
+def test_the_label_is_own_4_and_an_arm_at_another_version_is_refused() -> None:
     """Retrofitted 2026-10-29 for 0.3.0: the own-tools generator label moved from "own-1" to "own-2" with the ruled change to the frozen generator (the faults spec's Q4)."""
     # Retrofitted 2026-11-04 for 0.4.0: the label moved from "own-2" to "own-3" (the stale-data
-    # spec's Q1).
-    assert generator().GENERATOR_VERSION == "own-3"
+    # spec's Q1).  Retrofitted 2026-11-18 for 0.5.0: it moved from "own-3" to "own-4" (the spread
+    # fix, ruled 2026-11-15); shape 1 above names the label as it was first retrofitted.
+    assert generator().GENERATOR_VERSION == "own-4"
     spec = dataclasses.replace(arm("faults", 1), generator_version="1")
     with pytest.raises(ValueError):
         generator().generate(acme(), spec, 7)

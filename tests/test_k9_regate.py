@@ -338,16 +338,20 @@ def test_an_outcome_without_a_re_gate_is_byte_for_byte_what_main_wrote(tmp_path:
     files hash to the four values pinned before, so nothing else of them moved.
 
     Re-pinned 2026-11-05 for 0.4.0, for the same reason (the stale-data spec's ruled change, Q1):
-    with 0.3.0's hash put back the files hash to the four values 0.3.0 pinned."""
+    with 0.3.0's hash put back the files hash to the four values 0.3.0 pinned.
+
+    Re-pinned 2026-11-18 for 0.5.0, for the same reason (the ruled fix to spread's base task):
+    with 0.4.0's hash put back the files hash to the four values 0.4.0 pinned.  These digests were
+    not on the 0.5.0 design's list of tests to edit and were ruled onto it 2026-11-18."""
     alone = write_outcome_of(tmp_path / "alone", {OTHER: qwen_run()})
     both = write_outcome_of(tmp_path / "both", {MODEL: nano_run(), OTHER: qwen_run()})
     assert alone == {
-        "outcome.json": "c07fa771b35151e4856d77fd3f135989c9d903d43f4aca99f75c96a4068b1e6a",
-        "outcome.md": "22de05da7b2f6df5731dfd873ff538e35475cad534d1baf1ed081e1e6daaee8f",
+        "outcome.json": "3bddb23a518614bae35f8e6d7d21064030ca654951140c9efb9cc4a54e1f5553",
+        "outcome.md": "3d9358986fc3e640a7eb4160f04d502c14d9dfa0533c8acc51b0158620669755",
     }
     assert both == {
-        "outcome.json": "7e5b05e9cbb1881cf350c2c7c8fbf1aefb3d5e7bb939befe9868736819536e40",
-        "outcome.md": "fee14548ae21241d3557db26c213b9e8f0550450e0e4aac697f3c9668040e19c",
+        "outcome.json": "e798b39aaf7f3b6068539a62c8673756f0484190511122a3a9ebe5e4a110edb5",
+        "outcome.md": "6562756d3ede67889a681b3d34bd5da69372b213fc17b39d48076f3d70c80794",
     }
 
 

@@ -106,31 +106,33 @@ def test_a_landed_control_is_refused_with_n26s_reason() -> None:
 # --------------------------------------------------------------------------
 
 
-def test_the_labels_are_3_and_own_3_and_every_copy_agrees() -> None:
+def test_the_labels_are_4_and_own_4_and_every_copy_agrees() -> None:
     """Retrofitted 2026-11-04 for 0.4.0: the labels moved from "2" and "own-2" (the stale-data spec's
-    Q1)."""
-    assert arms.DEFAULT_GENERATOR_VERSION == "3"
-    assert cal.GENERATOR_VERSION == "3"
-    assert generator.GENERATOR_VERSION == "own-3"
+    Q1).  Retrofitted 2026-11-18 for 0.5.0: they moved from "3" and "own-3" (the spread fix, ruled
+    2026-11-15)."""
+    assert arms.DEFAULT_GENERATOR_VERSION == "4"
+    assert cal.GENERATOR_VERSION == "4"
+    assert generator.GENERATOR_VERSION == "own-4"
     assert config._OWN_GENERATOR_VERSION == generator.GENERATOR_VERSION
 
 
-def test_own_1_in_a_settings_file_is_refused_in_one_line_naming_0_3_0_and_own_3(
+def test_own_1_in_a_settings_file_is_refused_in_one_line_naming_0_3_0_and_own_4(
     tmp_path: Path,
 ) -> None:
-    """The control is the same file naming `own-3`, which plans.
+    """The control is the same file naming `own-4`, which plans.
 
     Retrofitted 2026-11-04 for 0.4.0: `own-1`'s refusal keeps naming 0.3.0 and now names `own-3` (the
-    stale-data spec's section 7.2); `own-2`'s is `tests/test_bd_arms.py`'s."""
+    stale-data spec's section 7.2); `own-2`'s is `tests/test_bd_arms.py`'s.  Retrofitted 2026-11-18
+    for 0.5.0: it keeps naming 0.3.0 and now names `own-4` (the spread fix, ruled 2026-11-15)."""
     acme_with_flows(tmp_path)
     text = own_text('preset = "first-look"').replace(
         f'# generator_version = "{arms.DEFAULT_GENERATOR_VERSION}"', 'generator_version = "{}"', 1
     )
     assert 'generator_version = "{}"' in text
-    fine = config.loads_config(text.replace("{}", "own-3"))
+    fine = config.loads_config(text.replace("{}", "own-4"))
     assert config.resolve_plan(fine, root=tmp_path).arms
     with pytest.raises(config.ConfigError) as refused:
         config.resolve_plan(config.loads_config(text.replace("{}", "own-1")), root=tmp_path)
     said = str(refused.value).replace(str(tmp_path), "")
     assert refused.value.key == "tasks.generator_version"
-    assert "\n" not in said and "0.3.0" in said and "own-3" in said, said
+    assert "\n" not in said and "0.3.0" in said and "own-4" in said, said

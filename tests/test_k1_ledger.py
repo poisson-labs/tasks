@@ -455,7 +455,9 @@ def parts_of(code: str, level: int) -> list[str]:
 
 
 def answer(part: str, salt: str) -> str:
-    head = (part or "none") + "."
+    # Retrofitted 2026-11-18 for 0.5.0 (ruled 2026-11-18): a hand-built answer that holds no
+    # part has an empty head, as the generator's has, where it said `none`.
+    head = part + "."
     fill = hashlib.sha256(salt.encode()).hexdigest()
     return head + fill[: LAYOUT["payload_width"] - len(head)]
 

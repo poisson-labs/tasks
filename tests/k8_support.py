@@ -11,6 +11,11 @@ the request: each named read is on a line of its own that names its facet, its i
 and the lines' order is the listed order (`listed`).  A read's answer is its observation in the
 reference; its payload is the observation's third field, a head (the part, or `none`), a full
 stop and a fill.
+
+Retrofitted 2026-11-18 for 0.5.0 (the spread fix, ruled 2026-11-15): an answer that holds no part
+has nothing before its full stop, where it said `none`, and the request's second sentence says to
+leave it out.  `SENTENCE` is the new sentence and `NONE`, the head of such an answer, is the empty
+string; the name is kept so the files that read it are not edited for a name.
 """
 
 from __future__ import annotations
@@ -32,9 +37,9 @@ TEMPLATE_ID = "ledger-spread/v1"
 # The two sentences the design gives, word for word.
 SENTENCE = (
     "The entry code is split across the answers of these four reads, in the order listed: join "
-    "the parts. An answer that holds no part reads `none`."
+    "the parts. An answer that holds no part has nothing before its full stop: leave it out."
 )
-NONE = "none"
+NONE = ""
 STOP = "."
 # A spread task costs a few milliseconds to generate, so both splits are read at every card seed.
 SPLITS: tuple[tuple[str, tuple[int, ...]], ...] = (("eval", CARD_SEEDS), ("train", CARD_SEEDS))

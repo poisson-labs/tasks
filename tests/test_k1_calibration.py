@@ -72,13 +72,14 @@ def written(spec: ArmSpec) -> str:
 # --------------------------------------------------------------------------
 
 
-def test_the_generator_version_a_user_gets_is_3_everywhere() -> None:
+def test_the_generator_version_a_user_gets_is_4_everywhere() -> None:
     """Retrofitted 2026-10-29 for 0.3.0: the label moved from "1" to "2" with the ruled change to
     the frozen generator (the faults spec's Q4), as it moved from "0" to "1" in 0.1.0.  Retrofitted
-    2026-11-04 for 0.4.0: the label moved from "2" to "3" (the stale-data spec's Q1)."""
-    assert arms.DEFAULT_GENERATOR_VERSION == "3"
+    2026-11-04 for 0.4.0: the label moved from "2" to "3" (the stale-data spec's Q1).  Retrofitted
+    2026-11-18 for 0.5.0: the label moved from "3" to "4" (the spread fix, ruled 2026-11-15)."""
+    assert arms.DEFAULT_GENERATOR_VERSION == "4"
     assert cal.GENERATOR_VERSION == arms.DEFAULT_GENERATOR_VERSION
-    assert {spec.generator_version for spec in cal.arm_specs()} == {"3"}
+    assert {spec.generator_version for spec in cal.arm_specs()} == {"4"}
 
 
 @pytest.mark.parametrize("card", CARDS)

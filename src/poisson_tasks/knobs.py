@@ -273,7 +273,10 @@ _FAULT_WORDS = {
     _LANDED: _TIMEOUT,
 }
 _FAULT_KNOBS = tuple(_FAULT_WORDS)
-_NO_PART = "none"
+# What a spread answer that holds no part of the code says before its full stop: nothing.
+# Until 0.5.0 it said `none`, a word with a part's shape in a part's place, which the request
+# never said to leave out, and a model joined it into the code (ruled 2026-11-15).
+_NO_PART = ""
 _PART_END = "."
 
 # N9's declared band, in reference-tokenizer tokens, over the aggregate.  Minted with
@@ -1161,7 +1164,7 @@ def _part(observation: str) -> str:
     """The part of a split code a read's answer carries, or nothing.
 
     A part answer's payload is the part, a full stop and filling; an answer that holds no
-    part says so in the part's place.
+    part has nothing before its full stop.
     """
     fields = observation.split()
     if len(fields) < 3 or _PART_END not in fields[2]:

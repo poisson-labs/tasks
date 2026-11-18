@@ -138,8 +138,9 @@ def test_pv_5_an_own_tools_run_records_what_produced_it(own_run: OwnRun) -> None
     expected = expected_record(own_run.plan, tools=OWN_TOOLS)
     assert (expected["generator_version"], expected["own_generator_hash"]) == (
         # Retrofitted 2026-11-04 for 0.4.0: the label moved from "own-2" to "own-3" (the stale-data
-        # spec's Q1).
-        "own-3", OWN_TOOLS_GENERATOR)
+        # spec's Q1).  Retrofitted 2026-11-18 for 0.5.0: it moved from "own-3" to "own-4" (the
+        # spread fix, ruled 2026-11-15).
+        "own-4", OWN_TOOLS_GENERATOR)
     assert bare(line) == expected
 
 
@@ -252,8 +253,9 @@ def test_pv_8_the_built_in_card_carries_the_record(
         "Recorded by the run before its first request.",
         f"- poisson-tasks {line['poisson_tasks_version']}, verifiers {line['verifiers_version']}",
         # Retrofitted 2026-11-04 for 0.4.0: the labels moved to "3" and "own-3" (the stale-data
-        # spec's Q1).
-        f"- built-in generator `{BUILT_IN_GENERATOR}` (generator version \"3\")",
+        # spec's Q1).  Retrofitted 2026-11-18 for 0.5.0: they moved to "4" and "own-4" (the
+        # spread fix, ruled 2026-11-15).
+        f"- built-in generator `{BUILT_IN_GENERATOR}` (generator version \"4\")",
         "- tools: the built-in tools, made by the generator above",
         f"- domain `{engine_hash()}`, vocabulary `{line['vocabulary_hash']}`",
         f"- plan `{line['plan_hash']}` (preset custom), 2 seeds, seed list "
@@ -289,7 +291,7 @@ def test_pv_8_the_own_tools_card_carries_the_record(
                               "What produced it")
     for wanted in (
         # Retrofitted 2026-11-04 for 0.4.0: as above.
-        f"- own-tools generator `{OWN_TOOLS_GENERATOR}` (generator version \"own-3\")",
+        f"- own-tools generator `{OWN_TOOLS_GENERATOR}` (generator version \"own-4\")",
         f"- tool spec `{MCP_SPEC}`: the canonical JSON of your tool file, an MCP tool list; the "
         f"file's own bytes hash to `{MCP_FILE}`",
     ):

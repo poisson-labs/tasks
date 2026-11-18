@@ -15,6 +15,11 @@ answer is no: the words and the slots are then the build's, inside the frozen te
 named, each on its own line; the design's sentences; no entry code stated; every line of B's but
 the code's kept), and nothing then pins that the request describes the answer's shape, which the
 design asks for in no words of its own.
+
+Retrofitted 2026-11-18 for 0.5.0 (the spread fix, ruled 2026-11-15): the second of the design's two
+sentences is now "An answer that holds no part has nothing before its full stop: leave it out.",
+through `tests/k8_support.py`'s `SENTENCE`; every other line the request is held to is as it was,
+the line on the answers' shape among them.  No line of code here changed.
 """
 
 from __future__ import annotations
