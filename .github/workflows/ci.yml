@@ -75,8 +75,8 @@ jobs:
       - &generator-hashes
         name: The generator hashes
         env:
-          BUILT_IN_GENERATOR_HASH: 38a8db83a79c9d42059b77a3ef5ba018ec715fff9dcfda3c146ad27d8ba2921c
-          OWN_TOOLS_GENERATOR_HASH: f941d7f8d7ae1694bac834f705c9283471fc65665a467ea9e717a8c6a395933a
+          BUILT_IN_GENERATOR_HASH: 98cbd21dc912bed4dbde5398748b832aae4711c2096f0092c296eab77b52eac3
+          OWN_TOOLS_GENERATOR_HASH: f01bcf327965f6c8c5351cc7c985b9e1bf6cf5caacbeb8fbba2cc06215886032
         run: |
           python - <<'EOF'
           import os, sys
@@ -86,7 +86,7 @@ jobs:
 
           built_in = generate(arm_from_id("distractor:r0@k16"), 404).generator_hash
           own_tools = own.generator_hash()
-          print(f"built-in generator, version 3: {built_in}")
+          print(f"built-in generator, version 4: {built_in}")
           print(f"own-tools generator:           {own_tools}")
           moved = [name for name, got in (("built-in", built_in), ("own-tools", own_tools))
                    if got != os.environ[f"{name.upper().replace('-', '_')}_GENERATOR_HASH"]]
