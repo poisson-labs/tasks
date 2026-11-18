@@ -84,7 +84,9 @@ def test_every_answer_is_the_engines_layout_with_a_head_a_stop_and_keyed_hex() -
                     text = payload(observation)
                     assert len(text) == WIDTH, (text, *where)
                     head, fill = head_and_fill(text)
-                    assert head and fill and set(fill) <= HEX, (text, *where)
+                    # Retrofitted 2026-11-18 for 0.5.0 (ruled 2026-11-18): an answer that holds
+                    # no part has an empty head, so the head is no longer held to be non-empty.
+                    assert fill and set(fill) <= HEX, (text, *where)
                 first = payload(found[key(listed(bundle)[0])])
                 first_fills.add(head_and_fill(first)[1][:8])
         assert len(first_fills) > 1, split
