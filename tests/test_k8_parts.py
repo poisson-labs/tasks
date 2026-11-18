@@ -29,6 +29,12 @@ build, the card's three and 3 between them.  Which of the four carry the parts i
 because the card seeds draw thirty of the thirty-one entry codes the generator can draw (`type`
 is never drawn), also at one eval seed for every code no tool name carries, the codes the
 scenario draws from (the design's measurement claims every code at every level).
+
+Retrofitted 2026-11-18 for 0.5.0 (the spread fix, ruled 2026-11-15): an answer that holds no part
+has nothing before its full stop, where its head was `none`.  Shape 2 and the test over the codes
+read `tests/k8_support.py`'s `NONE`, now the empty string, so "the rest answer `none`" above reads
+"the rest have an empty head": exactly P heads are not empty, and those are the parts.  The lines
+of those two tests are as they were.
 """
 
 from __future__ import annotations
