@@ -39,7 +39,7 @@ Run it from the repository root. A bare `pytest` collects the same tests: `pypro
 
 The suite needs the network: every test that runs an episode through the `null` harness needs PyPI and astral.sh, because the `verifiers` wheel installs `uv` and the harness's dependencies before each episode ([`tests/conftest.py`](tests/conftest.py) says how). Those tests skip when `uv` is missing, and the CI jobs install it. A run that starts from a background job should leave `SIGINT` at its default.
 
-At 0.4.2 the suite is 5,246 tests: 4,885 pass and 361 skip on a checkout without Prove. With the tests for 0.5.0's change to the generator, which is built, it is 5,337 tests: 4,976 pass and 361 skip. The tests for the run that measures 0.5.0's published cards bring it to 5,572, and the ones that hold what that run adds fail until it is built. The skipped ones need Prove (the adapter's, and the bridge between the two scorers) and say so. They run with the extra installed, `pip install -e ".[dev,prove]"`, which brings `poisson-prove` from PyPI. [docs/prove.md](docs/prove.md) shows how.
+At 0.4.2 the suite is 5,246 tests: 4,885 pass and 361 skip on a checkout without Prove. With the tests for 0.5.0's change to the generator, which is built, it is 5,337 tests: 4,976 pass and 361 skip. With the tests for the run that measures 0.5.0's published cards, which is built too, it is 5,572 tests: 5,211 pass and 361 skip. The skipped ones need Prove (the adapter's, and the bridge between the two scorers) and say so. They run with the extra installed, `pip install -e ".[dev,prove]"`, which brings `poisson-prove` from PyPI. [docs/prove.md](docs/prove.md) shows how.
 
 Type checks and lint, which CI runs too:
 
