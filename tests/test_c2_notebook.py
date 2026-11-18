@@ -67,7 +67,11 @@ from tests.c2_support import (
 )
 
 CONFIG_MARK = "# Configuration: the only cell to edit."
-RIG_ARMS = ("depth:d1", "history:t2400", "faults:f4", "spread:p4", "landed:l1")
+# Retrofitted 2026-11-18, ruled yes by Taylor in the build session: in the order the design runs
+# them, faults before history among the tops.  The rig's design is `small_design(arms=RIG_ARMS)`,
+# which is in that order, so the list as first written (history before faults) could not equal
+# the arms any build reports.
+RIG_ARMS = ("depth:d1", "faults:f4", "history:t2400", "spread:p4", "landed:l1")
 VLLM_BODY = {
     "model": QWEN,
     "temperature": 1.0,
