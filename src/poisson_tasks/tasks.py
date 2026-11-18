@@ -25,7 +25,8 @@ B's with exactly the stage tools the width needs; the request listing one line p
 the reference going stage by stage across the records; and the verdict over every target.
 `tests/test_k8_*.py` pin the information-spread knob: B's task with the request naming four
 reads in place of stating the entry code, the code split across the first P of their answers
-and the rest answering `none`, each answer a head, a full stop and keyed hex, answered in front
+and the rest answering with nothing before the full stop (`tests/test_g4_*.py`, from 0.5.0;
+they said `none` there before), each answer a head, a full stop and keyed hex, answered in front
 of the engine by `surface.py` so that the generator, the verifier, the tool server and a run's
 replay give one answer; the block, the system prompt and the six calls B's at every level.
 `tests/test_f2_*.py` pin the 0.3.0 transport-fault knobs: `timeouts` and `ratelimits` are the
@@ -482,7 +483,7 @@ _READ_LINE = '{index}. the {facet} field of catalogue item "{item}" on page "{pa
 _SPREAD_TEMPLATE = (
     "\n".join(_B_LINES[:3]) + "\nThe four reads:\n{" + _SLOT_READS + "}\n"
     "The entry code is split across the answers of these four reads, in the order listed: join "
-    "the parts. An answer that holds no part reads `none`.\n"
+    "the parts. An answer that holds no part has nothing before its full stop: leave it out.\n"
     "Each answer's payload is its part, a full stop, then filler.\n"
     "Open with the joined entry code; each later stage needs what the stage before returned."
 )
@@ -2753,7 +2754,7 @@ def generate(arm: _ArmSpec, seed: int, spec: _EngineSpec | None = None) -> TaskB
         )
     elif arm.knob == _SPREAD:
         # Spread: the four named reads in the listed order, each answered in front of the
-        # engine with its part or `none` through the one function the tool server and `verify`
+        # engine with its part or nothing through the one function the tool server and `verify`
         # answer them with, then B's two stage calls numbered after them (N35).
         answers = tuple(
             (tool, args, _surface.spread_payload(seed, arm.split, position, part))

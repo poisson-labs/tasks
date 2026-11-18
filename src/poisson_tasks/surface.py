@@ -33,7 +33,7 @@ fill.  Every caller that passes no kind gets `unavailable`, so the faults knob i
 
 The information-spread knob's answers live here for the same reason: a spread arm's four
 named reads, read off the reference by `spread_answers`, are answered by `apply_planned` in
-front of the engine with the part of the entry code each holds, or `none`, a full stop and
+front of the engine with the part of the entry code each holds, or nothing, a full stop and
 keyed hex (`spread_payload`), when a call names the read's tool, item and page exactly; every
 other read is the engine's (`tests/test_k8_only.py`, `tests/test_k8_live.py`).
 
@@ -473,7 +473,7 @@ def _answer_line(seq: int, payload: str) -> str:
 
 def spread_payload(seed: int, split: str, position: int, part: str) -> str:
     """What the named read at `position` answers on a spread arm: its head, the part of the
-    entry code it holds or `none` when it holds none, a full stop, and lowercase hex from a
+    entry code it holds or nothing when it holds none, a full stop, and lowercase hex from a
     keyed hash to the width of the table's payload field, as the spec gives it.
 
     The fill is one string per read, keyed by the task and the read's place in the request

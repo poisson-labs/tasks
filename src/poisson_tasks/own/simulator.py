@@ -124,7 +124,6 @@ _DATE_TIME = _re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d
 _DATE = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _OK = "ok"
 _ID = "id"
-_NONE_PART = "none"
 # Schema keys whose children are keyed by a name, not a keyword.
 _NAMED_MAPS = ("properties", "$defs", "definitions")
 
