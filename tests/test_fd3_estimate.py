@@ -128,13 +128,17 @@ def resolved(*flags: str) -> Any:
 
 FIRST_LOOK = ("--provider", "openai", "--measure", "first-look", "--tasks-per-level", "10",
               "--attempts", "1")
+MODEL_A = "gpt-5-nano-2025-08-07"
 
 
 def test_fd3_1_a_first_look_on_model_a_is_estimated_from_model_as_card() -> None:
     """The design's own example: the first look against gpt-5-nano at the published price,
     10 tasks per level and one attempt, is estimated from model A's card, for this model.  Its
-    structural figures are the design's: at least 150 model calls, at most 960."""
-    plan = resolved(*FIRST_LOOK)
+    structural figures are the design's: at least 150 model calls, at most 960.
+
+    Retrofitted for 0.5.0, ruled 2026-11-18: the model is named, since the openai preset's
+    default is no longer the model that card measured."""
+    plan = resolved(*FIRST_LOOK, "--model", MODEL_A)
     estimate = runs().estimate(plan)
     assert_matches(estimate, plan, "gpt-5-nano")
     assert estimate.same_model is True
@@ -198,7 +202,8 @@ def test_fd3_1_a_model_with_no_card_is_estimated_from_model_as_card_and_says_so(
 
 
 def test_fd3_1_reference_names_the_card_to_estimate_from() -> None:
-    plan = resolved(*FIRST_LOOK)
+    # Retrofitted for 0.5.0, ruled 2026-11-18: the model is named, as above.
+    plan = resolved(*FIRST_LOOK, "--model", MODEL_A)
     other = runs().estimate(plan, reference="qwen3-8b")
     assert_matches(other, plan, "qwen3-8b")
     assert other.same_model is False
