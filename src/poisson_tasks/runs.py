@@ -1502,6 +1502,7 @@ async def _run_arm_of_plan(
         if cut:
             _logger.info("an episode of %s cut by the %s", name, state.stop_reason)
             return
+        calibration.note_answers(out, episode)
         await _append_trace(out, episode, lock, scrub)
         state.run += 1
         if episode.ok:

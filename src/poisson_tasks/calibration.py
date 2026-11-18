@@ -103,6 +103,7 @@ Shapes decided here, where the tests leave them open
 from __future__ import annotations
 
 import asyncio as _asyncio
+import contextlib as _contextlib
 import dataclasses as _dc
 import datetime as _datetime
 import functools as _functools
@@ -118,6 +119,7 @@ import types as _types
 import urllib.parse as _urlparse
 from collections.abc import Callable as _Callable
 from collections.abc import Iterable as _Iterable
+from collections.abc import Iterator as _Iterator
 from collections.abc import Mapping as _Mapping
 from collections.abc import Sequence as _Sequence
 from typing import Any as _Any
@@ -295,6 +297,21 @@ _RATE_FIELDS = ("input_rate", "cached_input_rate", "output_rate")
 D_CONTROLS = ((1, 8), (2, 5))
 R_CONTROLS = ((0, 8), (2, 14))
 
+CARD_V2 = "card-v2"
+"""The version 2 card's design, as `arm_specs` names it: 0.5.0's 56 arms."""
+_V2_DIALS = ("depth", "similarity", "faults", "history", "block", "arguments", "shape", "spread",
+             "timeouts", "ratelimits", "baddata")
+"""The built-in dials on a version 2 card, in the order its table lists them: every built-in dial
+but the distractor, which was retired as a difficulty dial and stays on the generator-0 cards."""
+_V2_OWN_DIALS = ("landed", "lagged")
+"""The two dials a version 2 card measures on a tool file, since the built-in tasks cannot."""
+ANSWERS_FILE = "answer-models.jsonl"
+"""Beside an arm's `traces.jsonl`, in a run that records them (`answers_recorded`): one line per
+finished episode with the `model` value each of its answers carried, which a trace does not
+keep (a trace holds the model asked for), and when its first and last calls were made."""
+FIRST_ENTRY_CODES = ("right", "joined_marker", "filler", "other", "none_sent")
+"""What the first entry code a spread episode sent was (`EpisodeRecord.first_entry_code`)."""
+
 TALLY_FILE = "instrument-tally.jsonl"
 """The append-only instrument tally.  Deliberately not `traces.jsonl`, which `resume.load`
 rewrites."""
@@ -392,6 +409,16 @@ class EpisodeRecord:
     by its name before its next stage call or write, whether or not the harness forwarded either
     call.  An episode that never received the bad answer reads `False` on both.  Each is `None`
     on every other arm and at level 0, and then left out of the written line.
+
+    The last three fields are a version 2 card's (0.5.0), each `None` and left out of the line
+    on a record made before them.  `length_stops` is how many of the episode's model calls ended
+    at the completion cap.  `answer_models` is the distinct `model` values the episode's answers
+    carried, in the order first seen: the model that answered, where `model` is the one asked
+    for.  `first_entry_code` is a built-in spread arm's: what the first entry code the episode
+    sent was, one of `FIRST_ENTRY_CODES`; a check that the fix to spread's base task took, and
+    it decides nothing.  On a version 2 record `reasoning_tokens` is `None`, written `null`,
+    when no answer of the episode reported a reasoning count: the count is not known, which is
+    not zero.
     """
 
     task_id: str
@@ -407,7 +434,7 @@ class EpisodeRecord:
     prompt_tokens: int
     cached_input_tokens: int
     completion_tokens: int
-    reasoning_tokens: int
+    reasoning_tokens: int | None
     cost: float | None = None
     episode_seconds: float | None = None
     model_seconds: float | None = None
@@ -419,6 +446,9 @@ class EpisodeRecord:
     duplicate_write: bool | None = None
     acted_on_bad_data: bool | None = None
     read_again_after_bad: bool | None = None
+    length_stops: int | None = None
+    answer_models: tuple[str, ...] | None = None
+    first_entry_code: str | None = None
 
     def __post_init__(self) -> None:
         if self.label not in OUTCOME_LABELS:
@@ -436,11 +466,24 @@ class EpisodeRecord:
         if self.label in INSTRUMENT_LABELS and self.leaky:
             raise ValueError("an instrument failure is not a pass: leaky must be False")
         for name in ("attempt", "turns", "sampled_calls", "prompt_tokens",
-                     "cached_input_tokens", "completion_tokens", "reasoning_tokens"):
+                     "cached_input_tokens", "completion_tokens"):
             if getattr(self, name) < 0:
                 raise ValueError(f"{name} is negative")
-        if self.reasoning_tokens > self.completion_tokens:
-            raise ValueError("reasoning tokens are a subset of completion tokens")
+        if self.reasoning_tokens is not None:
+            if self.reasoning_tokens < 0:
+                raise ValueError("reasoning_tokens is negative")
+            if self.reasoning_tokens > self.completion_tokens:
+                raise ValueError("reasoning tokens are a subset of completion tokens")
+        if self.length_stops is not None and not 0 <= self.length_stops <= self.turns:
+            raise ValueError("length stops are counted among the episode's model calls")
+        if self.answer_models is not None and not isinstance(self.answer_models, tuple):
+            # a line read back holds a list; the record holds the same names, hashable
+            object.__setattr__(self, "answer_models", tuple(self.answer_models))
+        if self.first_entry_code is not None and self.first_entry_code not in FIRST_ENTRY_CODES:
+            raise ValueError(
+                f"{self.first_entry_code!r} is not a first entry code; they are "
+                + ", ".join(FIRST_ENTRY_CODES)
+            )
         for name in _OPTIONAL_FIELDS:
             value = getattr(self, name)
             if value is not None and value < 0:
@@ -472,9 +515,11 @@ _FIGURE_FIELDS = ("gave_up_after_fault", "retried_after_landed", "duplicate_writ
                   "acted_on_bad_data", "read_again_after_bad")
 """The per-episode figures of what the model did after a fault or a bad answer, each `None`
 where it does not apply."""
-_LEFT_OUT_WHEN_NONE = (*_OPTIONAL_FIELDS, *_FIGURE_FIELDS)
-"""Every field a written line leaves out when it is `None`: the unmeasured ones, and the five
-figures where they do not apply."""
+_V2_FIELDS = ("length_stops", "answer_models", "first_entry_code")
+"""The fields a version 2 card's records gained (0.5.0), `None` on every record before them."""
+_LEFT_OUT_WHEN_NONE = (*_OPTIONAL_FIELDS, *_FIGURE_FIELDS, *_V2_FIELDS)
+"""Every field a written line leaves out when it is `None`: the unmeasured ones, the five
+figures where they do not apply, and a version 2 card's three on a record made before them."""
 
 Cell = _Sequence[EpisodeRecord]
 
@@ -1378,7 +1423,7 @@ def _cell_figures(
     # Reached the goal and carried the record past it: a stop-at-the-goal failure.
     overshoot = sum(1 for row in kept if row.label == _OVERSHOOT)
     completion = sum(row.completion_tokens for row in kept)
-    reasoning = sum(row.reasoning_tokens for row in kept)
+    reasoning = sum(row.reasoning_tokens or 0 for row in kept)
     prompt = sum(row.prompt_tokens for row in kept)
     cached = sum(row.cached_input_tokens for row in kept)
     figures: dict[str, _Any] = {
@@ -2337,8 +2382,57 @@ def pilot_seeds(stage: int) -> tuple[int, ...]:
     return PILOT_SEEDS[stage]
 
 
-def arm_specs() -> tuple[_ArmSpec, ...]:
-    """CAL2: every level of each knob through `levels(knob)`, plus both control arms."""
+def _v2_controls(knob: str) -> tuple[tuple[int, int], ...]:
+    """A version 2 card's control arms for a dial, as (level, the level it stands in for):
+    depth's are the published design's two; a dial the generator gives no control arm
+    (`knobs._NO_CONTROL`) has none; every other dial's is its first level standing in for its
+    last."""
+    from poisson_tasks.knobs import _NO_CONTROL
+
+    if knob == _DEPTH:
+        return D_CONTROLS
+    if knob in _NO_CONTROL:
+        return ()
+    found = _levels(knob)
+    return ((found[0], found[-1]),)
+
+
+def card_v2_groups() -> dict[str, tuple[_ArmSpec, ...]]:
+    """The version 2 card's 56 arms in the five groups they run in, in this order: `bases`, each
+    built-in dial's first level; `tops`, each one's last; `controls`, the control arms;
+    `middles`, the levels between; and `own`, the four arms on a tool file.  Inside a group the
+    dials keep the order of the card's table.  A run a cap stops then owes middle levels and
+    own-tools arms before it owes either arm of a pair a dial is decided on."""
+    from poisson_tasks.own.generator import GENERATOR_VERSION as _OWN_VERSION
+
+    return {
+        "bases": tuple(_plain(knob, _levels(knob)[0]) for knob in _V2_DIALS),
+        "tops": tuple(_plain(knob, _levels(knob)[-1]) for knob in _V2_DIALS),
+        "controls": tuple(
+            _dc.replace(_plain(knob, level), control=control)
+            for knob in _V2_DIALS
+            for level, control in _v2_controls(knob)
+        ),
+        "middles": tuple(
+            _plain(knob, level) for knob in _V2_DIALS for level in _levels(knob)[1:-1]
+        ),
+        "own": tuple(
+            _dc.replace(_plain(knob, level), generator_version=_OWN_VERSION)
+            for knob in _V2_OWN_DIALS
+            for level in _levels(knob)
+        ),
+    }
+
+
+def arm_specs(design: str | None = None) -> tuple[_ArmSpec, ...]:
+    """The arms of a card's design.  With no design named, CAL2's: the published generator-0
+    cards' fourteen, every level of each of their two knobs through `levels(knob)`, plus both
+    control arms.  `"card-v2"` is the version 2 card's 56, in the order they run
+    (`card_v2_groups`)."""
+    if design == CARD_V2:
+        return tuple(spec for group in card_v2_groups().values() for spec in group)
+    if design not in (None, "card"):
+        raise ValueError(f"{design!r} is not a card's design; they are card and {CARD_V2}")
     out: list[_ArmSpec] = []
     for knob, controls in ((_DEPTH, D_CONTROLS), (_DISTRACTOR, R_CONTROLS)):
         for level in _levels(knob):
@@ -2525,9 +2619,20 @@ def owed_after_interrupt(run_dir: _pathlib.Path, keys: _Sequence[str], n: int) -
 # ---------------------------------------------------------------------------
 
 
-def _env_config(spec: _ArmSpec, seeds: _Sequence[int]) -> _Any:
+def _env_config(
+    spec: _ArmSpec, seeds: _Sequence[int], own: _Mapping[str, _Any] | None = None
+) -> _Any:
+    """The env config of an arm's tasks at `seeds`; with `own`, a plan's own-tools block
+    (`config.Plan.own`), the arm is made on that tool file by the own-tools taskset."""
     import verifiers.v1 as _vf
 
+    if own is not None:
+        from poisson_tasks.own.export import OWN_TASKSET_ID
+
+        return _vf.resolve_env_config(
+            {"taskset": {"id": OWN_TASKSET_ID, "arm": _dc.asdict(spec), "seeds": list(seeds),
+                         "own": dict(own)}}
+        )
     return _vf.resolve_env_config(
         {"taskset": {"id": TASKSET_ID, "arm": _dc.asdict(spec), "seeds": list(seeds)}}
     )
@@ -2765,6 +2870,7 @@ async def _run_arm(config: _Any, budget: _Mapping[str, _Any]) -> RunOutcome:
 
     async def on_complete(episode: _Any) -> None:
         episode.record_run(EvalRunInfo(id=config.run.id, name=config.run.name))
+        note_answers(out, episode)
         await append_episode(out, episode, lock)
         attempt = attempts.get(episode.task.hash, 0)
         attempts[episode.task.hash] = attempt + 1
@@ -2850,10 +2956,11 @@ def _cell_config(
     output_dir: _pathlib.Path,
     model: str,
     client: _Any,
+    own: _Mapping[str, _Any] | None = None,
 ) -> _Any:
     """The eval config of one arm's cell for the design given: `run_config_for`'s calibration
     config with the design's seeds, attempts and decoding in place of the published ones, and
-    the same run folder name."""
+    the same run folder name.  With `own`, the arm's tasks are made on that tool file."""
     import verifiers.v1 as _vf
     from verifiers.v1.configs.cli.eval import EvalConfig
 
@@ -2867,7 +2974,7 @@ def _cell_config(
     if client is not None:
         shared["client"] = client
     return EvalConfig(
-        env=_env_config(spec, seeds),
+        env=_env_config(spec, seeds, own),
         num_rollouts=int(attempts),
         sampling=_vf.SamplingConfig(**_sampling_fields(decoding)),
         **shared,
@@ -2884,11 +2991,13 @@ def run_cell(
     model: str = MODEL_A,
     client: _Any = None,
     budget: _Mapping[str, _Any] | None = None,
+    own: _Mapping[str, _Any] | None = None,
 ) -> RunOutcome:
     """One arm's cell for any design: `run_arm` with the seeds, attempts and decoding given
     instead of the published design's.  `run_arm(spec, ...)` is `run_cell` with
     `seed_list(spec)`, `N` and `DECODING`: the same runner, the same run folder name under
-    `output_dir`, the same config apart from the design, resumable and capped the same way."""
+    `output_dir`, the same config apart from the design, resumable and capped the same way.
+    With `own`, a plan's own-tools block, the arm's tasks are made on that tool file."""
     config = _cell_config(
         spec,
         seeds=seeds,
@@ -2897,6 +3006,7 @@ def run_cell(
         output_dir=output_dir,
         model=model,
         client=client,
+        own=own,
     )
     return _run_arm_with_room(config, DEFAULT_BUDGET if budget is None else budget,
                               episodes=len(seeds) * int(attempts))
@@ -3173,7 +3283,11 @@ def _is_own_task(dumped: _Mapping[str, _Any]) -> bool:
 
 
 def _own_record(
-    episode: _Any, dumped: _Mapping[str, _Any], attempts: dict[str, int], model: str
+    episode: _Any,
+    dumped: _Mapping[str, _Any],
+    attempts: dict[str, int],
+    model: str,
+    v2: _Callable[[_Any, _Any], dict[str, _Any]] | None = None,
 ) -> EpisodeRecord:
     """One own-tools episode's record: the own verdict re-read through the own export, the
     replay check on every arm (the simulator's answers to the calls that reached the server must
@@ -3254,7 +3368,6 @@ def _own_record(
         prompt_tokens=int(usage.prompt_tokens) if usage else 0,
         cached_input_tokens=int(usage.cached_input_tokens or 0) if usage else 0,
         completion_tokens=int(usage.completion_tokens) if usage else 0,
-        reasoning_tokens=int(usage.reasoning_tokens or 0) if usage else 0,
         cost=float(usage.cost) if usage and usage.cost is not None else None,
         **(_time_from_trace(trace) if trace is not None else {}),
         gave_up_after_fault=gave_up,
@@ -3262,10 +3375,170 @@ def _own_record(
         duplicate_write=duplicate,
         acted_on_bad_data=acted,
         read_again_after_bad=read_again,
+        **(_v1_fields(usage) if v2 is None else v2(episode, trace)),
     )
 
 
-def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecord]:
+def _v1_fields(usage: _Any) -> dict[str, _Any]:
+    """What a record made before version 2 holds where a version 2 record differs: a reasoning
+    count the provider did not report is written as zero, and the three newer fields are not
+    held at all."""
+    return {"reasoning_tokens": int(usage.reasoning_tokens or 0) if usage else 0}
+
+
+def _first_entry_code(data: _Any, trace: _Any) -> str | None:
+    """What the first entry code a built-in spread episode sent was, one of `FIRST_ENTRY_CODES`;
+    `None` on every other arm.
+
+    The entry code is the value the reference's stage call carries as `entry_code`, and the
+    first code sent is that argument of the episode's first sampled call by that tool's name,
+    whether or not the harness forwarded the call.  `right` is the code itself.
+    `joined_marker` is a code that holds a full stop, the mark a part ends with (two in a row
+    is an answer that held no part, joined in), or the word `none`, which such an answer said
+    before generator 4.  `filler` is a code that holds four or more characters in a row of the
+    hex a named read's answer is filled with.  `none_sent` is an episode that never called the
+    tool, or called it with no text there.  Everything else is `other`."""
+    from poisson_tasks import surface as _surface
+    from poisson_tasks.export import _sampled_exchanges, bundle_from_data
+
+    spec = _spec_for(str(data.arm_id))
+    if spec is None or spec.knob != "spread":
+        return None
+    bundle = bundle_from_data(data)
+    stage = next(
+        ((name, arguments["entry_code"]) for name, arguments in bundle.reference_calls
+         if isinstance(arguments, _Mapping) and "entry_code" in arguments),
+        None,
+    )
+    if stage is None or trace is None:
+        return "none_sent"
+    tool, code = stage[0], str(stage[1])
+    sent = next(
+        (arguments.get("entry_code") if isinstance(arguments, _Mapping) else None
+         for _content, (name, arguments) in _sampled_exchanges(trace) if name == tool),
+        None,
+    )
+    if not isinstance(sent, str) or not sent:
+        return "none_sent"
+    if sent == code:
+        return "right"
+    if "." in sent or "none" in sent.lower():
+        return "joined_marker"
+    shown = _surface.display_map(
+        bundle.seed, bundle.split, bundle.arm_id, bundle.goal,
+        tuple(str(tool["name"]) for tool in bundle.tools),
+    )
+    named = _surface.spread_answers(
+        bundle.arm_id, shown, bundle.reference_calls, bundle.reference_observations
+    ) or ()
+    fills = [payload.split(".", 1)[1] for _tool, _arguments, payload in named if "." in payload]
+    run = 4
+    if any(fill[i:i + run] in sent for fill in fills for i in range(len(fill) - run + 1)):
+        return "filler"
+    return "other"
+
+
+def _v2_reader(run_dir: _pathlib.Path) -> _Callable[[_Any, _Any], dict[str, _Any]]:
+    """What a version 2 record holds beyond an earlier one, for the episodes of `run_dir`: the
+    reasoning count as the provider reported it (`None` where no answer carried one), the model
+    calls that ended at the completion cap, and the `model` values the answers carried, from
+    the arm's `ANSWERS_FILE`."""
+    answers = read_answers(run_dir)
+
+    def fields(episode: _Any, trace: _Any) -> dict[str, _Any]:
+        usage = trace.usage if trace is not None else None
+        reasoning = usage.reasoning_tokens if usage is not None else None
+        calls = list(trace.calls) if trace is not None else []
+        held = answers.get(str(episode.id), {})
+        return {
+            "reasoning_tokens": None if reasoning is None else int(reasoning),
+            "length_stops": sum(1 for call in calls if call.finish_reason == "length"),
+            "answer_models": tuple(str(name) for name in held.get("models", ())),
+        }
+
+    return fields
+
+
+# ---------------------------------------------------------------------------
+# the model each answer carried
+# ---------------------------------------------------------------------------
+
+_answers: dict[str, list[tuple[str, str]]] | None = None
+"""While a run records them (`answers_recorded`): each model call's answering `model` and the
+moment the answer came back, by the session (the trace) that made the call."""
+
+
+@_contextlib.contextmanager
+def answers_recorded() -> _Iterator[None]:
+    """For the block's length, the `model` value every answer carries is kept as it passes
+    through the eval client, with the moment it came back, and written beside each arm's traces
+    as its episodes finish (`note_answers`).  A trace keeps the model a call asked for; a
+    provider that answers as another model, or under a dated alias, shows only here."""
+    global _answers
+    from verifiers.v1.clients import eval as _eval_client
+
+    real = _eval_client.EvalClient.get_response
+    held: dict[str, list[tuple[str, str]]] = {}
+
+    async def noting(self: _Any, *args: _Any, **kwargs: _Any) -> _Any:
+        response = await real(self, *args, **kwargs)
+        raw = getattr(response, "raw", None)
+        name = (raw.get("model") if isinstance(raw, dict) else None) or getattr(
+            response, "model", None
+        )
+        when = _datetime.datetime.now(_datetime.UTC).isoformat(timespec="milliseconds")
+        held.setdefault(str(kwargs.get("session_id") or ""), []).append((str(name), when))
+        return response
+
+    previous = _answers
+    _answers = held
+    _eval_client.EvalClient.get_response = noting
+    try:
+        yield
+    finally:
+        _eval_client.EvalClient.get_response = real
+        _answers = previous
+
+
+def note_answers(run_dir: _pathlib.Path, episode: _Any) -> None:
+    """One line of the arm's `ANSWERS_FILE` for an episode that finished: its id, the distinct
+    `model` values its answers carried in the order first seen, how many answers there were,
+    and when the first and the last came back (UTC).  Nothing when no run is recording."""
+    if _answers is None:
+        return
+    calls: list[tuple[str, str]] = []
+    for trace in getattr(episode, "traces", []) or []:
+        calls += _answers.pop(str(trace.id), [])
+    line = {
+        "episode": str(episode.id),
+        "models": list(dict.fromkeys(name for name, _when in calls)),
+        "calls": len(calls),
+        "first_call": min((when for _name, when in calls), default=None),
+        "last_call": max((when for _name, when in calls), default=None),
+    }
+    with (_pathlib.Path(run_dir) / ANSWERS_FILE).open("a", encoding="utf-8") as handle:
+        handle.write(_json.dumps(line, sort_keys=True) + "\n")
+
+
+def read_answers(run_dir: _pathlib.Path) -> dict[str, dict[str, _Any]]:
+    """An arm's `ANSWERS_FILE` by episode id; a torn last line is passed over."""
+    path = _pathlib.Path(run_dir) / ANSWERS_FILE
+    out: dict[str, dict[str, _Any]] = {}
+    if not path.exists():
+        return out
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            row = _json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(row, dict) and "episode" in row:
+            out[str(row["episode"])] = row
+    return out
+
+
+def records_from_run(
+    run_dir: _pathlib.Path, *, model: str, card_version: int = 1
+) -> list[EpisodeRecord]:
     """The per-episode records of a finished run, from its `traces.jsonl`.
 
     `strict` and `leaky` are what the wheel scored (X4's reward and the `leaky_pass`
@@ -3275,6 +3548,10 @@ def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecor
     on an arm the replay check covers (`_REPLAY_CHECKED`), which scores nothing.  Attempts
     are numbered by position in the file.  Each record's time and first request are its
     trace's (`_time_from_trace`); an episode with no trace recorded none.
+
+    With `card_version=2` each record also holds a version 2 card's fields (`_v2_reader`, and
+    `_first_entry_code` on a spread arm), and its reasoning count is `None` where the provider
+    reported none.
     """
     import verifiers.v1 as _vf
     from verifiers.v1.cli.output import read_episodes
@@ -3284,10 +3561,11 @@ def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecor
     episodes = read_episodes(_pathlib.Path(run_dir), _vf.Trace)
     attempts: dict[str, int] = {}
     out: list[EpisodeRecord] = []
+    v2 = _v2_reader(_pathlib.Path(run_dir)) if card_version >= 2 else None
     for episode in episodes:
         dumped = episode.task.data.model_dump(mode="json")
         if _is_own_task(dumped):
-            out.append(_own_record(episode, dumped, attempts, model))
+            out.append(_own_record(episode, dumped, attempts, model, v2))
             continue
         data = ExportTaskData.model_validate(dumped)
         attempt = attempts.get(episode.task.hash, 0)
@@ -3328,12 +3606,13 @@ def records_from_run(run_dir: _pathlib.Path, *, model: str) -> list[EpisodeRecor
             prompt_tokens=int(usage.prompt_tokens) if usage else 0,
             cached_input_tokens=int(usage.cached_input_tokens or 0) if usage else 0,
             completion_tokens=int(usage.completion_tokens) if usage else 0,
-            reasoning_tokens=int(usage.reasoning_tokens or 0) if usage else 0,
             cost=float(usage.cost) if usage and usage.cost is not None else None,
             **(_time_from_trace(trace) if trace is not None else {}),
             gave_up_after_fault=_gave_up_after_fault(data, trace) if trace is not None else None,
             acted_on_bad_data=acted,
             read_again_after_bad=read_again,
+            **(_v1_fields(usage) if v2 is None else {
+                **v2(episode, trace), "first_entry_code": _first_entry_code(data, trace)}),
         ))
     return out
 
