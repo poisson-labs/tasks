@@ -141,8 +141,9 @@ def test_for_plan_writes_the_kind_and_the_own_generators_hash(tmp_path: Any) -> 
         "kind": "own", "name": "acme-support", "tools": 5, "source_format": "mcp",
         "file_digest": hashlib.sha256(fixture("acme-mcp-tools-list.json")).hexdigest(),
         # Retrofitted 2026-11-04 for 0.4.0: the label moved from "own-2" to "own-3" (the stale-data
-        # spec's Q1).
-        "intents": ["refund_order"], "flows": 2, "generator": "own-3"}
+        # spec's Q1).  Retrofitted 2026-11-18 for 0.5.0: it moved from "own-3" to "own-4" (the
+        # spread fix, ruled 2026-11-15).
+        "intents": ["refund_order"], "flows": 2, "generator": "own-4"}
 
 
 # --------------------------------------------------------------------------
