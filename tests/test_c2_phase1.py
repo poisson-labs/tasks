@@ -116,7 +116,10 @@ def test_phase_1_is_three_seeds_once_on_every_arm_168_episodes(
     assert phase1["passed"] is True and phase1["stops"] == []
     assert phase1["episodes"] == PHASE1_EPISODES == 168
     played = [pair for pair in found["matched"] if pair is not None and pair[1] in PHASE1_SEEDS]
-    assert {arm for arm, _seed in played} == set(ARMS)
+    # Retrofitted 2026-11-18, ruled yes by Taylor in the build session: `arguments:a2`'s task is
+    # `history:t0`'s (the same request, tools and calls), so the fake, which tells a task by
+    # those, plays its requests as `history:t0`'s.  The 168 episodes above are every arm's.
+    assert {arm for arm, _seed in played} == set(ARMS) - {"arguments:a2"}
     assert {seed for _arm, seed in played} == set(PHASE1_SEEDS)
     record = read(found["folder"] / "record.json")
     assert record["phase1_seeds"] == list(PHASE1_SEEDS) and record["phase1_attempts"] == 1
