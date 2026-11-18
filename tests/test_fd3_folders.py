@@ -100,8 +100,12 @@ def resolved(*flags: str) -> Any:
 
 
 def test_fd3_2_a_new_plan_gets_its_preset_and_model_as_the_folder_name(tmp_path: Path) -> None:
-    """The design's own example, and `find_run` writes nothing."""
-    plan = resolved("--provider", "openai", "--measure", "first-look", "--tasks-per-level", "10")
+    """The design's own example, and `find_run` writes nothing.
+
+    Retrofitted for 0.5.0, ruled 2026-11-18: the model is named, since the openai preset's
+    default is another one now."""
+    plan = resolved("--provider", "openai", "--measure", "first-look", "--tasks-per-level", "10",
+                    "--model", "gpt-5-nano-2025-08-07")
     runs_dir = tmp_path / "runs"
     folder = runs().find_run(plan, runs_dir)
     assert folder.status == "new"
