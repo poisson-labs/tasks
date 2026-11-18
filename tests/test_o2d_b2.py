@@ -181,8 +181,10 @@ def test_an_own_plans_estimate_counts_reference_turns_and_reserves_the_cards_per
     tmp_path: Path,
 ) -> None:
     acme_with_flows(tmp_path)
-    flags = ["--provider", "openai", "--recipe", "first-look", "--tasks-per-level", "2",
-             "--attempts", "2", "--own-file", "tools.json", *FLOWS]
+    # Retrofitted for 0.5.0, ruled 2026-11-18: the model is named, since the openai preset's
+    # default is no longer the model the gpt-5-nano card measured (`same_model` below).
+    flags = ["--provider", "openai", "--model", "gpt-5-nano-2025-08-07", "--recipe", "first-look",
+             "--tasks-per-level", "2", "--attempts", "2", "--own-file", "tools.json", *FLOWS]
     plan = config.resolve_plan(config.config_from_init_args(flags), root=tmp_path)
     found = runs.estimate(plan)
     turns = sum(len(bundle.reference_calls) + 1
