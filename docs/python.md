@@ -76,7 +76,7 @@ print(arms.arm_from_id("faults:f2", strictness="leaky", generator_version="0").s
 ```
 <!-- docs-check: output -->
 ```
-ArmSpec(knob='depth', level=3, control=None, strictness='strict', split='eval', generator_version='3')
+ArmSpec(knob='depth', level=3, control=None, strictness='strict', split='eval', generator_version='4')
 depth:d3
 leaky
 ```
@@ -111,7 +111,7 @@ A contrast that breaks a row is refused before any model runs: `report.refused` 
 
 A task's id is a hash of the task, the generator's source and a short label, the generator version. Change any of them and the id changes. Two labels give the same prompt, tools, goal and reference solution, and different ids.
 
-- The command and the settings file use the package's default label, `arms.DEFAULT_GENERATOR_VERSION`, and never ask. `poisson-tasks generate --generator-version` and `[tasks] generator_version` set another, for a library user who needs to reproduce tasks made under another label.
+- The command and the settings file use the package's default label, `arms.DEFAULT_GENERATOR_VERSION`, and never ask. `poisson-tasks generate --generator-version` and `[tasks] generator_version` set another, for a library user who needs to reproduce tasks made under another label. The settings file refuses the labels the default has left (`"1"`, `"2"` and `"3"`), since no release at one of them made the tasks this generator would make under it; [config.md](config.md) has the line.
 - Both published cards were measured at label `"0"`, on an earlier build of the generator: their generator hash is that build's at `"0"`. The tasks they hold regenerate today with the same text, and with other ids, so `card --published` says each card is *not current for this install*, and a run's card cannot be read beside them. A later release measures the cards again on the current generator.
 - The examples use `"0"`, to match the label the cards carry. The export compares an arm with the arms a user gets today, at the default label, so an `ExportTaskset` at `"0"` warns that no published card covers it as given; neither label gives the cards' own ids under today's generator.
 

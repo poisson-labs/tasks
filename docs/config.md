@@ -52,7 +52,7 @@ preset = "first-look"               # first-look | error-recovery | long-session
 per_level = 10                      # 1 to 60, from the published cards' seed list; or:
 # seeds = [404, 55, 2121]
 attempts = 1
-# generator_version = "3"           # leave unset: another version moves every task id
+# generator_version = "4"           # leave unset: another version moves every task id
 
 [decoding]                          # sent with every model call; "not sent" leaves a field out
 temperature = 1.0
@@ -133,7 +133,7 @@ With `preset = "custom"`:
 | `per_level` | how many tasks at each level | 1 to 60. It takes the first `n` of the published cards' sixty seeds, so a first look runs the same tasks the cards measured |
 | `seeds` | the tasks' seeds | a list of whole numbers, instead of `per_level` |
 | `attempts` | how many attempts at each task | 1 or more; more than one shows pass@k. The published cards use 5 |
-| `generator_version` | the label that enters every task id | leave it unset; another version moves every task id, so the tasks are none a published card measured. It is `"3"` since 0.4.0 (`"own-3"` on your own tools, where a file that still names `own-1` or `own-2` is refused in one line that names the release that changed the generator and `own-3`) |
+| `generator_version` | the label that enters every task id | leave it unset; another version moves every task id, so the tasks are none a published card measured. It is `"4"` since 0.5.0 (`"own-4"` on your own tools). A file that still names a label the generator has left is refused in one line that names the release that changed the generator and the label now: `"1"`, `"2"` and `"3"` on the built-in tasks, and `own-1`, `own-2` and `own-3` on your own tools. On the built-in tasks a label the generator never had, such as `"0"` or a name of your own, is still taken |
 
 The `card` preset is the published cards' design, so it refuses a `per_level` or `attempts` that is not that design's (60 and 5), and refuses `seeds`.
 

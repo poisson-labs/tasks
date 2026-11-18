@@ -27,7 +27,7 @@ its six fields. The dotted form, `--env.taskset.arm.<field>`, is not a way to gi
 values reach the taskset as text and are refused (`level "3" is not a whole number`), and beside
 an id `eval`'s own parser drops them before the taskset sees them, so the arm stays strict. The
 seeds are a list. `generator_version` is the label that goes into every task's id; the command
-above gives `"1"`, the package's own is `"3"` since 0.4.0, and [python.md](python.md) says what
+above gives `"1"`, the package's own is `"4"` since 0.5.0, and [python.md](python.md) says what
 the label is. With no harness named,
 the run uses the measured harness (below) in a local subprocess; both are this taskset's own
 defaults and both show in the run's saved config.

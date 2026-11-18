@@ -2,6 +2,21 @@
 
 All notable changes to Poisson Tasks.
 
+## 0.5.0
+
+### The spread dial's base task
+
+- **An answer that holds no part of the entry code no longer says `none`.** On the `spread` dial the entry code is split across the answers of four named reads: at level P the first P hold a part each, and the others hold none. Until now each of those others said `none` where a part goes. Entry codes are English words, the word sat in a part's place, and the request never said to leave it out, so a model joined it into the code (`returnnonenonenone`). At level 1, where three answers said it, the first entry code `gpt-5-nano` sent held `none` in 60 of the knob probe's 120 episodes, against 2 of 120 at level 4, so the dial's lowest level was harder than its highest for a reason that was not the dial. Such an answer now has nothing before its full stop, and the request says so: "An answer that holds no part has nothing before its full stop: leave it out."
+- **Nothing else about a spread task changed.** The same four reads are named at every level, the request is the same at every level, every level takes the same six calls, and the parts are cut and placed as before. Level 1 still has three answers that hold no part and level 4 has none; naming fewer reads at a lower level would change the number of calls with the level, and the dial would no longer vary one thing.
+- **The same on your own tools.** A read that holds no part answered `"none"` in the field a part goes in; it now answers an empty string there, and the request says "An answer that holds no part has nothing in its field: leave it out."
+- **Every task id moved, and only the spread tasks' content did.** The generator changed, so both hashes moved and with them every task id; the generator version is now `"4"` (`"own-4"` on your own tools). The tasks of every other dial keep their request, tools, goal, reference solution and answers under their new ids. A run folder started with 0.4.x cannot be resumed with 0.5.0 (`run` says so before anything is spent); `card --compare` between the two says the generators differ; a 0.4.x card still builds and checks. The published cards are unchanged and still not current.
+- **A settings file that names a generator version the package has left is refused.** `[tasks] generator_version = "3"`, `"2"` or `"1"` is refused in one line that names the release that changed the generator and `"4"`, as `own-1` and `own-2` already were on your own tools, where `own-3` now joins them. Until now such a file made tasks that carried the old label from the new generator, with ids no release at that label ever made. A label the generator never had, such as `"0"` or a name of your own, is still taken on the built-in tasks. Leave the key unset to get the package's own.
+
+### Tests
+
+- **The fix is held by tests written before it was built** (`tests/test_g4_*.py`): what each of the four answers says at every level and every card seed on both splits, the request's sentence and that nothing else of the request moved, the six calls, the join that passes and the joins that keep filler and do not, the same on each example set of your own tools, the two labels and the refusals, and that no other dial's tasks moved. Both generator hashes are recorded again at their new values, with spread's content digests.
+- **Existing tests were edited, each in its own commit**, where one named the `none` answer, the request's old sentence, a generator label or a value that carries a generator hash.
+
 ## 0.4.2 (2026-11-12)
 
 ### Fixes

@@ -453,7 +453,7 @@ Beside `[own]`:
 
 - `[measure] preset` names any recipe the set supports (not `card`), or `custom` with any knob the set reaches;
 - `controls = true` is refused;
-- `[tasks] generator_version`, when set, must be `own-3`, the label of the generator that makes tasks on your tools. `own-1` and `own-2`, its labels before 0.3.0 and before 0.4.0, are each refused in one line that names the release and `own-3`.
+- `[tasks] generator_version`, when set, must be `own-4`, the label of the generator that makes tasks on your tools. `own-1`, `own-2` and `own-3`, its labels before 0.3.0, before 0.4.0 and before 0.5.0, are each refused in one line that names the release and `own-4`.
 
 ## The card on your tools
 
