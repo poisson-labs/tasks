@@ -20,6 +20,14 @@ card seed on the eval split and the first twelve on train (`tests/k4_support.py`
 the build, `k8-a` at `af67549`, the generator at
 `b460964dc153fab4535af3b39abd41d50198f3dcc644ae3e43ddee85544b57f9`.  It passes on that tree by
 design; each of the three choices above, made as a deliberate bug, fails it and nothing else.
+
+Re-pinned 2026-11-18 for 0.5.0 (the ruled fix to spread's base task, 2026-11-15): an answer that
+holds no part has nothing before its full stop where it said `none`, and the request says to leave
+it out, so all eight digests moved, level 4's too, whose request carries the new sentence.  Computed
+on the 0.5.0 build, the generator at
+`98cbd21dc912bed4dbde5398748b832aae4711c2096f0092c296eab77b52eac3`.  With the old sentence put back
+every request is the one 0.4.2 made (`tests/test_g4_request.py`), and which reads and fills a task
+draws are as they were.
 """
 
 from __future__ import annotations
@@ -36,14 +44,14 @@ from tests.k4_support import SPLITS
 
 MOVES = {"task_id", "generator_hash", "pins"}
 MAIN = {
-    ("spread:p1", "eval"): "140856100a6fa0e2112de5c0eb2a15f02b1cd5143fbdb4f2d08fc4b9d658fa9f",
-    ("spread:p1", "train"): "e4b50421fc165480d6638b8c4861a059da25e4ca5df1a026ca439fb2bdb4fce4",
-    ("spread:p2", "eval"): "edf3f502396b1883a059c009f3cdd96bca0a6c1705d5a926942954533ed54f19",
-    ("spread:p2", "train"): "e46ccff85326f48047fed7f5b4bc773d5cce53624ed71d2c5187923acdd5d464",
-    ("spread:p3", "eval"): "d10f5941f9382968fa955eb59579675d5ede86ff9789664dc59720f1b996f2f2",
-    ("spread:p3", "train"): "8967d8499541611354fe28c98ec1596b86353a20ad329d6db1334825fa316cba",
-    ("spread:p4", "eval"): "013736ea1f46864ed8154551d51ed457547cb686928db6c8b39bd78ca235cdd3",
-    ("spread:p4", "train"): "beaf35cad77bb1e961cb95b20f067582a0732f80c888e95bbca6145cf42e6746",
+    ("spread:p1", "eval"): "4637dddb40055ceebfd9386ef082fc83c1003875c81a05c03d4c58d9c0ce7a1c",
+    ("spread:p1", "train"): "f43e4a27838177d021bc22c4be38e494518bfad2493e944539e6858d7f1a2936",
+    ("spread:p2", "eval"): "af2fe72aec7746d256d6e4e37838947f61d08d8863ce47d1b83991bafd654f23",
+    ("spread:p2", "train"): "902d9a113b51e0b9e68c7301d2b69b5b1c0788881b60f0d26e67ae631d51fb77",
+    ("spread:p3", "eval"): "6893d18fb92ed7f391fc15e6867de12f4cd12bc96d216234f5c7cf5ef9f9d4c2",
+    ("spread:p3", "train"): "75fbdb9b15788b5cf04d32f55a32d57a080f827bfb08aba4c623120aae09b5d0",
+    ("spread:p4", "eval"): "f2d080fab6da59fd7729693667a01333cff82fadb538fd347d012e4c06ac7862",
+    ("spread:p4", "train"): "de8d3107469f8837081ec7cb32f2bb261359b227112d83b037689ec30ef98e52",
 }
 SEEDS = dict(SPLITS)
 
