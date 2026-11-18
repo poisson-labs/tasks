@@ -11,8 +11,8 @@ eval split, strict, of every field but `task_id` and `generator_hash`, which mov
 hashed module.  It passes on the build by design; a change that moves any own task fails here.
 
 **The own-tools generator's hash** is the second record, beside the built-in generator's frozen
-`38a8db83a79c9d42059b77a3ef5ba018ec715fff9dcfda3c146ad27d8ba2921c`
-(`tests/test_frozen_generator.py`): the hash of `own-3` over `generator.HASHED_MODULES` as this
+`98cbd21dc912bed4dbde5398748b832aae4711c2096f0092c296eab77b52eac3`
+(`tests/test_frozen_generator.py`): the hash of `own-4` over `generator.HASHED_MODULES` as this
 file was committed.  Re-pinned 2026-10-29 for 0.3.0 (the faults design's ruled change to the
 generator, Q1): the write echo moved every own task's reference observations, so every digest
 below moved with the hash; the request, tools, target, stated values and reference calls of each
@@ -20,7 +20,11 @@ task are as they were, which the build measured before re-pinning.  The three ne
 digests are kept in `tests/test_f2_kept.py`.  Re-pinned 2026-11-05 for 0.4.0 (the stale-data spec's
 ruled change, Q1): the hash alone moved, from `0cf69e660b66ff0c9a36d906cd7dad10e0c7a5f63b71c950bed7bdfd67888a14`;
 every digest below is as it was, since no other arm's tasks moved, and the two new knobs' own-tools
-digests are kept in `tests/test_bd_kept.py`.  Unlike the built-in one it is not frozen: a change to the own-tools tasks that edits a
+digests are kept in `tests/test_bd_kept.py`.  Re-pinned 2026-11-18 for 0.5.0 (the ruled fix to
+spread's base task, 2026-11-15): the hash moved, from `f941d7f8d7ae1694bac834f705c9283471fc65665a467ea9e717a8c6a395933a`,
+and so did spread's eighteen digests below, where a read that holds no part answers an empty field
+and the request says to leave it out; the other 118 are as they were, which
+`tests/test_g4_kept.py` holds.  Unlike the built-in one it is not frozen: a change to the own-tools tasks that edits a
 hashed module updates it here and names the new hash in its record, with the digests below.  A
 built-in hash that moved would fail `test_frozen_generator`, never this file; an own hash that moved
 fails here, never there.
@@ -39,7 +43,7 @@ import pytest
 from poisson_tasks.knobs import arm_id
 from tests.o2_support import every_arm, fixture_sets, flows_for, generator
 
-OWN_GENERATOR_HASH = "f941d7f8d7ae1694bac834f705c9283471fc65665a467ea9e717a8c6a395933a"
+OWN_GENERATOR_HASH = "f01bcf327965f6c8c5351cc7c985b9e1bf6cf5caacbeb8fbba2cc06215886032"
 SEEDS = (404, 55, 2121)
 MOVES = {"task_id", "generator_hash"}
 # 136 rows: every arm of the eight knobs each fixture set reaches (the acme sets with their
@@ -60,9 +64,9 @@ MAIN = {
     ("acme-mcp", "history:t2400"): "c43da1a971d7b83bac56e9a69e3c9320fdf5e16eccbee951a9e48d5cd143be11",
     ("acme-mcp", "arguments:a2"): "89e9c757cd7b7c608671ded96465d468f928143ce5371d08ba7649e790215ed4",
     ("acme-mcp", "arguments:a3"): "59175325d680fdcf5867d5c9a01a7879aa06f60c8ae51aac7087194f3a7c2955",
-    ("acme-mcp", "spread:p1"): "dcf107529090d84b86d2d3abe534da339cc180bcf30e540cb052bc4202697e0e",
-    ("acme-mcp", "spread:p2"): "5f8d297e8775d42a24a2b3b766ded5af8da61b76b06cb93326ff605531a9d82a",
-    ("acme-mcp", "spread:p4"): "fb1443270a18293c0bffd1f5a34a62e0a566e93306d50d5cd60bae051fde2f28",
+    ("acme-mcp", "spread:p1"): "4654fb12523e9fc5b33640af7b087c89b1f02974573018ab9664848e50a3b414",
+    ("acme-mcp", "spread:p2"): "ef534ac3470e5e3c9b7ce38d431f07bf674b43c99ff837255396797636bb71be",
+    ("acme-mcp", "spread:p4"): "00afccdd5d55c73efd93fae8aa4e4692df152b8f3215066de596fb086a446b14",
     ("acme-mcp", "depth:d1"): "c2429155d23330a3ddbe24dc1596eaee4d83fe7e02c6c77054e3a543984a9047",
     ("acme-mcp", "depth:d2"): "4d16d45a17809f39cbd2a9a680086cf6cc8b3f177ff520f8a4cba64bab5a83c9",
     ("acme-mcp", "depth:d3"): "6ca725847b0577a49317c246ea2b2343dfa8a2e1f133a0a0ff3aee2be302b54f",
@@ -84,9 +88,9 @@ MAIN = {
     ("acme-openai", "history:t2400"): "f4f4a722dd4216d334ec2b0665217e74bbb959d1d65ac3b37b6feff1a1047b94",
     ("acme-openai", "arguments:a2"): "8c4cd841a0dd74c35e516808c3e7dda1396ac8d40cdcde44359449aefc480287",
     ("acme-openai", "arguments:a3"): "26c0071496e44cf6353a9bf9a7ff3f0eb0698d0aa1863d9137dc32c13c06a64e",
-    ("acme-openai", "spread:p1"): "686678f4a9b36e1bdbb570e1395bf7f18d8da063dcd3000af7484dc5ce011219",
-    ("acme-openai", "spread:p2"): "3bc566b6b354a6fb218efd3f6372b06fbe72b20b6aa451318c27cb4dfb5fe41c",
-    ("acme-openai", "spread:p4"): "deef62de542413eaea57fc7b1e855e49f9f93ff35a95aca65f331f997492d0b1",
+    ("acme-openai", "spread:p1"): "83780b6eaa2e576e95374d44975552d95df4c416ed1df3f50bdadcb3292fa84a",
+    ("acme-openai", "spread:p2"): "d029ae928febd6b3b26df55afbcd210d91909f0e16b4a1684f5f5865dd4220ea",
+    ("acme-openai", "spread:p4"): "91b610008a5e6f7e17a24cc77c0beb1a26c4ca46a9953aa8627a83f4da32662c",
     ("acme-openai", "depth:d1"): "1551e4de481f478e382ceee511674fc53f47a7134dc9f32efa6279807ef837d6",
     ("acme-openai", "depth:d2"): "eaf0fb285751fd91f1ceddd7e021a15ea2715f3193eeff54180d1b90a3f0ab95",
     ("acme-openai", "shape:w1"): "845661d9c4ad0294fcc5e17be990924fadfa8ba8dd6e820d0f9408699a3b3e3a",
@@ -107,9 +111,9 @@ MAIN = {
     ("acme-openapi-3.0", "history:t2400"): "a3776c0024809c9cc4465c3c027d600dddf151ceaaa148194b8625d393909f61",
     ("acme-openapi-3.0", "arguments:a2"): "7c0f8d9af10e8b16314f37bb9edf16ad972e177b26225d68cdfa28780bfbd42e",
     ("acme-openapi-3.0", "arguments:a3"): "591a49bf8ff0ac56b283343bfd48b3ff67a26ef99054c9969e510fbe28291c4c",
-    ("acme-openapi-3.0", "spread:p1"): "43e4536b3650468e9154e345c1a6bdcf6d8cbe270d1b73484625e2ee08f0f8a6",
-    ("acme-openapi-3.0", "spread:p2"): "2427fc7682c13691d46c1c1ca7f7d681e8bc506803969f91f5e85c6cdfbb252b",
-    ("acme-openapi-3.0", "spread:p4"): "d71582709d04f814ede008910bac4805e79948e92bb57117f1d1a3c4c3772400",
+    ("acme-openapi-3.0", "spread:p1"): "ea7a10e290be2b45a96bde8ff442fedc0df666e4c16bb242735a456941a03a79",
+    ("acme-openapi-3.0", "spread:p2"): "47cab3eb44b064dd8e0d27d2fa6d6c2b13e57e2a48f0e9025296689c738545a2",
+    ("acme-openapi-3.0", "spread:p4"): "910212a8e757ae1fc63bac49e78e4e64877de51cded53b1b8720718869038d7d",
     ("acme-openapi-3.0", "depth:d1"): "f5965d75392ff6d838fd0340b9027a012e218a01b19ec8ce05ab9edc39251649",
     ("acme-openapi-3.0", "depth:d2"): "3b40342cfb1bf9684007328c70c3067cf4ad418d640e255558fb0ed426d185e6",
     ("acme-openapi-3.0", "depth:d3"): "d66f23d6fea34e823ad277aadf27a3d2d2766aca0ae35dc9e5046f66a22a222e",
@@ -131,9 +135,9 @@ MAIN = {
     ("acme-openapi-3.1", "history:t2400"): "30e3faf5b37cd984bbc43e5a7f19fb83ec68809b60775cba7a7462bd8899437d",
     ("acme-openapi-3.1", "arguments:a2"): "44de0660cacc9ecc4b4a9c3b441889d40698475ce96b4351feed1b1679ec6f64",
     ("acme-openapi-3.1", "arguments:a3"): "898161cd20c96ffa43d9e859b6e9fb766520286df00e32542a301465728130ac",
-    ("acme-openapi-3.1", "spread:p1"): "f7f4470a80c69ebe9150cd049a210915fb8e918a0306d920b6940e620552a57a",
-    ("acme-openapi-3.1", "spread:p2"): "7935d740b7a43122ef5f4cf6e561b6ecb9734c1b245b392054d922bb25399846",
-    ("acme-openapi-3.1", "spread:p4"): "1807b69b26e6e1f43e708790860397bce26068e7d02cd039ddaf3f57a40b4bb2",
+    ("acme-openapi-3.1", "spread:p1"): "43a4da41bc0f826f7b7e507cb3f014c58ecf1d5bd86c766b003471c386a42a4b",
+    ("acme-openapi-3.1", "spread:p2"): "9e848be951bec7a20a808e9673eabec02eac649144994b4bfd078c4d26f27237",
+    ("acme-openapi-3.1", "spread:p4"): "8f306aa0a805fbc7db40b6a3e24898b72696354bff50b2c500e47140dd9b952a",
     ("acme-openapi-3.1", "depth:d1"): "7531cc9a8a39378bba817e9d411051f4c706fd8fb411d22d560fdd9f88bab11a",
     ("acme-openapi-3.1", "depth:d2"): "ed582ed53c93289a4450b75ff79fc2a773813c82c40a0af0f581bcefda7c7eee",
     ("acme-openapi-3.1", "depth:d3"): "bf103e0be3a25a2e106bd7f8f2db4a4f9de176dd62af386fae413a917cf68ae4",
@@ -160,9 +164,9 @@ MAIN = {
     ("petstore", "arguments:a4"): "c7bac98f8545635fb966be98a74c5f903c7121250d1a6014253ea0b0261c95cd",
     ("petstore", "arguments:a5"): "aa04cf50a165bafbe78f4b3e45eeada707a7e5e7df2aa7eaaf1a3525aa47d695",
     ("petstore", "arguments:a6"): "d50c0b354ae4abeafede4d56420b5a23694a49755226c2c8b3a88ee137cbe221",
-    ("petstore", "spread:p1"): "28bc962e31ffb024066b170b37acee0aed5dd184680897ae9d2431390dd1a59c",
-    ("petstore", "spread:p2"): "5fe6e4945c4d630139e0c0188e1a99c019fbe0c321bc62736b3f30e348cc48fa",
-    ("petstore", "spread:p4"): "4b3f9d849e35997f506a78b0657ac41a79c61f2b9c32583b852e216e99ac3738",
+    ("petstore", "spread:p1"): "360e9397797896e38da7ee2ba47a951675b43186ba1554af5d78cb0732fed24a",
+    ("petstore", "spread:p2"): "5995c00a12ecb72bab343c3318ec04190331c7e7c33a42503025f3267a2c7c6b",
+    ("petstore", "spread:p4"): "bb88533fce083e1690db82bf13746a3cb92bee39a868f2ac3c89eb9686dc9d4c",
     ("everything", "similarity:s0"): "6cdc8ca9e0d2433cd64a6f3eb8fe68cbcdc9310ccd5fcc43c6024910d83d248c",
     ("everything", "similarity:s1"): "46ebc7646c16eccc9342f4825a127a5543cf12ed6b1b528c201ea34d471a9477",
     ("everything", "similarity:s2"): "7c79618496f11b02be9f93e428bd02961e01c814aa0e01ec219d9369f2eeb37c",
@@ -178,9 +182,9 @@ MAIN = {
     ("everything", "history:t2400"): "95abe4ac46f0326bdfeba6e0228d6d3a090dc0304b9b1b30f61450fb52f0cb97",
     ("everything", "block:k8"): "0e783d348a4b43618819ccb9e04fafa122d70038bccad57e6359403542f8544e",
     ("everything", "arguments:a2"): "d52c7115f7b2ea23aeded730aa3e3cb6627bbd773a45807a6f6ae68dbf98cd61",
-    ("everything", "spread:p1"): "b2d1fe58cfb17a38566d19370d72ca174653d1d63a0a34584d0f1997798a4e87",
-    ("everything", "spread:p2"): "6f374203cbbcac52021111fb3a1dd33e5784a52c115ffda60bd8ae95b6b416cb",
-    ("everything", "spread:p4"): "eafde224a4619fa2319217a6f95aa2b415a34542fcdc802ab855b04cdea776b2",
+    ("everything", "spread:p1"): "98bec7da9dd8de7a91e1fd0b3e420de04e368fd8438d42db00375b15edeab695",
+    ("everything", "spread:p2"): "da044a80a04b94ab37195fda05cf250be3833ebeb88a26c9b45c3829973e443c",
+    ("everything", "spread:p4"): "d7d32cd552212444645ad8f2c914076e0639230e8af1f6cdb69473b6d17993a6",
 }
 
 
