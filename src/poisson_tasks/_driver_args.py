@@ -23,6 +23,7 @@ from collections.abc import Sequence
 from typing import Any
 
 __all__ = [
+    "CARD_V2",
     "DESIGNS",
     "KNOB_PROBE",
     "MANIFEST",
@@ -36,9 +37,10 @@ __all__ = [
 PORT = 8000
 """The port the pinned server listens on unless told otherwise."""
 KNOB_PROBE = "knob-probe"
-DESIGNS: tuple[str, ...] = ("card", KNOB_PROBE)
-"""What a run of the driver measures: the calibration card, or the knob probe.  `--design` chooses,
-on every step that takes the run's folders."""
+CARD_V2 = "card-v2"
+DESIGNS: tuple[str, ...] = ("card", KNOB_PROBE, CARD_V2)
+"""What a run of the driver measures: the generator-0 calibration card, the knob probe, or the
+version 2 card's design.  `--design` chooses, on every step that takes the run's folders."""
 MANIFEST = "MANIFEST.sha256"
 """The file in a bundle that names every other file and its sha256."""
 
@@ -57,8 +59,8 @@ _SHARED: dict[str, tuple[dict[str, Any], str]] = {
                           "seconds between copies of the local folder to the durable one "
                           "(default: 30)"),
     "--design": ({"choices": DESIGNS, "default": "card"},
-                 "what the run measures: card, the calibration card, or knob-probe, the knob "
-                 "probe (default: card)"),
+                 "what the run measures: card, the generator-0 calibration card; knob-probe, "
+                 "the knob probe; or card-v2, the version 2 card's design (default: card)"),
 }
 
 READS: dict[str, tuple[str, ...]] = {
@@ -136,6 +138,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="the folder to make the virtual environment in")
     p.add_argument("--dry-run", action="store_true",
                    help="say what would be installed, and install nothing")
+    p.add_argument("--design", choices=DESIGNS, default="card",
+                   help="the design whose pinned vLLM is installed: card-v2's model is served "
+                        "by another vLLM than the other two (default: card)")
 
     p = step("serve", "start the pinned server and wait until it is healthy")
     shared(p, "serve")

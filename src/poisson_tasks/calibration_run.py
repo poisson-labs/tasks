@@ -96,14 +96,15 @@ from collections.abc import Mapping as _Mapping
 from collections.abc import Sequence as _Sequence
 from typing import Any as _Any
 
-from poisson_tasks._driver_args import DESIGNS as DESIGNS
 from poisson_tasks._driver_args import (
+    CARD_V2,
     KNOB_PROBE,
     MANIFEST,
     bundle_refusal,
     early,
     unread,
 )
+from poisson_tasks._driver_args import DESIGNS as DESIGNS
 from poisson_tasks._driver_args import build_parser as build_parser
 
 if __name__ == "__main__":
@@ -120,7 +121,15 @@ from poisson_tasks.taskset import MAX_MODEL_CALLS as _MAX_MODEL_CALLS  # noqa: E
 __all__ = [
     "ServePin",
     "QWEN3_8B",
+    "QWEN3_8_27B",
     "EXPECTED_GENERATOR_HASH",
+    "EXPECTED_OWN_GENERATOR_HASH",
+    "CARD_V2_DESIGN",
+    "CARD_V2_RUN_DIR",
+    "CARD_V2_RESULTS_DIR",
+    "CARD_V2_BUNDLE_ZIP",
+    "HEADROOM_ARMS",
+    "check_thinking_on",
     "no_think_template",
     "ServingMismatch",
     "StepFailed",
@@ -184,7 +193,8 @@ class ServePin:
     `flags()` is what the provenance block records: the environment settings the server is
     started with, as `NAME=value`, then the serve arguments without the host and port (where
     the server listens changes no number) and with the chat template named by its sha256
-    instead of a path on one runtime's disk."""
+    instead of a path on one runtime's disk; a pin that serves the revision's own template
+    unchanged names it so, and its sha256 is in the serving block."""
 
     model: str
     revision: str
@@ -204,6 +214,21 @@ class ServePin:
     host: str = "127.0.0.1"
     port: int = 8000
     env: tuple[tuple[str, str], ...] = ()
+    reasoning_parser: str | None = None
+    """The parser that takes the model's thinking out of its reply.  A pin that names one
+    serves the revision's own chat template unchanged, so thinking stays as the model has it;
+    a pin that names none serves the template with thinking fixed off."""
+    checkpoint_quantization: str | None = None
+    """How the pinned weights are quantized already, for a checkpoint published quantized: no
+    `--quantization` is passed, and the serving block says it."""
+    gpus: tuple[tuple[str, ...], ...] = ()
+    """The GPUs the pin runs on, each as the words its `nvidia-smi` name must hold; `gpu` says
+    them in words.  Empty: the one GPU `gpu` names, as a word of the name."""
+    extra_flags: tuple[str, ...] = ()
+    """Serve flags the pin adds after its own."""
+    template_file: str = "tokenizer_config.json"
+    """The file of the pinned revision that holds the chat template: `tokenizer_config.json`
+    (its `chat_template`), or a `.jinja` file that is the template."""
 
     def __post_init__(self) -> None:
         if len(self.revision) != 40 or any(c not in "0123456789abcdef" for c in self.revision):
@@ -237,7 +262,16 @@ class ServePin:
             "--chat-template", template,
             "--generation-config", "vllm",
         ]
+        if self.reasoning_parser is not None:
+            flags += ["--reasoning-parser", self.reasoning_parser]
+        flags += list(self.extra_flags)
         return flags
+
+    def takes_gpu(self, name: str) -> bool:
+        """Whether a GPU, by the name `nvidia-smi` gives it, is one the pin runs on."""
+        if not self.gpus:
+            return self.gpu in name.split()
+        return any(all(word in name for word in words) for words in self.gpus)
 
     def serve_args(self, template_path: str, port: int | None = None) -> list[str]:
         """The arguments after the `vllm` executable."""
@@ -248,6 +282,9 @@ class ServePin:
 
     def flags(self) -> list[str]:
         settings = [f"{name}={value}" for name, value in self.env]
+        if self.reasoning_parser is not None:
+            # served unchanged: the serving block holds its sha256 (`chat_template_sha256`)
+            return settings + self._flags("<the revision's own chat template>")
         return settings + self._flags(f"<chat template sha256:{self.template_sha256}>")
 
     def serve_env(self, base: _Mapping[str, str]) -> dict[str, str]:
@@ -263,7 +300,7 @@ class ServePin:
     def serving_entry(self, *, stack_version: str, gpu_name: str) -> dict[str, _Any]:
         """The serving block for a locally served model: the stack and its version as the server
         reports it, the flags, the GPU as the runtime reports it, and the revision."""
-        return {
+        entry: dict[str, _Any] = {
             "kind": "local",
             "stack": "vllm",
             "stack_version": stack_version,
@@ -277,6 +314,9 @@ class ServePin:
             "vllm_wheel": self.vllm_wheel_name,
             "vllm_wheel_sha256": self.vllm_wheel_sha256,
         }
+        if self.checkpoint_quantization is not None:
+            entry["quantization"] = self.checkpoint_quantization
+        return entry
 
 
 QWEN3_8B = ServePin(
@@ -336,6 +376,67 @@ QWEN3_8B = ServePin(
 EXPECTED_GENERATOR_HASH = "98cbd21dc912bed4dbde5398748b832aae4711c2096f0092c296eab77b52eac3"
 """The generator this driver expects the installed package to be: the package's own.  Results
 are only comparable on one generator, so preflight refuses a package whose generator differs."""
+EXPECTED_OWN_GENERATOR_HASH = "f01bcf327965f6c8c5351cc7c985b9e1bf6cf5caacbeb8fbba2cc06215886032"
+"""The own-tools generator this driver expects, beside the built-in one: a version 2 card's four
+arms on a tool file are made by it, so its preflight refuses a package whose own-tools generator
+differs too."""
+
+QWEN3_8_27B = ServePin(
+    model="Qwen/Qwen3.8-27B-FP8",
+    revision="c3a462cc3d38cf351f3b26cbd763469eeb74ef81",
+    vllm_version="0.32.0",
+    vllm_wheel_name="vllm-0.32.0+cu129-cp38-abi3-manylinux_2_28_x86_64.whl",
+    vllm_wheel_url=(
+        "https://github.com/vllm-project/vllm/releases/download/v0.32.0/"
+        "vllm-0.32.0+cu129-cp38-abi3-manylinux_2_28_x86_64.whl"
+    ),
+    vllm_wheel_sha256="9918be806fb2808c406547ff4f9f43870ac6ff28dc4b179291fcf532145bb50b",
+    vllm_wheel_size=559_420_981,
+    torch_backend="cu129",
+    python="3.12",
+    gpu="A100 80GB or H100",
+    gpus=(("A100", "80GB"), ("H100",)),
+    quantization=None,
+    checkpoint_quantization="fp8",
+    max_model_len=32768,
+    tool_call_parser="qwen3_coder",
+    reasoning_parser="qwen3",
+    extra_flags=("--language-model-only",),
+    template_file="chat_template.jinja",
+    stock_template_sha256="af16f654968d47d09a6c604e00370b12dbc21f76456f59c9e98b82e84d9f6375",
+    template_sha256="af16f654968d47d09a6c604e00370b12dbc21f76456f59c9e98b82e84d9f6375",
+    env=(("VLLM_USE_FLASHINFER_SAMPLER", "0"),),
+)
+"""The open model of the version 2 cards, pinned 2026-11-18.
+
+* `Qwen/Qwen3.8-27B-FP8` at `c3a462cc`, the repository's head when it was read on 2026-11-15 and
+  again on 2026-11-18: the official FP8 checkpoint of Qwen3.8-27B (block FP8, 30.9 GB of
+  weights, Apache-2.0).  Published quantized, so no `--quantization` is passed.
+* vLLM 0.32.0 (2026-10-18), as the release's CUDA 12.9 wheel with its published sha256: the last
+  release with a CUDA 12.9 wheel (0.33.0 and 0.34.0 are CUDA 13.0 only, and 0.34.0 was two days
+  old), and the first line after 0.31.0's fix to FP8 linear layers on an A100.
+* `--tool-call-parser qwen3_coder` and `--reasoning-parser qwen3`, the two vLLM's recipe for the
+  model names: its template writes a tool call as `<function=...>` with `<parameter=...>`
+  lines, which the `hermes` parser Qwen3-8B used does not read, and opens every reply with
+  `<think>`, which without the reasoning parser lands in the reply's content.  Both names are
+  registered in vLLM at this version.
+* Thinking on.  `--chat-template` is the revision's own `chat_template.jinja`, unchanged and
+  held by its sha256.  It thinks unless a request sets `enable_thinking` false, and takes
+  `reasoning_effort` as `xhigh`, `medium` or `low`; a request that carries `reasoning_effort`
+  leaves thinking on at vLLM 0.32.0 (`enable_thinking = reasoning_effort != "none"`).  The card
+  sends `low`.  Preserved thinking is the template's default and is left there.
+* `--max-model-len 32768`: the completion limit is 8,192, which leaves 24,576 for a prompt, and
+  the probe step stops the run if any prompt passes three quarters of that.  Qwen3-8B's card
+  ran at 16,384 with a 2,048 limit; with 8,192 for the completion that would leave a prompt
+  8,192, and a `history:t2400` task opens near that.  The model's own context is 262,144.
+* `--language-model-only`: the vision tower is not loaded, since no task sends an image, which
+  leaves its memory to the cache.
+* `--generation-config vllm`, as on Qwen3-8B: nothing from the repository's
+  `generation_config.json` (`top_p: 0.95`, `top_k: 20`) applies unseen, and the request's
+  declared decoding is the whole decoding.
+* `VLLM_USE_FLASHINFER_SAMPLER=0`, as on Qwen3-8B and for its reason.
+* An A100 with 80 GB or an H100: the weights leave an A100 with 40 GB too little for the cache.
+"""
 
 
 def no_think_template(stock: str, pin: ServePin = QWEN3_8B) -> str:
@@ -513,6 +614,43 @@ def check_thinking_off(pin: ServePin, base_url: str) -> dict[str, _Any]:
     return {"content": content[:200], "completion_tokens": usage.get("completion_tokens")}
 
 
+def check_thinking_on(pin: ServePin, base_url: str) -> dict[str, _Any]:
+    """One request with the version 2 card's own wire decoding, `reasoning_effort` included,
+    for a pin that serves the model thinking: the reply must carry its thinking apart from its
+    content, which is what the reasoning parser is for.  A reply with no thinking, or with a
+    `<think>` tag left in its content, is the wrong template or the wrong parser."""
+    from poisson_tasks import card_run as _card
+
+    sampling = _cal._sampling_fields(_card.QWEN_DECODING)
+    extra = dict(sampling.pop("extra_body", {}))
+    body: dict[str, _Any] = {
+        "model": pin.served_name,
+        "messages": [{"role": "user", "content": "Reply with the single word: ready"}],
+        **sampling,
+        **extra,
+    }
+    status, reply = _http("POST", base_url + "/chat/completions", body, timeout=600.0)
+    if status != 200 or not isinstance(reply, dict):
+        raise ServingMismatch(f"the chat endpoint answered {status}: {reply!r}")
+    message = reply["choices"][0]["message"]
+    content = message.get("content") or ""
+    reasoning = message.get("reasoning") or message.get("reasoning_content")
+    if "<think>" in content or "</think>" in content:
+        raise ServingMismatch(
+            "the model's thinking is in its reply's content, so the reasoning parser "
+            f"({pin.reasoning_parser}) is not taking it out: {content[:200]!r}"
+        )
+    if not reasoning:
+        raise ServingMismatch(
+            "the model did not think although the pin serves it thinking: the reply carries "
+            f"no reasoning beside its content {content[:200]!r}"
+        )
+    usage = reply.get("usage") or {}
+    return {"content": content[:200], "reasoning_characters": len(str(reasoning)),
+            "completion_tokens": usage.get("completion_tokens"),
+            "answered_as": reply.get("model")}
+
+
 def gpu_facts() -> dict[str, str] | None:
     """The GPU's name and driver version as `nvidia-smi` reports them, or None."""
     try:
@@ -552,7 +690,7 @@ def _atomic_write(path: _pathlib.Path, data: bytes) -> None:
 
 
 _DURABLE_ONLY = frozenset({"lock.json", "run.json", "calibration-model-b-bundle.zip",
-                           "knob-probe-qwen3-8b-bundle.zip"})
+                           "knob-probe-qwen3-8b-bundle.zip", "card-v2-qwen3.8-27b-bundle.zip"})
 """Written straight to the durable folder and never mirrored either way: the lock (a stale
 local copy pushed back would overwrite a live heartbeat), the run manifest and the bundle."""
 
@@ -795,6 +933,19 @@ KNOB_RUN_DIR = "knob-probe"
 KNOB_RESULTS_DIR = "knob-probe-results"
 """The probe's record, Qwen's records in the files `knob_probe.analyse` reads, and the outcome."""
 KNOB_BUNDLE_ZIP = "knob-probe-qwen3-8b-bundle.zip"
+
+# `CARD_V2` (`_driver_args`'s) is the version 2 card's design, `card_run`'s: 56 arms on the cards'
+# sixty tasks at five attempts, on the open model `QWEN3_8_27B` pins.
+CARD_V2_DESIGN: _Any = None
+"""The version 2 card's design: `card_run.DESIGN`, the registered one, when `None`."""
+CARD_V2_RUN_DIR = "card-v2"
+"""Where the version 2 design's arms run, under the local and the durable folders."""
+CARD_V2_RESULTS_DIR = "card-v2-results"
+"""The run's record, the open model's records, their tallies and the artifact."""
+CARD_V2_BUNDLE_ZIP = "card-v2-qwen3.8-27b-bundle.zip"
+HEADROOM_ARMS: tuple[str, ...] = ("history:t2400", "faults:f4")
+"""The arms whose prompts were the longest on Qwen3-8B's probe: the version 2 design's probe
+step reads the context headroom on these by name, and on every other arm too."""
 
 FLOOR = _cal.SATURATION_LOW
 """The probe floors when leaky pass@1 over its episodes is at or below CAL12's low bound."""
@@ -1111,6 +1262,8 @@ def _phase_summary(
 def cmd_phase1(ctx: Context) -> int:
     if ctx.design == KNOB_PROBE:
         return knob_phase1(ctx)
+    if ctx.design == CARD_V2:
+        return v2_phase1(ctx)
     report_path = ctx.local / "phase1.json"
     with _session(ctx):
         existing = _read_json(report_path)
@@ -1159,6 +1312,8 @@ def cmd_phase1(ctx: Context) -> int:
 def cmd_probe(ctx: Context) -> int:
     if ctx.design == KNOB_PROBE:
         return knob_gate(ctx)
+    if ctx.design == CARD_V2:
+        return v2_gate(ctx)
     report_path = ctx.local / "probe.json"
     with _session(ctx):
         phase1 = _read_json(ctx.local / "phase1.json")
@@ -1224,6 +1379,8 @@ def cmd_probe(ctx: Context) -> int:
 def cmd_phase3(ctx: Context, wall_clock_hours: float) -> int:
     if ctx.design == KNOB_PROBE:
         return knob_run(ctx, wall_clock_hours)
+    if ctx.design == CARD_V2:
+        return v2_run(ctx, wall_clock_hours)
     report_path = ctx.local / "phase3.json"
     with _session(ctx):
         probe = _read_json(ctx.local / "probe.json")
@@ -1522,6 +1679,396 @@ def knob_rerun(ctx: Context, arm: str, cause: str) -> int:
 
 
 # ---------------------------------------------------------------------------
+# the version 2 card's design: phase 1, the headroom check, the 56 arms
+# ---------------------------------------------------------------------------
+
+
+def _v2_design() -> _Any:
+    from poisson_tasks import card_run as _card
+
+    return _card.DESIGN if CARD_V2_DESIGN is None else CARD_V2_DESIGN
+
+
+_V2_COMMAND = "python -m poisson_tasks.calibration_run --design card-v2"
+_V2_TOKENS = 10**12
+"""An arm's token budget in the version 2 design: more than any arm can spend.  The open model's
+allowance is its wall clock, and a thinking model's 300 episodes of a long arm would pass the
+generator-0 card's 100 million."""
+
+
+def _v2_record(ctx: Context, chosen: _Any, serving: _Mapping[str, _Any]) -> dict[str, _Any]:
+    """The run's record, as `card_run.card_record` makes one, with how the model is served: the
+    pin's model entry (no price: the open model is paid for in compute) and its serving block."""
+    from poisson_tasks import card_run as _card
+
+    return _card.card_record(
+        chosen,
+        model=ctx.pin.served_name,
+        role="card",
+        base_url=ctx.base_url,
+        decoding=_card.QWEN_DECODING,
+        command=_V2_COMMAND,
+        extra={
+            "model_entry": ctx.pin.model_entry(ctx.port),
+            "serving": ctx.pin.serving_entry(
+                stack_version=str(serving["stack_version"]), gpu_name=str(serving["gpu"])
+            ),
+            "rate_read_date": str(serving.get("date", _now()[:10])),
+            "concurrency": _v2_concurrency(),
+        },
+    )
+
+
+def _v2_concurrency() -> int:
+    """How many episodes the calibration runner has in flight at once: its own limit."""
+    return 128
+
+
+def _v2_run_arms(
+    ctx: Context,
+    phase: str,
+    chosen: _Any,
+    seeds: _Sequence[int],
+    attempts: int,
+    *,
+    budget_for: _Callable[[str], _Mapping[str, _Any]],
+    after_arm: _Callable[[str, _Any, float], None] | None = None,
+) -> tuple[str | None, int]:
+    """Each arm of the version 2 design through the calibration runner, in order, resuming
+    whatever is on disk, at the open model's decoding; an arm on the tool file is made by the
+    own-tools taskset.  Each answer's `model` is recorded beside the arm's traces.  Returns the
+    stop reason, if a limit stopped the phase, and how many episodes were run."""
+    from poisson_tasks import card_run as _card
+    from poisson_tasks._open_files import OpenFilesRefused
+
+    own = _card.own_tools()
+    ran = 0
+    with _cal.answers_recorded():
+        for arm in chosen.arms:
+            started = _time.monotonic()
+            _say(f"[{phase}] {arm}: starting")
+            try:
+                outcome = _cal.run_cell(
+                    _card._spec(arm), seeds=seeds, attempts=attempts,
+                    decoding=_card.QWEN_DECODING, output_dir=ctx.local / phase,
+                    model=ctx.pin.served_name, client=ctx.client(), budget=budget_for(arm),
+                    own=own if _card._is_own(arm) else None,
+                )
+            except OpenFilesRefused as refused:
+                raise StepFailed(str(refused)) from None
+            elapsed = _time.monotonic() - started
+            ran += int(outcome.episodes_run)
+            _say(
+                f"[{phase}] {arm}: {outcome.episodes_kept} kept, {outcome.episodes_run} run, "
+                f"{outcome.episodes_owed} owed, {elapsed:.0f} s"
+                + (f", stopped: {outcome.stop.reason}" if outcome.stop is not None else "")
+            )
+            if after_arm is not None:
+                after_arm(arm, outcome, elapsed)
+            if outcome.stop is not None:
+                return str(outcome.stop.reason), ran
+    return None, ran
+
+
+def _v2_rows(
+    root: _pathlib.Path, arms: _Sequence[str], served: str
+) -> tuple[dict[str, list[_cal.EpisodeRecord]], dict[str, dict[str, int]],
+           dict[str, dict[str, int]]]:
+    from poisson_tasks import card_run as _card
+
+    records: dict[str, list[_cal.EpisodeRecord]] = {}
+    tallies: dict[str, dict[str, int]] = {}
+    facts: dict[str, dict[str, int]] = {}
+    for arm in arms:
+        run_dir = root / _arm_dir(arm)
+        records[arm], tallies[arm] = _card._arm_rows(run_dir, served)
+        facts[arm] = trace_facts(run_dir)
+    return records, tallies, facts
+
+
+def v2_phase1(ctx: Context) -> int:
+    """The version 2 design's phase 1: one attempt at each of phase 1's three seeds, every arm,
+    gated by its four stops (`card_run.phase1_gate`).  The run's record is written before the
+    first episode.  It also measures its pace, the seconds an episode took, and writes the hours
+    the registered design's episodes would take at that pace, which the notebook gives phase 3
+    as its allowance, with a quarter more."""
+    from poisson_tasks import card_run as _card
+
+    chosen = _v2_design()
+    report_path = ctx.local / "phase1.json"
+    with _session(ctx):
+        existing = _read_json(report_path)
+        if isinstance(existing, dict):
+            _say(f"phase 1 already ran: passed={existing['passed']}")
+            return 0 if existing["passed"] else 2
+        serving = _serving(ctx)
+        record_path = ctx.local / CARD_V2_RESULTS_DIR / "record.json"
+        try:
+            _card.check_record(
+                record_path, _v2_record(ctx, chosen, serving),
+                {"when": _now(), "step": "phase1", "design": CARD_V2,
+                 "model": ctx.pin.served_name, "concurrency": _v2_concurrency()},
+            )
+        except ValueError as error:
+            raise ServingMismatch(str(error)) from None
+        started = _time.monotonic()
+        stop, ran = _v2_run_arms(
+            ctx, "phase1", chosen, chosen.phase1_seeds, chosen.phase1_attempts,
+            budget_for=lambda _: {**_cal.DEFAULT_BUDGET, "tokens": _V2_TOKENS},
+        )
+        elapsed = _time.monotonic() - started
+        _card._close_invocation(record_path, episodes_run=ran)
+        records, tallies, facts = _v2_rows(ctx.local / "phase1", chosen.arms,
+                                           ctx.pin.served_name)
+        gate = _card.phase1_gate(records, tallies, design=chosen, model=ctx.pin.served_name)
+        passed = bool(gate["passed"]) and stop is None
+        episodes = int(gate["episodes"])
+        pace = elapsed / episodes if episodes else None
+        registered = len(_card.DESIGN.arms) * _card.DESIGN.episodes_per_arm
+        report = {
+            "phase": 1, "design": CARD_V2, "model": ctx.pin.served_name,
+            "arms": list(chosen.arms), "seeds": list(chosen.phase1_seeds),
+            "n": chosen.phase1_attempts, **gate, "passed": passed,
+            "reasons": list(gate["reasons"]) + ([f"stopped: {stop}"] if stop else []),
+            "spent": None, "tally": tallies, "per_arm_facts": facts,
+            "elapsed_seconds": round(elapsed, 1),
+            "seconds_per_episode": pace,
+            "projected_hours": None if pace is None else pace * registered / 3600,
+            "projected_episodes": registered,
+            "first_error": next(
+                (found for arm in chosen.arms
+                 if (found := first_episode_error(ctx.local / "phase1" / _arm_dir(arm)))),
+                None,
+            ),
+        }
+        _write_json(report_path, report)
+        _say(_json.dumps({k: report[k] for k in ("passed", "stops", "reasons", "episodes",
+                                                    "seconds_per_episode", "projected_hours")}))
+        if report["first_error"] is not None:
+            _say(f"first episode error: {report['first_error']}")
+        if not passed:
+            _say("STOP: phase 1 stopped the run; report it, and nothing more runs in this folder")
+        return 0 if passed else 2
+
+
+def v2_gate(ctx: Context) -> int:
+    """The version 2 design's probe step, which runs no episode: phase 1's episodes read against
+    the context cap.  It stops the run if any episode ended at the cap, or if a prompt of any
+    arm passed `HEADROOM` of the room the cap leaves beside the completion limit; the arms with
+    the longest prompts are named in `headroom_arms`."""
+    from poisson_tasks import card_run as _card
+
+    chosen = _v2_design()
+    report_path = ctx.local / "probe.json"
+    with _session(ctx):
+        phase1 = _read_json(ctx.local / "phase1.json")
+        if not (isinstance(phase1, dict) and phase1.get("passed")):
+            _say("STOP: phase 1 has not passed its gate; the probe does not run")
+            return 2
+        existing = _read_json(report_path)
+        if isinstance(existing, dict):
+            _say(f"the gate already ran: proceed={existing['proceed']}")
+            return 0 if existing["proceed"] else 3
+        facts = {arm: trace_facts(ctx.local / "phase1" / _arm_dir(arm)) for arm in chosen.arms}
+        cap = ctx.pin.max_model_len - int(_card.QWEN_DECODING["max_tokens"])
+        reasons: list[str] = []
+        for arm in chosen.arms:
+            found = facts[arm]
+            if found["context_stops"]:
+                reasons.append(
+                    f"{arm}: {found['context_stops']} episode(s) ended at the context cap: "
+                    "raise --max-model-len before the card"
+                )
+            if found["max_prompt_tokens"] > HEADROOM * cap:
+                reasons.append(
+                    f"{arm}: a prompt reached {found['max_prompt_tokens']} tokens, past "
+                    f"{HEADROOM:.0%} of the {cap} the context cap leaves: raise "
+                    "--max-model-len before the card"
+                )
+        report = {
+            "phase": "probe", "design": CARD_V2, "model": ctx.pin.served_name,
+            "proceed": not reasons, "reasons": reasons, "headroom": HEADROOM,
+            "headroom_arms": [arm for arm in HEADROOM_ARMS if arm in chosen.arms],
+            "prompt_cap": cap, "max_model_len": ctx.pin.max_model_len,
+            "max_prompt_tokens": max((f["max_prompt_tokens"] for f in facts.values()), default=0),
+            "context_stops": sum(f["context_stops"] for f in facts.values()),
+            "per_arm_facts": facts,
+        }
+        _write_json(report_path, report)
+        _say(_json.dumps({k: report[k] for k in ("proceed", "reasons", "prompt_cap",
+                                                    "max_prompt_tokens", "context_stops")}))
+        if reasons:
+            _say("STOP: the context cap is too near for the card to run on this pin")
+        return 0 if not reasons else 3
+
+
+def _v2_finish(
+    ctx: Context, chosen: _Any, *, seconds: _Mapping[str, float]
+) -> dict[str, _Any]:
+    """The open model's records, their tallies and the run's artifact, written into the
+    results folder from the arms' run folders; returns the artifact."""
+    from poisson_tasks import card_run as _card
+
+    results = ctx.local / CARD_V2_RESULTS_DIR
+    served = ctx.pin.served_name
+    records, tallies, _facts = _v2_rows(ctx.local / CARD_V2_RUN_DIR, chosen.arms, served)
+    rows = [row for arm in chosen.arms for row in records[arm]]
+    _cal.write_records(rows, results / _cal.RECORDS_FILE)
+    _write_json(results / "tallies.json", tallies)
+    record = _read_json(results / "record.json") or {}
+    phase1 = _read_json(ctx.local / "phase1.json") or {}
+    runs = [entry for entry in record.get("invocations", []) if entry.get("step") == "phase3"]
+    first_call, last_call = _card.call_times(
+        [ctx.local / "phase1", ctx.local / CARD_V2_RUN_DIR]
+    )
+    block = _card.provenance_block(
+        record,
+        phase1={key: phase1[key] for key in _card._PHASE1_KEPT if key in phase1},
+        run={
+            "resumes": [dict(entry) for entry in runs[1:] if entry.get("episodes_run")],
+            "reruns": list(_read_json(results / "reruns.json") or []),
+            "void_arms": _card.void_arms(records, tallies, design=chosen),
+            "spend_by_arm": {arm: None for arm in chosen.arms},
+            "seconds_by_arm": {arm: seconds.get(arm) for arm in chosen.arms},
+        },
+        answer_models=list(dict.fromkeys(
+            [*phase1.get("answer_models", []),
+             *(name for row in rows for name in (row.answer_models or ()))]
+        )),
+        first_call=first_call,
+        last_call=last_call,
+    )
+    _card.check_provenance(block)
+    complete = [arm for arm in chosen.arms if _card._complete(records[arm], chosen)]
+    artifact = {
+        "card_version": _card.CARD_VERSION, "design": CARD_V2, "role": "card", "model": served,
+        "complete": len(complete) == len(chosen.arms), "arms_complete": complete,
+        "records": len(rows), "provenance": block,
+    }
+    _write_json(results / "artifact.json", artifact)
+    return artifact
+
+
+def v2_run(ctx: Context, wall_clock_hours: float) -> int:
+    """The version 2 design's arms, in the order the design runs them, at the cards' sixty tasks
+    and five attempts, resumable across runtimes, within the wall-clock allowance; then the open
+    model's records and the run's artifact."""
+    from poisson_tasks import card_run as _card
+
+    chosen = _v2_design()
+    report_path = ctx.local / "phase3.json"
+    results = ctx.local / CARD_V2_RESULTS_DIR
+    with _session(ctx):
+        gate = _read_json(ctx.local / "probe.json")
+        if not (isinstance(gate, dict) and gate.get("proceed")):
+            _say("STOP: the probe step has not cleared the card; it does not run")
+            return 3
+        existing = _read_json(report_path)
+        if isinstance(existing, dict) and existing.get("status") == "complete":
+            # A finished run is not run again: that would re-run the episodes that failed for
+            # instrument reasons.  Only a recorded re-run of a void arm reopens it.
+            _say("the card's run already finished: complete")
+            return 0
+        serving = _serving(ctx)
+        record_path = results / "record.json"
+        try:
+            _card.check_record(
+                record_path, _v2_record(ctx, chosen, serving),
+                {"when": _now(), "step": "phase3", "design": CARD_V2,
+                 "model": ctx.pin.served_name, "wall_clock_hours": wall_clock_hours,
+                 "concurrency": _v2_concurrency()},
+            )
+        except ValueError as error:
+            raise ServingMismatch(str(error)) from None
+        status_path = ctx.local / "status.json"
+        status = _read_json(status_path) or {}
+        p3 = status.setdefault("phase3", {"arms": {}, "elapsed_s": 0.0})
+        total_s = wall_clock_hours * 3600.0
+
+        def budget_for(_arm: str) -> dict[str, _Any]:
+            remaining = max(0.0, total_s - float(p3["elapsed_s"]))
+            # the allowance is the wall clock's: no token budget stops an arm short of it
+            return {"tokens": _V2_TOKENS, "wall_clock_seconds": remaining}
+
+        def after_arm(arm: str, outcome: _Any, elapsed: float) -> None:
+            p3["elapsed_s"] = float(p3["elapsed_s"]) + elapsed
+            prior = p3["arms"].get(arm, {})
+            p3["arms"][arm] = {
+                "episodes_kept": outcome.episodes_kept,
+                "episodes_run": int(prior.get("episodes_run", 0)) + outcome.episodes_run,
+                "episodes_owed": outcome.episodes_owed,
+                "elapsed_s": float(prior.get("elapsed_s", 0.0)) + elapsed,
+                "stop": None if outcome.stop is None else outcome.stop.reason,
+            }
+            _write_json(status_path, status)
+            done = sum(1 for a in chosen.arms
+                       if p3["arms"].get(a, {}).get("episodes_owed") == 0
+                       and p3["arms"].get(a, {}).get("stop") is None)
+            _say(f"[card] {done} of {len(chosen.arms)} arms done, "
+                 f"{p3['elapsed_s'] / 3600:.2f} h used of {wall_clock_hours:.2f} h")
+
+        stop, ran = _v2_run_arms(
+            ctx, CARD_V2_RUN_DIR, chosen, chosen.seeds, chosen.attempts,
+            budget_for=budget_for, after_arm=after_arm,
+        )
+        _card._close_invocation(record_path, episodes_run=ran, stop=stop)
+        complete = stop is None and all(
+            p3["arms"].get(a, {}).get("episodes_owed") == 0 for a in chosen.arms)
+        artifact = _v2_finish(
+            ctx, chosen,
+            seconds={arm: float(entry.get("elapsed_s", 0.0))
+                     for arm, entry in p3["arms"].items()},
+        )
+        state = "complete" if complete else "stopped"
+        report = {"phase": 3, "design": CARD_V2, "model": ctx.pin.served_name,
+                  "status": state, "stop": stop, "wall_clock_hours": wall_clock_hours,
+                  "elapsed_s": p3["elapsed_s"], "arms": p3["arms"],
+                  "arms_complete": artifact["arms_complete"], "records": artifact["records"]}
+        _write_json(report_path, report)
+        void = [entry["arm"] for entry in artifact["provenance"]["run"]["void_arms"]]
+        if void:
+            _say(f"void: {', '.join(void)}; an arm void for an instrument cause may be run "
+                 "once more (the rerun-void step)")
+        _say(f"the card's run {state}" + (f" (stop: {stop})" if stop else "")
+             + f": {len(artifact['arms_complete'])} of {len(chosen.arms)} arms complete")
+        return 0 if complete else 4
+
+
+def v2_rerun(ctx: Context, arm: str, cause: str) -> int:
+    """Set an arm the version 2 run left void for an instrument cause aside, here and on the
+    durable folder, for its one re-run; the next run of the arms then runs it from nothing."""
+    from poisson_tasks import card_run as _card
+
+    chosen = _v2_design()
+    if arm not in chosen.arms:
+        return _refuse(f"{arm} is not one of the design's arms")
+    results = ctx.local / CARD_V2_RESULTS_DIR
+    with _session(ctx):
+        reruns = list(_read_json(results / "reruns.json") or [])
+        if any(str(entry.get("arm")) == arm for entry in reruns):
+            _say(f"{arm} has had its one re-run; nothing to do")
+            return 0
+        records, tallies, _facts = _v2_rows(ctx.local / CARD_V2_RUN_DIR, chosen.arms,
+                                            ctx.pin.served_name)
+        name = _arm_dir(arm)
+        try:
+            entry = _card.start_rerun(
+                arm, _card.void_arms(records, tallies, design=chosen), cause=cause,
+                reruns=reruns, folders=[
+                    (ctx.local / CARD_V2_RUN_DIR / name, ctx.local / "void" / f"{name}-1"),
+                    (ctx.durable / CARD_V2_RUN_DIR / name, ctx.durable / "void" / f"{name}-1"),
+                ])
+        except _card.RerunRefused as error:
+            return _refuse(str(error))
+        _write_json(results / "reruns.json", [*reruns, entry])
+        report = _read_json(ctx.local / "phase3.json")
+        if isinstance(report, dict):
+            _write_json(ctx.local / "phase3.json", {**report, "status": "rerun"})
+        _say(f"{arm} is set aside for its one re-run; run the phase 3 cell again")
+        return 0
+
+
+# ---------------------------------------------------------------------------
 # the card, the bundle and its verification
 # ---------------------------------------------------------------------------
 
@@ -1621,6 +2168,14 @@ KNOB_BUNDLE_FILES = (
 """The knob probe's bundle: its reports, its record, Qwen's records and the outcome on Qwen
 alone.  The eighteen arms' raw traces stay in the durable folder, as phase 3's do."""
 KNOB_BUNDLE_GLOBS = ("phase1/*/traces.jsonl", "phase1/*/instrument-tally.jsonl")
+CARD_V2_BUNDLE_FILES = (
+    "phase1.json", "probe.json", "phase3.json", "serving.json", MANIFEST_FILE, "status.json",
+    "vllm.log", *(f"{CARD_V2_RESULTS_DIR}/{name}" for name in (
+        "record.json", "episodes.jsonl", "tallies.json", "reruns.json", "artifact.json")),
+)
+"""The version 2 run's bundle: its reports, its record, the open model's records and the
+artifact.  The 56 arms' raw traces stay in the durable folder, as phase 3's do."""
+CARD_V2_BUNDLE_GLOBS = (*KNOB_BUNDLE_GLOBS, f"phase1/*/{_cal.ANSWERS_FILE}")
 
 
 def make_bundle(durable: _pathlib.Path, design: str = "card") -> _pathlib.Path:
@@ -1628,14 +2183,17 @@ def make_bundle(durable: _pathlib.Path, design: str = "card") -> _pathlib.Path:
     Phase 3's raw traces are not in it; they stay in the durable folder.  The knob probe's bundle
     holds its own files instead (`KNOB_BUNDLE_FILES`)."""
     durable = _pathlib.Path(durable)
-    knob = design == KNOB_PROBE
+    files, globs, archive_name = {
+        KNOB_PROBE: (KNOB_BUNDLE_FILES, KNOB_BUNDLE_GLOBS, KNOB_BUNDLE_ZIP),
+        CARD_V2: (CARD_V2_BUNDLE_FILES, CARD_V2_BUNDLE_GLOBS, CARD_V2_BUNDLE_ZIP),
+    }.get(design, (BUNDLE_FILES, BUNDLE_GLOBS, BUNDLE_ZIP))
     staging = durable / "bundle"
     if staging.exists():
         _shutil.rmtree(staging)
     staging.mkdir(parents=True)
     names: list[str] = []
-    sources = [durable / name for name in (KNOB_BUNDLE_FILES if knob else BUNDLE_FILES)]
-    for pattern in KNOB_BUNDLE_GLOBS if knob else BUNDLE_GLOBS:
+    sources = [durable / name for name in files]
+    for pattern in globs:
         sources += sorted(durable.glob(pattern))
     for source in sources:
         if not source.is_file():
@@ -1651,7 +2209,7 @@ def make_bundle(durable: _pathlib.Path, design: str = "card") -> _pathlib.Path:
         for name in sorted(names)
     ]
     (staging / MANIFEST).write_text("\n".join(lines) + "\n", encoding="utf-8")
-    archive = durable / (KNOB_BUNDLE_ZIP if knob else BUNDLE_ZIP)
+    archive = durable / archive_name
     with _zipfile.ZipFile(archive, "w", compression=_zipfile.ZIP_DEFLATED) as handle:
         for name in sorted([*names, MANIFEST]):
             handle.write(staging / name, arcname=name)
@@ -1883,16 +2441,33 @@ def _stock_template(vllm: str, tokenizer_config: _pathlib.Path | None, pin: Serv
     vLLM environment's own `huggingface_hub`."""
     if tokenizer_config is None:
         python = _pathlib.Path(vllm).parent / "python"
+        name = getattr(pin, "template_file", "tokenizer_config.json")
         code = (
             "from huggingface_hub import hf_hub_download; "
-            f"print(hf_hub_download({pin.model!r}, 'tokenizer_config.json', "
+            f"print(hf_hub_download({pin.model!r}, {name!r}, "
             f"revision={pin.revision!r}))"
         )
         found = _output([str(python), "-c", code], timeout=600)
         tokenizer_config = _pathlib.Path(found.strip().splitlines()[-1])
+    if tokenizer_config.suffix == ".jinja":
+        # the revision keeps its template in a file of its own: the file's text is the template
+        return tokenizer_config.read_bytes().decode("utf-8")
     data = _json.loads(tokenizer_config.read_text(encoding="utf-8"))
     template: str = data["chat_template"]
     return template
+
+
+def stock_template_checked(stock: str, pin: ServePin) -> str:
+    """The pinned revision's own chat template, for a pin that serves it unchanged: refused
+    unless its sha256 is the pinned one, so a moved revision or an edited template cannot slip
+    through."""
+    digest = _hashlib.sha256(stock.encode("utf-8")).hexdigest()
+    if digest != pin.stock_template_sha256 or digest != pin.template_sha256:
+        raise ValueError(
+            f"the chat template's sha256 is {digest}, not the pinned revision's "
+            f"{pin.stock_template_sha256}"
+        )
+    return stock
 
 
 _EXCEPTION_LINE = _re.compile(r"\b([A-Za-z_][\w.]*(?:Error|Exception|Exit)\b(?::.*)?)$")
@@ -1964,9 +2539,18 @@ def cmd_serve(
 
         start = 0
     else:
-        derived = no_think_template(_stock_template(vllm, tokenizer_config, ctx.pin), ctx.pin)
-        template = ctx.local / "qwen3-8b-no-think.jinja"
-        template.write_text(derived, encoding="utf-8")
+        stock = _stock_template(vllm, tokenizer_config, ctx.pin)
+        if ctx.pin.reasoning_parser is not None:
+            try:
+                derived = stock_template_checked(stock, ctx.pin)
+            except ValueError as error:
+                raise ServingMismatch(str(error)) from None
+            template = ctx.local / "chat-template.jinja"
+            template.write_bytes(derived.encode("utf-8"))
+        else:
+            derived = no_think_template(stock, ctx.pin)
+            template = ctx.local / "qwen3-8b-no-think.jinja"
+            template.write_text(derived, encoding="utf-8")
         argv = [vllm, *ctx.pin.serve_args(str(template), port=ctx.port)]
         _say("$ " + " ".join([*(f"{n}={v}" for n, v in ctx.pin.env), *argv]))
         log_path = ctx.local / "vllm.log"
@@ -2030,7 +2614,11 @@ def cmd_preflight(ctx: Context) -> int:
     package the generator this driver expects; the facts are recorded and a resume on
     anything else is refused."""
     gpu = gpu_facts()
-    if gpu is None or ctx.pin.gpu not in gpu["name"].split():
+    takes = getattr(ctx.pin, "takes_gpu", None)
+    fits = gpu is not None and (
+        takes(gpu["name"]) if takes is not None else ctx.pin.gpu in gpu["name"].split()
+    )
+    if gpu is None or not fits:
         _say(f"STOP: the card is pinned to an {ctx.pin.gpu}; this runtime has "
              f"{gpu['name'] if gpu else 'no GPU nvidia-smi can see'}")
         return 1
@@ -2040,8 +2628,22 @@ def cmd_preflight(ctx: Context) -> int:
              f"expects {EXPECTED_GENERATOR_HASH}, and results from two generators cannot be "
              "read side by side")
         return 1
+    v2 = getattr(ctx, "design", "card") == CARD_V2
+    own_hash: str | None = None
+    if v2:
+        from poisson_tasks.own import generator as _own_generator
+
+        own_hash = str(_own_generator.generator_hash())
+        if own_hash != EXPECTED_OWN_GENERATOR_HASH:
+            _say(f"STOP: this package's own-tools generator is {own_hash}; this driver "
+                 f"expects {EXPECTED_OWN_GENERATOR_HASH}, and the card's arms on a tool file "
+                 "are made by it")
+            return 1
     server = check_server(ctx.pin, ctx.base_url)
-    thinking = check_thinking_off(ctx.pin, ctx.base_url)
+    if ctx.pin.reasoning_parser is not None:
+        thinking = check_thinking_on(ctx.pin, ctx.base_url)
+    else:
+        thinking = check_thinking_off(ctx.pin, ctx.base_url)
     facts = {
         "served_name": ctx.pin.served_name,
         "stack_version": server["stack_version"],
@@ -2055,6 +2657,8 @@ def cmd_preflight(ctx: Context) -> int:
     if ctx.design != "card":
         # A folder holds one design: a card's run and the probe's never resume on each other.
         facts["design"] = ctx.design
+    if own_hash is not None:
+        facts["own_generator_hash"] = own_hash
     try:
         ctx.local.mkdir(parents=True, exist_ok=True)
         Mirror(ctx.local, ctx.durable).restore()
@@ -2096,7 +2700,10 @@ def main(argv: _Sequence[str] | None = None) -> int:
     _drop_env()
     try:
         if args.command == "install-vllm":
-            return cmd_install_vllm(args.venv, dry_run=args.dry_run)
+            return cmd_install_vllm(
+                args.venv, dry_run=args.dry_run,
+                pin=QWEN3_8_27B if args.design == CARD_V2 else QWEN3_8B,
+            )
         if args.command == "verify":
             return cmd_verify(args.bundle, args.into)
         if args.command == "bundle":
@@ -2117,7 +2724,8 @@ def main(argv: _Sequence[str] | None = None) -> int:
             _say(f"phase 3 seconds used on the durable folder: {used}")
             return 0
         ctx = Context(local=unread(args.local), durable=unread(args.durable), port=args.port,
-                      mirror_interval=args.mirror_interval, design=args.design)
+                      mirror_interval=args.mirror_interval, design=args.design,
+                      pin=QWEN3_8_27B if args.design == CARD_V2 else QWEN3_8B)
         if args.command == "serve":
             return cmd_serve(ctx, vllm=args.vllm, tokenizer_config=args.tokenizer_config,
                              timeout_s=args.timeout)
@@ -2134,9 +2742,11 @@ def main(argv: _Sequence[str] | None = None) -> int:
         if args.command == "status":
             return cmd_status(ctx)
         if args.command == "rerun-void":
+            if ctx.design == CARD_V2:
+                return v2_rerun(ctx, args.arm, args.cause)
             if ctx.design != KNOB_PROBE:
-                return _refuse("rerun-void is the knob probe's step: run it with "
-                               "--design knob-probe")
+                return _refuse("rerun-void is the knob probe's step and the version 2 card's: "
+                               "run it with --design knob-probe or --design card-v2")
             return knob_rerun(ctx, args.arm, args.cause)
     except KeyboardInterrupt:
         _say("interrupted: everything finished is on the durable folder; run the same cell "
