@@ -45,8 +45,17 @@ __all__ = [
 # "1" from 0.1.0, when the seven knobs changed the generator and every task id moved; "2" from
 # 0.3.0, when the three transport-fault knobs changed it again (decided 2026-10-29), so that
 # one label names one generator; "3" from 0.4.0, when the two stale-data knobs changed it a third
-# time (ruled 2026-11-04).
-DEFAULT_GENERATOR_VERSION = "3"
+# time (ruled 2026-11-04); "4" from 0.5.0, when the fix to what a spread answer that holds no
+# part says changed it a fourth (ruled 2026-11-15).
+DEFAULT_GENERATOR_VERSION = "4"
+# The labels before this one, each with the release whose generator change retired it.  A
+# settings file that names one is refused in one line that says what moved and what the label
+# is now (ruled 2026-11-18): the label would make tasks no release at that label ever made.
+# "0" is not here: it is the published cards' generator, and a label of the user's own stays
+# allowed, each making tasks apart from every other.
+_GENERATOR_VERSIONS_BEFORE: _Mapping[str, str] = _types.MappingProxyType(
+    {"1": "0.3.0", "2": "0.4.0", "3": "0.5.0"}
+)
 
 # The knobs that are experimental, each with the reason in words: the one place the six are
 # listed, read by every surface that names a knob (the card's claims and `--json`, `doctor`'s

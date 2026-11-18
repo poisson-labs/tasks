@@ -47,7 +47,13 @@ import urllib.parse
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
-from poisson_tasks.arms import _CONTROL_PAIRS, DEFAULT_GENERATOR_VERSION, RECIPES, arm_from_id
+from poisson_tasks.arms import (
+    _CONTROL_PAIRS,
+    _GENERATOR_VERSIONS_BEFORE,
+    DEFAULT_GENERATOR_VERSION,
+    RECIPES,
+    arm_from_id,
+)
 from poisson_tasks.knobs import ArmSpec, arm_id, levels
 from poisson_tasks.tokenizer import _ENCODING_PATH
 
@@ -135,10 +141,12 @@ _OWN_ONLY = {
 _OWN_KNOBS = ("similarity", "faults", "history", "block", "arguments", "spread", "depth", "shape",
               "timeouts", "ratelimits", "landed", "baddata", "lagged")
 _OWN_FORMATS = ("auto", "openai", "mcp", "openapi")
-_OWN_GENERATOR_VERSION = "own-3"
+_OWN_GENERATOR_VERSION = "own-4"
 # The own-tools labels before this one, each with the release whose generator change retired
 # it: refused in a settings file in one line that says what moved and what the label is now.
-_OWN_GENERATOR_VERSIONS_BEFORE = {"own-1": "0.3.0", "own-2": "0.4.0"}
+# The built-in labels before `DEFAULT_GENERATOR_VERSION` are `arms._GENERATOR_VERSIONS_BEFORE`,
+# refused the same way since 0.5.0.
+_OWN_GENERATOR_VERSIONS_BEFORE = {"own-1": "0.3.0", "own-2": "0.4.0", "own-3": "0.5.0"}
 OWN_LIST_FILE = "tools.mcp.json"
 """Where `init --mcp-command` saves the listed tools, beside the settings file."""
 _STRICTNESSES = ("strict", "leaky")
@@ -1998,6 +2006,16 @@ def resolve_plan(config: ProjectConfig, *, root: str | os.PathLike[str] | None =
     card_arms: tuple[ArmSpec, ...] = calibration.arm_specs()
     own: dict[str, Any] | None = None
 
+    named = tasks.generator_version
+    if config.own is None and named is not None and named in _GENERATOR_VERSIONS_BEFORE:
+        # A label the built-in generator has left names tasks no release at that label made.
+        moved = _GENERATOR_VERSIONS_BEFORE[named]
+        raise ConfigError(
+            f"[tasks] generator_version is {_show(named)}; the built-in "
+            f'generator changed in {moved} and is "{DEFAULT_GENERATOR_VERSION}" now, so '
+            "leave it unset",
+            key="tasks.generator_version",
+        )
     if config.own is not None:
         if tasks.generator_version in _OWN_GENERATOR_VERSIONS_BEFORE:
             moved = _OWN_GENERATOR_VERSIONS_BEFORE[tasks.generator_version]
