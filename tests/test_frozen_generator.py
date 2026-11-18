@@ -53,6 +53,12 @@ own-tools tasks are kept in the same file's own-tools half.  The kept file is wr
 it is read by name, and a tree without it fails the knob set.  The literal below was moved by the
 build's first commit to the hash it measured, as shape 3 says a deliberate change does; the labels
 moved to "3" and "own-3" with it.
+
+Retrofitted 2026-11-18 for 0.5.0 (the ruled fix to spread's base task, 2026-11-15: an answer that
+holds no part has nothing before its full stop, and the request says to leave it out): the knob set
+is the ten it was.  The literal below was moved by the build to the hash it measured, with spread's
+eight digests in `tests/test_k8b_kept.py`; no other knob's digest moved, which
+`tests/test_g4_kept.py` holds.  The labels moved to "4" and "own-4" with it.
 """
 
 from __future__ import annotations
@@ -80,12 +86,14 @@ from tests import (
 from tests.k3_support import CARD_SEEDS, made
 from tests.k4_support import SPLITS
 
-# The frozen generator: the hash of version "3" over tasks.py, surface.py and knobs.py as the
-# 0.4.0 stale-data build left them, 2026-11-05 (the ruled change, Q1 of the stale-data spec).  From
-# 2026-10-29 to then it was version "2"'s, the 0.3.0 faults build's,
+# The frozen generator: the hash of version "4" over tasks.py, surface.py and knobs.py as the
+# 0.5.0 build of spread's fix left them, 2026-11-18 (the ruled change of 2026-11-15).  From
+# 2026-11-05 to then it was version "3"'s, the 0.4.0 stale-data build's,
+# 38a8db83a79c9d42059b77a3ef5ba018ec715fff9dcfda3c146ad27d8ba2921c; from
+# 2026-10-29 to 2026-11-05 it was version "2"'s, the 0.3.0 faults build's,
 # b0aa26c77259dd16a07f814fc4b250ce0ba69d372aff520663db089daa9b0db4; from 2026-10-09 to 2026-10-29 it
 # was version "1"'s, b460964dc153fab4535af3b39abd41d50198f3dcc644ae3e43ddee85544b57f9.
-FROZEN_GENERATOR_HASH = "38a8db83a79c9d42059b77a3ef5ba018ec715fff9dcfda3c146ad27d8ba2921c"
+FROZEN_GENERATOR_HASH = "98cbd21dc912bed4dbde5398748b832aae4711c2096f0092c296eab77b52eac3"
 
 MOVES = {"task_id", "generator_hash", "pins"}
 BOTH_AT_CARD_SEEDS = {"eval": CARD_SEEDS, "train": CARD_SEEDS}
@@ -123,7 +131,7 @@ def frozen(what: str) -> str:
     must update."""
     return (
         f"{what}: the built-in generator is frozen at {FROZEN_GENERATOR_HASH} (since "
-        "2026-11-05, the 0.4.0 re-freeze; before it, since 2026-10-29).  A change to tasks.py, surface.py or knobs.py needs a decision, and a "
+        "2026-11-18, the 0.5.0 re-freeze; before it, since 2026-11-05).  A change to tasks.py, surface.py or knobs.py needs a decision, and a "
         "deliberate one updates FROZEN_GENERATOR_HASH in tests/test_frozen_generator.py, "
         "calibration_run.EXPECTED_GENERATOR_HASH, and the content digests of every knob whose "
         "tasks it moves, in the kept file that holds them (tests/test_k4_kept.py to "
