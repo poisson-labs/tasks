@@ -37,6 +37,11 @@ be pinned before the build exists: they are pinned by the content digests the bu
 commit once the build is in (left to a decision).
 
 **4. G1**: a spread task is the same in another process, under two hash seeds.
+
+Retrofitted 2026-11-18 for 0.5.0 (the spread fix, ruled 2026-11-15): the second of the design's two
+sentences is now "An answer that holds no part has nothing before its full stop: leave it out."
+The sentence this file counts is `tests/k8_support.py`'s `SENTENCE`, retrofitted with it; shape 2's
+quotation above is the first design's and is kept as written.  No line of code here changed.
 """
 
 from __future__ import annotations
