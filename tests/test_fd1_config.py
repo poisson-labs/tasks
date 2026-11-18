@@ -107,7 +107,11 @@ def cal() -> Any:
 # the design's file and its keys
 # --------------------------------------------------------------------------
 
-# The settings file with its comments removed: what `init` writes for the openai preset's defaults.
+# The settings file with its comments removed: what `init` writes for gpt-5-nano-2025-08-07 on the
+# openai preset, with everything else at its default.  Retrofitted for 0.5.0, ruled 2026-11-18:
+# the preset's default model moved to gpt-6-luna, so the tests that compared `init`'s defaults with
+# this file name the model (`MODEL_A_FLAGS`), and the file is as it was.
+MODEL_A_FLAGS = ["--model", "gpt-5-nano-2025-08-07"]
 SPEC_FILE = textwrap.dedent("""\
     version = 1
 
@@ -394,7 +398,7 @@ def test_fd1_1_every_key_of_the_file_is_reachable_from_a_flag() -> None:
     """Each key of the settings file (but `version`, which is the schema's) moved by its own
     flag, against the
     defaults."""
-    price = ["--price", "0.1,0.01,0.8", "--price-read-on", "2026-10-01"]
+    price = ["--price", "0.2,0.02,0.8", "--price-read-on", "2026-10-01"]
     custom_levels = ["--measure", "custom", "--levels", "2,5"]
     reach = {
         "model.provider": (["--provider", "ollama"], "ollama"),
@@ -403,8 +407,8 @@ def test_fd1_1_every_key_of_the_file_is_reachable_from_a_flag() -> None:
                            "https://proxy.example.test/v1"),
         "model.api_key_env": (["--api-key-env", "WORK_API_KEY"], "WORK_API_KEY"),
         "model.allow_plain_http_key": (["--allow-plain-http-key"], True),
-        "model.price.input": (price, 0.1),
-        "model.price.cached_input": (price, 0.01),
+        "model.price.input": (price, 0.2),
+        "model.price.cached_input": (price, 0.02),
         "model.price.output": (price, 0.8),
         "model.price.read_on": (price, "2026-10-01"),
         "measure.preset": (["--measure", "card"], "card"),
@@ -472,7 +476,7 @@ def test_fd1_1_the_written_file_is_the_same_bytes_in_every_process() -> None:
 
 def test_fd1_2_init_defaults_write_the_spec_file() -> None:
     """Keys, order, values and their TOML types; comments are not pinned."""
-    for argv in ([], ["--yes"]):
+    for argv in (MODEL_A_FLAGS, ["--yes", *MODEL_A_FLAGS]):
         written = config().dump_config(config().config_from_init_args(argv))
         assert active_keys(written) == active_keys(SPEC_FILE), active_keys(written)
         ours, spec = flatten(tomllib.loads(written)), flatten(tomllib.loads(SPEC_FILE))
@@ -481,7 +485,7 @@ def test_fd1_2_init_defaults_write_the_spec_file() -> None:
 
 
 def test_fd1_2_the_spec_file_reads_as_init_defaults() -> None:
-    assert config().loads_config(SPEC_FILE) == config().config_from_init_args([])
+    assert config().loads_config(SPEC_FILE) == config().config_from_init_args(MODEL_A_FLAGS)
 
 
 # --------------------------------------------------------------------------
@@ -983,7 +987,7 @@ def test_fd1_12_the_tokenizer_check_is_the_control() -> None:
 def test_fd1_6_init_defaults_carry_the_published_decoding_and_the_cards_price() -> None:
     """`config` may not import `calibration`, so it carries its own copy of the declared decoding
     and of model A's name and rates; this holds each equal to the published card's."""
-    made = config().config_from_init_args([])
+    made = config().config_from_init_args(MODEL_A_FLAGS)
     assert dict(plan_of(config().dump_config(made)).decoding) == cal().DECODING
     assert made.model.name == cal().MODEL_A
     artifact = json.loads(
@@ -1003,7 +1007,7 @@ def test_fd1_6_init_defaults_carry_the_published_decoding_and_the_cards_price() 
 
 SPEC_PRESETS = {
     # name: (endpoint, key variable, default model, key-check path)
-    "openai": ("https://api.openai.com/v1", "OPENAI_API_KEY", "gpt-5-nano-2025-08-07",
+    "openai": ("https://api.openai.com/v1", "OPENAI_API_KEY", "gpt-6-luna",
                "/models/{model}"),
     "anthropic": ("https://api.anthropic.com/v1/", "ANTHROPIC_API_KEY", None, "/models/{model}"),
     "ollama": ("http://127.0.0.1:11434/v1", "", "qwen3:8b", "/models"),
@@ -1054,7 +1058,7 @@ def test_ruling_4_a_local_model_gets_no_price_and_a_token_cap(argv: list[str], m
 
 
 def test_the_price_is_prefilled_only_for_the_published_model() -> None:
-    made = config().config_from_init_args([])
+    made = config().config_from_init_args(MODEL_A_FLAGS)
     assert made.model.price is not None
     assert (made.model.price.input, made.model.price.cached_input, made.model.price.output,
             made.model.price.read_on) == (0.05, 0.005, 0.40, "2026-09-25")
