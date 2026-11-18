@@ -39,13 +39,15 @@ FIXTURES = REPO / "tests" / "fixtures" / "o1"
 PROG = "poisson-tasks"
 
 SCHEMA = "poisson-tasks.produced-by/1"
-BUILT_IN_GENERATOR = "38a8db83a79c9d42059b77a3ef5ba018ec715fff9dcfda3c146ad27d8ba2921c"
-OWN_TOOLS_GENERATOR = "f941d7f8d7ae1694bac834f705c9283471fc65665a467ea9e717a8c6a395933a"
-GENERATOR_0_PREFIX = "49a5f6487831"
+BUILT_IN_GENERATOR = "98cbd21dc912bed4dbde5398748b832aae4711c2096f0092c296eab77b52eac3"
+OWN_TOOLS_GENERATOR = "f01bcf327965f6c8c5351cc7c985b9e1bf6cf5caacbeb8fbba2cc06215886032"
+GENERATOR_0_PREFIX = "2d3f28f56863"
 """The first twelve characters of what generator version "0" hashes to.  Moved 2026-10-29 for
 0.3.0 with the two hashes above: the label enters the hash over the same changed files.  Moved
 again 2026-11-05 for 0.4.0, with the two hashes, for the same reason (the stale-data spec's ruled
-change, Q1)."""
+change, Q1).  Moved again 2026-11-18 for 0.5.0, with the two hashes, for the same reason (the
+ruled fix to spread's base task); the prefix was not on the 0.5.0 design's list of tests to edit
+and was ruled onto it 2026-11-18."""
 VOCABULARY = "9f3a8c4f4711574e947ec8b3396ff552c9b7aa730fbb5d565db4f10776653037"
 """The bytes of `data/vocabulary-v2.json`: the vocabulary hash is their SHA-256."""
 
