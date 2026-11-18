@@ -94,3 +94,41 @@ Help goes to standard output and exits 0. It never needs an optional dependency,
 | 130 | Interrupted. |
 
 Exit 4 belongs to a check the user asked for, never to a result the user did not ask to gate on. A script that wants a result to fail asks for that.
+
+---
+
+## The banner
+
+A tool may open with a banner: a session on its first screen, a full-screen app on a screen of its
+own. Every tool's banner has one shape, so a person who has seen one knows the next. No verb prints
+it: L3's first line stays the verdict, and a pipe and `--json` never carry it.
+
+### Shape
+
+Two rows, 26 columns.
+
+| row | holds |
+|---|---|
+| 1 | the tool's mark, one terminal row of twelve cells; two spaces; `poisson labs`, bold |
+| 2 | under the name: the tool's name, bold; two spaces; its version, dim |
+
+- The mark is the tool's own, cell for cell the mark the site draws for it.
+- The mark may carry one colour of the tool's own, stepped down as the terminal's declared depth
+  requires, or none: the terminal's foreground with dim. This is the one colour outside the four
+  meanings, and it colours nothing else. The rest of the banner is bold and dim.
+
+### Narrow and plain forms
+
+- Below 26 columns, and in a session with `--plain` or `TERM=dumb`, the banner is one line:
+  `Poisson Labs  <tool> <version>`.
+- Under `NO_COLOR` the banner has no colour. A session prints the same two rows with no escape
+  sequence; a full-screen app keeps bold and dim, as on its other screens.
+
+### The opening screen
+
+- A full-screen app opens on the banner, centred in the body of the usual bands. The header holds the
+  tool's name and the store; the key bar lists `enter`, `? help` and `q quit`.
+- The app's first screen follows after a hold of 1.0 s, sooner on any key. `?` opens that screen's
+  help and `q` quits, exit 0. `Ctrl-C` exits 130, as everywhere.
+- A headless run opens straight on the first screen, since no one is watching it.
+- A session that is not full-screen prints the banner and one blank line, then its first screen.
