@@ -50,7 +50,24 @@ TOKENIZER_QUESTION = (
     "openaipublic.blob.core.windows.net. Fetch it now?"
 )
 PUBLISHED_MODEL = "gpt-5-nano-2025-08-07"
-PUBLISHED_PRICE_SHOWN = "0.05, 0.005, 0.40 — read 2026-09-25; check them"
+"""The model whose published card `PUBLISHED_NOTE` is about: gpt-5-nano's, measured on generator
+0.  It is no preset's default since 0.5.0; the note is shown to someone who names it."""
+
+
+def _figure(value: float) -> str:
+    """A price as the price page prints it: two decimals at least, three where it has them."""
+    text = f"{value:.4f}".rstrip("0")
+    whole, _, cents = text.partition(".")
+    return f"{whole}.{cents.ljust(2, '0')}"
+
+
+def price_shown(price: config.PriceConfig) -> str:
+    """A prefilled price as the question shows it: the three figures, and the date they were
+    read."""
+    figures = ", ".join(_figure(x) for x in (price.input, price.cached_input, price.output))
+    return f"{figures} — read {price.read_on}; check them"
+
+
 PUBLISHED_NOTE = (
     "This one has a published card. It was measured on an earlier build of the generator, so a "
     "card from your run cannot be read beside it in this release; a later release measures it "
@@ -253,6 +270,9 @@ def init(ctx: Context) -> Result:
                                      f"{ctx.command('doctor', '--fix', settings=False)} "
                                      "fetches it"))
     rows.append(Row("key", _key_words(made, found, check)))
+    unsent = _unsent_words(made)
+    if unsent is not None:
+        rows.append(Row("decoding", unsent))
     data: dict[str, Any] = {}
     if own_setup is not None:
         rows.append(Row("your tools", _tools_row(own_setup)))
@@ -301,6 +321,26 @@ def _estimate(made: Any, root: Path | None = None) -> Any:
         return runs.estimate(plan)
     except (config.ConfigError, OSError, ValueError):
         return None
+
+
+_DECODING_WORDS = (
+    ("top_p", "top_p"),
+    ("reasoning_effort", "the reasoning effort"),
+    ("max_tokens", "the token limit"),
+)
+
+
+def _unsent_words(made: Any) -> str | None:
+    """What the file leaves out of every model call, in words, or `None` when it leaves nothing
+    out: the fields of `[decoding]` it wrote as "not sent"."""
+    names = [words for field, words in _DECODING_WORDS
+             if getattr(made.decoding, field) == "not sent"]
+    if not names:
+        return None
+    listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+    verb, each = ("is", "it") if len(names) == 1 else ("are", "each")
+    return (f"{listed} {verb} not sent with a model call, so the model runs at its own default "
+            f"for {each}; [decoding] in the file sets {'it' if len(names) == 1 else 'them'}")
 
 
 def _key_words(made: Any, found: Any, check: bool | None) -> str:
@@ -409,14 +449,14 @@ def _dialogue(
 
     # 5. the price
     if preset.asks_price:
-        prefilled = provider == "openai" and model == PUBLISHED_MODEL
+        prefilled = config.published_price(provider, model)
         price_given = _given(settings, "--price")
         price_default: str | None
         if _given(settings, "--no-price") is not None:
             price_default = None
         elif price_given is not None:
             price_default = price_given.replace(",", ", ")
-        elif prefilled:
+        elif prefilled is not None:
             price_default = "published"
         else:
             price_default = None
@@ -426,7 +466,8 @@ def _dialogue(
             hint="It is used for the cost estimate and the spend cap. Input, cached input, output"
                  + ("" if price_default is not None else "; leave it blank for no price, and "
                     "the cap is then in tokens"),
-            shown=PUBLISHED_PRICE_SHOWN if price_default == "published" else price_default,
+            shown=(price_shown(prefilled) if prefilled is not None
+                   and price_default == "published" else price_default),
             validate=_valid_price,
         )
         if answer == "published":

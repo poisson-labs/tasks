@@ -148,7 +148,7 @@ def _default_words(flag: Any) -> str:
         if flag.flag == "--token-cap":
             return " (default: 2,000,000 without a price)"
         if flag.flag == "--price":
-            return " (default: the published price for gpt-5-nano-2025-08-07, else none)"
+            return " (default: the price table's, for a model it holds; else none)"
         return " (default: none)"
     return f" (default: {flag.default})"
 

@@ -153,9 +153,7 @@ _STRICTNESSES = ("strict", "leaky")
 _FIRST_LOOK_LEVELS = (1, 3, 8)
 _SEED_SPACE = 2**32
 
-# The published cards' design, and model A's declared rates: `calibration.S`, `calibration.N`,
-# `calibration.DECODING`, `calibration.MODEL_A`, and the rates and the date they were read in
-# model A's `artifact.json`.
+# The published cards' design: `calibration.S`, `calibration.N` and `calibration.DECODING`.
 _CARD_TASKS = 60
 _CARD_ATTEMPTS = 5
 _CARD_DECODING: dict[str, Any] = {
@@ -164,12 +162,15 @@ _CARD_DECODING: dict[str, Any] = {
     "reasoning_effort": "low",
     "max_tokens": 2048,
 }
-_PUBLISHED_MODEL = "gpt-5-nano-2025-08-07"
-_PUBLISHED_PRICE = {
-    "input": 0.05,
-    "cached_input": 0.005,
-    "output": 0.40,
-    "read_on": "2026-09-25",
+# The `openai` preset's default model since 0.5.0: the replacement OpenAI names for
+# gpt-5-nano-2025-08-07, which it retires on 2026-12-11.
+_PUBLISHED_MODEL = "gpt-6-luna"
+# The decoding fields `init` leaves unsent on a preset, unless a flag sets them.  Current Claude
+# models answer a request that carries both `temperature` and `top_p` with a 400, and
+# Anthropic's OpenAI-compatible endpoint ignores `reasoning_effort`, so on the `anthropic` preset
+# neither is sent and the model runs at its own defaults.
+_UNSENT_BY_DEFAULT: dict[str, tuple[tuple[str, str], ...]] = {
+    "anthropic": (("--top-p", "top_p"), ("--reasoning-effort", "reasoning_effort")),
 }
 
 _DEFAULT_TOKEN_CAP = 2_000_000
@@ -297,6 +298,41 @@ class ModelConfig:
     api_key_env: str
     allow_plain_http_key: bool = False
     price: PriceConfig | None = None
+
+
+PUBLISHED_PRICES: Mapping[str, PriceConfig] = types.MappingProxyType(
+    {
+        "gpt-6-luna": PriceConfig(
+            input=0.10, cached_input=0.01, output=0.50, read_on="2026-11-15"
+        ),
+        "claude-haiku-5-5": PriceConfig(
+            input=0.10, cached_input=0.01, output=0.50, read_on="2026-11-15"
+        ),
+        "gpt-5-nano-2025-08-07": PriceConfig(
+            input=0.05, cached_input=0.005, output=0.40, read_on="2026-09-25"
+        ),
+    }
+)
+"""The price table: each published model that is paid for in dollars, at the rates its provider's
+page gave on the date beside them, in dollars per million tokens.  gpt-5-nano-2025-08-07 stays
+in it until OpenAI retires the model on 2026-12-11.  The open model has no row: it is paid for
+in compute, and the presets that serve it ask for no price."""
+PUBLISHED_PRICE_PRESETS: Mapping[str, str] = types.MappingProxyType(
+    {
+        "gpt-6-luna": "openai",
+        "claude-haiku-5-5": "anthropic",
+        "gpt-5-nano-2025-08-07": "openai",
+    }
+)
+"""The preset that serves each model of the price table.  `init` prefills a model's price on
+that preset and on no other."""
+
+
+def published_price(provider: str, model: str) -> PriceConfig | None:
+    """The price `init` prefills for `model` on the preset `provider`, or `None`."""
+    if PUBLISHED_PRICE_PRESETS.get(model) != provider:
+        return None
+    return PUBLISHED_PRICES[model]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -972,8 +1008,9 @@ class _Reader:
             key = "tasks.generator_version"
             raise self.refusal(
                 key,
-                f"{self.name(key)} is {_show(version)}; the published cards were measured at "
-                f'"{DEFAULT_GENERATOR_VERSION}", and tasks at another version carry other ids',
+                f"{self.name(key)} is {_show(version)}; the card recipe makes its tasks at "
+                f'"{DEFAULT_GENERATOR_VERSION}", this release\'s generator, and tasks at another '
+                "version carry other ids",
             )
         return TasksConfig(
             per_level=_CARD_TASKS, seeds=None, attempts=_CARD_ATTEMPTS, generator_version=version
@@ -1569,12 +1606,12 @@ def _price_from_flags(
             raise fail("model.price", "--no-price is given beside a price; give one or the other")
         return None
     if figures is None:
-        prefilled = preset.name == "openai" and model == _PUBLISHED_MODEL
-        if not prefilled:
+        prefilled = published_price(preset.name, model)
+        if prefilled is None:
             if read_on is not None:
                 raise fail("model.price", "--price-read-on is given with no --price")
             return None
-        price = dict(_PUBLISHED_PRICE)
+        price = dataclasses.asdict(prefilled)
     else:
         parts = [part.strip() for part in figures.split(",")]
         try:
@@ -1698,12 +1735,16 @@ def config_from_init_args(
             if flag.key.startswith(prefix) and (flag.flag in given or flag.default is not None)
         }
 
+    decoding = of("decoding")
+    for flag, field in _UNSENT_BY_DEFAULT.get(provider, ()):
+        if flag not in given:
+            decoding[field] = _NOT_SENT
     document = {
         "version": SCHEMA_VERSION,
         "model": model,
         "measure": measure,
         "tasks": tasks,
-        "decoding": of("decoding"),
+        "decoding": decoding,
         "limits": {**limits, **{k: v for k, v in of("limits").items() if k not in limits}},
         "output": of("output"),
     }
