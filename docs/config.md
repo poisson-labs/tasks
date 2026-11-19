@@ -12,7 +12,7 @@ poisson-tasks init --yes --no-check-key --provider openai --recipe first-look
 ```
 <!-- docs-check: output -->
 ```
-ok  wrote tasks.toml: depth at 1, 3 and 8, 10 tasks each, against gpt-5-nano-2025-08-07
+ok  wrote tasks.toml: depth at 1, 3 and 8, 10 tasks each, against gpt-6-luna
   tokenizer       …
   key             …
   as one command  poisson-tasks doctor --show-command prints it
@@ -28,17 +28,17 @@ version = 1
 
 [model]
 provider = "openai"                 # openai | anthropic | ollama | vllm | openai-compatible
-name = "gpt-5-nano-2025-08-07"      # the model id the endpoint expects
+name = "gpt-6-luna"                 # the model id the endpoint expects
 base_url = "https://api.openai.com/v1"
 api_key_env = "OPENAI_API_KEY"      # the NAME of the variable that holds the key; "" for none.
                                     # Its name must contain API_KEY, which keeps the key from the program under test.
 # allow_plain_http_key = false      # send the key over plain http to another machine
 
 [model.price]                       # dollars per million tokens, from your provider's price page
-input = 0.05
-cached_input = 0.005
-output = 0.4
-read_on = "2026-09-25"              # when you read them
+input = 0.1
+cached_input = 0.01
+output = 0.5
+read_on = "2026-11-15"              # when you read them
 
 [measure]
 preset = "first-look"               # first-look | error-recovery | long-sessions | planning | profile | card | custom
@@ -97,7 +97,15 @@ The settings file's version, `1`. A file written by a newer Poisson Tasks is ref
 
 ### `[model.price]`
 
-Dollars per million tokens, from your provider's price page: `input`, `cached_input`, `output`, and `read_on`, the date you read them (`"2026-09-25"`). The only price Tasks fills in is `gpt-5-nano-2025-08-07`'s, with the date it was read; check it. No price table ships. Without a price a run is capped in tokens, not dollars, and its plan shows no dollar figure.
+Dollars per million tokens, from your provider's price page: `input`, `cached_input`, `output`, and `read_on`, the date you read them (`"2026-11-15"`). Tasks fills in a price for three models, each with the date it was read; check it against the provider's page before you rely on it.
+
+| model | on the provider | input | cached input | output | read on |
+|---|---|---|---|---|---|
+| `gpt-6-luna` | `openai` | 0.10 | 0.01 | 0.50 | 2026-11-15 |
+| `claude-haiku-5-5` | `anthropic` | 0.10 | 0.01 | 0.50 | 2026-11-15 |
+| `gpt-5-nano-2025-08-07` | `openai` | 0.05 | 0.005 | 0.40 | 2026-09-25 |
+
+`gpt-5-nano-2025-08-07` stays in the table until OpenAI retires the model on 2026-12-11. A model is filled in only on the provider that serves it, and no other model is filled in. Without a price a run is capped in tokens, not dollars, and its plan shows no dollar figure.
 
 ### `[measure]`
 
@@ -141,11 +149,13 @@ The `card` preset is the published cards' design, so it refuses a `per_level` or
 
 Sent with every model call. A value of `"not sent"` leaves a field out of every request, for a provider that refuses it.
 
+On the `anthropic` provider `init` writes `top_p = "not sent"` and `reasoning_effort = "not sent"`, and says so when it writes the file. Current Claude models answer a request that carries both `temperature` and `top_p` with an error, and Anthropic's OpenAI-compatible endpoint ignores `reasoning_effort`, so the model runs at its own default for both. `--top-p` and `--reasoning-effort` still set either.
+
 | key | allowed | default |
 |---|---|---|
 | `temperature` | a number above 0; it is always sent, because repeated attempts at a task need a decoding that is not deterministic | `1.0` |
-| `top_p` | a number above 0 and at most 1, or `"not sent"` | `1.0` |
-| `reasoning_effort` | text such as `"low"`, or `"not sent"` | `"low"` |
+| `top_p` | a number above 0 and at most 1, or `"not sent"` | `1.0`; `"not sent"` on `anthropic` |
+| `reasoning_effort` | text such as `"low"`, or `"not sent"` | `"low"`; `"not sent"` on `anthropic` |
 | `max_tokens` | a whole number, 1 or more, or `"not sent"` | `2048` |
 
 ### `[limits]`

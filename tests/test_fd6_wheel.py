@@ -225,6 +225,10 @@ def test_fd5_item_1_card_published_works_from_a_clean_wheel(with_tokenizer: Path
 
 DRY_RUN = ["run", "--dry-run", "--offline", "--plain"]
 INIT = ["init", "--yes", "--no-check-key", "--no-fetch", "--plain"]
+# Retrofitted for 0.5.0, ruled 2026-11-18: the two tests that read "for this model" in the
+# estimate row name the model the gpt-5-nano card measured, since the openai preset's default is
+# another one now.
+INIT_MODEL_A = [*INIT, "--model", "gpt-5-nano-2025-08-07"]
 
 
 def test_the_estimate_reads_the_cards_in_the_package(with_tokenizer: Path, tmp_path: Path) -> None:
@@ -234,7 +238,7 @@ def test_the_estimate_reads_the_cards_in_the_package(with_tokenizer: Path, tmp_p
     out = {}
     for label, root in (("ours", None), ("wheel", with_tokenizer)):
         work = tmp_path / label
-        made = run_from(root, INIT, work=work)
+        made = run_from(root, INIT_MODEL_A, work=work)
         assert made.returncode == 0, made.stderr[-2000:]
         planned = run_from(root, DRY_RUN, work=work)
         assert planned.returncode == 0 and planned.stderr == "", planned.stderr[-2000:]
@@ -255,7 +259,7 @@ def test_the_estimate_finds_a_card_by_its_model_whatever_its_folder_is_called(
     for folder, new in zip(sorted(cards.iterdir()), ("first-card-folder", "second-card-folder")):
         folder.rename(cards / new)
     work = tmp_path / "work"
-    assert run_from(renamed, INIT, work=work).returncode == 0
+    assert run_from(renamed, INIT_MODEL_A, work=work).returncode == 0
     planned = run_from(renamed, DRY_RUN, work=work)
     assert planned.returncode == 0, planned.stderr[-2000:]
     assert "estimate  from the published gpt-5-nano card for this model" in planned.stdout

@@ -7,8 +7,8 @@ short version; this page has every item.
 ## Money
 
 `run` prints its estimate before it asks, and the estimate names where it comes from (a
-published card, scaled to your plan). A first look is 30 episodes against `gpt-5-nano`: about
-two cents.
+published card, scaled to your plan). A first look is 30 episodes against `gpt-6-luna`: about
+three cents.
 
 Every run has a finite cap, by default the larger of $1.00 and twice the estimate, rounded up
 to a whole dollar. The cap is checked on measured usage, so a run can pass it by at most what

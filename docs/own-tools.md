@@ -82,7 +82,7 @@ poisson-tasks init --yes --no-check-key --own-file tools.json --own-name acme --
 ```
 <!-- docs-check: output -->
 ```
-ok  wrote tasks.toml: the first-look recipe on your tools (acme), 10 tasks each, against gpt-5-nano-2025-08-07
+ok  wrote tasks.toml: the first-look recipe on your tools (acme), 10 tasks each, against gpt-6-luna
   tokenizer       …
   key             …
   your tools      acme: 5 tools: 3 read, 0 write, 2 not known (treated as write), 0 refused; file: an OpenAI tools file, sha256 bf34e029e3fa609162c90e8709251c32db608d8aa0afd1f23432d500bd007ece; the responses are simulated from your schemas, and your backend is never called
@@ -136,7 +136,7 @@ ok  this environment is ready to run tasks.toml
   python      ok      …
   package     ok      …
   tokenizer   ok      …
-  config      ok      tasks.toml: the first-look recipe on your tools (acme), 10 tasks each, against gpt-5-nano-2025-08-07
+  config      ok      tasks.toml: the first-look recipe on your tools (acme), 10 tasks each, against gpt-6-luna
   key         ok      OPENAI_API_KEY is set (not checked: --offline)
   tools       ok      5 tools: 3 read, 0 write, 2 not known (treated as write), 0 refused in tools.json
   file        ok      file: an OpenAI tools file, sha256 bf34e029e3fa609162c90e8709251c32db608d8aa0afd1f23432d500bd007ece
@@ -180,15 +180,15 @@ poisson-tasks run --dry-run --offline
 ```
 <!-- docs-check: output -->
 ```
-plan  20 episodes against gpt-5-nano-2025-08-07: about $0.005, and the run stops at $1.00
+plan  20 episodes against gpt-6-luna: about $0.007, and the run stops at $1.00
   tasks       depth at 1 and 2, 10 tasks each · strict
   your tools  acme, 5 tools from tools.json; the responses are simulated from your schemas, and your backend is never called
-  model       gpt-5-nano-2025-08-07 at api.openai.com · key in OPENAI_API_KEY: not checked (--offline)
+  model       gpt-6-luna at api.openai.com · key in OPENAI_API_KEY: not checked (--offline)
   calls       50 if every task is solved the shortest way · about 50 expected · at most 640 (32 per episode)
-  cost        about $0.005 expected · the run stops at $1.00
-  estimate    from the published gpt-5-nano card for this model: its per-call usage on the built-in tasks, scaled to your tools' size
+  cost        about $0.007 expected · the run stops at $1.00
+  estimate    from the published gpt-5-nano card: its per-call usage on the built-in tasks, scaled to your tools' size; your model's usage will differ, and the cap is what holds
   harness     the first episode sets up uv with astral.sh's installer unless uv 0.6.10 or later is already on your PATH, and fetches four packages and their dependencies from PyPI
-  folder      runs/first-look-gpt-5-nano-2025-08-07 (a new run)
+  folder      runs/first-look-gpt-6-luna (a new run)
 ```
 
 ### Run it and read the card

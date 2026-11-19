@@ -34,6 +34,10 @@ from tests.test_o2d_b2 import _settled
 __all__ = ["work"]
 
 OWN = "from the published gpt-5-nano card for this model: its per-call usage on the built-in tasks, scaled to your tools' size"
+# Retrofitted for 0.5.0, ruled 2026-11-18: the three tests that run `init` name the model the
+# published gpt-5-nano card measured, since the openai preset's default is another one now and a
+# default plan's estimate is no longer from its own model's card.
+MODEL_A = ("--model", "gpt-5-nano-2025-08-07")
 
 
 def _row(out: str) -> str:
@@ -46,7 +50,7 @@ def test_fx35_10_the_estimate_row_on_your_own_tools_says_it_is_scaled_from_the_b
 ) -> None:
     """Red before the change: the row is the built-in one, *from the published gpt-5-nano card
     for this model*, and says nothing of the tools or the scaling."""
-    _settled(work, monkeypatch)
+    _settled(work, monkeypatch, *MODEL_A)
     dry = invoke(["run", "--dry-run", "--offline"], monkeypatch)
     assert dry.code == 0 and "your tools" in dry.out, dry
     assert _row(dry.out) == "estimate " + OWN, _row(dry.out)
@@ -56,7 +60,7 @@ def test_fx35_11_the_estimate_row_on_the_built_in_tasks_is_the_words_it_always_w
     work: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A control: green before the change, and the change keeps it green."""
-    made = invoke(["init", "--yes", "--no-fetch", "--no-check-key"], monkeypatch)
+    made = invoke(["init", "--yes", "--no-fetch", "--no-check-key", *MODEL_A], monkeypatch)
     assert made.code == 0, made
     dry = invoke(["run", "--dry-run", "--offline"], monkeypatch)
     assert dry.code == 0 and "your tools" not in dry.out, dry
@@ -89,7 +93,7 @@ def test_fx35_13_the_plans_json_names_the_card_as_it_did(
 ) -> None:
     """A control: green before the change.  The estimate's facts are the same; the row's words
     are the only thing that moves."""
-    _settled(work, monkeypatch)
+    _settled(work, monkeypatch, *MODEL_A)
     dry = invoke(["run", "--dry-run", "--offline", "--json"], monkeypatch)
     assert dry.code == 0, dry
     estimate = json.loads(dry.out)["estimate"]

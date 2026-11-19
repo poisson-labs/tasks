@@ -48,7 +48,7 @@ poisson-tasks run
 poisson-tasks card
 ```
 
-Python 3.11 to 3.13, on macOS or Linux. A first run against `gpt-5-nano` is 30 episodes and costs about two cents.
+Python 3.11 to 3.13, on macOS or Linux. A first run against `gpt-6-luna` is 30 episodes and costs about three cents.
 
 ---
 
@@ -79,7 +79,7 @@ It refuses to publish at all when more than 10% of the attempts at a level made 
 
 ## What a first run costs, and what it writes
 
-`run` prints its estimate before it asks. A first look is 30 episodes against `gpt-5-nano`: about two cents. Every run has a finite cap, by default the larger of $1.00 and twice the estimate, rounded up to a whole dollar.
+`run` prints its estimate before it asks. A first look is 30 episodes against `gpt-6-luna`: about three cents. Every run has a finite cap, by default the larger of $1.00 and twice the estimate, rounded up to a whole dollar.
 
 `init` and `run` write only to the folder you work in, apart from a short list:
 

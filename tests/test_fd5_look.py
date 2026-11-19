@@ -420,7 +420,9 @@ def test_item_2_plain_wraps_long_lines_on_a_terminal_with_a_hanging_indent(
                                   presses=30)
     assert code == 0, (out, err)
     defaults = re.findall(r"\[([^\[\]\n]*)\]", stripped(out) + stripped(err))
-    assert any("0.05" in default and "0.40" in default for default in defaults), defaults
+    # Retrofitted for 0.5.0, ruled 2026-11-18: the default model's prefilled price is
+    # gpt-6-luna's, 0.10, 0.01, 0.50.
+    assert any("0.10" in default and "0.50" in default for default in defaults), defaults
     # the newline after an answer is the terminal's echo, which lives on stdin's terminal (here
     # stdout's), so on stderr alone a prompt and the line after it share a line: split them
     questions = re.sub(r"\] (?= *\S)", "] \n", stripped(err))
@@ -606,8 +608,10 @@ def test_item_27_a_table_too_wide_for_the_terminal_moves_its_units_into_the_head
 def test_item_24_the_equivalent_command_is_printed_broken_before_its_flags(
     prog: str, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    made = invoke(["init", "--yes", "--no-fetch", "--no-check-key"], prog=prog,
-                  monkeypatch=monkeypatch)
+    # Retrofitted for 0.5.0, ruled 2026-11-18: the model is named.  The lines' widths below were
+    # written for this model's name, and the preset's default is another one now.
+    made = invoke(["init", "--yes", "--no-fetch", "--no-check-key", "--model",
+                   "gpt-5-nano-2025-08-07"], prog=prog, monkeypatch=monkeypatch)
     assert made.code == 0, made
     # Retrofitted with the guided session: the rule on commands is amended; `init`'s closing screen
     # names `doctor --show-command`, which prints the command broken before its flags.

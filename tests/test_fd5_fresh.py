@@ -313,9 +313,11 @@ def test_fd5_8_in_a_terminal_the_questions_come_in_spec_6_1s_order_with_its_defa
         lambda d: d.lower() == "y/n",
         lambda d: d == "1",  # added with the guided session: built-in tasks or your own tools
         lambda d: d == "1",
-        lambda d: d == "gpt-5-nano-2025-08-07",
+        # Retrofitted for 0.5.0, ruled 2026-11-18: the openai preset's default model is
+        # gpt-6-luna, with the price read for it on 2026-11-15.
+        lambda d: d == "gpt-6-luna",
         lambda d: d == "OPENAI_API_KEY",
-        lambda d: "0.05" in d and "0.005" in d and "0.40" in d,
+        lambda d: "0.10" in d and "0.01" in d and "0.50" in d,
         lambda d: d == "1",
         lambda d: d == "10",
         lambda d: d == "1",

@@ -115,7 +115,7 @@ poisson-tasks init --yes --no-check-key --provider openai --recipe first-look --
 ```
 <!-- docs-check: output -->
 ```
-ok  wrote tasks.toml: depth at 1, 3 and 8, 10 tasks each, against gpt-5-nano-2025-08-07
+ok  wrote tasks.toml: depth at 1, 3 and 8, 10 tasks each, against gpt-6-luna
   tokenizer       …
   key             …
   as one command  poisson-tasks doctor --show-command prints it
@@ -187,8 +187,8 @@ options:
   --allow-plain-http-key
                         send the key over plain http to another machine
   --price I,C,O         the price, dollars per million tokens: input, cached
-                        input, output (default: the published price for
-                        gpt-5-nano-2025-08-07, else none)
+                        input, output (default: the price table's, for a model
+                        it holds; else none)
   --price-read-on DATE  the date the prices were read, as 2026-09-25 (default:
                         none)
   --no-price            no price: the cap is then in tokens
@@ -379,14 +379,14 @@ poisson-tasks run --dry-run --offline
 ```
 <!-- docs-check: output -->
 ```
-plan  30 episodes against gpt-5-nano-2025-08-07: about $0.02, and the run stops at $1.00
+plan  30 episodes against gpt-6-luna: about $0.03, and the run stops at $1.00
   tasks     depth at 1, 3 and 8, 10 tasks each · strict
-  model     gpt-5-nano-2025-08-07 at api.openai.com · key in OPENAI_API_KEY: not checked (--offline)
+  model     gpt-6-luna at api.openai.com · key in OPENAI_API_KEY: not checked (--offline)
   calls     150 if every task is solved the shortest way · about 190 expected · at most 960 (32 per episode)
-  cost      about $0.02 expected · the run stops at $1.00
-  estimate  from the published gpt-5-nano card for this model
+  cost      about $0.03 expected · the run stops at $1.00
+  estimate  from the published gpt-5-nano card; your model's usage will differ, and the cap is what holds
   harness   the first episode sets up uv with astral.sh's installer unless uv 0.6.10 or later is already on your PATH, and fetches four packages and their dependencies from PyPI
-  folder    runs/first-look-gpt-5-nano-2025-08-07 (a new run)
+  folder    runs/first-look-gpt-6-luna (a new run)
 ```
 
 <!-- docs-check: run -->
@@ -672,7 +672,7 @@ ok  this environment is ready to run tasks.toml
   python     ok      …
   package    ok      …
   tokenizer  ok      …
-  config     ok      tasks.toml: depth at 1, 3 and 8, 10 tasks each, against gpt-5-nano-2025-08-07
+  config     ok      tasks.toml: depth at 1, 3 and 8, 10 tasks each, against gpt-6-luna
   key        ok      OPENAI_API_KEY is set (not checked: --offline)
   harness    ok      …
   platform   ok      …

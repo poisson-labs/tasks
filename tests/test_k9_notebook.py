@@ -118,7 +118,8 @@ def test_every_step_that_takes_the_run_folders_takes_the_design() -> None:
         )
         assert args.design == "card", name
         design = [a for a in choices[name]._actions if "--design" in a.option_strings]
-        assert design and tuple(design[0].choices or ()) == ("card", "knob-probe"), name
+        # Retrofitted for 0.5.0, ruled 2026-11-18: the driver gains the version 2 card's design.
+        assert design and tuple(design[0].choices or ()) == ("card", "knob-probe", "card-v2"), name
 
 
 def test_the_re_run_cell_runs_its_step_only_when_an_arm_is_named() -> None:
