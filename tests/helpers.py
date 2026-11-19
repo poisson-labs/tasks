@@ -184,8 +184,11 @@ def rebuild_committed_card(folder: Path) -> tuple[cal.Artifact, Cells]:
 # The plain-words checks' pattern: identifiers of internal decisions and test groups, spec
 # section numbers, and the names of private places and people.  Whole words only, so a model
 # name or a version number does not trip it.
+# Retrofitted 2026-11-18, ruled yes by Taylor in the 0.5.0 run path's build session: `A100` is
+# let through.  It is a GPU's name, which the notebook and its driver must say for the version
+# 2 card's open model, and it read as an identifier (a letter and digits).
 INTERNAL = re.compile(
-    r"\b(?:R(?:[1-9]|1[0-7])|CAL\d+|MP\d+|[XNGAE]\d+)\b"
+    r"\b(?:R(?:[1-9]|1[0-7])|CAL\d+|MP\d+|(?!A100\b)[XNGAE]\d+)\b"
     r"|\b2\.\d defines\b|§|\bTG-(?:ADR|M)\d*|\b[Vv]ault\b|\bTaylor\b|\bruling\b|\bhandoff\b"
 )
 
