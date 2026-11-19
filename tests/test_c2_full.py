@@ -145,7 +145,18 @@ def test_a_run_stopped_by_its_cap_keeps_every_decision_arm(hosted: dict[str, Any
     assert capped["code"] == 4, capped["out"] + capped["err"]
     status = hosted["capped_status"]
     assert (status["verdict"], status["stop"]) == ("stopped", "spend_cap")
-    assert status["spent"] <= hosted["cap"] < hosted["total"]
+    # Retrofitted 2026-11-19, ruled yes by Taylor after the full-size run: at the registered
+    # size the run has 64 episodes in flight, and the run engine's cap is a bound, the cap plus
+    # the cost of the calls in flight when it was reached.  So at full size the spend may pass
+    # the cap by at most one episode of the costliest arm for each episode in flight; one
+    # episode at a time, at the smaller size, it may not pass it at all, as first written.
+    allowance = 0.0
+    if full_size():
+        spend = read(hosted["clean"]["folder"] / "artifact.json")["provenance"]["run"][
+            "spend_by_arm"]
+        allowance = CONCURRENCY * max(spend.values()) / per_arm(design)
+    assert status["spent"] <= hosted["cap"] + allowance
+    assert hosted["cap"] < hosted["total"]
     complete = hosted["capped_complete"]
     assert complete[: len(hosted["deciding"])] == hosted["deciding"]
     owed = [arm for arm in design.arms if arm not in complete]
