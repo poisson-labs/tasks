@@ -89,6 +89,9 @@ __all__ = [
     "equivalent_init_command",
     "Preset",
     "PRESETS",
+    "PUBLISHED_PRICES",
+    "PUBLISHED_PRICE_PRESETS",
+    "published_price",
     "PRESET_NAMES",
     "SCHEMA_VERSION",
 ]
