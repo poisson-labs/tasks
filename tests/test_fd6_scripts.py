@@ -160,8 +160,11 @@ def test_fd6_6_the_task_the_example_prints_is_the_task_the_library_makes_at_0() 
 # ---------------------------------------------------------------------------
 
 
+# Retrofitted 2026-11-18, ruled yes by Taylor in the 0.5.0 run path's build session:
+# `install-vllm` reads `--design`, since the version 2 card's design is served by another pinned
+# vLLM than the other two.
 READS = {
-    "install-vllm": {"--venv", "--dry-run"},
+    "install-vllm": {"--venv", "--dry-run", "--design"},
     "serve": {"--local", "--port", "--vllm", "--tokenizer-config", "--timeout"},
     "stop-server": {"--local"},
     "preflight": {"--local", "--durable", "--port", "--design"},
